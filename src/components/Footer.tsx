@@ -1,0 +1,97 @@
+import { Heart, Facebook, Instagram, Youtube, Mail, Phone, MapPin } from "lucide-react";
+
+const Footer = () => {
+  return (
+    <footer className="bg-foreground text-white">
+      <div className="container mx-auto px-4 py-12">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {/* Logo and Description */}
+          <div className="col-span-1">
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">✝</span>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Iglesia Vida Nueva</h3>
+                <p className="text-sm text-white/70">Comunidad Cristiana</p>
+              </div>
+            </div>
+            <p className="text-white/80 mb-4">
+              Transformando vidas a través del amor de Cristo desde 1995. 
+              Una iglesia donde todos son bienvenidos.
+            </p>
+            <div className="flex space-x-3">
+              <a href="#" className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-primary transition-colors">
+                <Facebook className="w-4 h-4" />
+              </a>
+              <a href="#" className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-primary transition-colors">
+                <Instagram className="w-4 h-4" />
+              </a>
+              <a href="#" className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-primary transition-colors">
+                <Youtube className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+
+          {/* Quick Links */}
+          <div>
+            <h4 className="text-lg font-semibold mb-4">Enlaces Rápidos</h4>
+            <ul className="space-y-2 text-white/80">
+              <li><a href="#inicio" className="hover:text-primary transition-colors">Inicio</a></li>
+              <li><a href="#servicios" className="hover:text-primary transition-colors">Servicios</a></li>
+              <li><a href="#nosotros" className="hover:text-primary transition-colors">Acerca de Nosotros</a></li>
+              <li><a href="#contacto" className="hover:text-primary transition-colors">Contacto</a></li>
+              <li><a href="#" className="hover:text-primary transition-colors">Ministerios</a></li>
+              <li><a href="#" className="hover:text-primary transition-colors">Eventos</a></li>
+            </ul>
+          </div>
+
+          {/* Service Times */}
+          <div>
+            <h4 className="text-lg font-semibold mb-4">Horarios de Servicio</h4>
+            <ul className="space-y-2 text-white/80">
+              <li>🌅 Primer Servicio: 9:00 AM</li>
+              <li>☀️ Segundo Servicio: 11:30 AM</li>
+              <li>🌙 Servicio Nocturno: 6:00 PM</li>
+              <li>📖 Estudio Bíblico: Miércoles 7:00 PM</li>
+              <li>👥 Grupos Pequeños: Viernes 7:30 PM</li>
+              <li>🎵 Alabanza: Sábados 7:00 PM</li>
+            </ul>
+          </div>
+
+          {/* Contact Info */}
+          <div>
+            <h4 className="text-lg font-semibold mb-4">Contacto</h4>
+            <div className="space-y-3 text-white/80">
+              <div className="flex items-start space-x-2">
+                <MapPin className="w-4 h-4 mt-1 flex-shrink-0" />
+                <span className="text-sm">
+                  Av. Principal 123, Colonia Centro<br />
+                  Ciudad, Estado 12345
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Phone className="w-4 h-4 flex-shrink-0" />
+                <span className="text-sm">(555) 123-4567</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Mail className="w-4 h-4 flex-shrink-0" />
+                <span className="text-sm">info@iglesiavidanueva.org</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="border-t border-white/20 mt-8 pt-8 text-center">
+          <p className="text-white/60 text-sm flex items-center justify-center">
+            © 2024 Iglesia Vida Nueva. Hecho con
+            <Heart className="w-4 h-4 mx-1 text-red-400" />
+            para la gloria de Dios
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;
