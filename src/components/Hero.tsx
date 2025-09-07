@@ -26,12 +26,29 @@ const Hero = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-            <Button variant="hero" size="lg" className="text-lg px-8 py-4">
+            <Button 
+              variant="hero" 
+              size="lg" 
+              className="text-lg px-8 py-4"
+              onClick={() => {
+                const event = new CustomEvent('openRegistrationModal');
+                window.dispatchEvent(event);
+              }}
+            >
               <Users className="w-5 h-5 mr-2" />
               Únete a Nosotros
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
-            <Button variant="divine" size="lg" className="text-lg px-8 py-4">
+            <Button 
+              variant="divine" 
+              size="lg" 
+              className="text-lg px-8 py-4"
+              onClick={() => {
+                document.getElementById('nosotros')?.scrollIntoView({ 
+                  behavior: 'smooth' 
+                });
+              }}
+            >
               <Heart className="w-5 h-5 mr-2" />
               Conoce Más
             </Button>
@@ -41,9 +58,9 @@ const Hero = () => {
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 max-w-md mx-auto border border-white/20">
             <h3 className="text-lg font-semibold mb-4">Servicios Dominicales</h3>
             <div className="space-y-2 text-white/90">
-              <p>🌅 Primer Servicio: 9:00 AM</p>
-              <p>☀️ Segundo Servicio: 11:30 AM</p>
-              <p>🌙 Servicio Nocturno: 6:00 PM</p>
+              <p>🌅 Primer Servicio: 7:00 AM</p>
+              <p>☀️ Segundo Servicio: 9:00 AM</p>
+              <p>🌙 Tercer Servicio: 11:00 AM</p>
             </div>
           </div>
         </div>

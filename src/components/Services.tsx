@@ -6,7 +6,7 @@ const Services = () => {
     {
       title: "Servicio Dominical",
       description: "Adoración, predicación y comunión",
-      time: "Domingos 9:00 AM, 11:30 AM y 6:00 PM",
+      time: "Domingos 7:00 AM, 9:00 AM y 11:00 AM",
       icon: Heart,
       color: "bg-primary/10 text-primary"
     },
