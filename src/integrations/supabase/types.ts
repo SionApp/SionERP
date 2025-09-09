@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      live_streams: {
+        Row: {
+          actual_start: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_live: boolean
+          scheduled_start: string | null
+          title: string
+          updated_at: string
+          youtube_video_id: string | null
+        }
+        Insert: {
+          actual_start?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_live?: boolean
+          scheduled_start?: string | null
+          title?: string
+          updated_at?: string
+          youtube_video_id?: string | null
+        }
+        Update: {
+          actual_start?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_live?: boolean
+          scheduled_start?: string | null
+          title?: string
+          updated_at?: string
+          youtube_video_id?: string | null
+        }
+        Relationships: []
+      }
       permissions: {
         Row: {
           created_at: string | null

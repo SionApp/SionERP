@@ -1,15 +1,46 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Users } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 const LiveStream = () => {
-  // En producción, esto vendría de tu base de datos o API
-  const isLive = false; // Cambiar a true cuando esté en vivo
+  const [liveStream, setLiveStream] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLiveStream();
+  }, []);
+
+  const fetchLiveStream = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('live_streams')
+        .select('*')
+        .eq('is_live', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching live stream:', error);
+      } else {
+        setLiveStream(data);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const nextService = {
     date: "Domingo, 14 de Enero",
     time: "9:00 AM",
     title: "Servicio Dominical"
   };
+
+  const isLive = liveStream?.is_live && liveStream?.youtube_video_id;
 
   return (
     <section id="streaming" className="py-20 bg-gradient-to-br from-primary/5 to-background">
@@ -39,7 +70,7 @@ const LiveStream = () => {
                 )}
               </div>
               <CardTitle className="text-2xl font-bold text-foreground">
-                {isLive ? "Servicio en Vivo" : nextService.title}
+                {isLive ? (liveStream.title || "Servicio en Vivo") : nextService.title}
               </CardTitle>
             </CardHeader>
             
@@ -47,8 +78,8 @@ const LiveStream = () => {
               {isLive ? (
                 <div className="relative aspect-video bg-black">
                   <iframe
-                    src="https://www.youtube.com/embed/YOUR_LIVE_STREAM_ID"
-                    title="Iglesia Vida Nueva - Servicio en Vivo"
+                    src={`https://www.youtube.com/embed/${liveStream.youtube_video_id}?autoplay=1&mute=1`}
+                    title={liveStream.title || "Iglesia Vida Nueva - Servicio en Vivo"}
                     className="w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
