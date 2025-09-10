@@ -4,7 +4,7 @@ import { Menu, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import sionLogo from "@/assets/sion-logo.png";
+import sionLogo from "@/assets/sion-logo-final.png";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
