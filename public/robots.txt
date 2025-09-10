@@ -12,3 +12,8 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+Sitemap: https://iglesiasion.com/sitemap.xml
+
+# Optimized for Sion Church SEO
+# Keywords: Iglesia Sion, Sion Church, Iglesia Pentecostal, Pentecostal Church
