@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -16,8 +17,8 @@ const Header = () => {
               <span className="text-white font-bold text-lg">✝</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">Iglesia Vida Nueva</h1>
-              <p className="text-sm text-muted-foreground">Comunidad Cristiana</p>
+              <h1 className="text-xl font-bold text-foreground">Iglesia Evangélica Pentecostal Sion</h1>
+              <p className="text-sm text-muted-foreground">Cambiando vidas</p>
             </div>
           </div>
           
@@ -43,6 +44,7 @@ const Header = () => {
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
+            <LanguageSwitcher />
             <ThemeToggle />
             <Button variant="default" size="sm">
               Únete a Nosotros
@@ -50,6 +52,7 @@ const Header = () => {
           </div>
 
           <div className="md:hidden flex items-center gap-2">
+            <LanguageSwitcher />
             <ThemeToggle />
             <Button
               variant="ghost"
