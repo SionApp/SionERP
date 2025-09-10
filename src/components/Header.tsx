@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import sionLogo from "@/assets/sion-logo.png";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -13,8 +14,12 @@ const Header = () => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">✝</span>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden bg-background">
+              <img 
+                src={sionLogo} 
+                alt="Iglesia Sion" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <div>
               <h1 className="text-xl font-bold text-foreground">Iglesia Evangélica Pentecostal Sion</h1>
@@ -22,7 +27,7 @@ const Header = () => {
             </div>
           </div>
           
-          <nav className="hidden md:flex items-center space-x-8">
+          <nav className="hidden lg:flex items-center space-x-8">
             <a href="#inicio" className="text-muted-foreground hover:text-foreground transition-colors">
               Inicio
             </a>
@@ -43,7 +48,7 @@ const Header = () => {
             </a>
           </nav>
 
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden lg:flex items-center gap-4">
             <LanguageSwitcher />
             <ThemeToggle />
             <Button variant="default" size="sm">
@@ -51,7 +56,7 @@ const Header = () => {
             </Button>
           </div>
 
-          <div className="md:hidden flex items-center gap-2">
+          <div className="lg:hidden flex items-center gap-2">
             <LanguageSwitcher />
             <ThemeToggle />
             <Button
@@ -66,7 +71,7 @@ const Header = () => {
 
         {/* Mobile menu */}
         {isMenuOpen && (
-          <div className="md:hidden mt-4 pb-4 border-t border-border">
+          <div className="lg:hidden mt-4 pb-4 border-t border-border animate-fade-in">
             <nav className="flex flex-col space-y-4 pt-4">
               <a href="#inicio" className="text-muted-foreground hover:text-foreground transition-colors">
                 Inicio
