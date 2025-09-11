@@ -1,13 +1,26 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import sionLogo from "@/assets/sion-logo-final.png";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleNavigation = (anchor: string) => {
+    if (location.pathname === '/') {
+      // Si estamos en la página principal, navegar directamente al anchor
+      document.querySelector(anchor)?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      // Si estamos en otra página, ir al home con el anchor
+      navigate(`/${anchor}`);
+    }
+    setIsMenuOpen(false);
+  };
 
   return (
     <header className="bg-background/95 backdrop-blur-sm border-b border-border/50 sticky top-0 z-50 transition-all duration-300">
@@ -28,24 +41,24 @@ const Header = () => {
           </div>
           
           <nav className="hidden lg:flex items-center space-x-8">
-            <a href="#inicio" className="text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={() => handleNavigation('#inicio')} className="text-muted-foreground hover:text-foreground transition-colors">
               Inicio
-            </a>
-            <a href="#servicios" className="text-muted-foreground hover:text-foreground transition-colors">
+            </button>
+            <button onClick={() => handleNavigation('#servicios')} className="text-muted-foreground hover:text-foreground transition-colors">
               Servicios
-            </a>
-            <a href="#nosotros" className="text-muted-foreground hover:text-foreground transition-colors">
+            </button>
+            <button onClick={() => handleNavigation('#nosotros')} className="text-muted-foreground hover:text-foreground transition-colors">
               Nosotros
-            </a>
-            <a href="#streaming" className="text-muted-foreground hover:text-foreground transition-colors">
+            </button>
+            <button onClick={() => handleNavigation('#streaming')} className="text-muted-foreground hover:text-foreground transition-colors">
               En Vivo
-            </a>
+            </button>
             <Link to="/galeria" className="text-muted-foreground hover:text-foreground transition-colors">
               Galería
             </Link>
-            <a href="#contacto" className="text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={() => handleNavigation('#contacto')} className="text-muted-foreground hover:text-foreground transition-colors">
               Contacto
-            </a>
+            </button>
           </nav>
 
           <div className="hidden lg:flex items-center gap-4">
@@ -73,24 +86,24 @@ const Header = () => {
         {isMenuOpen && (
           <div className="lg:hidden mt-4 pb-4 border-t border-border animate-fade-in">
             <nav className="flex flex-col space-y-4 pt-4">
-              <a href="#inicio" className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => handleNavigation('#inicio')} className="text-muted-foreground hover:text-foreground transition-colors text-left">
                 Inicio
-              </a>
-              <a href="#servicios" className="text-muted-foreground hover:text-foreground transition-colors">
+              </button>
+              <button onClick={() => handleNavigation('#servicios')} className="text-muted-foreground hover:text-foreground transition-colors text-left">
                 Servicios
-              </a>
-              <a href="#nosotros" className="text-muted-foreground hover:text-foreground transition-colors">
+              </button>
+              <button onClick={() => handleNavigation('#nosotros')} className="text-muted-foreground hover:text-foreground transition-colors text-left">
                 Nosotros
-              </a>
-              <a href="#streaming" className="text-muted-foreground hover:text-foreground transition-colors">
+              </button>
+              <button onClick={() => handleNavigation('#streaming')} className="text-muted-foreground hover:text-foreground transition-colors text-left">
                 En Vivo
-              </a>
+              </button>
               <Link to="/galeria" className="text-muted-foreground hover:text-foreground transition-colors">
                 Galería
               </Link>
-              <a href="#contacto" className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => handleNavigation('#contacto')} className="text-muted-foreground hover:text-foreground transition-colors text-left">
                 Contacto
-              </a>
+              </button>
               <Button variant="default" size="sm" className="mt-4 self-start">
                 Únete a Nosotros
               </Button>
