@@ -1,6 +1,19 @@
 import { Heart, Facebook, Instagram, Youtube, Mail, Phone, MapPin } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import sionLogo from "@/assets/sion-logo-final.png";
 
 const Footer = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleNavigation = (anchor: string) => {
+    if (location.pathname === '/') {
+      document.querySelector(anchor)?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      navigate(`/${anchor}`);
+    }
+  };
+
   return (
     <footer className="bg-primary text-primary-foreground dark:bg-background dark:text-foreground dark:border-t border-border">
       <div className="container mx-auto px-4 py-12">
@@ -8,8 +21,12 @@ const Footer = () => {
           {/* Logo and Description */}
           <div className="col-span-1">
             <div className="flex items-center space-x-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">✝</span>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden bg-background">
+                <img 
+                  src={sionLogo} 
+                  alt="Iglesia Sion" 
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div>
                 <h3 className="text-xl font-bold">Iglesia Evangélica Pentecostal Sion</h3>
@@ -37,12 +54,12 @@ const Footer = () => {
           <div>
             <h4 className="text-lg font-semibold mb-4">Enlaces Rápidos</h4>
             <ul className="space-y-2 opacity-80">
-              <li><a href="#inicio" className="hover:text-accent transition-colors">Inicio</a></li>
-              <li><a href="#servicios" className="hover:text-accent transition-colors">Servicios</a></li>
-              <li><a href="#nosotros" className="hover:text-accent transition-colors">Acerca de Nosotros</a></li>
-              <li><a href="#contacto" className="hover:text-accent transition-colors">Contacto</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Ministerios</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Eventos</a></li>
+              <li><button onClick={() => handleNavigation('#inicio')} className="hover:text-accent transition-colors text-left">Inicio</button></li>
+              <li><button onClick={() => handleNavigation('#servicios')} className="hover:text-accent transition-colors text-left">Servicios</button></li>
+              <li><button onClick={() => handleNavigation('#nosotros')} className="hover:text-accent transition-colors text-left">Acerca de Nosotros</button></li>
+              <li><button onClick={() => handleNavigation('#contacto')} className="hover:text-accent transition-colors text-left">Contacto</button></li>
+              <li><Link to="/galeria" className="hover:text-accent transition-colors">Galería</Link></li>
+              <li><button onClick={() => handleNavigation('#streaming')} className="hover:text-accent transition-colors text-left">En Vivo</button></li>
             </ul>
           </div>
 
@@ -76,7 +93,7 @@ const Footer = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="w-4 h-4 flex-shrink-0" />
-                <span className="text-sm">info@iglesiavidanueva.org</span>
+                <span className="text-sm">info@iglesiasion.org</span>
               </div>
             </div>
           </div>
