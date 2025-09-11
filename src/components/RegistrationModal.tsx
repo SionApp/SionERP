@@ -6,11 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, UserPlus } from "lucide-react";
+import { Loader2, UserPlus, Shield } from "lucide-react";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 const RegistrationModal = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -41,6 +43,16 @@ const RegistrationModal = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!turnstileToken) {
+      toast({
+        title: "Error de seguridad",
+        description: "Por favor, completa la verificación de seguridad.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
@@ -216,6 +228,22 @@ const RegistrationModal = () => {
                 />
               </div>
             )}
+          </div>
+
+          {/* Cloudflare Turnstile */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-primary" />
+              Verificación de seguridad
+            </Label>
+            <div className="flex justify-center">
+              <Turnstile
+                siteKey="1x00000000000000000000AA"
+                onSuccess={setTurnstileToken}
+                onError={() => setTurnstileToken("")}
+                onExpire={() => setTurnstileToken("")}
+              />
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">
