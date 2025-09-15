@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Heart, Users } from "lucide-react";
-import churchHero from "@/assets/church-hero.jpg";
+import churchHero from "@/assets/church-hero-enhanced.jpg";
 
 const Hero = () => {
   return (
