@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Heart, Users, BookOpen, Globe } from "lucide-react";
-import worshipCommunity from "@/assets/worship-community.jpg";
+import worshipCommunity from "@/assets/church-history.jpg";
 import pastorSpeaking from "@/assets/pastor-enhanced.jpg";
 
 const About = () => {
