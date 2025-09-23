@@ -7,6 +7,7 @@ import { LogOut } from 'lucide-react';
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const DashboardLayout = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -70,7 +71,7 @@ const DashboardLayout = () => {
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl bg-accent/30 backdrop-blur-sm border border-border/30">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md">
                 <span className="text-primary-foreground font-semibold text-xs">
@@ -84,6 +85,9 @@ const DashboardLayout = () => {
                 <p className="text-xs text-muted-foreground">Administrador</p>
               </div>
             </div>
+            
+            <ThemeToggle />
+            
             <Button 
               variant="ghost" 
               size="sm"
