@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Heart, Users } from "lucide-react";
+import { ArrowRight, Settings, Users, BarChart3, UserCheck } from "lucide-react";
 import churchHero from "@/assets/church-hero-enhanced.jpg";
 
 const Hero = () => {
@@ -15,52 +15,69 @@ const Hero = () => {
       
       {/* Content */}
       <div className="relative z-10 container mx-auto px-4 text-center text-white">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-            Bienvenido a
-            <span className="block text-accent font-black">Vida Nueva</span>
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-6">
+            <div className="inline-flex items-center bg-white/10 backdrop-blur-md rounded-full px-6 py-2 border border-white/20 mb-4">
+              <Settings className="w-5 h-5 mr-2 text-accent" />
+              <span className="text-sm font-medium">Sistema de Gestión Eclesiástica</span>
+            </div>
+          </div>
+          
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+            <span className="text-accent font-black">SION</span>
+            <span className="block text-3xl md:text-4xl lg:text-5xl font-semibold mt-2">Cambiando Vidas</span>
           </h1>
           
-          <p className="text-xl md:text-2xl mb-8 text-white/90 max-w-2xl mx-auto leading-relaxed">
-            Una comunidad de fe donde experimentarás el amor de Dios y encontrarás tu propósito
+          <p className="text-lg md:text-xl mb-8 text-white/90 max-w-3xl mx-auto leading-relaxed">
+            Plataforma integral de administración eclesiástica. Gestiona cultos, departamentos, 
+            discipulado y toda la organización de tu iglesia desde un solo lugar.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
             <Button 
               variant="hero" 
               size="lg" 
-              className="text-lg px-8 py-4"
+              className="text-lg px-10 py-4 font-semibold"
               onClick={() => {
                 const event = new CustomEvent('openRegistrationModal');
                 window.dispatchEvent(event);
               }}
             >
-              <Users className="w-5 h-5 mr-2" />
-              Únete a Nosotros
+              <UserCheck className="w-5 h-5 mr-2" />
+              Acceder al Sistema
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
             <Button 
               variant="divine" 
               size="lg" 
-              className="text-lg px-8 py-4"
+              className="text-lg px-10 py-4 font-semibold"
               onClick={() => {
-                document.getElementById('nosotros')?.scrollIntoView({ 
+                document.getElementById('modulos')?.scrollIntoView({ 
                   behavior: 'smooth' 
                 });
               }}
             >
-              <Heart className="w-5 h-5 mr-2" />
-              Conoce Más
+              <BarChart3 className="w-5 h-5 mr-2" />
+              Ver Módulos
             </Button>
           </div>
           
-          {/* Service Times */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 max-w-md mx-auto border border-white/20">
-            <h3 className="text-lg font-semibold mb-4">Servicios Dominicales</h3>
-            <div className="space-y-2 text-white/90">
-              <p>🌅 Primer Servicio: 7:00 AM</p>
-              <p>☀️ Segundo Servicio: 9:00 AM</p>
-              <p>🌙 Tercer Servicio: 11:00 AM</p>
+          {/* System Stats */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 max-w-2xl mx-auto border border-white/20">
+            <h3 className="text-lg font-semibold mb-6 text-center">Administración Integral</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+              <div className="space-y-1">
+                <div className="text-2xl font-bold text-accent">📊</div>
+                <p className="text-sm text-white/90">Gestión de Cultos</p>
+              </div>
+              <div className="space-y-1">
+                <div className="text-2xl font-bold text-accent">👥</div>
+                <p className="text-sm text-white/90">Módulo Discipulado</p>
+              </div>
+              <div className="space-y-1">
+                <div className="text-2xl font-bold text-accent">⚙️</div>
+                <p className="text-sm text-white/90">Departamentos</p>
+              </div>
             </div>
           </div>
         </div>
