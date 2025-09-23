@@ -1,4 +1,4 @@
-import { Users, UserPlus, Shield, Home, Settings, BarChart3 } from "lucide-react";
+import { Users, UserPlus, Shield, Home, Settings, BarChart3, Sparkles } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
@@ -10,7 +10,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -33,12 +32,31 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="icon"
+      className="border-r border-border/50 backdrop-blur-lg bg-[var(--glass-background)]"
     >
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Sistema Sion</SidebarGroupLabel>
+      <SidebarContent className="bg-transparent">
+        <div className="p-4 border-b border-border/30">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
+              <Sparkles className="h-4 w-4 text-primary-foreground" />
+            </div>
+            {state !== "collapsed" && (
+              <div>
+                <h3 className="font-bold text-sm bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                  Sistema Sion
+                </h3>
+                <p className="text-xs text-muted-foreground">Panel Admin</p>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <SidebarGroup className="px-2 py-4">
+          <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground mb-2">
+            {state !== "collapsed" && "NAVEGACIÓN"}
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
@@ -46,13 +64,23 @@ export function AppSidebar() {
                       to={item.url} 
                       end={item.url === "/dashboard"}
                       className={({ isActive }) =>
-                        isActive 
-                          ? "bg-primary text-primary-foreground font-medium" 
-                          : "hover:bg-muted/50"
+                        `relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 group ${
+                          isActive 
+                            ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-[var(--shadow-accent)] scale-[1.02]" 
+                            : "hover:bg-accent/50 hover:scale-[1.01] text-muted-foreground hover:text-foreground"
+                        }`
                       }
                     >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {state !== "collapsed" && <span>{item.title}</span>}
+                      <div className={`p-1 rounded-lg transition-all duration-200 ${
+                        currentPath === item.url 
+                          ? "bg-white/20" 
+                          : "group-hover:bg-primary/10"
+                      }`}>
+                        <item.icon className="h-4 w-4" />
+                      </div>
+                      {state !== "collapsed" && (
+                        <span className="font-medium text-sm">{item.title}</span>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

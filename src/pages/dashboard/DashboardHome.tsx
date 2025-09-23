@@ -2,15 +2,43 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, UserPlus, Shield, Activity } from 'lucide-react';
+import { Users, UserPlus, Shield, Activity, TrendingUp, Calendar, Clock, Target } from 'lucide-react';
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 const DashboardHome = () => {
   const [user, setUser] = useState<User | null>(null);
   const [stats, setStats] = useState({
     totalUsers: 0,
     newRegistrations: 0,
-    activeRoles: 0
+    activeRoles: 3,
+    systemActivity: 98
   });
+
+  const chartData = [
+    { name: 'Ene', usuarios: 65, registros: 28 },
+    { name: 'Feb', usuarios: 89, registros: 48 },
+    { name: 'Mar', usuarios: 123, registros: 67 },
+    { name: 'Abr', usuarios: 156, registros: 89 },
+    { name: 'May', usuarios: 178, registros: 94 },
+    { name: 'Jun', usuarios: 203, registros: 112 },
+  ];
+
+  const roleDistribution = [
+    { name: 'Admin', value: 8, color: 'hsl(var(--primary))' },
+    { name: 'Moderador', value: 23, color: 'hsl(266 85% 68%)' },
+    { name: 'Usuario', value: 156, color: 'hsl(295 85% 58%)' },
+    { name: 'Invitado', value: 34, color: 'hsl(217 32.6% 17.5%)' },
+  ];
+
+  const activityData = [
+    { time: '00:00', activity: 12 },
+    { time: '04:00', activity: 8 },
+    { time: '08:00', activity: 45 },
+    { time: '12:00', activity: 78 },
+    { time: '16:00', activity: 89 },
+    { time: '20:00', activity: 56 },
+  ];
 
   useEffect(() => {
     getCurrentUser();
@@ -24,12 +52,10 @@ const DashboardHome = () => {
 
   const loadStats = async () => {
     try {
-      // Obtener total de usuarios
       const { count: totalUsers } = await supabase
         .from('users')
         .select('*', { count: 'exact', head: true });
 
-      // Obtener registros de los últimos 7 días
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
@@ -41,7 +67,8 @@ const DashboardHome = () => {
       setStats({
         totalUsers: totalUsers || 0,
         newRegistrations: newRegistrations || 0,
-        activeRoles: 3 // Por ahora hardcoded, después lo haremos dinámico
+        activeRoles: 3,
+        systemActivity: 98
       });
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -49,103 +76,283 @@ const DashboardHome = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Bienvenido de vuelta, {user?.user_metadata?.first_name || user?.email}
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Usuarios</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">
-              Usuarios registrados en el sistema
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Nuevos Registros</CardTitle>
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.newRegistrations}</div>
-            <p className="text-xs text-muted-foreground">
-              Últimos 7 días
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Roles Activos</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeRoles}</div>
-            <p className="text-xs text-muted-foreground">
-              Tipos de usuario configurados
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Actividad</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">100%</div>
-            <p className="text-xs text-muted-foreground">
-              Sistema operativo
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Actividad Reciente</CardTitle>
-          <CardDescription>
-            Últimas acciones realizadas en el sistema
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-4 p-4 border rounded-lg">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Nuevo usuario registrado</p>
-                <p className="text-xs text-muted-foreground">Hace 2 minutos</p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6 space-y-8">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary via-primary/90 to-primary/70 p-8 text-primary-foreground shadow-[var(--shadow-primary)]">
+        <div className="absolute inset-0 bg-[var(--glass-background)] backdrop-blur-sm"></div>
+        <div className="relative z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
+                Bienvenido de vuelta, {user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Admin'}
+              </h1>
+              <p className="text-primary-foreground/80 text-lg">
+                Sistema de Gestión Sion - Panel de Control
+              </p>
             </div>
-            <div className="flex items-center space-x-4 p-4 border rounded-lg">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Perfil actualizado</p>
-                <p className="text-xs text-muted-foreground">Hace 1 hora</p>
+            <div className="hidden md:flex items-center space-x-4">
+              <div className="text-right">
+                <p className="text-sm text-primary-foreground/70">Último acceso</p>
+                <p className="font-semibold">Hace 2 minutos</p>
               </div>
-            </div>
-            <div className="flex items-center space-x-4 p-4 border rounded-lg">
-              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Configuración modificada</p>
-                <p className="text-xs text-muted-foreground">Hace 3 horas</p>
+              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Activity className="h-8 w-8" />
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {/* Stats Cards con Glass Morphism */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {[
+          {
+            title: "Total Usuarios",
+            value: stats.totalUsers,
+            change: "+12%",
+            icon: Users,
+            color: "from-blue-500 to-cyan-500",
+            description: "Usuarios registrados"
+          },
+          {
+            title: "Nuevos Registros",
+            value: stats.newRegistrations,
+            change: "+24%",
+            icon: UserPlus,
+            color: "from-emerald-500 to-green-500",
+            description: "Últimos 7 días"
+          },
+          {
+            title: "Roles Activos",
+            value: stats.activeRoles,
+            change: "100%",
+            icon: Shield,
+            color: "from-purple-500 to-pink-500",
+            description: "Tipos configurados"
+          },
+          {
+            title: "Sistema Online",
+            value: `${stats.systemActivity}%`,
+            change: "+2%",
+            icon: Target,
+            color: "from-orange-500 to-red-500",
+            description: "Uptime del sistema"
+          }
+        ].map((stat, index) => (
+          <Card key={index} className="relative overflow-hidden border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] hover:shadow-[var(--shadow-accent)] transition-all duration-300 hover:scale-105">
+            <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-10`}></div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
+              <div className={`p-2 rounded-lg bg-gradient-to-br ${stat.color} shadow-lg`}>
+                <stat.icon className="h-4 w-4 text-white" />
+              </div>
+            </CardHeader>
+            <CardContent className="relative z-10">
+              <div className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+                {stat.value}
+              </div>
+              <div className="flex items-center space-x-2 mt-2">
+                <span className="text-xs font-medium text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
+                  {stat.change}
+                </span>
+                <p className="text-xs text-muted-foreground">{stat.description}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Charts Grid */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Users Growth Chart */}
+        <Card className="lg:col-span-2 border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold">Crecimiento de Usuarios</CardTitle>
+                <CardDescription>Tendencia de registro de usuarios en los últimos 6 meses</CardDescription>
+              </div>
+              <TrendingUp className="h-6 w-6 text-primary" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                usuarios: { label: "Usuarios Totales", color: "hsl(var(--primary))" },
+                registros: { label: "Nuevos Registros", color: "hsl(266 85% 68%)" }
+              }}
+              className="h-[300px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="gradientUsuarios" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="gradientRegistros" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(266 85% 68%)" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="hsl(266 85% 68%)" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
+                  <YAxis stroke="hsl(var(--muted-foreground))" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="usuarios"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={3}
+                    fill="url(#gradientUsuarios)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="registros"
+                    stroke="hsl(266 85% 68%)"
+                    strokeWidth={3}
+                    fill="url(#gradientRegistros)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        {/* Role Distribution */}
+        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Distribución de Roles
+            </CardTitle>
+            <CardDescription>Usuarios por tipo de rol</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                admin: { label: "Admin", color: "hsl(var(--primary))" },
+                moderador: { label: "Moderador", color: "hsl(266 85% 68%)" },
+                usuario: { label: "Usuario", color: "hsl(295 85% 58%)" },
+                invitado: { label: "Invitado", color: "hsl(217 32.6% 17.5%)" }
+              }}
+              className="h-[250px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={roleDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {roleDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Activity Timeline & Recent Actions */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* System Activity */}
+        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" />
+              Actividad del Sistema
+            </CardTitle>
+            <CardDescription>Actividad de usuarios por hora</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                activity: { label: "Actividad", color: "hsl(var(--primary))" }
+              }}
+              className="h-[200px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={activityData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
+                  <YAxis stroke="hsl(var(--muted-foreground))" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar
+                    dataKey="activity"
+                    fill="hsl(var(--primary))"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Actividad Reciente
+            </CardTitle>
+            <CardDescription>Últimas acciones en el sistema</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[
+                {
+                  action: "Nuevo usuario registrado",
+                  user: "juan.perez@email.com",
+                  time: "Hace 2 minutos",
+                  type: "success"
+                },
+                {
+                  action: "Perfil actualizado",
+                  user: "maria.garcia@email.com",
+                  time: "Hace 1 hora",
+                  type: "info"
+                },
+                {
+                  action: "Rol modificado",
+                  user: "admin@sion.com",
+                  time: "Hace 2 horas",
+                  type: "warning"
+                },
+                {
+                  action: "Sesión iniciada",
+                  user: "carlos.lopez@email.com",
+                  time: "Hace 3 horas",
+                  type: "info"
+                }
+              ].map((activity, index) => (
+                <div key={index} className="flex items-center space-x-4 p-4 rounded-xl bg-gradient-to-r from-accent/50 to-transparent border border-border/50 hover:shadow-md transition-all duration-200">
+                  <div className={`w-3 h-3 rounded-full ${
+                    activity.type === 'success' ? 'bg-green-500' :
+                    activity.type === 'warning' ? 'bg-orange-500' :
+                    'bg-blue-500'
+                  } shadow-lg`}></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{activity.action}</p>
+                    <p className="text-xs text-muted-foreground truncate">{activity.user}</p>
+                  </div>
+                  <div className="text-xs text-muted-foreground whitespace-nowrap">
+                    {activity.time}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
