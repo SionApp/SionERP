@@ -1,73 +1,107 @@
-# Welcome to your Lovable project
+# Proyecto Sion - Monorepo
 
-## Project info
+Este es el monorepo para el proyecto de la Iglesia Sion, que incluye el sitio web público y el panel administrativo.
 
-**URL**: https://lovable.dev/projects/e3333ca8-df10-425d-82f3-f0754d3fb978
+## Estructura del Proyecto
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/e3333ca8-df10-425d-82f3-f0754d3fb978) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+├── apps/
+│   ├── public-site/     # Sitio web público de la iglesia
+│   └── admin-panel/     # Panel administrativo
+├── packages/
+│   ├── shared-ui/       # Componentes UI compartidos
+│   ├── shared-types/    # Tipos TypeScript compartidos
+│   └── shared-utils/    # Utilidades compartidas
+└── supabase/           # Configuración de Supabase
 ```
 
-**Edit a file directly in GitHub**
+## Scripts Disponibles
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Desarrollo
 
-**Use GitHub Codespaces**
+```bash
+# Ejecutar solo el sitio público
+npm run dev
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Ejecutar solo el panel administrativo
+npm run dev:admin
 
-## What technologies are used for this project?
+# Ejecutar ambos proyectos simultáneamente
+npm run dev:all
+```
 
-This project is built with:
+### Construcción
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```bash
+# Construir todos los proyectos
+npm run build
 
-## How can I deploy this project?
+# Construir solo el sitio público
+npm run build:public
 
-Simply open [Lovable](https://lovable.dev/projects/e3333ca8-df10-425d-82f3-f0754d3fb978) and click on Share -> Publish.
+# Construir solo el panel administrativo
+npm run build:admin
+```
 
-## Can I connect a custom domain to my Lovable project?
+## Configuración
 
-Yes, you can!
+1. Instalar dependencias:
+```bash
+npm install
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+2. Configurar variables de entorno (ver `.env.example`)
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+3. Configurar Supabase:
+   - El proyecto ya está conectado a Supabase
+   - Las migraciones se ejecutan automáticamente
+
+## Tecnologías
+
+- **Frontend**: React + TypeScript + Vite
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Backend**: Supabase (PostgreSQL + Edge Functions)
+- **Autenticación**: Supabase Auth
+- **Routing**: React Router
+- **State Management**: React Query + Context API
+
+## Estructura de Datos
+
+### Usuarios
+- Información personal y de contacto
+- Estado de bautismo
+- Roles y permisos
+- Preferencias de comunicación
+
+### Transmisiones en Vivo
+- Gestión de links de YouTube
+- Programación de eventos
+- Estado activo/inactivo
+
+## Desarrollo
+
+Cada aplicación puede desarrollarse independientemente:
+
+- `apps/public-site`: Sitio web público con información de la iglesia
+- `apps/admin-panel`: Panel administrativo para gestión de usuarios y contenido
+
+Los packages compartidos permiten reutilizar código entre aplicaciones:
+
+- `@sion/shared-ui`: Componentes de interfaz
+- `@sion/shared-types`: Tipos TypeScript
+- `@sion/shared-utils`: Funciones utilitarias
+
+## Editar este Código
+
+**Usando Lovable**
+
+Visita el [Proyecto en Lovable](https://lovable.dev/projects/e3333ca8-df10-425d-82f3-f0754d3fb978) y comienza a hacer prompts.
+
+**Usando tu IDE Preferido**
+
+```sh
+git clone <YOUR_GIT_URL>
+cd <YOUR_PROJECT_NAME>
+npm install
+npm run dev
+```

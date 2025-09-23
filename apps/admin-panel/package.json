@@ -1,0 +1,16 @@
+{
+  "name": "@sion/admin-panel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3001",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 3001"
+  },
+  "dependencies": {
+    "@sion/shared-ui": "workspace:*",
+    "@sion/shared-types": "workspace:*",
+    "@sion/shared-utils": "workspace:*"
+  }
+}
