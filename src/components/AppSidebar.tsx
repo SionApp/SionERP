@@ -42,7 +42,7 @@ export function AppSidebar() {
             </div>
             {state !== "collapsed" && (
               <div>
-                <h3 className="font-bold text-sm bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                <h3 className="font-bold text-sm text-foreground">
                   Sistema Sion
                 </h3>
                 <p className="text-xs text-muted-foreground">Panel Admin</p>
@@ -52,39 +52,45 @@ export function AppSidebar() {
         </div>
         
         <SidebarGroup className="px-2 py-4">
-          <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground mb-2">
-            {state !== "collapsed" && "NAVEGACIÓN"}
-          </SidebarGroupLabel>
+          {state !== "collapsed" && (
+            <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground mb-2 px-2">
+              NAVEGACIÓN
+            </SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      end={item.url === "/dashboard"}
-                      className={({ isActive }) =>
-                        `relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 group ${
-                          isActive 
+              {menuItems.map((item) => {
+                const isCurrentActive = isActive(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink 
+                        to={item.url} 
+                        end={item.url === "/dashboard"}
+                        className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 group ${
+                          isCurrentActive 
                             ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-[var(--shadow-accent)] scale-[1.02]" 
                             : "hover:bg-accent/50 hover:scale-[1.01] text-muted-foreground hover:text-foreground"
-                        }`
-                      }
-                    >
-                      <div className={`p-1 rounded-lg transition-all duration-200 ${
-                        currentPath === item.url 
-                          ? "bg-white/20" 
-                          : "group-hover:bg-primary/10"
-                      }`}>
-                        <item.icon className="h-4 w-4" />
-                      </div>
-                      {state !== "collapsed" && (
-                        <span className="font-medium text-sm">{item.title}</span>
-                      )}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                        }`}
+                      >
+                        <div className={`p-1 rounded-lg transition-all duration-200 ${
+                          isCurrentActive 
+                            ? "bg-white/20" 
+                            : "group-hover:bg-primary/10"
+                        }`}>
+                          <item.icon className="h-4 w-4" />
+                        </div>
+                        {state !== "collapsed" && (
+                          <span className="font-medium text-sm">{item.title}</span>
+                        )}
+                        {isCurrentActive && (
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-4 bg-primary-foreground rounded-full opacity-60" />
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
