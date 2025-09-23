@@ -112,7 +112,7 @@ export type Database = {
           id: string
           nombres: string
           password_hash: string
-          role: string
+          role: Database["public"]["Enums"]["user_role"]
           telefono: string
           updated_at: string | null
           whatsapp: boolean | null
@@ -128,7 +128,7 @@ export type Database = {
           id?: string
           nombres: string
           password_hash: string
-          role?: string
+          role?: Database["public"]["Enums"]["user_role"]
           telefono: string
           updated_at?: string | null
           whatsapp?: boolean | null
@@ -144,7 +144,7 @@ export type Database = {
           id?: string
           nombres?: string
           password_hash?: string
-          role?: string
+          role?: Database["public"]["Enums"]["user_role"]
           telefono?: string
           updated_at?: string | null
           whatsapp?: boolean | null
@@ -163,6 +163,7 @@ export type Database = {
     }
     Enums: {
       role: "admin" | "staff" | "usuario"
+      user_role: "pastor" | "staff" | "supervisor" | "server"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -291,6 +292,7 @@ export const Constants = {
   public: {
     Enums: {
       role: ["admin", "staff", "usuario"],
+      user_role: ["pastor", "staff", "supervisor", "server"],
     },
   },
 } as const
