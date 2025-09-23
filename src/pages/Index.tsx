@@ -10,6 +10,8 @@ import RegistrationModal from "@/components/RegistrationModal";
 import LiveBanner from "@/components/LiveBanner";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   const { registerServiceWorker, requestPermission } = useNotifications();
@@ -28,6 +30,19 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Panel de administración */}
+      <div className="fixed top-4 right-4 z-50 flex gap-2">
+        <Link to="/login">
+          <Button variant="outline" size="sm">
+            Admin Login
+          </Button>
+        </Link>
+        <Link to="/register">
+          <Button variant="default" size="sm">
+            Registro
+          </Button>
+        </Link>
+      </div>
       <LiveBanner />
       <Header />
       <Hero />
