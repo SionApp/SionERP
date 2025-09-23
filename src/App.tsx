@@ -16,6 +16,7 @@ import DashboardHome from "./pages/dashboard/DashboardHome";
 import UsersPage from "./pages/dashboard/UsersPage";
 import RegisterUserPage from "./pages/dashboard/RegisterUserPage";
 import RolesPage from "./pages/dashboard/RolesPage";
+import ProfilePage from "./pages/dashboard/ProfilePage";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="users" element={<UsersPage />} />
               <Route path="register-user" element={<RegisterUserPage />} />
               <Route path="roles" element={<RolesPage />} />
+              <Route path="profile" element={<ProfilePage />} />
               <Route path="reports" element={<div className="p-6">Módulo de Reportes - En desarrollo</div>} />
               <Route path="settings" element={<div className="p-6">Módulo de Configuración - En desarrollo</div>} />
             </Route>
