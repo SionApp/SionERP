@@ -8,41 +8,43 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Sion Church palette - elegant gold, gray, black, white */
-    --background: 0 0% 92%;
-    --foreground: 0 0% 15%;
+    /* SION ERP - Professional ecclesial management system palette */
+    --background: 0 0% 98%;
+    --foreground: 220 13% 18%;
 
-    --card: 0 0% 96%;
-    --card-foreground: 0 0% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 18%;
 
-    --popover: 0 0% 96%;
-    --popover-foreground: 0 0% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 18%;
 
-    --primary: 45 80% 45%;
+    --primary: 220 90% 56%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 45 80% 85%;
+    --primary-light: 220 90% 85%;
 
-    --secondary: 0 0% 88%;
-    --secondary-foreground: 0 0% 15%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 13% 18%;
 
-    --muted: 0 0% 86%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 13% 45%;
 
-    --accent: 45 80% 50%;
+    --accent: 45 93% 47%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 82%;
-    --input: 0 0% 88%;
-    --ring: 45 80% 45%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 90% 56%;
 
-    /* Sion-specific design tokens */
-    --gradient-hero: linear-gradient(135deg, hsl(45 80% 45%), hsl(45 70% 55%));
-    --gradient-divine: linear-gradient(180deg, hsl(0 0% 92%), hsl(0 0% 96%));
-    --shadow-divine: 0 10px 40px -10px hsl(45 80% 45% / 0.2);
-    --shadow-soft: 0 4px 20px -4px hsl(0 0% 15% / 0.08);
+    /* SION ERP-specific design tokens */
+    --gradient-hero: linear-gradient(135deg, hsl(220 90% 56%), hsl(45 93% 47%));
+    --gradient-executive: linear-gradient(180deg, hsl(220 90% 56%), hsl(220 85% 65%));
+    --gradient-divine: linear-gradient(180deg, hsl(0 0% 98%), hsl(220 14% 96%));
+    --shadow-executive: 0 20px 60px -10px hsl(220 90% 56% / 0.25);
+    --shadow-soft: 0 4px 20px -4px hsl(220 13% 18% / 0.08);
+    --shadow-card: 0 8px 30px -8px hsl(220 90% 56% / 0.15);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     --radius: 0.5rem;
@@ -65,26 +67,26 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 0 0% 10%;
-    --foreground: 0 0% 92%;
+    --background: 220 27% 8%;
+    --foreground: 0 0% 95%;
 
-    --card: 0 0% 14%;
-    --card-foreground: 0 0% 92%;
+    --card: 220 27% 12%;
+    --card-foreground: 0 0% 95%;
 
-    --popover: 0 0% 14%;
-    --popover-foreground: 0 0% 92%;
+    --popover: 220 27% 12%;
+    --popover-foreground: 0 0% 95%;
 
-    --primary: 45 80% 55%;
-    --primary-foreground: 0 0% 8%;
+    --primary: 220 90% 65%;
+    --primary-foreground: 220 27% 8%;
 
-    --secondary: 0 0% 18%;
-    --secondary-foreground: 0 0% 92%;
+    --secondary: 220 27% 16%;
+    --secondary-foreground: 0 0% 95%;
 
-    --muted: 0 0% 18%;
-    --muted-foreground: 0 0% 65%;
+    --muted: 220 27% 16%;
+    --muted-foreground: 0 0% 70%;
 
-    --accent: 45 80% 60%;
-    --accent-foreground: 0 0% 8%;
+    --accent: 45 93% 58%;
+    --accent-foreground: 220 27% 8%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 92%;
