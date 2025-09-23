@@ -22,36 +22,36 @@ Este es el monorepo para el proyecto de la Iglesia Sion, que incluye el sitio we
 
 ```bash
 # Ejecutar solo el sitio público
-npm run dev
+pnpm dev
 
 # Ejecutar solo el panel administrativo
-npm run dev:admin
+pnpm dev:admin
 
 # Ejecutar solo el backend de Go
-npm run dev:backend
+pnpm dev:backend
 
 # Ejecutar todos los proyectos simultáneamente
-npm run dev:all
+pnpm dev:all
 ```
 
 ### Construcción
 
 ```bash
 # Construir todos los proyectos
-npm run build
+pnpm build
 
 # Construir solo el sitio público
-npm run build:public
+pnpm build:public
 
 # Construir solo el panel administrativo
-npm run build:admin
+pnpm build:admin
 ```
 
 ## Configuración
 
 1. Instalar dependencias:
 ```bash
-npm install
+pnpm install
 ```
 
 2. Configurar variables de entorno (ver `.env.example`)
@@ -108,6 +108,6 @@ Visita el [Proyecto en Lovable](https://lovable.dev/projects/e3333ca8-df10-425d-
 ```sh
 git clone <YOUR_GIT_URL>
 cd <YOUR_PROJECT_NAME>
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
