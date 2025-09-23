@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Settings, Users, BarChart3, UserCheck } from "lucide-react";
+import { ArrowRight, Heart, Users, MapPin, Calendar } from "lucide-react";
 import churchHero from "@/assets/church-hero-enhanced.jpg";
 
 const Hero = () => {
@@ -18,8 +18,8 @@ const Hero = () => {
         <div className="max-w-5xl mx-auto">
           <div className="mb-6">
             <div className="inline-flex items-center bg-white/10 backdrop-blur-md rounded-full px-6 py-2 border border-white/20 mb-4">
-              <Settings className="w-5 h-5 mr-2 text-accent" />
-              <span className="text-sm font-medium">Sistema de Gestión Eclesiástica</span>
+              <Heart className="w-5 h-5 mr-2 text-accent" />
+              <span className="text-sm font-medium">Iglesia Evangélica</span>
             </div>
           </div>
           
@@ -29,8 +29,8 @@ const Hero = () => {
           </h1>
           
           <p className="text-lg md:text-xl mb-8 text-white/90 max-w-3xl mx-auto leading-relaxed">
-            Plataforma integral de administración eclesiástica. Gestiona cultos, departamentos, 
-            discipulado y toda la organización de tu iglesia desde un solo lugar.
+            Una comunidad de fe comprometida con la transformación personal y espiritual. 
+            Ven y sé parte de una familia que cambia vidas a través del amor de Cristo.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
@@ -39,12 +39,13 @@ const Hero = () => {
               size="lg" 
               className="text-lg px-10 py-4 font-semibold"
               onClick={() => {
-                const event = new CustomEvent('openRegistrationModal');
-                window.dispatchEvent(event);
+                document.getElementById('servicios')?.scrollIntoView({ 
+                  behavior: 'smooth' 
+                });
               }}
             >
-              <UserCheck className="w-5 h-5 mr-2" />
-              Acceder al Sistema
+              <Users className="w-5 h-5 mr-2" />
+              Conoce Nuestros Ministerios
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
             <Button 
@@ -52,31 +53,31 @@ const Hero = () => {
               size="lg" 
               className="text-lg px-10 py-4 font-semibold"
               onClick={() => {
-                document.getElementById('modulos')?.scrollIntoView({ 
+                document.getElementById('contacto')?.scrollIntoView({ 
                   behavior: 'smooth' 
                 });
               }}
             >
-              <BarChart3 className="w-5 h-5 mr-2" />
-              Ver Módulos
+              <MapPin className="w-5 h-5 mr-2" />
+              Visítanos
             </Button>
           </div>
           
-          {/* System Stats */}
+          {/* Church Info */}
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 max-w-2xl mx-auto border border-white/20">
-            <h3 className="text-lg font-semibold mb-6 text-center">Administración Integral</h3>
+            <h3 className="text-lg font-semibold mb-6 text-center">Nuestra Comunidad</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
               <div className="space-y-1">
-                <div className="text-2xl font-bold text-accent">📊</div>
-                <p className="text-sm text-white/90">Gestión de Cultos</p>
+                <div className="text-2xl font-bold text-accent">🙏</div>
+                <p className="text-sm text-white/90">Adoración</p>
               </div>
               <div className="space-y-1">
-                <div className="text-2xl font-bold text-accent">👥</div>
-                <p className="text-sm text-white/90">Módulo Discipulado</p>
+                <div className="text-2xl font-bold text-accent">💝</div>
+                <p className="text-sm text-white/90">Comunión</p>
               </div>
               <div className="space-y-1">
-                <div className="text-2xl font-bold text-accent">⚙️</div>
-                <p className="text-sm text-white/90">Departamentos</p>
+                <div className="text-2xl font-bold text-accent">📖</div>
+                <p className="text-sm text-white/90">Enseñanza</p>
               </div>
             </div>
           </div>
