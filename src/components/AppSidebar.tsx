@@ -1,4 +1,4 @@
-import { Users, UserPlus, Shield, Home, Settings, BarChart3, Sparkles } from "lucide-react";
+import { Users, UserPlus, Shield, Home, Settings, BarChart3, Sparkles, UserCog } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
@@ -15,6 +15,7 @@ import {
 
 const menuItems = [
   { title: "Inicio", url: "/dashboard", icon: Home },
+  { title: "Mi Perfil", url: "/dashboard/profile", icon: UserCog },
   { title: "Usuarios", url: "/dashboard/users", icon: Users },
   { title: "Registro", url: "/dashboard/register-user", icon: UserPlus },
   { title: "Roles", url: "/dashboard/roles", icon: Shield },
