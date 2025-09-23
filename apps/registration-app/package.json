@@ -1,0 +1,37 @@
+{
+  "name": "@sion/registration-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3001",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 3001"
+  },
+  "dependencies": {
+    "@sion/shared-ui": "workspace:*",
+    "@sion/shared-types": "workspace:*",
+    "@sion/shared-utils": "workspace:*",
+    "@supabase/supabase-js": "^2.57.2",
+    "@tanstack/react-query": "^5.83.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.1",
+    "react-hook-form": "^7.61.1",
+    "@hookform/resolvers": "^3.10.0",
+    "zod": "^3.25.76",
+    "lucide-react": "^0.462.0",
+    "next-themes": "^0.3.0",
+    "sonner": "^1.7.4"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react-swc": "^3.5.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.2.2",
+    "vite": "^5.3.4"
+  }
+}
