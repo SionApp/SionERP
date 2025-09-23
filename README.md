@@ -7,7 +7,8 @@ Este es el monorepo para el proyecto de la Iglesia Sion, que incluye el sitio we
 ```
 ├── apps/
 │   ├── public-site/     # Sitio web público de la iglesia
-│   └── admin-panel/     # Panel administrativo
+│   ├── admin-panel/     # Panel administrativo
+│   └── backend-go/      # API Backend en Go con Echo
 ├── packages/
 │   ├── shared-ui/       # Componentes UI compartidos
 │   ├── shared-types/    # Tipos TypeScript compartidos
@@ -26,7 +27,10 @@ npm run dev
 # Ejecutar solo el panel administrativo
 npm run dev:admin
 
-# Ejecutar ambos proyectos simultáneamente
+# Ejecutar solo el backend de Go
+npm run dev:backend
+
+# Ejecutar todos los proyectos simultáneamente
 npm run dev:all
 ```
 
@@ -60,7 +64,8 @@ npm install
 
 - **Frontend**: React + TypeScript + Vite
 - **Styling**: Tailwind CSS + shadcn/ui
-- **Backend**: Supabase (PostgreSQL + Edge Functions)
+- **Backend API**: Go + Echo Framework
+- **Base de Datos**: Supabase PostgreSQL
 - **Autenticación**: Supabase Auth
 - **Routing**: React Router
 - **State Management**: React Query + Context API
@@ -84,6 +89,7 @@ Cada aplicación puede desarrollarse independientemente:
 
 - `apps/public-site`: Sitio web público con información de la iglesia
 - `apps/admin-panel`: Panel administrativo para gestión de usuarios y contenido
+- `apps/backend-go`: API Backend en Go con Echo para lógica de negocio
 
 Los packages compartidos permiten reutilizar código entre aplicaciones:
 
