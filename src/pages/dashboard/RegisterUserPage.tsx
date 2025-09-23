@@ -19,7 +19,7 @@ const userSchema = z.object({
   correo: z.string().email('Correo electrónico inválido'),
   telefono: z.string().min(10, 'El teléfono debe tener al menos 10 dígitos'),
   direccion: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
-  role: z.string().min(1, 'Selecciona un rol'),
+  role: z.enum(['pastor', 'staff', 'supervisor', 'server'] as const),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
   bautizado: z.boolean().default(false),
   whatsapp: z.boolean().default(false),
@@ -43,7 +43,7 @@ const RegisterUserPage = () => {
     defaultValues: {
       bautizado: false,
       whatsapp: false,
-      role: 'usuario'
+      role: 'server' as const
     }
   });
 
@@ -207,14 +207,15 @@ const RegisterUserPage = () => {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="role">Rol *</Label>
-                <Select onValueChange={(value) => setValue('role', value)}>
+                <Select onValueChange={(value) => setValue('role', value as 'pastor' | 'staff' | 'supervisor' | 'server')}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona un rol" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="usuario">Usuario</SelectItem>
-                    <SelectItem value="moderator">Moderador</SelectItem>
-                    <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="server">Servidor</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                    <SelectItem value="pastor">Pastor</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.role && (

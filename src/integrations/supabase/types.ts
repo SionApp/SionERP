@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          changed_at: string | null
+          changed_by: string | null
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          record_id: string
+          table_name: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id: string
+          table_name: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string
+          table_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_streams: {
         Row: {
           actual_start: string | null
@@ -71,6 +112,47 @@ export type Database = {
         }
         Relationships: []
       }
+      reports: {
+        Row: {
+          file_url: string | null
+          generated_at: string | null
+          generated_by: string
+          id: string
+          parameters: Json | null
+          status: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          file_url?: string | null
+          generated_at?: string | null
+          generated_by: string
+          id?: string
+          parameters?: Json | null
+          status?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          file_url?: string | null
+          generated_at?: string | null
+          generated_by?: string
+          id?: string
+          parameters?: Json | null
+          status?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           created_at: string | null
@@ -100,18 +182,82 @@ export type Database = {
           },
         ]
       }
+      user_permissions: {
+        Row: {
+          action: string
+          created_at: string | null
+          granted: boolean | null
+          granted_by: string | null
+          id: string
+          permission_name: string
+          resource: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          granted?: boolean | null
+          granted_by?: string | null
+          id?: string
+          permission_name: string
+          resource: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          granted?: boolean | null
+          granted_by?: string | null
+          id?: string
+          permission_name?: string
+          resource?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           apellidos: string
           bautizado: boolean | null
+          birth_date: string | null
           cedula: string
+          cell_group: string | null
+          cell_leader_id: string | null
           correo: string
           created_at: string | null
           direccion: string
+          education_level: string | null
           fecha_bautizo: string | null
+          first_visit_date: string | null
+          how_found_church: string | null
           id: string
+          is_active: boolean | null
+          is_active_member: boolean | null
+          marital_status: string | null
+          membership_date: string | null
+          ministry_interest: string | null
           nombres: string
+          occupation: string | null
           password_hash: string
+          pastoral_notes: string | null
           role: Database["public"]["Enums"]["user_role"]
           telefono: string
           updated_at: string | null
@@ -120,14 +266,27 @@ export type Database = {
         Insert: {
           apellidos: string
           bautizado?: boolean | null
+          birth_date?: string | null
           cedula: string
+          cell_group?: string | null
+          cell_leader_id?: string | null
           correo: string
           created_at?: string | null
           direccion: string
+          education_level?: string | null
           fecha_bautizo?: string | null
+          first_visit_date?: string | null
+          how_found_church?: string | null
           id?: string
+          is_active?: boolean | null
+          is_active_member?: boolean | null
+          marital_status?: string | null
+          membership_date?: string | null
+          ministry_interest?: string | null
           nombres: string
+          occupation?: string | null
           password_hash: string
+          pastoral_notes?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           telefono: string
           updated_at?: string | null
@@ -136,20 +295,41 @@ export type Database = {
         Update: {
           apellidos?: string
           bautizado?: boolean | null
+          birth_date?: string | null
           cedula?: string
+          cell_group?: string | null
+          cell_leader_id?: string | null
           correo?: string
           created_at?: string | null
           direccion?: string
+          education_level?: string | null
           fecha_bautizo?: string | null
+          first_visit_date?: string | null
+          how_found_church?: string | null
           id?: string
+          is_active?: boolean | null
+          is_active_member?: boolean | null
+          marital_status?: string | null
+          membership_date?: string | null
+          ministry_interest?: string | null
           nombres?: string
+          occupation?: string | null
           password_hash?: string
+          pastoral_notes?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           telefono?: string
           updated_at?: string | null
           whatsapp?: boolean | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_cell_leader_id_fkey"
+            columns: ["cell_leader_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
