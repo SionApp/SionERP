@@ -1,44 +1,113 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Users, Settings, Plus } from 'lucide-react';
+import { Shield, Users, Settings, Plus, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface RoleData {
+  role: string;
+  count: number;
+  description: string;
+  permissions: string[];
+}
 
 const RolesPage = () => {
-  const [roles] = useState([
-    {
-      id: 'admin',
-      name: 'Administrador',
-      description: 'Acceso completo al sistema',
-      userCount: 2,
-      permissions: ['Gestión de usuarios', 'Configuración del sistema', 'Reportes', 'Roles y permisos']
+  const [roles, setRoles] = useState<RoleData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalUsers, setTotalUsers] = useState(0);
+
+  const roleDefinitions = {
+    pastor: {
+      name: 'Pastor',
+      description: 'Acceso completo al sistema - Líder espiritual',
+      permissions: ['Gestión completa de usuarios', 'Configuración del sistema', 'Reportes completos', 'Roles y permisos', 'Audit logs', 'Configuración de iglesia']
     },
-    {
-      id: 'moderator',
-      name: 'Moderador',
-      description: 'Gestión de usuarios y contenido',
-      userCount: 5,
-      permissions: ['Gestión de usuarios', 'Reportes básicos', 'Moderación de contenido']
+    staff: {
+      name: 'Personal',
+      description: 'Administración limitada - Equipo pastoral',
+      permissions: ['Gestión de usuarios no-pastor', 'Reportes básicos', 'Moderación de contenido', 'Configuración limitada']
     },
-    {
-      id: 'usuario',
-      name: 'Usuario',
-      description: 'Acceso básico al sistema',
-      userCount: 48,
-      permissions: ['Ver perfil', 'Actualizar datos personales']
+    supervisor: {
+      name: 'Supervisor',
+      description: 'Gestión de grupos y supervisión',
+      permissions: ['Gestión de servidores', 'Reportes de grupos', 'Supervisión de actividades', 'Ver perfil de miembros']
+    },
+    server: {
+      name: 'Servidor',
+      description: 'Acceso básico - Miembro servidor',
+      permissions: ['Ver perfil propio', 'Actualizar datos personales', 'Participar en actividades']
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadRoleStats();
+  }, []);
+
+  const loadRoleStats = async () => {
+    try {
+      setLoading(true);
+      
+      // Obtener estadísticas de roles
+      const { data: roleStats, error: roleError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('is_active', true);
+
+      if (roleError) throw roleError;
+
+      // Contar usuarios por rol
+      const roleCounts: Record<string, number> = {};
+      roleStats?.forEach(user => {
+        roleCounts[user.role] = (roleCounts[user.role] || 0) + 1;
+      });
+
+      // Crear array de roles con conteos
+      const rolesData: RoleData[] = Object.entries(roleDefinitions).map(([roleKey, roleDef]) => ({
+        role: roleKey,
+        count: roleCounts[roleKey] || 0,
+        description: roleDef.description,
+        permissions: roleDef.permissions
+      }));
+
+      setRoles(rolesData);
+      setTotalUsers(roleStats?.length || 0);
+
+    } catch (error: any) {
+      console.error('Error loading role stats:', error);
+      toast.error('Error al cargar estadísticas de roles');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getRoleColor = (roleId: string) => {
     switch (roleId) {
-      case 'admin':
+      case 'pastor':
         return 'destructive';
-      case 'moderator':
+      case 'staff':
         return 'secondary';
+      case 'supervisor':
+        return 'default';
+      case 'server':
+        return 'outline';
       default:
         return 'default';
     }
   };
+
+  const getRoleName = (roleId: string) => {
+    return roleDefinitions[roleId as keyof typeof roleDefinitions]?.name || roleId;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -49,9 +118,9 @@ const RolesPage = () => {
             Administra los roles y permisos del sistema
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Rol
+        <Button onClick={loadRoleStats}>
+          <Shield className="h-4 w-4 mr-2" />
+          Actualizar
         </Button>
       </div>
 
@@ -77,7 +146,7 @@ const RolesPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {roles.reduce((total, role) => total + role.userCount, 0)}
+              {totalUsers}
             </div>
             <p className="text-xs text-muted-foreground">
               Total de usuarios con roles
@@ -91,7 +160,9 @@ const RolesPage = () => {
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">
+              {roles.reduce((total, role) => total + role.permissions.length, 0)}
+            </div>
             <p className="text-xs text-muted-foreground">
               Permisos diferentes configurados
             </p>
@@ -101,21 +172,21 @@ const RolesPage = () => {
 
       {/* Roles List */}
       <div className="grid gap-4">
-        {roles.map((role) => (
-          <Card key={role.id}>
+        {roles.map((roleData) => (
+          <Card key={roleData.role}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Badge variant={getRoleColor(role.id) as any}>
-                    {role.name}
+                  <Badge variant={getRoleColor(roleData.role) as any}>
+                    {getRoleName(roleData.role)}
                   </Badge>
                   <div>
-                    <CardTitle className="text-lg">{role.name}</CardTitle>
-                    <CardDescription>{role.description}</CardDescription>
+                    <CardTitle className="text-lg">{getRoleName(roleData.role)}</CardTitle>
+                    <CardDescription>{roleData.description}</CardDescription>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold">{role.userCount}</p>
+                  <p className="text-2xl font-bold">{roleData.count}</p>
                   <p className="text-sm text-muted-foreground">usuarios</p>
                 </div>
               </div>
@@ -125,7 +196,7 @@ const RolesPage = () => {
                 <div>
                   <h4 className="font-medium mb-2">Permisos:</h4>
                   <div className="flex flex-wrap gap-2">
-                    {role.permissions.map((permission, index) => (
+                    {roleData.permissions.map((permission, index) => (
                       <Badge key={index} variant="outline">
                         {permission}
                       </Badge>
@@ -134,13 +205,10 @@ const RolesPage = () => {
                 </div>
                 
                 <div className="flex gap-2 pt-4 border-t">
-                  <Button variant="outline" size="sm">
-                    Editar Rol
+                  <Button variant="outline" size="sm" onClick={() => toast.info('Funcionalidad en desarrollo')}>
+                    Ver Usuarios con este Rol
                   </Button>
-                  <Button variant="outline" size="sm">
-                    Ver Usuarios
-                  </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => toast.info('Funcionalidad en desarrollo')}>
                     Gestionar Permisos
                   </Button>
                 </div>
@@ -164,31 +232,22 @@ const RolesPage = () => {
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-2">Permiso</th>
-                  {roles.map((role) => (
-                    <th key={role.id} className="text-center p-2">
-                      <Badge variant={getRoleColor(role.id) as any}>
-                        {role.name}
+                  {roles.map((roleData) => (
+                    <th key={roleData.role} className="text-center p-2">
+                      <Badge variant={getRoleColor(roleData.role) as any}>
+                        {getRoleName(roleData.role)}
                       </Badge>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {[
-                  'Gestión de usuarios',
-                  'Configuración del sistema',
-                  'Reportes',
-                  'Roles y permisos',
-                  'Reportes básicos',
-                  'Moderación de contenido',
-                  'Ver perfil',
-                  'Actualizar datos personales'
-                ].map((permission, index) => (
+                {Array.from(new Set(roles.flatMap(role => role.permissions))).map((permission, index) => (
                   <tr key={index} className="border-b">
                     <td className="p-2 font-medium">{permission}</td>
-                    {roles.map((role) => (
-                      <td key={role.id} className="text-center p-2">
-                        {role.permissions.includes(permission) ? (
+                    {roles.map((roleData) => (
+                      <td key={roleData.role} className="text-center p-2">
+                        {roleData.permissions.includes(permission) ? (
                           <div className="w-4 h-4 bg-green-500 rounded-full mx-auto"></div>
                         ) : (
                           <div className="w-4 h-4 bg-gray-300 rounded-full mx-auto"></div>
