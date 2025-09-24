@@ -6,6 +6,7 @@ import { Users, UserPlus, Shield, Activity, TrendingUp, Calendar, Clock, Target 
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { AuditLogModal } from '@/components/AuditLogModal';
 
 const DashboardHome = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -33,6 +34,13 @@ const DashboardHome = () => {
     { time: '20:00', activity: 56 },
   ];
 
+  const handleActivityClick = (activity: any) => {
+    if (activity.details) {
+      setSelectedAuditLog(activity.details);
+      setIsModalOpen(true);
+    }
+  };
+
   useEffect(() => {
     getCurrentUser();
   }, []);
@@ -44,6 +52,7 @@ const DashboardHome = () => {
 
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6 space-y-8">
       {/* Hero Header */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary via-primary/90 to-primary/70 p-8 text-primary-foreground shadow-[var(--shadow-primary)]">
@@ -316,6 +325,7 @@ const DashboardHome = () => {
       onClose={() => setIsModalOpen(false)}
       auditLog={selectedAuditLog}
     />
+    </>
   );
 };
 
