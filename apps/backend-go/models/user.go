@@ -5,19 +5,19 @@ import (
 )
 
 type User struct {
-	ID               string    `json:"id" db:"id"`
-	Nombres          string    `json:"nombres" db:"nombres"`
-	Apellidos        string    `json:"apellidos" db:"apellidos"`
-	Cedula           string    `json:"cedula" db:"cedula"`
-	Correo           string    `json:"correo" db:"correo"`
-	Telefono         string    `json:"telefono" db:"telefono"`
-	Direccion        string    `json:"direccion" db:"direccion"`
-	FechaBautizo     *time.Time `json:"fecha_bautizo,omitempty" db:"fecha_bautizo"`
-	Bautizado        bool      `json:"bautizado" db:"bautizado"`
-	Role             string    `json:"role" db:"role"`
-	WhatsApp         bool      `json:"whatsapp" db:"whatsapp"`
-	CreatedAt        time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
+	ID            string     `json:"id" db:"id"`
+	FirstName     string     `json:"first_name" db:"first_name"`
+	LastName      string     `json:"last_name" db:"last_name"`
+	IdNumber      string     `json:"id_number" db:"id_number"`
+	Email         string     `json:"email" db:"email"`
+	Phone         string     `json:"phone" db:"phone"`
+	Address       string     `json:"address" db:"address"`
+	BaptismDate   *time.Time `json:"baptism_date,omitempty" db:"baptism_date"`
+	Baptized      bool       `json:"baptized" db:"baptized"`
+	Role          string     `json:"role" db:"role"`
+	WhatsApp      bool       `json:"whatsapp" db:"whatsapp"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 type LiveStream struct {

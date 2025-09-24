@@ -79,12 +79,12 @@ const RegisterUserPage = () => {
       const passwordHash = btoa(data.password); // Temporal, usar bcrypt en producción
 
       const userData = {
-        nombres: data.nombres,
-        apellidos: data.apellidos,
-        cedula: data.cedula,
-        correo: data.correo,
-        telefono: data.telefono,
-        direccion: data.direccion,
+        first_name: data.nombres,
+        last_name: data.apellidos,
+        id_number: data.cedula,
+        email: data.correo,
+        phone: data.telefono,
+        address: data.direccion,
         role: data.role,
         password_hash: passwordHash,
         
@@ -98,8 +98,8 @@ const RegisterUserPage = () => {
         first_visit_date: data.first_visit_date || null,
         
         // Church membership
-        bautizado: data.bautizado,
-        fecha_bautizo: data.bautizado && data.fecha_bautizo ? new Date(data.fecha_bautizo).toISOString() : null,
+        baptized: data.bautizado,
+        baptism_date: data.bautizado && data.fecha_bautizo ? new Date(data.fecha_bautizo).toISOString() : null,
         is_active_member: data.is_active_member,
         membership_date: data.membership_date ? new Date(data.membership_date).toISOString() : null,
         

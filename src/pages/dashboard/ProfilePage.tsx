@@ -83,10 +83,10 @@ const ProfilePage = () => {
           
           // Populate form with user data
           reset({
-            nombres: userData.nombres || '',
-            apellidos: userData.apellidos || '',
-            telefono: userData.telefono || '',
-            direccion: userData.direccion || '',
+            nombres: userData.first_name || '',
+            apellidos: userData.last_name || '',
+            telefono: userData.phone || '',
+            direccion: userData.address || '',
             birth_date: userData.birth_date || '',
             marital_status: userData.marital_status || '',
             occupation: userData.occupation || '',

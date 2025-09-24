@@ -57,7 +57,7 @@ const DashboardHome = () => {
       const { data: userData, error } = await supabase
         .from('users')
         .select('role')
-        .eq('id', user.id)
+        .eq('email', user.email)
         .single();
       
       if (userData && !error) {

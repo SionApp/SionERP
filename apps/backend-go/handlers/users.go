@@ -34,8 +34,8 @@ type User struct {
 	FirstVisitDate   *string    `json:"first_visit_date,omitempty" db:"first_visit_date"`
 	
 	// Church membership
-	Bautizado        bool       `json:"bautizado" db:"bautizado"`
-	FechaBautizo     *time.Time `json:"fecha_bautizo,omitempty" db:"fecha_bautizo"`
+	Baptized         bool       `json:"baptized" db:"baptized"`
+	BaptismDate      *time.Time `json:"baptism_date,omitempty" db:"baptism_date"`
 	IsActiveMember   bool       `json:"is_active_member" db:"is_active_member"`
 	MembershipDate   *time.Time `json:"membership_date,omitempty" db:"membership_date"`
 	
@@ -55,12 +55,12 @@ type User struct {
 }
 
 type CreateUserRequest struct {
-	Nombres          string  `json:"nombres" validate:"required,min=2"`
-	Apellidos        string  `json:"apellidos" validate:"required,min=2"`
-	Cedula           string  `json:"cedula" validate:"required,min=8"`
-	Correo           string  `json:"correo" validate:"required,email"`
-	Telefono         string  `json:"telefono" validate:"required,min=10"`
-	Direccion        string  `json:"direccion" validate:"required,min=5"`
+	FirstName        string  `json:"first_name" validate:"required,min=2"`
+	LastName         string  `json:"last_name" validate:"required,min=2"`
+	IdNumber         string  `json:"id_number" validate:"required,min=8"`
+	Email            string  `json:"email" validate:"required,email"`
+	Phone            string  `json:"phone" validate:"required,min=10"`
+	Address          string  `json:"address" validate:"required,min=5"`
 	Password         string  `json:"password" validate:"required,min=6"`
 	
 	// Extended fields
@@ -73,8 +73,8 @@ type CreateUserRequest struct {
 	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
 	
 	// Church membership
-	Bautizado        bool    `json:"bautizado"`
-	FechaBautizo     *string `json:"fecha_bautizo,omitempty"`
+	Baptized         bool    `json:"baptized"`
+	BaptismDate      *string `json:"baptism_date,omitempty"`
 	IsActiveMember   bool    `json:"is_active_member"`
 	MembershipDate   *string `json:"membership_date,omitempty"`
 	
@@ -88,10 +88,10 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserRequest struct {
-	Nombres          *string `json:"nombres,omitempty" validate:"omitempty,min=2"`
-	Apellidos        *string `json:"apellidos,omitempty" validate:"omitempty,min=2"`
-	Telefono         *string `json:"telefono,omitempty" validate:"omitempty,min=10"`
-	Direccion        *string `json:"direccion,omitempty" validate:"omitempty,min=5"`
+	FirstName        *string `json:"first_name,omitempty" validate:"omitempty,min=2"`
+	LastName         *string `json:"last_name,omitempty" validate:"omitempty,min=2"`
+	Phone            *string `json:"phone,omitempty" validate:"omitempty,min=10"`
+	Address          *string `json:"address,omitempty" validate:"omitempty,min=5"`
 	
 	// Extended fields
 	BirthDate        *string `json:"birth_date,omitempty"`
@@ -103,8 +103,8 @@ type UpdateUserRequest struct {
 	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
 	
 	// Church membership
-	Bautizado        *bool   `json:"bautizado,omitempty"`
-	FechaBautizo     *string `json:"fecha_bautizo,omitempty"`
+	Baptized         *bool   `json:"baptized,omitempty"`
+	BaptismDate      *string `json:"baptism_date,omitempty"`
 	IsActiveMember   *bool   `json:"is_active_member,omitempty"`
 	MembershipDate   *string `json:"membership_date,omitempty"`
 	

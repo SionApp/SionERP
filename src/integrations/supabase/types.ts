@@ -235,89 +235,89 @@ export type Database = {
       }
       users: {
         Row: {
-          apellidos: string
-          bautizado: boolean | null
+          address: string
+          baptism_date: string | null
+          baptized: boolean | null
           birth_date: string | null
-          cedula: string
           cell_group: string | null
           cell_leader_id: string | null
-          correo: string
           created_at: string | null
-          direccion: string
           education_level: string | null
-          fecha_bautizo: string | null
+          email: string
+          first_name: string
           first_visit_date: string | null
           how_found_church: string | null
           id: string
+          id_number: string
           is_active: boolean | null
           is_active_member: boolean | null
+          last_name: string
           marital_status: string | null
           membership_date: string | null
           ministry_interest: string | null
-          nombres: string
           occupation: string | null
           password_hash: string
           pastoral_notes: string | null
+          phone: string
           role: Database["public"]["Enums"]["user_role"]
-          telefono: string
           updated_at: string | null
           whatsapp: boolean | null
         }
         Insert: {
-          apellidos: string
-          bautizado?: boolean | null
+          address: string
+          baptism_date?: string | null
+          baptized?: boolean | null
           birth_date?: string | null
-          cedula: string
           cell_group?: string | null
           cell_leader_id?: string | null
-          correo: string
           created_at?: string | null
-          direccion: string
           education_level?: string | null
-          fecha_bautizo?: string | null
+          email: string
+          first_name: string
           first_visit_date?: string | null
           how_found_church?: string | null
           id?: string
+          id_number: string
           is_active?: boolean | null
           is_active_member?: boolean | null
+          last_name: string
           marital_status?: string | null
           membership_date?: string | null
           ministry_interest?: string | null
-          nombres: string
           occupation?: string | null
           password_hash: string
           pastoral_notes?: string | null
+          phone: string
           role?: Database["public"]["Enums"]["user_role"]
-          telefono: string
           updated_at?: string | null
           whatsapp?: boolean | null
         }
         Update: {
-          apellidos?: string
-          bautizado?: boolean | null
+          address?: string
+          baptism_date?: string | null
+          baptized?: boolean | null
           birth_date?: string | null
-          cedula?: string
           cell_group?: string | null
           cell_leader_id?: string | null
-          correo?: string
           created_at?: string | null
-          direccion?: string
           education_level?: string | null
-          fecha_bautizo?: string | null
+          email?: string
+          first_name?: string
           first_visit_date?: string | null
           how_found_church?: string | null
           id?: string
+          id_number?: string
           is_active?: boolean | null
           is_active_member?: boolean | null
+          last_name?: string
           marital_status?: string | null
           membership_date?: string | null
           ministry_interest?: string | null
-          nombres?: string
           occupation?: string | null
           password_hash?: string
           pastoral_notes?: string | null
+          phone?: string
           role?: Database["public"]["Enums"]["user_role"]
-          telefono?: string
           updated_at?: string | null
           whatsapp?: boolean | null
         }

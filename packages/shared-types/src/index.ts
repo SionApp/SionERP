@@ -3,12 +3,12 @@ export type UserRole = 'pastor' | 'staff' | 'supervisor' | 'server';
 
 export interface User {
   id: string;
-  nombres: string;
-  apellidos: string;
-  cedula: string;
-  correo: string;
-  telefono: string;
-  direccion: string;
+  first_name: string;
+  last_name: string;
+  id_number: string;
+  email: string;
+  phone: string;
+  address: string;
   
   // Extended member fields
   birth_date?: string;
@@ -20,8 +20,8 @@ export interface User {
   first_visit_date?: string;
   
   // Church membership
-  bautizado: boolean;
-  fecha_bautizo?: string;
+  baptized: boolean;
+  baptism_date?: string;
   is_active_member: boolean;
   membership_date?: string;
   
