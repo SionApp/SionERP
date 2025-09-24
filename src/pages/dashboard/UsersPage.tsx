@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,34 +7,14 @@ import { Search, Plus, Filter, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import EditUserModal from '@/components/EditUserModal';
-
-interface UserData {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  id_number: string;
-  address: string;
-  role: 'pastor' | 'staff' | 'supervisor' | 'server';
-  baptized: boolean;
-  whatsapp: boolean;
-  is_active: boolean;
-  created_at: string;
-  pastoral_notes?: string;
-  marital_status?: string;
-  occupation?: string;
-  education_level?: string;
-  how_found_church?: string;
-  ministry_interest?: string;
-  cell_group?: string;
-}
+import { User } from '@/types/user.types';
+import { UserService } from '@/services/user.service';
 
 const UsersPage = () => {
-  const [users, setUsers] = useState<UserData[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingUser, setEditingUser] = useState<UserData | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,19 +24,8 @@ const UsersPage = () => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, first_name, last_name, email, phone, id_number, address, role, baptized, whatsapp, is_active, created_at, pastoral_notes, marital_status, occupation, education_level, how_found_church, ministry_interest, cell_group')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error loading users:', error);
-        toast.error('Error al cargar los usuarios');
-        return;
-      }
-
-      setUsers(data || []);
+      const usersData = await UserService.getAllUsers();
+      setUsers(usersData);
     } catch (error) {
       console.error('Error loading users:', error);
       toast.error('Error al cargar los usuarios');

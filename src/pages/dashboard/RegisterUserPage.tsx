@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,42 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { UserPlus } from 'lucide-react';
-
-const userSchema = z.object({
-  // Basic info
-  nombres: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  apellidos: z.string().min(2, 'Los apellidos deben tener al menos 2 caracteres'),
-  cedula: z.string().min(8, 'La cédula debe tener al menos 8 caracteres'),
-  correo: z.string().email('Correo electrónico inválido'),
-  telefono: z.string().min(10, 'El teléfono debe tener al menos 10 dígitos'),
-  direccion: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
-  
-  // Extended fields
-  birth_date: z.string().optional(),
-  marital_status: z.string().optional(),
-  occupation: z.string().optional(),
-  education_level: z.string().optional(),
-  how_found_church: z.string().optional(),
-  ministry_interest: z.string().optional(),
-  first_visit_date: z.string().optional(),
-  
-  // Church membership
-  bautizado: z.boolean().default(false),
-  fecha_bautizo: z.string().optional(),
-  is_active_member: z.boolean().default(false),
-  membership_date: z.string().optional(),
-  
-  // Cell group
-  cell_group: z.string().optional(),
-  
-  // Role and preferences
-  role: z.enum(['pastor', 'staff', 'supervisor', 'server'] as const),
-  whatsapp: z.boolean().default(false),
-  pastoral_notes: z.string().optional(),
-});
-
-type UserForm = z.infer<typeof userSchema>;
+import { registerUserSchema, RegisterUserFormData } from '@/schemas/user.schemas';
+import { UserService } from '@/services/user.service';
 
 const RegisterUserPage = () => {
   const [loading, setLoading] = useState(false);
@@ -58,8 +22,8 @@ const RegisterUserPage = () => {
     setValue,
     watch,
     reset
-  } = useForm<UserForm>({
-    resolver: zodResolver(userSchema),
+  } = useForm<RegisterUserFormData>({
+    resolver: zodResolver(registerUserSchema),
     defaultValues: {
       bautizado: false,
       whatsapp: false,
@@ -71,54 +35,10 @@ const RegisterUserPage = () => {
   const bautizado = watch('bautizado');
   const isActiveMember = watch('is_active_member');
 
-  const onSubmit = async (data: UserForm) => {
+  const onSubmit = async (data: RegisterUserFormData) => {
     try {
       setLoading(true);
-
-      // Crear hash de la contraseña (esto debería hacerse en el backend)
-      const passwordHash = btoa(data.password); // Temporal, usar bcrypt en producción
-
-      const userData = {
-        first_name: data.nombres,
-        last_name: data.apellidos,
-        id_number: data.cedula,
-        email: data.correo,
-        phone: data.telefono,
-        address: data.direccion,
-        role: data.role,
-        password_hash: passwordHash,
-        
-        // Extended fields
-        birth_date: data.birth_date || null,
-        marital_status: data.marital_status || null,
-        occupation: data.occupation || null,
-        education_level: data.education_level || null,
-        how_found_church: data.how_found_church || null,
-        ministry_interest: data.ministry_interest || null,
-        first_visit_date: data.first_visit_date || null,
-        
-        // Church membership
-        baptized: data.bautizado,
-        baptism_date: data.bautizado && data.fecha_bautizo ? new Date(data.fecha_bautizo).toISOString() : null,
-        is_active_member: data.is_active_member,
-        membership_date: data.membership_date ? new Date(data.membership_date).toISOString() : null,
-        
-        // Cell group and preferences
-        cell_group: data.cell_group || null,
-        whatsapp: data.whatsapp,
-        pastoral_notes: data.pastoral_notes || null,
-      };
-
-      const { error } = await supabase
-        .from('users')
-        .insert([userData]);
-
-      if (error) {
-        console.error('Error creating user:', error);
-        toast.error('Error al crear el usuario: ' + error.message);
-        return;
-      }
-
+      await UserService.createUser(data);
       toast.success('Usuario creado exitosamente');
       reset();
     } catch (error) {

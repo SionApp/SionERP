@@ -6,59 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-
-const editUserSchema = z.object({
-  first_name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  last_name: z.string().min(2, 'El apellido debe tener al menos 2 caracteres'),
-  email: z.string().email('Email inválido'),
-  phone: z.string().min(10, 'El teléfono debe tener al menos 10 caracteres'),
-  id_number: z.string().min(6, 'La cédula debe tener al menos 6 caracteres'),
-  address: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
-  role: z.enum(['pastor', 'staff', 'supervisor', 'server']),
-  baptized: z.boolean(),
-  whatsapp: z.boolean(),
-  pastoral_notes: z.string().optional(),
-  marital_status: z.string().optional(),
-  occupation: z.string().optional(),
-  education_level: z.string().optional(),
-  how_found_church: z.string().optional(),
-  ministry_interest: z.string().optional(),
-  cell_group: z.string().optional(),
-});
-
-type EditUserFormData = z.infer<typeof editUserSchema>;
-
-interface UserData {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  id_number: string;
-  address: string;
-  role: 'pastor' | 'staff' | 'supervisor' | 'server';
-  baptized: boolean;
-  whatsapp: boolean;
-  pastoral_notes?: string;
-  marital_status?: string;
-  occupation?: string;
-  education_level?: string;
-  how_found_church?: string;
-  ministry_interest?: string;
-  cell_group?: string;
-}
-
-interface EditUserModalProps {
-  user: UserData | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onUserUpdated: () => void;
-}
+import { User, EditUserModalProps } from '@/types/user.types';
+import { editUserSchema, EditUserFormData } from '@/schemas/user.schemas';
+import { UserService } from '@/services/user.service';
 
 const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,36 +59,7 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
 
     try {
       setIsSubmitting(true);
-
-      const { error } = await supabase
-        .from('users')
-        .update({
-          first_name: data.first_name,
-          last_name: data.last_name,
-          email: data.email,
-          phone: data.phone,
-          id_number: data.id_number,
-          address: data.address,
-          role: data.role,
-          baptized: data.baptized,
-          whatsapp: data.whatsapp,
-          pastoral_notes: data.pastoral_notes || null,
-          marital_status: data.marital_status || null,
-          occupation: data.occupation || null,
-          education_level: data.education_level || null,
-          how_found_church: data.how_found_church || null,
-          ministry_interest: data.ministry_interest || null,
-          cell_group: data.cell_group || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-
-      if (error) {
-        console.error('Error updating user:', error);
-        toast.error('Error al actualizar el usuario');
-        return;
-      }
-
+      await UserService.updateUser(user.id, data);
       toast.success('Usuario actualizado exitosamente');
       onUserUpdated();
       onClose();
