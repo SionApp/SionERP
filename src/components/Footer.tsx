@@ -24,7 +24,7 @@ const Footer = () => {
               <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden bg-background">
                 <img 
                   src={sionLogo} 
-                  alt="Iglesia Sion" 
+                  alt="Logo de Iglesia Evangélica Pentecostal Sion - Cruz cristiana con texto Sion" 
                   className="w-full h-full object-contain"
                 />
               </div>

@@ -130,11 +130,11 @@ const Newsletter = () => {
           <div className="max-w-4xl mx-auto">
             <Card className="overflow-hidden shadow-xl">
               <div className="relative">
-                <img 
-                  src="/api/placeholder/800/300" 
-                  alt="Servicios Regulares"
-                  className="w-full h-64 object-cover"
-                />
+                  <img 
+                    src="/api/placeholder/800/300" 
+                    alt="Servicios regulares de la Iglesia Sion - Congregación reunida para adoración y enseñanza bíblica"
+                    className="w-full h-64 object-cover"
+                  />
                 <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/60" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center text-white">

@@ -8,27 +8,27 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* SION ERP - Professional ecclesial management system palette */
+    /* SION Church - Professional Christian organization palette */
     --background: 0 0% 98%;
-    --foreground: 220 13% 18%;
+    --foreground: 220 26% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 13% 18%;
+    --card-foreground: 220 26% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 13% 18%;
+    --popover-foreground: 220 26% 14%;
 
-    --primary: 220 90% 56%;
+    --primary: 220 90% 30%;
     --primary-foreground: 0 0% 100%;
     --primary-light: 220 90% 85%;
 
     --secondary: 220 14% 96%;
-    --secondary-foreground: 220 13% 18%;
+    --secondary-foreground: 220 26% 14%;
 
     --muted: 220 14% 96%;
     --muted-foreground: 220 13% 45%;
 
-    --accent: 45 93% 58%;
+    --accent: 45 93% 50%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -36,17 +36,17 @@ All colors MUST be HSL.
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 220 90% 56%;
+    --ring: 220 90% 30%;
 
-    /* SION ERP-specific design tokens */
-    --gradient-hero: linear-gradient(135deg, hsl(220 90% 56%), hsl(45 93% 58%));
-    --gradient-executive: linear-gradient(180deg, hsl(220 90% 56%), hsl(220 85% 65%));
+    /* SION Church-specific design tokens */
+    --gradient-hero: linear-gradient(135deg, hsl(220 90% 30%), hsl(45 93% 50%));
+    --gradient-executive: linear-gradient(180deg, hsl(220 90% 30%), hsl(220 85% 40%));
     --gradient-divine: linear-gradient(180deg, hsl(0 0% 98%), hsl(220 14% 96%));
-    --shadow-executive: 0 20px 60px -10px hsl(220 90% 56% / 0.25);
-    --shadow-soft: 0 4px 20px -4px hsl(220 13% 18% / 0.08);
-    --shadow-card: 0 8px 30px -8px hsl(220 90% 56% / 0.15);
+    --shadow-executive: 0 20px 60px -10px hsl(220 90% 30% / 0.25);
+    --shadow-soft: 0 4px 20px -4px hsl(220 26% 14% / 0.08);
+    --shadow-card: 0 8px 30px -8px hsl(220 90% 30% / 0.15);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --sion-yellow: 45 93% 58%;
+    --sion-gold: 45 93% 50%;
 
     --radius: 0.5rem;
 
@@ -68,41 +68,41 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 220 27% 8%;
+    --background: 220 26% 6%;
     --foreground: 0 0% 98%;
 
-    --card: 220 27% 12%;
+    --card: 220 26% 10%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 220 27% 12%;
+    --popover: 220 26% 10%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 220 90% 65%;
-    --primary-foreground: 220 27% 8%;
+    --primary: 220 90% 55%;
+    --primary-foreground: 220 26% 6%;
 
-    --secondary: 220 27% 16%;
+    --secondary: 220 26% 14%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 220 27% 16%;
+    --muted: 220 26% 14%;
     --muted-foreground: 0 0% 75%;
 
     --accent: 45 93% 65%;
-    --accent-foreground: 220 27% 8%;
+    --accent-foreground: 220 26% 6%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 25%;
-    --input: 0 0% 25%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
     --ring: 45 93% 65%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-background: 220 26% 6%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 220 90% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 26% 14%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 26% 14%;
+    --sidebar-ring: 45 93% 65%;
   }
 }
 
