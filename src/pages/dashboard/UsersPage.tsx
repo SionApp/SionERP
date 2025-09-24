@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Filter } from 'lucide-react';
+import { Search, Plus, Filter, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 interface UserData {
   id: string;
@@ -14,9 +15,10 @@ interface UserData {
   correo: string;
   telefono: string;
   cedula: string;
-  role: string;
+  role: 'pastor' | 'staff' | 'supervisor' | 'server';
   bautizado: boolean;
   whatsapp: boolean;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -24,6 +26,7 @@ const UsersPage = () => {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadUsers();
@@ -34,7 +37,8 @@ const UsersPage = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select('id, nombres, apellidos, correo, telefono, cedula, role, bautizado, whatsapp, is_active, created_at')
+        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -61,12 +65,31 @@ const UsersPage = () => {
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
-      case 'admin':
+      case 'pastor':
         return 'destructive';
-      case 'moderator':
+      case 'staff':
+        return 'default';
+      case 'supervisor':
         return 'secondary';
+      case 'server':
+        return 'outline';
       default:
         return 'default';
+    }
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'pastor':
+        return 'Pastor';
+      case 'staff':
+        return 'Staff';
+      case 'supervisor':
+        return 'Supervisor';
+      case 'server':
+        return 'Servidor';
+      default:
+        return role;
     }
   };
 
@@ -87,7 +110,7 @@ const UsersPage = () => {
             Administra los usuarios registrados en el sistema
           </p>
         </div>
-        <Button>
+        <Button onClick={() => navigate('/dashboard/register-user')}>
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Usuario
         </Button>
@@ -135,7 +158,7 @@ const UsersPage = () => {
               </div>
             ) : (
               filteredUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
                   <div className="flex-1">
                     <div className="flex items-center gap-4">
                       <div>
@@ -155,7 +178,7 @@ const UsersPage = () => {
                   
                   <div className="flex items-center gap-2">
                     <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {user.role}
+                      {getRoleDisplayName(user.role)}
                     </Badge>
                     {user.bautizado && (
                       <Badge variant="outline">Bautizado</Badge>
@@ -165,9 +188,17 @@ const UsersPage = () => {
                     )}
                   </div>
                   
-                  <div className="text-right text-sm text-muted-foreground">
-                    <p>Registrado:</p>
-                    <p>{new Date(user.created_at).toLocaleDateString()}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right text-sm text-muted-foreground mr-4">
+                      <p>Registrado:</p>
+                      <p>{new Date(user.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               ))

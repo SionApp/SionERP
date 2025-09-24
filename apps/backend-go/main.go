@@ -2,13 +2,22 @@ package main
 
 import (
 	"backend-sion/routes"
+	"backend-sion/config"
 	"log"
+	"os"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
+	// Initialize database
+	db, err := config.NewDatabase()
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	defer db.Close()
+
 	e := echo.New()
 
 	// Middleware
@@ -26,9 +35,14 @@ func main() {
 	})
 
 	// Setup all routes
-	routes.SetupRoutes(e)
+	routes.SetupRoutes(e, db)
 
 	// Start server
-	log.Println("Server starting on :8080")
-	e.Logger.Fatal(e.Start(":8080"))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Server starting on port %s", port)
+	e.Logger.Fatal(e.Start(":" + port))
 }

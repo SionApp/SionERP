@@ -3,13 +3,14 @@ package routes
 import (
 	"backend-sion/handlers"
 	"backend-sion/middleware"
+	"backend-sion/config"
 
 	"github.com/labstack/echo/v4"
 )
 
-func SetupRoutes(e *echo.Echo) {
+func SetupRoutes(e *echo.Echo, db *config.Database) {
 	// Initialize handlers
-	userHandler := handlers.NewUserHandler()
+	userHandler := handlers.NewUserHandler(db)
 
 	// API routes
 	api := e.Group("/api/v1")
