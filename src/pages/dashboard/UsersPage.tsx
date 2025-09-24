@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Plus, Filter, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import EditUserModal from '@/components/EditUserModal';
 
 interface UserData {
   id: string;
@@ -15,17 +16,26 @@ interface UserData {
   email: string;
   phone: string;
   id_number: string;
+  address: string;
   role: 'pastor' | 'staff' | 'supervisor' | 'server';
   baptized: boolean;
   whatsapp: boolean;
   is_active: boolean;
   created_at: string;
+  pastoral_notes?: string;
+  marital_status?: string;
+  occupation?: string;
+  education_level?: string;
+  how_found_church?: string;
+  ministry_interest?: string;
+  cell_group?: string;
 }
 
 const UsersPage = () => {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,7 +47,7 @@ const UsersPage = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('users')
-        .select('id, first_name, last_name, email, phone, id_number, role, baptized, whatsapp, is_active, created_at')
+        .select('id, first_name, last_name, email, phone, id_number, address, role, baptized, whatsapp, is_active, created_at, pastoral_notes, marital_status, occupation, education_level, how_found_church, ministry_interest, cell_group')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -193,7 +203,11 @@ const UsersPage = () => {
                       <p>Registrado:</p>
                       <p>{new Date(user.created_at).toLocaleDateString()}</p>
                     </div>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setEditingUser(user)}
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button variant="outline" size="sm">
@@ -206,6 +220,13 @@ const UsersPage = () => {
           </div>
         </CardContent>
       </Card>
+
+      <EditUserModal
+        user={editingUser}
+        isOpen={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        onUserUpdated={loadUsers}
+      />
     </div>
   );
 };
