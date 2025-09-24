@@ -28,7 +28,7 @@ All colors MUST be HSL.
     --muted: 220 14% 96%;
     --muted-foreground: 220 13% 45%;
 
-    --accent: 45 93% 47%;
+    --accent: 45 93% 58%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -39,13 +39,14 @@ All colors MUST be HSL.
     --ring: 220 90% 56%;
 
     /* SION ERP-specific design tokens */
-    --gradient-hero: linear-gradient(135deg, hsl(220 90% 56%), hsl(45 93% 47%));
+    --gradient-hero: linear-gradient(135deg, hsl(220 90% 56%), hsl(45 93% 58%));
     --gradient-executive: linear-gradient(180deg, hsl(220 90% 56%), hsl(220 85% 65%));
     --gradient-divine: linear-gradient(180deg, hsl(0 0% 98%), hsl(220 14% 96%));
     --shadow-executive: 0 20px 60px -10px hsl(220 90% 56% / 0.25);
     --shadow-soft: 0 4px 20px -4px hsl(220 13% 18% / 0.08);
     --shadow-card: 0 8px 30px -8px hsl(220 90% 56% / 0.15);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --sion-yellow: 45 93% 58%;
 
     --radius: 0.5rem;
 

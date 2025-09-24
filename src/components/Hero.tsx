@@ -24,7 +24,7 @@ const Hero = () => {
           </div>
           
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
-            <span className="text-accent font-black">SION</span>
+            <span className="font-black" style={{ color: 'hsl(var(--sion-yellow))' }}>SION</span>
             <span className="block text-3xl md:text-4xl lg:text-5xl font-semibold mt-2">Cambiando Vidas</span>
           </h1>
           
