@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+	"database/sql"
+	"fmt"
 
 	"github.com/labstack/echo/v4"
+	"../config"
 )
 
 type UserHandler struct {
-	// db *config.Database // Will be added later
+	db *config.Database
 }
 
 type User struct {
@@ -113,29 +116,48 @@ type UpdateUserRequest struct {
 	PastoralNotes    *string `json:"pastoral_notes,omitempty"`
 }
 
-func NewUserHandler() *UserHandler {
-	return &UserHandler{}
+func NewUserHandler(db *config.Database) *UserHandler {
+	return &UserHandler{db: db}
 }
 
 // GetUsers obtiene la lista de usuarios
 func (h *UserHandler) GetUsers(c echo.Context) error {
-	// TODO: Implement database query with role-based filtering
-	// For now, return mock data
-	users := []User{
-		{
-			ID:        "1",
-			Nombres:   "Juan",
-			Apellidos: "Pérez",
-			Cedula:    "001-1234567-1",
-			Correo:    "juan@example.com",
-			Telefono:  "8095551234",
-			Direccion: "Santo Domingo",
-			Role:      "server",
-			IsActive:  true,
-			WhatsApp:  true,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
+	query := `
+		SELECT id, nombres, apellidos, cedula, correo, telefono, direccion,
+			   birth_date, marital_status, occupation, education_level, 
+			   how_found_church, ministry_interest, first_visit_date,
+			   bautizado, fecha_bautizo, is_active_member, membership_date,
+			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
+			   whatsapp, created_at, updated_at
+		FROM users 
+		WHERE is_active = true
+		ORDER BY created_at DESC
+	`
+	
+	rows, err := h.db.DB.Query(query)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error fetching users",
+		})
+	}
+	defer rows.Close()
+	
+	var users []User
+	for rows.Next() {
+		var user User
+		err := rows.Scan(
+			&user.ID, &user.Nombres, &user.Apellidos, &user.Cedula, &user.Correo,
+			&user.Telefono, &user.Direccion, &user.BirthDate, &user.MaritalStatus,
+			&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
+			&user.MinistryInterest, &user.FirstVisitDate, &user.Bautizado,
+			&user.FechaBautizo, &user.IsActiveMember, &user.MembershipDate,
+			&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
+			&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
+		)
+		if err != nil {
+			continue
+		}
+		users = append(users, user)
 	}
 	
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -177,15 +199,39 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 		})
 	}
 	
-	// TODO: Validate request data
 	// TODO: Hash password
-	// TODO: Insert user into database
-	// TODO: Handle role-based authorization
+	// TODO: Create auth user first
 	
-	// For now, return success
+	query := `
+		INSERT INTO users (
+			nombres, apellidos, cedula, correo, telefono, direccion, password_hash,
+			birth_date, marital_status, occupation, education_level, 
+			how_found_church, ministry_interest, first_visit_date,
+			bautizado, fecha_bautizo, is_active_member, membership_date,
+			cell_group, role, pastoral_notes, whatsapp
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+		) RETURNING id
+	`
+	
+	var userID string
+	err := h.db.DB.QueryRow(
+		query, req.Nombres, req.Apellidos, req.Cedula, req.Correo, req.Telefono,
+		req.Direccion, "temp_hash", req.BirthDate, req.MaritalStatus, req.Occupation,
+		req.EducationLevel, req.HowFoundChurch, req.MinistryInterest, req.FirstVisitDate,
+		req.Bautizado, req.FechaBautizo, req.IsActiveMember, req.MembershipDate,
+		req.CellGroup, req.Role, req.PastoralNotes, req.WhatsApp,
+	).Scan(&userID)
+	
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error creating user",
+		})
+	}
+	
 	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"message": "User created successfully",
-		"user_id": "new-user-id",
+		"user_id": userID,
 	})
 }
 

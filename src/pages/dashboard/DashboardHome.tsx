@@ -5,15 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Users, UserPlus, Shield, Activity, TrendingUp, Calendar, Clock, Target } from 'lucide-react';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
 
 const DashboardHome = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    newRegistrations: 0,
-    activeRoles: 3,
-    systemActivity: 98
-  });
+  const { stats, roleDistribution, recentActivity, loading: statsLoading } = useDashboardStats();
 
   const chartData = [
     { name: 'Ene', usuarios: 65, registros: 28 },
@@ -24,12 +20,6 @@ const DashboardHome = () => {
     { name: 'Jun', usuarios: 203, registros: 112 },
   ];
 
-  const roleDistribution = [
-    { name: 'Admin', value: 8, color: 'hsl(var(--primary))' },
-    { name: 'Moderador', value: 23, color: 'hsl(266 85% 68%)' },
-    { name: 'Usuario', value: 156, color: 'hsl(295 85% 58%)' },
-    { name: 'Invitado', value: 34, color: 'hsl(217 32.6% 17.5%)' },
-  ];
 
   const activityData = [
     { time: '00:00', activity: 12 },
@@ -42,7 +32,6 @@ const DashboardHome = () => {
 
   useEffect(() => {
     getCurrentUser();
-    loadStats();
   }, []);
 
   const getCurrentUser = async () => {
@@ -50,30 +39,6 @@ const DashboardHome = () => {
     setUser(user);
   };
 
-  const loadStats = async () => {
-    try {
-      const { count: totalUsers } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true });
-
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      const { count: newRegistrations } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', sevenDaysAgo.toISOString());
-
-      setStats({
-        totalUsers: totalUsers || 0,
-        newRegistrations: newRegistrations || 0,
-        activeRoles: 3,
-        systemActivity: 98
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6 space-y-8">
@@ -308,32 +273,7 @@ const DashboardHome = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {[
-                {
-                  action: "Nuevo usuario registrado",
-                  user: "juan.perez@email.com",
-                  time: "Hace 2 minutos",
-                  type: "success"
-                },
-                {
-                  action: "Perfil actualizado",
-                  user: "maria.garcia@email.com",
-                  time: "Hace 1 hora",
-                  type: "info"
-                },
-                {
-                  action: "Rol modificado",
-                  user: "admin@sion.com",
-                  time: "Hace 2 horas",
-                  type: "warning"
-                },
-                {
-                  action: "Sesión iniciada",
-                  user: "carlos.lopez@email.com",
-                  time: "Hace 3 horas",
-                  type: "info"
-                }
-              ].map((activity, index) => (
+              {recentActivity.map((activity, index) => (
                 <div key={index} className="flex items-center space-x-4 p-4 rounded-xl bg-gradient-to-r from-accent/50 to-transparent border border-border/50 hover:shadow-md transition-all duration-200">
                   <div className={`w-3 h-3 rounded-full ${
                     activity.type === 'success' ? 'bg-green-500' :
