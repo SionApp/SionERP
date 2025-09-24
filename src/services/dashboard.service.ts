@@ -29,13 +29,7 @@ export class DashboardService {
       return response.data;
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
-      // Fallback to default values
-      return {
-        totalUsers: 0,
-        newRegistrations: 0,
-        activeRoles: 4,
-        systemActivity: 98
-      };
+      throw error; // Re-throw to allow fallback handling
     }
   }
 
@@ -45,13 +39,7 @@ export class DashboardService {
       return response.data;
     } catch (error) {
       console.error('Error fetching role distribution:', error);
-      // Fallback to default values
-      return [
-        { name: 'Pastor', value: 0, color: 'hsl(var(--primary))' },
-        { name: 'Staff', value: 0, color: 'hsl(220 90% 50%)' },
-        { name: 'Supervisor', value: 0, color: 'hsl(45 93% 50%)' },
-        { name: 'Server', value: 0, color: 'hsl(217 32.6% 17.5%)' },
-      ];
+      throw error; // Re-throw to allow fallback handling
     }
   }
 
@@ -61,7 +49,7 @@ export class DashboardService {
       return response.data;
     } catch (error) {
       console.error('Error fetching recent activity:', error);
-      return [];
+      throw error; // Re-throw to allow fallback handling
     }
   }
 
@@ -80,7 +68,7 @@ export class DashboardService {
       };
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      throw error;
+      throw error; // Re-throw to allow fallback handling
     }
   }
 }
