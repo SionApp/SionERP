@@ -169,9 +169,9 @@ const RoleManagementPage = () => {
 
   const RoleCard = ({ role, isCustom = false }: { role: any, isCustom?: boolean }) => {
     const Icon = role.icon;
-    const totalPermissions = Object.values(role.permissions).reduce((acc: any, perms: any) => 
+    const totalPermissions = Object.values(role.permissions).reduce((acc: number, perms: any) => 
       acc + Object.values(perms).filter(Boolean).length, 0
-    );
+    ) as number;
 
     return (
       <Card className="group hover:shadow-lg transition-all duration-300">
@@ -492,9 +492,9 @@ const RoleManagementPage = () => {
                 <div className="space-y-2">
                   <Label>Permisos Activos</Label>
                   <div className="text-2xl font-bold">
-                    {Object.values(selectedRole.permissions).reduce((acc: any, perms: any) => 
+                    {Object.values(selectedRole.permissions).reduce((acc: number, perms: any) => 
                       acc + Object.values(perms).filter(Boolean).length, 0
-                    )}
+                    ) as number}
                   </div>
                 </div>
               </div>
