@@ -215,6 +215,47 @@ export const useDashboardStats = () => {
 
   useEffect(() => {
     loadAll();
+
+    // Set up real-time subscriptions for automatic updates
+    const usersChannel = supabase
+      .channel('dashboard-users-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'users'
+        },
+        (payload) => {
+          console.log('Users table changed:', payload);
+          // Reload stats when users table changes
+          loadStats();
+        }
+      )
+      .subscribe();
+
+    const auditLogsChannel = supabase
+      .channel('dashboard-audit-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT', // Only listen to new audit logs
+          schema: 'public',
+          table: 'audit_logs'
+        },
+        (payload) => {
+          console.log('New audit log:', payload);
+          // Reload recent activity when new audit log is created
+          loadRecentActivity();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      supabase.removeChannel(usersChannel);
+      supabase.removeChannel(auditLogsChannel);
+    };
   }, []);
 
   return {
