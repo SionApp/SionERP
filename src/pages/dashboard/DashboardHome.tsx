@@ -43,11 +43,27 @@ const DashboardHome = () => {
 
   useEffect(() => {
     getCurrentUser();
+    getCurrentUserRole();
   }, []);
 
   const getCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     setUser(user);
+  };
+
+  const getCurrentUserRole = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      if (userData && !error) {
+        setCurrentUserRole(userData.role);
+      }
+    }
   };
 
 
