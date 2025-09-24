@@ -15,24 +15,6 @@ const DashboardHome = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { stats, roleDistribution, recentActivity, loading: statsLoading } = useDashboardStats();
 
-  const chartData = [
-    { name: 'Ene', usuarios: 65, registros: 28 },
-    { name: 'Feb', usuarios: 89, registros: 48 },
-    { name: 'Mar', usuarios: 123, registros: 67 },
-    { name: 'Abr', usuarios: 156, registros: 89 },
-    { name: 'May', usuarios: 178, registros: 94 },
-    { name: 'Jun', usuarios: 203, registros: 112 },
-  ];
-
-
-  const activityData = [
-    { time: '00:00', activity: 12 },
-    { time: '04:00', activity: 8 },
-    { time: '08:00', activity: 45 },
-    { time: '12:00', activity: 78 },
-    { time: '16:00', activity: 89 },
-    { time: '20:00', activity: 56 },
-  ];
 
   const handleActivityClick = (activity: any) => {
     if (activity.details) {
@@ -156,61 +138,7 @@ const DashboardHome = () => {
       </div>
 
       {/* Charts Grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Users Growth Chart */}
-        <Card className="lg:col-span-2 border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl font-bold">Crecimiento de Usuarios</CardTitle>
-                <CardDescription>Tendencia de registro de usuarios en los últimos 6 meses</CardDescription>
-              </div>
-              <TrendingUp className="h-6 w-6 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{
-                usuarios: { label: "Usuarios Totales", color: "hsl(var(--primary))" },
-                registros: { label: "Nuevos Registros", color: "hsl(266 85% 68%)" }
-              }}
-              className="h-[300px]"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="gradientUsuarios" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="gradientRegistros" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(266 85% 68%)" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(266 85% 68%)" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
-                  <YAxis stroke="hsl(var(--muted-foreground))" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Area
-                    type="monotone"
-                    dataKey="usuarios"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={3}
-                    fill="url(#gradientUsuarios)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="registros"
-                    stroke="hsl(266 85% 68%)"
-                    strokeWidth={3}
-                    fill="url(#gradientRegistros)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
+      <div className="grid gap-6 lg:grid-cols-1">
 
         {/* Role Distribution */}
         <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
@@ -255,42 +183,8 @@ const DashboardHome = () => {
         </Card>
       </div>
 
-      {/* Activity Timeline & Recent Actions */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* System Activity */}
-        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              Actividad del Sistema
-            </CardTitle>
-            <CardDescription>Actividad de usuarios por hora</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{
-                activity: { label: "Actividad", color: "hsl(var(--primary))" }
-              }}
-              className="h-[200px]"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={activityData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
-                  <YAxis stroke="hsl(var(--muted-foreground))" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar
-                    dataKey="activity"
-                    fill="hsl(var(--primary))"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity - Solo para pastor y staff */}
+      {/* Activity Section */}
+      <div className="grid gap-6 lg:grid-cols-1">
         {currentUserRole && ['pastor', 'staff'].includes(currentUserRole) && (
           <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
             <CardHeader>
