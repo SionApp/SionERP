@@ -285,13 +285,13 @@ const DashboardHome = () => {
               <CardDescription>Registro de audit logs - Solo visible para Pastor y Staff</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="max-h-60 overflow-y-auto space-y-4 pr-2">
                 {recentActivity.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">
                     No hay actividades recientes registradas
                   </p>
                 ) : (
-                  recentActivity.map((activity, index) => (
+                  recentActivity.slice(0, 10).map((activity, index) => (
                     <div 
                       key={activity.id || index} 
                       className="flex items-center space-x-4 p-4 rounded-xl bg-gradient-to-r from-accent/50 to-transparent border border-border/50 hover:shadow-md transition-all duration-200 cursor-pointer hover:bg-accent/30"
