@@ -1,14 +1,11 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
-	"database/sql"
-	"fmt"
 
 	"github.com/labstack/echo/v4"
-	"../config"
+	"backend-sion/config"
 )
 
 type UserHandler struct {
@@ -149,8 +146,8 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			&user.ID, &user.Nombres, &user.Apellidos, &user.Cedula, &user.Correo,
 			&user.Telefono, &user.Direccion, &user.BirthDate, &user.MaritalStatus,
 			&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
-			&user.MinistryInterest, &user.FirstVisitDate, &user.Bautizado,
-			&user.FechaBautizo, &user.IsActiveMember, &user.MembershipDate,
+			&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
+			&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
 			&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
 			&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
 		)
@@ -216,10 +213,10 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 	
 	var userID string
 	err := h.db.DB.QueryRow(
-		query, req.Nombres, req.Apellidos, req.Cedula, req.Correo, req.Telefono,
-		req.Direccion, "temp_hash", req.BirthDate, req.MaritalStatus, req.Occupation,
+		query, req.FirstName, req.LastName, req.IdNumber, req.Email, req.Phone,
+		req.Address, "temp_hash", req.BirthDate, req.MaritalStatus, req.Occupation,
 		req.EducationLevel, req.HowFoundChurch, req.MinistryInterest, req.FirstVisitDate,
-		req.Bautizado, req.FechaBautizo, req.IsActiveMember, req.MembershipDate,
+		req.Baptized, req.BaptismDate, req.IsActiveMember, req.MembershipDate,
 		req.CellGroup, req.Role, req.PastoralNotes, req.WhatsApp,
 	).Scan(&userID)
 	
