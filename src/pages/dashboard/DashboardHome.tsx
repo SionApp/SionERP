@@ -9,6 +9,9 @@ import { useDashboardStats } from '@/hooks/useDashboardStats';
 
 const DashboardHome = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [selectedAuditLog, setSelectedAuditLog] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { stats, roleDistribution, recentActivity, loading: statsLoading } = useDashboardStats();
 
   const chartData = [
@@ -262,38 +265,57 @@ const DashboardHome = () => {
           </CardContent>
         </Card>
 
-        {/* Recent Activity */}
-        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              Actividad Reciente
-            </CardTitle>
-            <CardDescription>Últimas acciones en el sistema</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivity.map((activity, index) => (
-                <div key={index} className="flex items-center space-x-4 p-4 rounded-xl bg-gradient-to-r from-accent/50 to-transparent border border-border/50 hover:shadow-md transition-all duration-200">
-                  <div className={`w-3 h-3 rounded-full ${
-                    activity.type === 'success' ? 'bg-green-500' :
-                    activity.type === 'warning' ? 'bg-orange-500' :
-                    'bg-blue-500'
-                  } shadow-lg`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{activity.action}</p>
-                    <p className="text-xs text-muted-foreground truncate">{activity.user}</p>
-                  </div>
-                  <div className="text-xs text-muted-foreground whitespace-nowrap">
-                    {activity.time}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Recent Activity - Solo para pastor y staff */}
+        {currentUserRole && ['pastor', 'staff'].includes(currentUserRole) && (
+          <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+            <CardHeader>
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                Actividades Recientes del Sistema
+              </CardTitle>
+              <CardDescription>Registro de audit logs - Solo visible para Pastor y Staff</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {recentActivity.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    No hay actividades recientes registradas
+                  </p>
+                ) : (
+                  recentActivity.map((activity, index) => (
+                    <div 
+                      key={activity.id || index} 
+                      className="flex items-center space-x-4 p-4 rounded-xl bg-gradient-to-r from-accent/50 to-transparent border border-border/50 hover:shadow-md transition-all duration-200 cursor-pointer hover:bg-accent/30"
+                      onClick={() => handleActivityClick(activity)}
+                    >
+                      <div className={`w-3 h-3 rounded-full ${
+                        activity.type === 'success' ? 'bg-green-500' :
+                        activity.type === 'warning' ? 'bg-orange-500' :
+                        'bg-blue-500'
+                      } shadow-lg`}></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{activity.action}</p>
+                        <p className="text-xs text-muted-foreground truncate">por {activity.user}</p>
+                      </div>
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                        {activity.time}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
+
+    {/* Modal de detalles de audit log */}
+    <AuditLogModal 
+      isOpen={isModalOpen}
+      onClose={() => setIsModalOpen(false)}
+      auditLog={selectedAuditLog}
+    />
   );
 };
 
