@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DashboardService, DashboardStats, RoleDistribution, RecentActivity } from '@/services/dashboard.service';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -21,6 +21,7 @@ export const useDashboardStats = () => {
   
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const loadStats = async () => {
     try {
@@ -213,56 +214,83 @@ export const useDashboardStats = () => {
     setLoading(false);
   };
 
+  const setupWebSocketConnection = () => {
+    const wsUrl = `wss://bhtrlwkmcchobwpjkait.supabase.co/functions/v1/dashboard-realtime`;
+    
+    wsRef.current = new WebSocket(wsUrl);
+
+    wsRef.current.onopen = () => {
+      console.log('Dashboard WebSocket connected');
+    };
+
+    wsRef.current.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        
+        switch (message.type) {
+          case 'connection_established':
+            console.log('Dashboard realtime connection established');
+            break;
+          case 'users_changed':
+            console.log('Users table changed, reloading stats');
+            loadStats();
+            break;
+          case 'audit_log_created':
+            console.log('New audit log created, reloading activity');
+            loadRecentActivity();
+            break;
+          case 'stats_reload_requested':
+            loadAll();
+            break;
+          default:
+            console.log('Unknown message type:', message.type);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+
+    wsRef.current.onclose = () => {
+      console.log('Dashboard WebSocket disconnected, attempting reconnect...');
+      // Attempt to reconnect after 3 seconds
+      setTimeout(() => {
+        if (wsRef.current?.readyState === WebSocket.CLOSED) {
+          setupWebSocketConnection();
+        }
+      }, 3000);
+    };
+
+    wsRef.current.onerror = (error) => {
+      console.error('Dashboard WebSocket error:', error);
+    };
+  };
+
   useEffect(() => {
     loadAll();
+    setupWebSocketConnection();
 
-    // Set up real-time subscriptions for automatic updates
-    const usersChannel = supabase
-      .channel('dashboard-users-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'users'
-        },
-        (payload) => {
-          console.log('Users table changed:', payload);
-          // Reload stats when users table changes
-          loadStats();
-        }
-      )
-      .subscribe();
-
-    const auditLogsChannel = supabase
-      .channel('dashboard-audit-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT', // Only listen to new audit logs
-          schema: 'public',
-          table: 'audit_logs'
-        },
-        (payload) => {
-          console.log('New audit log:', payload);
-          // Reload recent activity when new audit log is created
-          loadRecentActivity();
-        }
-      )
-      .subscribe();
-
-    // Cleanup subscriptions on unmount
+    // Cleanup on unmount
     return () => {
-      supabase.removeChannel(usersChannel);
-      supabase.removeChannel(auditLogsChannel);
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
   }, []);
+
+  const refresh = () => {
+    loadAll();
+    // Also send a ping through WebSocket to ensure connection is alive
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'request_stats' }));
+    }
+  };
 
   return {
     stats,
     roleDistribution,
     recentActivity,
     loading,
-    refresh: loadAll
+    refresh
   };
 };
