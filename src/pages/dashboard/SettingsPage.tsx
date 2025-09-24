@@ -25,6 +25,8 @@ import {
   MessageSquare,
   Calendar,
   Download,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 
