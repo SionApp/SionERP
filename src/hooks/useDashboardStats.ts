@@ -15,10 +15,12 @@ interface RoleDistribution {
 }
 
 interface RecentActivity {
+  id?: string;
   action: string;
   user: string;
   time: string;
-  type: 'success' | 'info' | 'warning';
+  type: 'success' | 'warning' | 'info';
+  details?: any;
 }
 
 export const useDashboardStats = () => {
@@ -90,35 +92,94 @@ export const useDashboardStats = () => {
 
   const loadRecentActivity = async () => {
     try {
-      // Get recent users
-      const { data: recentUsers } = await supabase
-        .from('users')
-        .select('nombres, apellidos, correo, created_at')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(4);
+      // Solo cargar audit logs para pastor y staff
+      const { data: currentUser } = await supabase.auth.getUser();
+      if (!currentUser.user) return;
 
-      if (recentUsers) {
-        const activities = recentUsers.map((user, index) => ({
-          action: "Nuevo usuario registrado",
-          user: user.correo,
-          time: `Hace ${index === 0 ? '1 minuto' : index === 1 ? '1 hora' : `${index} horas`}`,
-          type: "success" as const
-        }));
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', currentUser.user.id)
+        .single();
+
+      // Solo pastor y staff pueden ver audit logs
+      if (!userProfile || !['pastor', 'staff'].includes(userProfile.role)) {
+        setRecentActivity([]);
+        return;
+      }
+
+      // Obtener audit logs reales
+      const { data: auditLogs } = await supabase
+        .from('audit_logs')
+        .select(`
+          *,
+          users!audit_logs_changed_by_fkey (nombres, apellidos, correo)
+        `)
+        .order('changed_at', { ascending: false })
+        .limit(5);
+
+      if (auditLogs) {
+        const activities = auditLogs.map((log) => {
+          const user = log.users ? `${log.users.nombres} ${log.users.apellidos}` : 'Sistema';
+          const timeAgo = getTimeAgo(new Date(log.changed_at));
+          
+          let action = '';
+          let actionType: 'success' | 'warning' | 'info' = 'info';
+
+          switch (log.action) {
+            case 'INSERT':
+              action = `Creó un nuevo ${getTableDisplayName(log.table_name)}`;
+              actionType = 'success';
+              break;
+            case 'UPDATE':
+              action = `Actualizó ${getTableDisplayName(log.table_name)}`;
+              actionType = 'warning';
+              break;
+            case 'DELETE':
+              action = `Eliminó ${getTableDisplayName(log.table_name)}`;
+              actionType = 'info';
+              break;
+            default:
+              action = `Modificó ${getTableDisplayName(log.table_name)}`;
+          }
+
+          return {
+            id: log.id,
+            action,
+            user,
+            time: timeAgo,
+            type: actionType,
+            details: log
+          };
+        });
+
         setRecentActivity(activities);
       }
     } catch (error) {
       console.error('Error loading recent activity:', error);
-      // Fallback data
-      setRecentActivity([
-        {
-          action: "Sistema iniciado",
-          user: "Sistema",
-          time: "Hace 1 minuto",
-          type: "info"
-        }
-      ]);
+      setRecentActivity([]);
     }
+  };
+
+  const getTableDisplayName = (tableName: string) => {
+    const displayNames: Record<string, string> = {
+      'users': 'usuario',
+      'live_streams': 'transmisión en vivo',
+      'reports': 'reporte',
+      'user_permissions': 'permiso de usuario',
+      'role_permissions': 'permiso de rol'
+    };
+    return displayNames[tableName] || tableName;
+  };
+
+  const getTimeAgo = (date: Date) => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'Hace menos de 1 minuto';
+    if (diffInSeconds < 3600) return `Hace ${Math.floor(diffInSeconds / 60)} minutos`;
+    if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} horas`;
+    return `Hace ${Math.floor(diffInSeconds / 86400)} días`;
   };
 
   const loadAll = async () => {
