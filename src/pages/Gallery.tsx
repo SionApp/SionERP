@@ -174,7 +174,7 @@ const Gallery = () => {
     modal.innerHTML = `
       <div class="relative max-w-4xl max-h-[90vh] p-4">
         <img src="${image.src}" alt="${image.alt}" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
-        <button class="absolute -top-2 -right-2 w-8 h-8 bg-white text-black rounded-full flex items-center justify-center text-xl font-bold hover:bg-gray-200 transition-colors">×</button>
+        <button class="absolute -top-2 -right-2 w-8 h-8 bg-background text-foreground rounded-full flex items-center justify-center text-xl font-bold hover:bg-accent hover:text-accent-foreground transition-colors border border-border">×</button>
       </div>
     `;
     
