@@ -138,7 +138,7 @@ const DashboardHome = () => {
       </div>
 
       {/* Charts Grid */}
-      <div className="grid gap-6 lg:grid-cols-1">
+      <div className="grid gap-6 lg:grid-cols-2">
 
         {/* Role Distribution */}
         <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
@@ -181,10 +181,8 @@ const DashboardHome = () => {
             </ChartContainer>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Activity Section */}
-      <div className="grid gap-6 lg:grid-cols-1">
+        {/* Recent Activity - Solo para pastor y staff */}
         {currentUserRole && ['pastor', 'staff'].includes(currentUserRole) && (
           <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
             <CardHeader>
