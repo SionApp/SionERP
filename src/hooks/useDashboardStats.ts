@@ -113,14 +113,14 @@ export const useDashboardStats = () => {
         .from('audit_logs')
         .select(`
           *,
-          users!audit_logs_changed_by_fkey (nombres, apellidos, correo)
+          users!audit_logs_changed_by_fkey (first_name, last_name, email)
         `)
         .order('changed_at', { ascending: false })
         .limit(5);
 
       if (auditLogs) {
         const activities = auditLogs.map((log) => {
-          const user = log.users ? `${log.users.nombres} ${log.users.apellidos}` : 'Sistema';
+          const user = log.users ? `${log.users.first_name} ${log.users.last_name}` : 'Sistema';
           const timeAgo = getTimeAgo(new Date(log.changed_at));
           
           let action = '';

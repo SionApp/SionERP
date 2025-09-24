@@ -61,9 +61,16 @@ const RegistrationModal = () => {
       const passwordHash = btoa(tempPassword); // Codificación base64 simple
 
       const dataToInsert = {
-        ...formData,
-        password_hash: passwordHash,
-        fecha_bautizo: formData.bautizado && formData.fecha_bautizo ? formData.fecha_bautizo : null
+        first_name: formData.nombres,
+        last_name: formData.apellidos,
+        id_number: formData.cedula,
+        email: formData.correo,
+        phone: formData.telefono,
+        address: formData.direccion,
+        baptized: formData.bautizado,
+        baptism_date: formData.bautizado && formData.fecha_bautizo ? formData.fecha_bautizo : null,
+        whatsapp: formData.whatsapp,
+        password_hash: passwordHash
       };
 
       const { error } = await supabase

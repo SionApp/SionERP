@@ -10,13 +10,13 @@ import { useNavigate } from 'react-router-dom';
 
 interface UserData {
   id: string;
-  nombres: string;
-  apellidos: string;
-  correo: string;
-  telefono: string;
-  cedula: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  id_number: string;
   role: 'pastor' | 'staff' | 'supervisor' | 'server';
-  bautizado: boolean;
+  baptized: boolean;
   whatsapp: boolean;
   is_active: boolean;
   created_at: string;
@@ -37,7 +37,7 @@ const UsersPage = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('users')
-        .select('id, nombres, apellidos, correo, telefono, cedula, role, bautizado, whatsapp, is_active, created_at')
+        .select('id, first_name, last_name, email, phone, id_number, role, baptized, whatsapp, is_active, created_at')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -57,10 +57,10 @@ const UsersPage = () => {
   };
 
   const filteredUsers = users.filter(user =>
-    user.nombres.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.correo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.cedula.includes(searchTerm)
+    user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.id_number.includes(searchTerm)
   );
 
   const getRoleBadgeVariant = (role: string) => {
@@ -163,15 +163,15 @@ const UsersPage = () => {
                     <div className="flex items-center gap-4">
                       <div>
                         <h3 className="font-medium">
-                          {user.nombres} {user.apellidos}
+                          {user.first_name} {user.last_name}
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                          {user.correo}
+                          {user.email}
                         </p>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        <p>Cédula: {user.cedula}</p>
-                        <p>Teléfono: {user.telefono}</p>
+                        <p>Cédula: {user.id_number}</p>
+                        <p>Teléfono: {user.phone}</p>
                       </div>
                     </div>
                   </div>
@@ -180,7 +180,7 @@ const UsersPage = () => {
                     <Badge variant={getRoleBadgeVariant(user.role)}>
                       {getRoleDisplayName(user.role)}
                     </Badge>
-                    {user.bautizado && (
+                    {user.baptized && (
                       <Badge variant="outline">Bautizado</Badge>
                     )}
                     {user.whatsapp && (
