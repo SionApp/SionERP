@@ -22,7 +22,29 @@ const RolesPage = () => {
     pastor: {
       name: 'Pastor',
       description: 'Acceso completo al sistema - Líder espiritual',
-      permissions: ['Gestión completa de usuarios', 'Configuración del sistema', 'Reportes completos', 'Roles y permisos', 'Audit logs', 'Configuración de iglesia']
+      permissions: [
+        'Gestión completa de usuarios', 
+        'Configuración del sistema', 
+        'Reportes completos', 
+        'Roles y permisos', 
+        'Audit logs', 
+        'Configuración de iglesia',
+        'Gestión de usuarios no-pastor', 
+        'Reportes básicos', 
+        'Moderación de contenido', 
+        'Configuración limitada',
+        'Gestión de servidores', 
+        'Reportes de grupos', 
+        'Supervisión de actividades', 
+        'Ver perfil de miembros',
+        'Ver perfil propio', 
+        'Actualizar datos personales', 
+        'Participar en actividades',
+        'Eliminar usuarios',
+        'Crear usuarios',
+        'Gestión de livestreams',
+        'Administración financiera'
+      ]
     },
     staff: {
       name: 'Personal',
