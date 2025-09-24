@@ -24,136 +24,160 @@ export const useDashboardStats = () => {
 
   const loadStats = async () => {
     try {
-      const dashboardData = await DashboardService.getAllDashboardData();
-      setStats(dashboardData.stats);
-      setRoleDistribution(dashboardData.roleDistribution);
-    } catch (error) {
-      console.error('Error loading stats via API, using fallback:', error);
-      // Fallback to direct Supabase calls
+      // Try API first but expect it to fail in development
       try {
-        // Total users
-        const { count: totalUsers } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_active', true);
-
-        // New registrations in last 7 days
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        
-        const { count: newRegistrations } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_active', true)
-          .gte('created_at', sevenDaysAgo.toISOString());
-
-        // Role distribution
-        const { data: roles } = await supabase
-          .from('users')
-          .select('role')
-          .eq('is_active', true);
-
-        if (roles) {
-          const roleCount = roles.reduce((acc, user) => {
-            acc[user.role] = (acc[user.role] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>);
-
-          setRoleDistribution([
-            { name: 'Pastor', value: roleCount.pastor || 0, color: 'hsl(var(--primary))' },
-            { name: 'Staff', value: roleCount.staff || 0, color: 'hsl(220 90% 50%)' },
-            { name: 'Supervisor', value: roleCount.supervisor || 0, color: 'hsl(45 93% 50%)' },
-            { name: 'Server', value: roleCount.server || 0, color: 'hsl(217 32.6% 17.5%)' },
-          ]);
-        }
-
-        setStats({
-          totalUsers: totalUsers || 0,
-          newRegistrations: newRegistrations || 0,
-          activeRoles: 4,
-          systemActivity: 98
-        });
-      } catch (fallbackError) {
-        console.error('Fallback error loading stats:', fallbackError);
+        const dashboardData = await DashboardService.getAllDashboardData();
+        setStats(dashboardData.stats);
+        setRoleDistribution(dashboardData.roleDistribution);
+        return; // Success, no need for fallback
+      } catch (apiError) {
+        console.log('API not available, using Supabase fallback');
       }
+
+      // Fallback to direct Supabase calls
+      // Total users
+      const { count: totalUsers } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      // New registrations in last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const { count: newRegistrations } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .gte('created_at', sevenDaysAgo.toISOString());
+
+      // Role distribution
+      const { data: roles } = await supabase
+        .from('users')
+        .select('role')
+        .eq('is_active', true);
+
+      if (roles) {
+        const roleCount = roles.reduce((acc, user) => {
+          acc[user.role] = (acc[user.role] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        setRoleDistribution([
+          { name: 'Pastor', value: roleCount.pastor || 0, color: 'hsl(var(--primary))' },
+          { name: 'Staff', value: roleCount.staff || 0, color: 'hsl(220 90% 50%)' },
+          { name: 'Supervisor', value: roleCount.supervisor || 0, color: 'hsl(45 93% 50%)' },
+          { name: 'Server', value: roleCount.server || 0, color: 'hsl(217 32.6% 17.5%)' },
+        ]);
+      }
+
+      setStats({
+        totalUsers: totalUsers || 0,
+        newRegistrations: newRegistrations || 0,
+        activeRoles: 4,
+        systemActivity: 98
+      });
+    } catch (error) {
+      console.error('Error loading stats:', error);
+      // Set default values if everything fails
+      setStats({
+        totalUsers: 0,
+        newRegistrations: 0,
+        activeRoles: 4,
+        systemActivity: 98
+      });
+      setRoleDistribution([
+        { name: 'Pastor', value: 0, color: 'hsl(var(--primary))' },
+        { name: 'Staff', value: 0, color: 'hsl(220 90% 50%)' },
+        { name: 'Supervisor', value: 0, color: 'hsl(45 93% 50%)' },
+        { name: 'Server', value: 0, color: 'hsl(217 32.6% 17.5%)' },
+      ]);
     }
   };
 
   const loadRecentActivity = async () => {
     try {
-      const activity = await DashboardService.getRecentActivity();
-      setRecentActivity(activity);
-    } catch (error) {
-      console.error('Error loading recent activity via API, using fallback:', error);
-      // Fallback to direct Supabase calls
+      // Try API first but expect it to fail in development
       try {
-        // Solo cargar audit logs para pastor y staff
-        const { data: currentUser } = await supabase.auth.getUser();
-        if (!currentUser.user) return;
+        const activity = await DashboardService.getRecentActivity();
+        setRecentActivity(activity);
+        return; // Success, no need for fallback
+      } catch (apiError) {
+        console.log('API not available for recent activity, using Supabase fallback');
+      }
 
-        const { data: userProfile } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', currentUser.user.id)
-          .single();
+      // Fallback to direct Supabase calls
+      // Solo cargar audit logs para pastor y staff
+      const { data: currentUser } = await supabase.auth.getUser();
+      if (!currentUser.user) {
+        setRecentActivity([]);
+        return;
+      }
 
-        // Solo pastor y staff pueden ver audit logs
-        if (!userProfile || !['pastor', 'staff'].includes(userProfile.role)) {
-          setRecentActivity([]);
-          return;
-        }
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', currentUser.user.id)
+        .single();
 
-        // Obtener audit logs reales
-        const { data: auditLogs } = await supabase
-          .from('audit_logs')
-          .select(`
-            *,
-            users!audit_logs_changed_by_fkey (first_name, last_name, email)
-          `)
-          .order('changed_at', { ascending: false })
-          .limit(5);
+      // Solo pastor y staff pueden ver audit logs
+      if (!userProfile || !['pastor', 'staff'].includes(userProfile.role)) {
+        setRecentActivity([]);
+        return;
+      }
 
-        if (auditLogs) {
-          const activities = auditLogs.map((log) => {
-            const user = log.users ? `${log.users.first_name} ${log.users.last_name}` : 'Sistema';
-            const timeAgo = getTimeAgo(new Date(log.changed_at));
-            
-            let action = '';
-            let actionType: 'success' | 'warning' | 'info' = 'info';
+      // Obtener audit logs reales
+      const { data: auditLogs } = await supabase
+        .from('audit_logs')
+        .select(`
+          *,
+          users!audit_logs_changed_by_fkey (first_name, last_name, email)
+        `)
+        .order('changed_at', { ascending: false })
+        .limit(5);
 
-            switch (log.action) {
-              case 'INSERT':
-                action = `Creó un nuevo ${getTableDisplayName(log.table_name)}`;
-                actionType = 'success';
-                break;
-              case 'UPDATE':
-                action = `Actualizó ${getTableDisplayName(log.table_name)}`;
-                actionType = 'warning';
-                break;
-              case 'DELETE':
-                action = `Eliminó ${getTableDisplayName(log.table_name)}`;
-                actionType = 'info';
-                break;
-              default:
-                action = `Modificó ${getTableDisplayName(log.table_name)}`;
-            }
+      if (auditLogs) {
+        const activities = auditLogs.map((log) => {
+          const user = log.users ? `${log.users.first_name} ${log.users.last_name}` : 'Sistema';
+          const timeAgo = getTimeAgo(new Date(log.changed_at));
+          
+          let action = '';
+          let actionType: 'success' | 'warning' | 'info' = 'info';
 
-            return {
-              id: log.id,
-              action,
-              user,
-              time: timeAgo,
-              type: actionType,
-              details: log
-            };
-          });
+          switch (log.action) {
+            case 'INSERT':
+              action = `Creó un nuevo ${getTableDisplayName(log.table_name)}`;
+              actionType = 'success';
+              break;
+            case 'UPDATE':
+              action = `Actualizó ${getTableDisplayName(log.table_name)}`;
+              actionType = 'warning';
+              break;
+            case 'DELETE':
+              action = `Eliminó ${getTableDisplayName(log.table_name)}`;
+              actionType = 'info';
+              break;
+            default:
+              action = `Modificó ${getTableDisplayName(log.table_name)}`;
+          }
 
-          setRecentActivity(activities);
-        }
-      } catch (fallbackError) {
-        console.error('Fallback error loading recent activity:', fallbackError);
+          return {
+            id: log.id,
+            action,
+            user,
+            time: timeAgo,
+            type: actionType,
+            details: log
+          };
+        });
+
+        setRecentActivity(activities);
+      } else {
         setRecentActivity([]);
       }
+    } catch (error) {
+      console.error('Error loading recent activity:', error);
+      setRecentActivity([]);
     }
   };
 
@@ -181,15 +205,10 @@ export const useDashboardStats = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      // Try to load everything via the API first
-      const dashboardData = await DashboardService.getAllDashboardData();
-      setStats(dashboardData.stats);
-      setRoleDistribution(dashboardData.roleDistribution);
-      setRecentActivity(dashboardData.recentActivity);
-    } catch (error) {
-      console.error('Error loading all dashboard data via API, using individual fallbacks:', error);
-      // Fall back to individual loads with Supabase
+      // Load stats and recent activity (each method handles its own API/fallback logic)
       await Promise.all([loadStats(), loadRecentActivity()]);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
     }
     setLoading(false);
   };
