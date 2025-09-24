@@ -62,7 +62,7 @@ const About = () => {
           <div className="relative">
             <img 
               src={worshipCommunity} 
-              alt="Comunidad adorando juntos"
+              alt="Congregación de la Iglesia Sion adorando unidos durante un servicio dominical, mostrando diversidad y comunidad cristiana"
               className="rounded-2xl shadow-2xl w-full h-[400px] object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-primary/20 to-transparent rounded-2xl"></div>
@@ -115,7 +115,7 @@ const About = () => {
           <div className="lg:order-1 relative">
             <img 
               src={pastorSpeaking} 
-              alt="Pastor predicando"
+              alt="Pastor Carlos Mendoza predicando desde el púlpito con pasión y dedicación en la Iglesia Sion"
               className="rounded-2xl shadow-2xl w-full h-[400px] object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-primary/10 to-transparent rounded-2xl"></div>
