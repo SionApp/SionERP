@@ -11,6 +11,7 @@ import (
 func SetupRoutes(e *echo.Echo, db *config.Database) {
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(db)
+	dashboardHandler := handlers.NewDashboardHandler(db)
 
 	// API routes
 	api := e.Group("/api/v1")
@@ -39,5 +40,13 @@ func SetupRoutes(e *echo.Echo, db *config.Database) {
 		// Profile endpoints (accessible by user themselves)
 		users.GET("/me", userHandler.GetCurrentUser)     // GET /api/v1/users/me - Get current user profile
 		users.PUT("/me", userHandler.UpdateCurrentUser)  // PUT /api/v1/users/me - Update current user profile
+	}
+
+	// Dashboard routes
+	dashboard := protected.Group("/dashboard")
+	{
+		dashboard.GET("/stats", dashboardHandler.GetStats)                   // GET /api/v1/dashboard/stats
+		dashboard.GET("/role-distribution", dashboardHandler.GetRoleDistribution) // GET /api/v1/dashboard/role-distribution
+		dashboard.GET("/recent-activity", dashboardHandler.GetRecentActivity)     // GET /api/v1/dashboard/recent-activity
 	}
 }
