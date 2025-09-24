@@ -15,6 +15,10 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardHome from "./pages/dashboard/DashboardHome";
 import UsersPage from "./pages/dashboard/UsersPage";
 import RegisterUserPage from "./pages/dashboard/RegisterUserPage";
+import ReportsPage from "./pages/dashboard/ReportsPage";
+import SettingsPage from "./pages/dashboard/SettingsPage";
+import EventsPage from "./pages/dashboard/EventsPage";
+import RoleManagementPage from "./pages/dashboard/RoleManagementPage";
 import RolesPage from "./pages/dashboard/RolesPage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
 
@@ -48,10 +52,11 @@ const App = () => (
               <Route index element={<DashboardHome />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="register-user" element={<RegisterUserPage />} />
-              <Route path="roles" element={<RolesPage />} />
+              <Route path="roles" element={<RoleManagementPage />} />
+              <Route path="events" element={<EventsPage />} />
+              <Route path="reports" element={<ReportsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
               <Route path="profile" element={<ProfilePage />} />
-              <Route path="reports" element={<div className="p-6">Módulo de Reportes - En desarrollo</div>} />
-              <Route path="settings" element={<div className="p-6">Módulo de Configuración - En desarrollo</div>} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

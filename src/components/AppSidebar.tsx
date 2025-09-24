@@ -1,4 +1,4 @@
-import { Users, UserPlus, Shield, Home, Settings, BarChart3, Sparkles, UserCog } from "lucide-react";
+import { Users, UserPlus, Shield, Home, Settings, BarChart3, Sparkles, UserCog, Calendar } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
@@ -19,6 +19,7 @@ const menuItems = [
   { title: "Usuarios", url: "/dashboard/users", icon: Users },
   { title: "Registro", url: "/dashboard/register-user", icon: UserPlus },
   { title: "Roles", url: "/dashboard/roles", icon: Shield },
+  { title: "Eventos", url: "/dashboard/events", icon: Calendar },
   { title: "Reportes", url: "/dashboard/reports", icon: BarChart3 },
   { title: "Configuración", url: "/dashboard/settings", icon: Settings },
 ];
