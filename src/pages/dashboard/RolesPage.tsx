@@ -23,43 +23,51 @@ const RolesPage = () => {
       name: 'Pastor',
       description: 'Acceso completo al sistema - Líder espiritual',
       permissions: [
-        'Gestión completa de usuarios', 
-        'Configuración del sistema', 
-        'Reportes completos', 
-        'Roles y permisos', 
-        'Audit logs', 
-        'Configuración de iglesia',
-        'Gestión de usuarios no-pastor', 
-        'Reportes básicos', 
-        'Moderación de contenido', 
-        'Configuración limitada',
-        'Gestión de servidores', 
-        'Reportes de grupos', 
-        'Supervisión de actividades', 
-        'Ver perfil de miembros',
-        'Ver perfil propio', 
-        'Actualizar datos personales', 
-        'Participar en actividades',
-        'Eliminar usuarios',
-        'Crear usuarios',
-        'Gestión de livestreams',
-        'Administración financiera'
+        'Ver y gestionar todos los usuarios',
+        'Eliminar usuarios (excepto otros pastores)',
+        'Crear y registrar nuevos usuarios',
+        'Ver audit logs del sistema',
+        'Generar y ver todos los reportes',
+        'Gestionar permisos de usuarios',
+        'Configurar roles del sistema',
+        'Gestionar livestreams',
+        'Ver y modificar datos de cualquier usuario',
+        'Acceso a configuraciones del sistema'
       ]
     },
     staff: {
       name: 'Personal',
       description: 'Administración limitada - Equipo pastoral',
-      permissions: ['Gestión de usuarios no-pastor', 'Reportes básicos', 'Moderación de contenido', 'Configuración limitada']
+      permissions: [
+        'Ver y gestionar usuarios no-pastor',
+        'Crear usuarios con rol server/supervisor',
+        'Ver audit logs del sistema',
+        'Generar y ver reportes básicos',
+        'Gestionar permisos de usuarios subordinados',
+        'Ver datos de usuarios subordinados',
+        'Gestionar livestreams'
+      ]
     },
     supervisor: {
       name: 'Supervisor',
-      description: 'Gestión de grupos y supervisión',
-      permissions: ['Gestión de servidores', 'Reportes de grupos', 'Supervisión de actividades', 'Ver perfil de miembros']
+      description: 'Supervisión de grupos celulares y servidores',
+      permissions: [
+        'Ver y editar datos de servidores asignados',
+        'Ver su propio perfil y datos',
+        'Actualizar información de su grupo celular',
+        'Ver livestreams públicos',
+        'Gestionar actividades de su grupo'
+      ]
     },
     server: {
       name: 'Servidor',
-      description: 'Acceso básico - Miembro servidor',
-      permissions: ['Ver perfil propio', 'Actualizar datos personales', 'Participar en actividades']
+      description: 'Miembro servidor - Acceso básico',
+      permissions: [
+        'Ver y editar solo su propio perfil',
+        'Actualizar datos personales',
+        'Ver livestreams públicos',
+        'Participar en actividades asignadas'
+      ]
     }
   };
 
