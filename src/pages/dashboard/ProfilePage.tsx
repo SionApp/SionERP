@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,31 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { User, Settings } from 'lucide-react';
-
-const profileSchema = z.object({
-  // Basic info
-  nombres: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  apellidos: z.string().min(2, 'Los apellidos deben tener al menos 2 caracteres'),
-  telefono: z.string().min(10, 'El teléfono debe tener al menos 10 dígitos'),
-  direccion: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
-  
-  // Extended fields
-  birth_date: z.string().optional(),
-  marital_status: z.string().optional(),
-  occupation: z.string().optional(),
-  education_level: z.string().optional(),
-  how_found_church: z.string().optional(),
-  ministry_interest: z.string().optional(),
-  first_visit_date: z.string().optional(),
-  
-  // Church membership
-  cell_group: z.string().optional(),
-  
-  // Preferences
-  whatsapp: z.boolean().default(false),
-});
-
-type ProfileForm = z.infer<typeof profileSchema>;
+import { profileUpdateSchema, ProfileUpdateFormData } from '@/schemas/user.schemas';
+import { UserService } from '@/services/user.service';
 
 const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
@@ -49,8 +24,8 @@ const ProfilePage = () => {
     setValue,
     watch,
     reset
-  } = useForm<ProfileForm>({
-    resolver: zodResolver(profileSchema),
+  } = useForm<ProfileUpdateFormData>({
+    resolver: zodResolver(profileUpdateSchema),
   });
 
   const whatsapp = watch('whatsapp');
@@ -59,45 +34,31 @@ const ProfilePage = () => {
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const userData = await UserService.getCurrentUser();
         
-        if (!user) {
+        if (!userData) {
           toast.error('No hay usuario autenticado');
           return;
         }
 
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (error) {
-          console.error('Error loading user data:', error);
-          toast.error('Error al cargar los datos del usuario');
-          return;
-        }
-
-        if (userData) {
-          setUserRole(userData.role);
-          
-          // Populate form with user data
-          reset({
-            nombres: userData.first_name || '',
-            apellidos: userData.last_name || '',
-            telefono: userData.phone || '',
-            direccion: userData.address || '',
-            birth_date: userData.birth_date || '',
-            marital_status: userData.marital_status || '',
-            occupation: userData.occupation || '',
-            education_level: userData.education_level || '',
-            how_found_church: userData.how_found_church || '',
-            ministry_interest: userData.ministry_interest || '',
-            first_visit_date: userData.first_visit_date || '',
-            cell_group: userData.cell_group || '',
-            whatsapp: userData.whatsapp || false,
-          });
-        }
+        setUserRole(userData.role);
+        
+        // Populate form with user data
+        reset({
+          nombres: userData.first_name || '',
+          apellidos: userData.last_name || '',
+          telefono: userData.phone || '',
+          direccion: userData.address || '',
+          birth_date: userData.birth_date || '',
+          marital_status: userData.marital_status || '',
+          occupation: userData.occupation || '',
+          education_level: userData.education_level || '',
+          how_found_church: userData.how_found_church || '',
+          ministry_interest: userData.ministry_interest || '',
+          first_visit_date: userData.first_visit_date || '',
+          cell_group: userData.cell_group || '',
+          whatsapp: userData.whatsapp || false,
+        });
       } catch (error) {
         console.error('Error loading user data:', error);
         toast.error('Error al cargar los datos del usuario');
@@ -109,48 +70,13 @@ const ProfilePage = () => {
     loadUserData();
   }, [reset]);
 
-  const onSubmit = async (data: ProfileForm) => {
+  const onSubmit = async (data: ProfileUpdateFormData) => {
     try {
       setLoading(true);
-
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast.error('No hay usuario autenticado');
-        return;
-      }
-
-      const updateData = {
-        nombres: data.nombres,
-        apellidos: data.apellidos,
-        telefono: data.telefono,
-        direccion: data.direccion,
-        birth_date: data.birth_date || null,
-        marital_status: data.marital_status || null,
-        occupation: data.occupation || null,
-        education_level: data.education_level || null,
-        how_found_church: data.how_found_church || null,
-        ministry_interest: data.ministry_interest || null,
-        first_visit_date: data.first_visit_date || null,
-        cell_group: data.cell_group || null,
-        whatsapp: data.whatsapp,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('id', user.id);
-
-      if (error) {
-        console.error('Error updating user:', error);
-        toast.error('Error al actualizar el perfil: ' + error.message);
-        return;
-      }
-
+      await UserService.updateProfile(data);
       toast.success('Perfil actualizado exitosamente');
     } catch (error) {
-      console.error('Error updating user:', error);
+      console.error('Error updating profile:', error);
       toast.error('Error al actualizar el perfil');
     } finally {
       setLoading(false);
