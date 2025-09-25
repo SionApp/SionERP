@@ -31,10 +31,10 @@ const App = () => (
       disableTransitionOnChange
     >
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
         <AuthProvider>
           <BrowserRouter>
+            <Toaster />
+            <Sonner />
             <Routes>
               <Route path="/" element={<Login />} />
               <Route path="/login" element={<Login />} />
@@ -50,12 +50,13 @@ const App = () => (
                 <Route index element={<DashboardHome />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="register-user" element={<RegisterUserPage />} />
-                <Route path="roles" element={<RoleManagementPage />} />
-                <Route path="discipleship" element={<DiscipleshipPage />} />
-                <Route path="events" element={<EventsPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="events" element={<EventsPage />} />
+                <Route path="role-management" element={<RoleManagementPage />} />
+                <Route path="roles" element={<RolesPage />} />
                 <Route path="profile" element={<ProfilePage />} />
+                <Route path="discipleship" element={<DiscipleshipPage />} />
               </Route>
             </Routes>
           </BrowserRouter>
