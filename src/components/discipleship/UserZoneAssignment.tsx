@@ -110,10 +110,11 @@ interface UserZoneAssignmentProps {
 const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment }) => {
   const [users, setUsers] = useState<AssignmentUser[]>(mockUsers);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedZone, setSelectedZone] = useState('');
-  const [selectedRole, setSelectedRole] = useState('');
+  const [selectedZone, setSelectedZone] = useState('all'); // filtro de zona
+  const [selectedRole, setSelectedRole] = useState<'keep' | 'supervisor' | 'server' | 'member'>('keep');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AssignmentUser | null>(null);
+  const [assignZoneId, setAssignZoneId] = useState<string | undefined>(undefined);
 
   const filteredUsers = users.filter(user => 
     user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -223,7 +224,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
                 <SelectValue placeholder="Todas las zonas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas las zonas</SelectItem>
+                <SelectItem value="all">Todas las zonas</SelectItem>
                 <SelectItem value="sin-zona">Sin zona asignada</SelectItem>
                 {mockZones.map(zone => (
                   <SelectItem key={zone.id} value={zone.name}>
@@ -239,7 +240,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
         <div className="space-y-4">
           {filteredUsers
             .filter(user => {
-              if (!selectedZone) return true;
+              if (selectedZone === 'all') return true;
               if (selectedZone === 'sin-zona') return !user.zone_name;
               return user.zone_name === selectedZone;
             })
@@ -284,8 +285,13 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
                   <Dialog open={isDialogOpen && selectedUser?.id === user.id} 
                           onOpenChange={(open) => {
                             setIsDialogOpen(open);
-                            if (open) setSelectedUser(user);
-                            else setSelectedUser(null);
+                            if (open) {
+                              setSelectedUser(user);
+                              setAssignZoneId(undefined);
+                              setSelectedRole('keep');
+                            } else {
+                              setSelectedUser(null);
+                            }
                           }}>
                     <DialogTrigger asChild>
                       <Button
@@ -310,7 +316,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
                       <div className="grid gap-4 py-4">
                         <div className="space-y-2">
                           <Label htmlFor="assign-zone">Zona</Label>
-                          <Select onValueChange={setSelectedZone}>
+                          <Select value={assignZoneId} onValueChange={setAssignZoneId}>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecciona una zona" />
                             </SelectTrigger>
@@ -332,12 +338,12 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
                         
                         <div className="space-y-2">
                           <Label htmlFor="assign-role">Rol (opcional)</Label>
-                          <Select value={selectedRole} onValueChange={setSelectedRole}>
+                          <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as 'keep' | 'supervisor' | 'server' | 'member')}>
                             <SelectTrigger>
                               <SelectValue placeholder="Mantener rol actual" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">Mantener rol actual</SelectItem>
+                              <SelectItem value="keep">Mantener rol actual</SelectItem>
                               <SelectItem value="supervisor">Supervisor</SelectItem>
                               <SelectItem value="server">Servidor</SelectItem>
                               <SelectItem value="member">Miembro</SelectItem>
@@ -350,8 +356,8 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
                             Cancelar
                           </Button>
                           <Button 
-                            onClick={() => handleAssignToZone(user, selectedZone, selectedRole || undefined)}
-                            disabled={!selectedZone}
+                            onClick={() => handleAssignToZone(user, assignZoneId!, selectedRole === 'keep' ? undefined : selectedRole)}
+                            disabled={!assignZoneId}
                           >
                             <Check className="w-4 h-4 mr-2" />
                             Asignar
