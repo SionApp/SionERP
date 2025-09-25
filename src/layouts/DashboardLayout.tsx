@@ -1,52 +1,27 @@
-import { useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
-import { toast } from 'sonner';
 import { LogOut } from 'lucide-react';
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/contexts/AuthContext";
 
 const DashboardLayout = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, logout, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    getUser();
-  }, []);
-
-  const getUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        toast.error('Error al cerrar sesión');
-      } else {
-        toast.success('Sesión cerrada exitosamente');
-        navigate('/login');
-      }
-    } catch (error) {
-      toast.error('Error al cerrar sesión');
-    }
+    await logout();
+    navigate('/login');
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -75,14 +50,14 @@ const DashboardLayout = () => {
             <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl bg-accent/30 backdrop-blur-sm border border-border/30">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md">
                 <span className="text-primary-foreground font-semibold text-xs">
-                  {user?.user_metadata?.first_name?.[0] || user?.email?.[0] || 'U'}
+                  {user?.user_metadata?.full_name?.[0] || user?.email?.[0] || 'U'}
                 </span>
               </div>
               <div className="text-right">
                 <p className="text-sm font-medium">
-                  {user?.user_metadata?.first_name || user?.email?.split('@')[0]}
+                  {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuario'}
                 </p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
+                <p className="text-xs text-muted-foreground">Dashboard Admin</p>
               </div>
             </div>
             

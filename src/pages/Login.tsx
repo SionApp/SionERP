@@ -1,58 +1,118 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Alert, AlertDescription } from "../components/ui/alert";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Eye, EyeOff, Mail, Lock, LogIn } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+const loginSchema = z.object({
+  email: z.string()
+    .min(1, "El email es requerido")
+    .email("Ingresa un email válido")
+    .max(255, "El email es muy largo"),
+  password: z.string()
+    .min(1, "La contraseña es requerida")
+    .min(6, "La contraseña debe tener al menos 6 caracteres")
+    .max(100, "La contraseña es muy larga")
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user, isLoading: authLoading } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setError
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema)
+  });
+
+  // Redirect authenticated users
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
+  const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    setError("");
 
     try {
-      if (!email || !password) {
-        setError("Por favor completa todos los campos");
-        return;
+      const { error } = await login(data.email, data.password);
+      
+      if (!error) {
+        // Success! Navigation will happen automatically via useEffect
+        // when user state updates
+      } else {
+        // Handle specific errors
+        if (error.message?.includes('Invalid login credentials')) {
+          setError('root', { 
+            message: 'Email o contraseña incorrectos' 
+          });
+        } else if (error.message?.includes('Email not confirmed')) {
+          setError('root', { 
+            message: 'Por favor confirma tu email antes de iniciar sesión' 
+          });
+        } else {
+          setError('root', { 
+            message: 'Error al iniciar sesión. Intenta de nuevo.' 
+          });
+        }
       }
-
-      await login(email, password);
-      navigate("/");
-    } catch (err) {
-      setError("Error al iniciar sesión. Verifica tus credenciales.");
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('root', { 
+        message: 'Error de conexión. Verifica tu internet e intenta de nuevo.' 
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Show loading while checking auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
+          <div className="flex items-center justify-center mb-4">
+            <LogIn className="h-8 w-8 text-primary" />
+          </div>
           <CardTitle className="text-2xl font-bold text-center">
-            Iniciar Sesión
+            Dashboard Administrativo
           </CardTitle>
           <CardDescription className="text-center">
-            Panel Administrativo - Iglesia Sion
+            Iglesia Evangélica Pentecostal Sion
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {errors.root && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{errors.root.message}</AlertDescription>
               </Alert>
             )}
             
@@ -64,12 +124,13 @@ const Login = () => {
                   id="email"
                   type="email"
                   placeholder="admin@iglesiasion.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
-                  required
+                  className={`pl-10 ${errors.email ? 'border-red-500' : ''}`}
+                  {...register("email")}
                 />
               </div>
+              {errors.email && (
+                <p className="text-sm text-red-500">{errors.email.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -80,10 +141,8 @@ const Login = () => {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10"
-                  required
+                  className={`pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`}
+                  {...register("password")}
                 />
                 <Button
                   type="button"
@@ -99,10 +158,20 @@ const Login = () => {
                   )}
                 </Button>
               </div>
+              {errors.password && (
+                <p className="text-sm text-red-500">{errors.password.message}</p>
+              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Iniciando Sesión..." : "Iniciar Sesión"}
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  Iniciando Sesión...
+                </>
+              ) : (
+                "Iniciar Sesión"
+              )}
             </Button>
           </form>
 
@@ -115,6 +184,12 @@ const Login = () => {
               >
                 Registrarse
               </Link>
+            </p>
+          </div>
+
+          <div className="mt-4 p-3 bg-muted rounded-lg">
+            <p className="text-xs text-center text-muted-foreground">
+              <strong>Demo:</strong> Usa cualquier email y contraseña para probar
             </p>
           </div>
         </CardContent>
