@@ -6,6 +6,7 @@ import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -14,6 +15,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,15 +23,13 @@ const Login = () => {
     setError("");
 
     try {
-      // TODO: Implement actual login logic with backend
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
-      // For now, simulate successful login
-      if (email && password) {
-        navigate("/");
-      } else {
+      if (!email || !password) {
         setError("Por favor completa todos los campos");
+        return;
       }
+
+      await login(email, password);
+      navigate("/");
     } catch (err) {
       setError("Error al iniciar sesión. Verifica tus credenciales.");
     } finally {
