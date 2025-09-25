@@ -4,8 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import Index from "./pages/Index";
-import Gallery from "./pages/Gallery";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -37,15 +35,11 @@ const App = () => (
         <AuthProvider>
           <BrowserRouter>
             <Routes>
-              {/* Sitio web principal de la iglesia */}
-              <Route path="/" element={<Index />} />
-              <Route path="/galeria" element={<Gallery />} />
-              
-              {/* Rutas de autenticación del admin */}
-              <Route path="/admin/login" element={<Login />} />
-              <Route path="/admin/register" element={<Register />} />
+              <Route path="/" element={<Login />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
               <Route 
-                path="/admin/dashboard" 
+                path="/dashboard" 
                 element={
                   <ProtectedRoute>
                     <DashboardLayout />
