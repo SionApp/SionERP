@@ -50,9 +50,20 @@ fi
 # Iniciar Dashboard Principal
 (
   cd "$ROOT_DIR"
-  echo "🟩 Iniciando Dashboard Principal en puerto 8080..."
-  pnpm dev 2>&1 | sed -u 's/^/[MAIN]   /'
+  echo "🟩 Iniciando Sitio Web Principal en puerto 8080..."
+  pnpm dev 2>&1 | sed -u 's/^/[WEBSITE] /'
 ) &
+
+# Iniciar Dashboard Admin
+if [ -d "$ROOT_DIR/apps/admin-panel" ]; then
+  (
+    cd "$ROOT_DIR/apps/admin-panel"
+    echo "🟦 Iniciando Dashboard Admin en puerto 3001..."
+    pnpm dev 2>&1 | sed -u 's/^/[DASHBOARD] /'
+  ) &
+else
+  echo "⚠️ No se encontró $ROOT_DIR/apps/admin-panel"
+fi
 
 # Iniciar Public Site
 if [ -d "$ROOT_DIR/apps/public-site" ]; then
@@ -67,7 +78,8 @@ fi
 
 printf "\n✅ Todos los servicios están ejecutándose:\n"
 echo "   🟦 Backend Go:        http://localhost:8081"
-echo "   🟩 Dashboard Principal: http://localhost:8080"
+echo "   🟩 Sitio Web:         http://localhost:8080"
+echo "   🟦 Dashboard Admin:   http://localhost:3001"
 echo "   🟨 Sitio Público:     http://localhost:3000"
 echo ""
 echo "Presiona Ctrl+C para detener todos los servicios"

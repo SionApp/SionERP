@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '../integrations/supabase/client';
 
 export class ApiService {
   private static baseUrl = 'http://localhost:8081/api/v1';
