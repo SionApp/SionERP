@@ -28,8 +28,13 @@ const Login = () => {
         return;
       }
 
-      await login(email, password);
-      navigate("/");
+      const { error } = await login(email, password);
+      
+      if (error) {
+        setError("Error al iniciar sesión. Verifica tus credenciales.");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setError("Error al iniciar sesión. Verifica tus credenciales.");
     } finally {

@@ -1,16 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-}
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  session: Session | null;
+  login: (email: string, password: string) => Promise<{ error?: any }>;
+  signUp: (email: string, password: string, userData?: any) => Promise<{ error?: any }>;
+  logout: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -26,38 +23,60 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on mount
-    const savedUser = localStorage.getItem("admin-user");
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setIsLoading(false);
+      }
+    );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
-    // TODO: Implement actual login logic with backend
-    const mockUser: User = {
-      id: "1",
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      name: "Admin User",
-      role: "admin"
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem("admin-user", JSON.stringify(mockUser));
+      password,
+    });
+    return { error };
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("admin-user");
+  const signUp = async (email: string, password: string, userData?: any) => {
+    const redirectUrl = `${window.location.origin}/`;
+    
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: userData
+      }
+    });
+    return { error };
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
   };
 
   const value = {
     user,
+    session,
     login,
+    signUp,
     logout,
     isLoading,
   };
