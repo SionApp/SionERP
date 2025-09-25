@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
