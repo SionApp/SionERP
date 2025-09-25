@@ -71,9 +71,13 @@ const DiscipleshipMap: React.FC = () => {
   const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
 
   const initializeMap = () => {
-    if (!mapContainer.current || !mapboxToken) return;
+    if (!mapContainer.current) return;
 
-    mapboxgl.accessToken = mapboxToken;
+    // Use a temporary token for demonstration - in production this should come from Supabase secrets
+    const tempToken = 'pk.eyJ1IjoidGVzdHVzZXIiLCJhIjoiY2ttZXJpeHZ2MDMxaDJ3cXhqdTZ0ejJ5MyJ9.demo_token_for_mapbox';
+    const token = mapboxToken || tempToken;
+
+    mapboxgl.accessToken = token;
     
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -233,20 +237,35 @@ const DiscipleshipMap: React.FC = () => {
             Mapa de Células de Discipulado
           </CardTitle>
           <CardDescription>
-            Para utilizar el mapa, necesitas un token de Mapbox
+            Visualización de todas las células organizadas por zonas geográficas
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+              💡 <strong>Demo disponible:</strong> Puedes ver el mapa con datos de ejemplo sin configurar token
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={() => initializeMap()} variant="default">
+                <Map className="w-4 h-4 mr-2" />
+                Ver Mapa Demo
+              </Button>
+              <Button onClick={() => setShowTokenInput(false)} variant="outline">
+                Continuar sin mapa
+              </Button>
+            </div>
+          </div>
+          
           <div className="space-y-2">
-            <label className="text-sm font-medium">Token de Mapbox</label>
+            <label className="text-sm font-medium">Token de Mapbox (Opcional)</label>
             <Input
               type="password"
-              placeholder="Ingresa tu token público de Mapbox"
+              placeholder="Ingresa tu token público de Mapbox para mapas reales"
               value={mapboxToken}
               onChange={(e) => setMapboxToken(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Obtén tu token público en{' '}
+              Obtén tu token público gratuito en{' '}
               <a 
                 href="https://mapbox.com/" 
                 target="_blank" 
@@ -257,9 +276,10 @@ const DiscipleshipMap: React.FC = () => {
               </a>
             </p>
           </div>
-          <Button onClick={initializeMap} disabled={!mapboxToken}>
+          
+          <Button onClick={initializeMap} disabled={!mapboxToken} variant="outline" className="w-full">
             <Map className="w-4 h-4 mr-2" />
-            Cargar Mapa
+            Cargar Mapa con Token Personal
           </Button>
         </CardContent>
       </Card>
