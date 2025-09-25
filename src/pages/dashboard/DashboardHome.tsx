@@ -53,25 +53,25 @@ const DashboardHome = () => {
     <>
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6 space-y-8">
       {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary via-primary/90 to-primary/70 p-8 text-primary-foreground shadow-[var(--shadow-primary)]">
-        <div className="absolute inset-0 bg-[var(--glass-background)] backdrop-blur-sm"></div>
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary via-accent to-primary p-8 shadow-[var(--shadow-primary)] animate-fade-in">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-accent/30 to-primary/20"></div>
         <div className="relative z-10">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
+              <h1 className="text-4xl font-bold mb-2 text-foreground drop-shadow-sm">
                 Bienvenido de vuelta, {user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Admin'}
               </h1>
-              <p className="text-primary-foreground/80 text-lg">
+              <p className="text-foreground/80 text-lg font-medium">
                 Sistema de Gestión Sion - Panel de Control
               </p>
             </div>
             <div className="hidden md:flex items-center space-x-4">
               <div className="text-right">
-                <p className="text-sm text-primary-foreground/70">Último acceso</p>
-                <p className="font-semibold">Hace 2 minutos</p>
+                <p className="text-sm text-foreground/70 font-medium">Último acceso</p>
+                <p className="font-semibold text-foreground">Hace 2 minutos</p>
               </div>
-              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Activity className="h-8 w-8" />
+              <div className="w-16 h-16 rounded-full bg-primary/20 backdrop-blur-sm flex items-center justify-center border border-primary/30">
+                <Activity className="h-8 w-8 text-primary" />
               </div>
             </div>
           </div>
