@@ -1,5 +1,5 @@
 import { ApiService } from './api.service';
-import { CreateUserData, UpdateUserData, User } from '../types/user.types';
+import { CreateUserData, UpdateUserData, User } from '@/types/user.types';
 
 export class UserService {
   private static endpoint = '/users';
@@ -16,12 +16,37 @@ export class UserService {
           id: '1',
           email: 'admin@sion.com',
           full_name: 'Administrador Principal',
+          first_name: 'Administrador',
+          last_name: 'Principal',
           role: 'admin',
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
       ];
+    }
+  }
+
+  static async getAllUsers(): Promise<User[]> {
+    return this.getUsers();
+  }
+
+  static async getCurrentUser(): Promise<User> {
+    try {
+      const response = await ApiService.get<{ data: User }>('/auth/me');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      // Return mock data for now
+      return {
+        id: '1',
+        email: 'admin@sion.com',
+        full_name: 'Administrador Principal',
+        role: 'admin',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
     }
   }
 
@@ -41,6 +66,16 @@ export class UserService {
       return response.data;
     } catch (error) {
       console.error('Error updating user:', error);
+      throw error;
+    }
+  }
+
+  static async updateProfile(userData: Partial<User>): Promise<User> {
+    try {
+      const response = await ApiService.put<{ data: User }>('/auth/profile', userData);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating profile:', error);
       throw error;
     }
   }
