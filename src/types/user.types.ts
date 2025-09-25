@@ -8,9 +8,11 @@ export interface User {
   apellidos?: string;
   first_name?: string;
   last_name?: string;
+  cedula?: string;
+  correo?: string;
   telefono?: string;
   phone?: string;
-  whatsapp?: string;
+  whatsapp?: boolean;
   role: UserRole;
   birth_date?: string;
   direccion?: string;
@@ -27,21 +29,44 @@ export interface User {
   ministry_interest?: string;
   first_visit_date?: string;
   cell_group?: string;
+  fecha_bautizo?: string;
+  membership_date?: string;
+  pastoral_notes?: string;
+  is_active_member?: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreateUserData {
-  email: string;
-  password: string;
-  full_name: string;
+  email?: string;
+  correo?: string;
+  password?: string;
+  full_name?: string;
+  nombres?: string;
+  apellidos?: string;
+  cedula?: string;
+  telefono?: string;
   phone?: string;
-  role: UserRole;
+  whatsapp?: boolean;
+  role?: UserRole;
   birth_date?: string;
+  direccion?: string;
   address?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
+  marital_status?: string;
+  occupation?: string;
+  education_level?: string;
+  how_found_church?: string;
+  ministry_interest?: string;
+  first_visit_date?: string;
+  cell_group?: string;
+  fecha_bautizo?: string;
+  membership_date?: string;
+  pastoral_notes?: string;
+  bautizado?: boolean;
+  is_active_member?: boolean;
 }
 
 export interface UpdateUserData {
