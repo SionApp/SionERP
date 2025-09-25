@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export class ApiService {
-  private static baseUrl = 'http://localhost:8080/api/v1';
+  private static baseUrl = 'http://localhost:8081/api/v1';
 
   /**
    * Get authorization header with current user token

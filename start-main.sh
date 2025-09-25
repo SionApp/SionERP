@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Script para levantar solo el Panel Admin
+# Script para levantar solo el Dashboard Principal
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "🟨 Iniciando Panel Admin..."
+echo "🟩 Iniciando Dashboard Principal..."
 
 # Verificar que pnpm esté instalado
 if ! command -v pnpm &> /dev/null; then
@@ -12,21 +12,15 @@ if ! command -v pnpm &> /dev/null; then
     exit 1
 fi
 
-# Verificar que existe el directorio del admin panel
-if [ ! -d "$ROOT_DIR/apps/admin-panel" ]; then
-    echo "❌ No se encontró el directorio $ROOT_DIR/apps/admin-panel"
-    exit 1
-fi
-
 # Instalar dependencias si no existen
 if [ ! -d "$ROOT_DIR/node_modules" ]; then
     echo "📦 Instalando dependencias..."
-    (cd "$ROOT_DIR" && pnpm install)
+    pnpm install
 fi
 
 # Función para limpiar procesos al salir
 cleanup() {
-    echo "🛑 Deteniendo Panel Admin..."
+    echo "🛑 Deteniendo Dashboard Principal..."
     kill $! 2>/dev/null || true
     exit 0
 }
@@ -34,14 +28,14 @@ cleanup() {
 # Capturar señal de interrupción
 trap cleanup SIGINT SIGTERM
 
-echo "🚀 Iniciando Panel Admin en puerto 3001..."
+echo "🚀 Iniciando Dashboard Principal en puerto 8080..."
 
-# Iniciar Panel Admin
-cd "$ROOT_DIR/apps/admin-panel"
+# Iniciar Dashboard Principal
+cd "$ROOT_DIR"
 pnpm dev &
 
-printf "\n✅ Panel Admin ejecutándose:\n"
-echo "   🟨 Admin Panel: http://localhost:3001"
+printf "\n✅ Dashboard Principal ejecutándose:\n"
+echo "   🟩 Dashboard: http://localhost:8080"
 echo ""
 echo "Presiona Ctrl+C para detener el servicio"
 

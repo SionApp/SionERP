@@ -40,8 +40,8 @@ echo "🔧 Iniciando servicios en paralelo con logs en vivo..."
 if [ -d "$ROOT_DIR/apps/backend-go" ]; then
   (
     cd "$ROOT_DIR/apps/backend-go"
-    echo "🟦 Iniciando Backend Go en puerto 8080..."
-    GO_ENV=development go run main.go 2>&1 | sed -u 's/^/[BACKEND] /'
+    echo "🟦 Iniciando Backend Go en puerto 8081..."
+    PORT=8081 GO_ENV=development go run main.go 2>&1 | sed -u 's/^/[BACKEND] /'
   ) &
 else
   echo "⚠️ No se encontró $ROOT_DIR/apps/backend-go"
@@ -50,7 +50,7 @@ fi
 # Iniciar Dashboard Principal
 (
   cd "$ROOT_DIR"
-  echo "🟩 Iniciando Dashboard Principal en puerto 5173..."
+  echo "🟩 Iniciando Dashboard Principal en puerto 8080..."
   pnpm dev 2>&1 | sed -u 's/^/[MAIN]   /'
 ) &
 
@@ -66,8 +66,8 @@ else
 fi
 
 printf "\n✅ Todos los servicios están ejecutándose:\n"
-echo "   🟦 Backend Go:        http://localhost:8080"
-echo "   🟩 Dashboard Principal: http://localhost:5173"
+echo "   🟦 Backend Go:        http://localhost:8081"
+echo "   🟩 Dashboard Principal: http://localhost:8080"
 echo "   🟨 Sitio Público:     http://localhost:3000"
 echo ""
 echo "Presiona Ctrl+C para detener todos los servicios"
