@@ -79,12 +79,12 @@ const DiscipleshipPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          {canManageGroups && <TabsTrigger value="manage">Gestión de Grupos</TabsTrigger>}
-          {canManageGroups && <TabsTrigger value="zones">Zonas</TabsTrigger>}
-          {canManageGroups && <TabsTrigger value="map">Mapa</TabsTrigger>}
+          <TabsTrigger value="manage">Gestión de Grupos</TabsTrigger>
+          <TabsTrigger value="zones">Zonas</TabsTrigger>
+          <TabsTrigger value="map">Mapa</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -208,25 +208,19 @@ const DiscipleshipPage = () => {
         </TabsContent>
 
         {/* Group Management Tab */}
-        {canManageGroups && (
-          <TabsContent value="manage">
-            <GroupManagement />
-          </TabsContent>
-        )}
+        <TabsContent value="manage">
+          <GroupManagement />
+        </TabsContent>
 
         {/* Zones Tab */}
-        {canManageGroups && (
-          <TabsContent value="zones">
-            <ZoneManagement />
-          </TabsContent>
-        )}
+        <TabsContent value="zones">
+          <ZoneManagement />
+        </TabsContent>
 
         {/* Map Tab */}
-        {canManageGroups && (
-          <TabsContent value="map">
-            <DiscipleshipMap />
-          </TabsContent>
-        )}
+        <TabsContent value="map">
+          <DiscipleshipMap />
+        </TabsContent>
       </Tabs>
     </div>
   );
