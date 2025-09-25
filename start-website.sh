@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Script para levantar solo el Dashboard Principal
+# Script para levantar solo el Sitio Web Público (sin dashboard)
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "🟩 Iniciando Dashboard Principal..."
+echo "🌐 Iniciando Sitio Web Público..."
 
 # Verificar que pnpm esté instalado
 if ! command -v pnpm &> /dev/null; then
@@ -20,7 +20,7 @@ fi
 
 # Función para limpiar procesos al salir
 cleanup() {
-    echo "🛑 Deteniendo Dashboard Principal..."
+    echo "🛑 Deteniendo Sitio Web..."
     kill $! 2>/dev/null || true
     exit 0
 }
@@ -28,14 +28,14 @@ cleanup() {
 # Capturar señal de interrupción
 trap cleanup SIGINT SIGTERM
 
-echo "🚀 Iniciando Dashboard Principal en puerto 8080..."
+echo "🚀 Iniciando Sitio Web en puerto 8080..."
 
-# Iniciar Dashboard Principal
+# Iniciar Sitio Web
 cd "$ROOT_DIR"
 pnpm dev &
 
-printf "\n✅ Dashboard Principal ejecutándose:\n"
-echo "   🟩 Dashboard: http://localhost:8080"
+printf "\n✅ Sitio Web ejecutándose:\n"
+echo "   🌐 Sitio Web: http://localhost:8080"
 echo ""
 echo "Presiona Ctrl+C para detener el servicio"
 

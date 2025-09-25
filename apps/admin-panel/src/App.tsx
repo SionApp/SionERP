@@ -3,15 +3,21 @@ import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import Dashboard from "@/pages/Dashboard";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import Users from "@/pages/Users";
-import LiveStreams from "@/pages/LiveStreams";
-import Settings from "@/pages/Settings";
-import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { ThemeProvider } from "./components/ThemeProvider";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import DashboardLayout from "./layouts/DashboardLayout";
+import DashboardHome from "./pages/dashboard/DashboardHome";
+import UsersPage from "./pages/dashboard/UsersPage";
+import RegisterUserPage from "./pages/dashboard/RegisterUserPage";
+import ReportsPage from "./pages/dashboard/ReportsPage";
+import SettingsPage from "./pages/dashboard/SettingsPage";
+import EventsPage from "./pages/dashboard/EventsPage";
+import RoleManagementPage from "./pages/dashboard/RoleManagementPage";
+import RolesPage from "./pages/dashboard/RolesPage";
+import ProfilePage from "./pages/dashboard/ProfilePage";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
@@ -29,40 +35,26 @@ const App = () => (
         <AuthProvider>
           <BrowserRouter>
             <Routes>
+              <Route path="/" element={<Login />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route
-                path="/"
+              <Route 
+                path="/dashboard" 
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <DashboardLayout />
                   </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/usuarios"
-                element={
-                  <ProtectedRoute>
-                    <Users />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/transmisiones"
-                element={
-                  <ProtectedRoute>
-                    <LiveStreams />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/configuracion"
-                element={
-                  <ProtectedRoute>
-                    <Settings />
-                  </ProtectedRoute>
-                }
-              />
+                } 
+              >
+                <Route index element={<DashboardHome />} />
+                <Route path="users" element={<UsersPage />} />
+                <Route path="register-user" element={<RegisterUserPage />} />
+                <Route path="roles" element={<RoleManagementPage />} />
+                <Route path="events" element={<EventsPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="profile" element={<ProfilePage />} />
+              </Route>
             </Routes>
           </BrowserRouter>
         </AuthProvider>

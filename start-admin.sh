@@ -1,10 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
-# Script para levantar solo el Panel Admin
+# Script para levantar Dashboard + Backend Go
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "🟨 Iniciando Panel Admin..."
+echo "🚀 Iniciando Dashboard + Backend Go..."
+
+# Verificar que Go esté instalado
+if ! command -v go &> /dev/null; then
+    echo "❌ Go no está instalado. Por favor instala Go desde https://golang.org/dl/"
+    exit 1
+fi
 
 # Verificar que pnpm esté instalado
 if ! command -v pnpm &> /dev/null; then
@@ -12,13 +18,7 @@ if ! command -v pnpm &> /dev/null; then
     exit 1
 fi
 
-# Verificar que existe el directorio del admin panel
-if [ ! -d "$ROOT_DIR/apps/admin-panel" ]; then
-    echo "❌ No se encontró el directorio $ROOT_DIR/apps/admin-panel"
-    exit 1
-fi
-
-# Instalar dependencias si no existen
+# Instalar dependencias si no existen (en el monorepo)
 if [ ! -d "$ROOT_DIR/node_modules" ]; then
     echo "📦 Instalando dependencias..."
     (cd "$ROOT_DIR" && pnpm install)
@@ -26,24 +26,43 @@ fi
 
 # Función para limpiar procesos al salir
 cleanup() {
-    echo "🛑 Deteniendo Panel Admin..."
-    kill $! 2>/dev/null || true
+    echo "🛑 Deteniendo todos los servicios..."
+    kill $(jobs -p) 2>/dev/null || true
     exit 0
 }
 
 # Capturar señal de interrupción
 trap cleanup SIGINT SIGTERM
 
-echo "🚀 Iniciando Panel Admin en puerto 3001..."
+echo "🔧 Iniciando servicios con logs en vivo..."
 
-# Iniciar Panel Admin
-cd "$ROOT_DIR/apps/admin-panel"
-pnpm dev &
+# Iniciar Backend Go
+if [ -d "$ROOT_DIR/apps/backend-go" ]; then
+  (
+    cd "$ROOT_DIR/apps/backend-go"
+    echo "🟦 Iniciando Backend Go en puerto 8081..."
+    PORT=8081 GO_ENV=development go run main.go 2>&1 | sed -u 's/^/[BACKEND] /'
+  ) &
+else
+  echo "⚠️ No se encontró $ROOT_DIR/apps/backend-go"
+fi
 
-printf "\n✅ Panel Admin ejecutándose:\n"
-echo "   🟨 Admin Panel: http://localhost:3001"
+# Iniciar Dashboard Admin
+if [ -d "$ROOT_DIR/apps/admin-panel" ]; then
+  (
+    cd "$ROOT_DIR/apps/admin-panel"
+    echo "🟩 Iniciando Dashboard Admin en puerto 3001..."
+    pnpm dev 2>&1 | sed -u 's/^/[DASHBOARD] /'
+  ) &
+else
+  echo "⚠️ No se encontró $ROOT_DIR/apps/admin-panel"
+fi
+
+printf "\n✅ Servicios ejecutándose:\n"
+echo "   🟦 Backend Go:  http://localhost:8081"
+echo "   🟩 Dashboard:   http://localhost:3001"
 echo ""
-echo "Presiona Ctrl+C para detener el servicio"
+echo "Presiona Ctrl+C para detener todos los servicios"
 
-# Esperar a que el proceso termine
+# Esperar a que todos los procesos terminen
 wait
