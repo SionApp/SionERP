@@ -18,7 +18,7 @@ import {
   Building,
   UserPlus
 } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart as RechartsPieChart, Cell } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
 import { MonthlyGeneralReport } from '@/types/discipleship.types';
 import { toast } from '@/hooks/use-toast';
@@ -188,24 +188,17 @@ const GeneralSupervisorDashboard: React.FC = () => {
                 <CardTitle>Distribución de Grupos</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={200}>
-                  <RechartsPieChart>
-                    <Pie
-                      data={groupDistribution}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={60}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}`}
-                    >
-                      {groupDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </RechartsPieChart>
-                </ResponsiveContainer>
+                <div className="space-y-3">
+                  {groupDistribution.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                        <span className="text-sm">{item.name}</span>
+                      </div>
+                      <span className="font-medium">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
 
