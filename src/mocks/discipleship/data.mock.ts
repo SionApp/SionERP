@@ -383,3 +383,45 @@ export const mockSpiritualHealthData: ChartData[] = [
   { name: 'Regular (5-6)', value: 5, color: '#f59e0b' },
   { name: 'Necesita Atención (1-4)', value: 1, color: '#ef4444' }
 ];
+
+// Mock notifications for discipleship system
+export const mockNotifications = [
+  {
+    id: 'notif-001',
+    type: 'success' as const,
+    title: '¡Nuevo Grupo Asignado!',
+    message: 'Has sido asignado como líder del grupo "Célula Esperanza" en la Zona Norte.',
+    actionText: 'Ver Dashboard',
+    actionUrl: '/dashboard/discipleship',
+    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 min ago
+    read: false,
+    relatedUser: {
+      name: 'Pastor David Martínez',
+      avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=David Martínez'
+    }
+  },
+  {
+    id: 'notif-002',
+    type: 'info' as const,
+    title: 'Zona Asignada',
+    message: 'Has sido asignado a la Zona Norte. Conoce a tu supervisor María González.',
+    actionText: 'Ver Zona',
+    actionUrl: '/dashboard/discipleship?tab=zones',
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+    read: false,
+    relatedUser: {
+      name: 'María González',
+      avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=María González'
+    }
+  },
+  {
+    id: 'notif-003',
+    type: 'warning' as const,
+    title: 'Reporte Pendiente',
+    message: 'Recuerda enviar tu reporte semanal antes del domingo.',
+    actionText: 'Enviar Reporte',
+    actionUrl: '/dashboard/discipleship?tab=dashboard',
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+    read: true
+  }
+];
