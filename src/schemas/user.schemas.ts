@@ -23,7 +23,7 @@ export const profileUpdateSchema = z.object({
   email: z.string().email('Email inválido'),
   telefono: z.string().optional(),
   phone: z.string().optional(),
-  whatsapp: z.string().optional(),
+  whatsapp: z.boolean().optional(),
   birth_date: z.string().optional(),
   direccion: z.string().optional(),
   address: z.string().optional(),
@@ -48,7 +48,7 @@ export const registerUserSchema = z.object({
   cedula: z.string().optional(),
   telefono: z.string().optional(),
   phone: z.string().optional(),
-  whatsapp: z.string().optional(),
+  whatsapp: z.boolean().optional(),
   role: z.enum(userRoles, {
     errorMap: () => ({ message: 'Rol inválido' })
   }),
