@@ -9,18 +9,26 @@ echo "🚀 Iniciando Dashboard + Backend Go..."
 # Verificar que Go esté instalado
 if ! command -v go &> /dev/null; then
     echo "❌ Go no está instalado. Por favor instala Go desde https://golang.org/dl/"
+    echo "   Ejecuta ./setup-environment.sh para configurar el entorno completo"
     exit 1
 fi
 
 # Verificar que pnpm esté instalado
 if ! command -v pnpm &> /dev/null; then
     echo "❌ pnpm no está instalado. Por favor instala pnpm con: npm install -g pnpm"
+    echo "   Ejecuta ./setup-environment.sh para configurar el entorno completo"
+    exit 1
+fi
+
+# Verificar configuración del backend
+if [ ! -f "$ROOT_DIR/apps/backend-go/.env" ]; then
+    echo "❌ Backend no configurado. Ejecuta ./setup-environment.sh primero"
     exit 1
 fi
 
 # Instalar dependencias si no existen (en el monorepo)
 if [ ! -d "$ROOT_DIR/node_modules" ]; then
-    echo "📦 Instalando dependencias..."
+    echo "📦 Instalando dependencias del frontend..."
     (cd "$ROOT_DIR" && pnpm install)
 fi
 
@@ -36,12 +44,24 @@ trap cleanup SIGINT SIGTERM
 
 echo "🔧 Iniciando servicios con logs en vivo..."
 
-# Iniciar Backend Go
+# Preparar y iniciar Backend Go
 if [ -d "$ROOT_DIR/apps/backend-go" ]; then
   (
     cd "$ROOT_DIR/apps/backend-go"
-    echo "🟦 Iniciando Backend Go en puerto 8081..."
-    PORT=8081 GO_ENV=development go run main.go 2>&1 | sed -u 's/^/[BACKEND] /'
+    echo "🟦 Preparando Backend Go..."
+    
+    # Cargar variables de entorno
+    set -o allexport
+    source .env
+    set +o allexport
+    
+    # Preparar dependencias
+    go env -w GOPROXY=https://proxy.golang.org,direct
+    go mod tidy
+    go mod download
+    
+    echo "🟦 Iniciando Backend Go en puerto ${PORT:-8081}..."
+    go run main.go 2>&1 | sed -u 's/^/[BACKEND] /'
   ) &
 else
   echo "⚠️ No se encontró $ROOT_DIR/apps/backend-go"
@@ -59,9 +79,10 @@ else
 fi
 
 printf "\n✅ Servicios ejecutándose:\n"
-echo "   🟦 Backend Go:  http://localhost:8081"
+echo "   🟦 Backend Go:  http://localhost:8081/api/v1/health"
 echo "   🟩 Dashboard:   http://localhost:3001"
 echo ""
+echo "💡 Consejo: Espera unos segundos a que ambos servicios estén listos"
 echo "Presiona Ctrl+C para detener todos los servicios"
 
 # Esperar a que todos los procesos terminen
