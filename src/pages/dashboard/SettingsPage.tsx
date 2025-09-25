@@ -27,10 +27,16 @@ import {
   Download,
   Eye,
   EyeOff,
+  MapPin,
+  Map
 } from "lucide-react";
+import ZoneManagement from '@/components/discipleship/ZoneManagement';
+import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from "sonner";
 
 const SettingsPage = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("general");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,9 +65,10 @@ const SettingsPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="church">Iglesia</TabsTrigger>
+          <TabsTrigger value="zones">Zonas</TabsTrigger>
           <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
           <TabsTrigger value="security">Seguridad</TabsTrigger>
           <TabsTrigger value="integrations">Integraciones</TabsTrigger>
@@ -315,6 +322,29 @@ const SettingsPage = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Zones Settings - Only for Pastor and Staff */}
+        {(user?.role === 'pastor' || user?.role === 'staff') && (
+          <TabsContent value="zones" className="space-y-6">
+            <div className="space-y-6">
+              <ZoneManagement />
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Map className="w-5 h-5" />
+                    Mapa de Células
+                  </CardTitle>
+                  <CardDescription>
+                    Visualiza la distribución geográfica de las células de discipulado
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DiscipleshipMap />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
 
         {/* Notifications Settings */}
         <TabsContent value="notifications" className="space-y-6">

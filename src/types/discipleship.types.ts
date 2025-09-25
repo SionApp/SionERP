@@ -17,12 +17,31 @@ export interface DiscipleshipGroup {
   leader_id: string;
   supervisor_id?: string;
   meeting_location?: string;
+  meeting_address?: string;
+  latitude?: number;
+  longitude?: number;
   meeting_day?: string;
   meeting_time?: string;
   member_count: number;
   active_members: number;
   status: 'active' | 'inactive' | 'multiplying';
   zone_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Zone {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  supervisor_id?: string;
+  boundaries?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  };
   created_at: string;
   updated_at: string;
 }
