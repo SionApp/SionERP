@@ -55,6 +55,183 @@ export type Database = {
           },
         ]
       }
+      discipleship_groups: {
+        Row: {
+          active_members: number | null
+          created_at: string
+          group_name: string
+          id: string
+          leader_id: string
+          meeting_day: string | null
+          meeting_location: string | null
+          meeting_time: string | null
+          member_count: number | null
+          status: string | null
+          supervisor_id: string | null
+          updated_at: string
+          zone_name: string | null
+        }
+        Insert: {
+          active_members?: number | null
+          created_at?: string
+          group_name: string
+          id?: string
+          leader_id: string
+          meeting_day?: string | null
+          meeting_location?: string | null
+          meeting_time?: string | null
+          member_count?: number | null
+          status?: string | null
+          supervisor_id?: string | null
+          updated_at?: string
+          zone_name?: string | null
+        }
+        Update: {
+          active_members?: number | null
+          created_at?: string
+          group_name?: string
+          id?: string
+          leader_id?: string
+          meeting_day?: string | null
+          meeting_location?: string | null
+          meeting_time?: string | null
+          member_count?: number | null
+          status?: string | null
+          supervisor_id?: string | null
+          updated_at?: string
+          zone_name?: string | null
+        }
+        Relationships: []
+      }
+      discipleship_hierarchy: {
+        Row: {
+          active_groups_assigned: number | null
+          created_at: string
+          hierarchy_level: number
+          id: string
+          supervisor_id: string | null
+          territory: string | null
+          updated_at: string
+          user_id: string
+          zone_name: string | null
+        }
+        Insert: {
+          active_groups_assigned?: number | null
+          created_at?: string
+          hierarchy_level: number
+          id?: string
+          supervisor_id?: string | null
+          territory?: string | null
+          updated_at?: string
+          user_id: string
+          zone_name?: string | null
+        }
+        Update: {
+          active_groups_assigned?: number | null
+          created_at?: string
+          hierarchy_level?: number
+          id?: string
+          supervisor_id?: string | null
+          territory?: string | null
+          updated_at?: string
+          user_id?: string
+          zone_name?: string | null
+        }
+        Relationships: []
+      }
+      discipleship_metrics: {
+        Row: {
+          attendance: number | null
+          created_at: string
+          group_id: string
+          id: string
+          leader_notes: string | null
+          new_visitors: number | null
+          prayer_requests: number | null
+          returning_visitors: number | null
+          spiritual_temperature: number | null
+          testimonies_count: number | null
+          updated_at: string
+          week_date: string
+        }
+        Insert: {
+          attendance?: number | null
+          created_at?: string
+          group_id: string
+          id?: string
+          leader_notes?: string | null
+          new_visitors?: number | null
+          prayer_requests?: number | null
+          returning_visitors?: number | null
+          spiritual_temperature?: number | null
+          testimonies_count?: number | null
+          updated_at?: string
+          week_date: string
+        }
+        Update: {
+          attendance?: number | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          leader_notes?: string | null
+          new_visitors?: number | null
+          prayer_requests?: number | null
+          returning_visitors?: number | null
+          spiritual_temperature?: number | null
+          testimonies_count?: number | null
+          updated_at?: string
+          week_date?: string
+        }
+        Relationships: []
+      }
+      discipleship_reports: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          id: string
+          period_end: string
+          period_start: string
+          report_data: Json | null
+          report_level: number
+          report_type: string
+          reporter_id: string
+          status: string | null
+          submitted_at: string | null
+          supervisor_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          report_data?: Json | null
+          report_level: number
+          report_type: string
+          reporter_id: string
+          status?: string | null
+          submitted_at?: string | null
+          supervisor_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          report_data?: Json | null
+          report_level?: number
+          report_type?: string
+          reporter_id?: string
+          status?: string | null
+          submitted_at?: string | null
+          supervisor_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       live_streams: {
         Row: {
           actual_start: string | null
@@ -233,8 +410,36 @@ export type Database = {
           },
         ]
       }
+      user_profiles: {
+        Row: {
+          created_at: string
+          id: string
+          module_name: string
+          profile_data: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          module_name: string
+          profile_data?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          module_name?: string
+          profile_data?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
+          active_groups_count: number | null
           address: string
           baptism_date: string | null
           baptized: boolean | null
@@ -242,6 +447,7 @@ export type Database = {
           cell_group: string | null
           cell_leader_id: string | null
           created_at: string | null
+          discipleship_level: number | null
           education_level: string | null
           email: string
           first_name: string
@@ -260,10 +466,13 @@ export type Database = {
           pastoral_notes: string | null
           phone: string
           role: Database["public"]["Enums"]["user_role"]
+          territory: string | null
           updated_at: string | null
           whatsapp: boolean | null
+          zone_name: string | null
         }
         Insert: {
+          active_groups_count?: number | null
           address: string
           baptism_date?: string | null
           baptized?: boolean | null
@@ -271,6 +480,7 @@ export type Database = {
           cell_group?: string | null
           cell_leader_id?: string | null
           created_at?: string | null
+          discipleship_level?: number | null
           education_level?: string | null
           email: string
           first_name: string
@@ -289,10 +499,13 @@ export type Database = {
           pastoral_notes?: string | null
           phone: string
           role?: Database["public"]["Enums"]["user_role"]
+          territory?: string | null
           updated_at?: string | null
           whatsapp?: boolean | null
+          zone_name?: string | null
         }
         Update: {
+          active_groups_count?: number | null
           address?: string
           baptism_date?: string | null
           baptized?: boolean | null
@@ -300,6 +513,7 @@ export type Database = {
           cell_group?: string | null
           cell_leader_id?: string | null
           created_at?: string | null
+          discipleship_level?: number | null
           education_level?: string | null
           email?: string
           first_name?: string
@@ -318,8 +532,10 @@ export type Database = {
           pastoral_notes?: string | null
           phone?: string
           role?: Database["public"]["Enums"]["user_role"]
+          territory?: string | null
           updated_at?: string | null
           whatsapp?: boolean | null
+          zone_name?: string | null
         }
         Relationships: [
           {
