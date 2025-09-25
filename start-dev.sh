@@ -47,16 +47,12 @@ else
   echo "⚠️ No se encontró $ROOT_DIR/apps/backend-go"
 fi
 
-# Iniciar Admin Panel
-if [ -d "$ROOT_DIR/apps/admin-panel" ]; then
-  (
-    cd "$ROOT_DIR/apps/admin-panel"
-    echo "🟩 Iniciando Panel Admin en puerto 3001..."
-    pnpm dev 2>&1 | sed -u 's/^/[ADMIN]  /'
-  ) &
-else
-  echo "⚠️ No se encontró $ROOT_DIR/apps/admin-panel"
-fi
+# Iniciar Dashboard Principal
+(
+  cd "$ROOT_DIR"
+  echo "🟩 Iniciando Dashboard Principal en puerto 5173..."
+  pnpm dev 2>&1 | sed -u 's/^/[MAIN]   /'
+) &
 
 # Iniciar Public Site
 if [ -d "$ROOT_DIR/apps/public-site" ]; then
@@ -70,9 +66,9 @@ else
 fi
 
 printf "\n✅ Todos los servicios están ejecutándose:\n"
-echo "   🟦 Backend Go:    http://localhost:8080"
-echo "   🟩 Panel Admin:   http://localhost:3001"
-echo "   🟨 Sitio Público: http://localhost:3000"
+echo "   🟦 Backend Go:        http://localhost:8080"
+echo "   🟩 Dashboard Principal: http://localhost:5173"
+echo "   🟨 Sitio Público:     http://localhost:3000"
 echo ""
 echo "Presiona Ctrl+C para detener todos los servicios"
 
