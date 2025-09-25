@@ -20,8 +20,6 @@ const menuItems = [
   { title: "Registro", url: "/dashboard/register-user", icon: UserPlus },
   { title: "Roles", url: "/dashboard/roles", icon: Shield },
   { title: "Discipulado", url: "/dashboard/discipleship", icon: Heart },
-  { title: "Grupos", url: "/dashboard/group-management", icon: Users },
-  { title: "Zonas", url: "/dashboard/zones", icon: MapPin },
   { title: "Eventos", url: "/dashboard/events", icon: Calendar },
   { title: "Reportes", url: "/dashboard/reports", icon: BarChart3 },
   { title: "Configuración", url: "/dashboard/settings", icon: Settings },

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Zone } from '@/types/discipleship.types';
+import UserZoneAssignment from './UserZoneAssignment';
 
 // Mock data for zones
 const mockZones: Zone[] = [
@@ -155,8 +156,16 @@ const ZoneManagement: React.FC = () => {
   ];
 
   return (
-    <Card>
-      <CardHeader>
+    <div className="space-y-6">
+      {/* User Assignment Section */}
+      <UserZoneAssignment onAssignment={(userId, zoneId, role) => {
+        console.log('Usuario asignado:', { userId, zoneId, role });
+        // Here you would integrate with your actual data management
+      }} />
+      
+      {/* Zone Management Section */}
+      <Card>
+        <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -314,6 +323,7 @@ const ZoneManagement: React.FC = () => {
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 };
 

@@ -22,6 +22,7 @@ import CoordinatorDashboard from "./discipleship/CoordinatorDashboard";
 import PastoralDashboard from "./discipleship/PastoralDashboard";
 import GroupManagement from "@/components/discipleship/GroupManagement";
 import DiscipleshipMap from "@/components/discipleship/DiscipleshipMap";
+import ZoneManagement from "@/components/discipleship/ZoneManagement";
 
 const DiscipleshipPage = () => {
   const { user } = useAuth();
@@ -78,10 +79,11 @@ const DiscipleshipPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           {canManageGroups && <TabsTrigger value="manage">Gestión de Grupos</TabsTrigger>}
+          {canManageGroups && <TabsTrigger value="zones">Zonas</TabsTrigger>}
           {canManageGroups && <TabsTrigger value="map">Mapa</TabsTrigger>}
         </TabsList>
 
@@ -209,6 +211,13 @@ const DiscipleshipPage = () => {
         {canManageGroups && (
           <TabsContent value="manage">
             <GroupManagement />
+          </TabsContent>
+        )}
+
+        {/* Zones Tab */}
+        {canManageGroups && (
+          <TabsContent value="zones">
+            <ZoneManagement />
           </TabsContent>
         )}
 
