@@ -70,7 +70,9 @@ const RegisterUserPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Registrar Usuario</h1>
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          Registrar Usuario
+        </h1>
         <p className="text-muted-foreground">
           Crea un nuevo usuario en el sistema
         </p>
