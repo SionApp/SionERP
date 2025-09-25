@@ -17,6 +17,8 @@ import RoleManagementPage from "./pages/dashboard/RoleManagementPage";
 import RolesPage from "./pages/dashboard/RolesPage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
 import DiscipleshipPage from "./pages/dashboard/DiscipleshipPage";
+import ZonesPage from "./pages/dashboard/ZonesPage";
+import GroupManagementPage from "./pages/dashboard/GroupManagementPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
 
@@ -57,6 +59,8 @@ const App = () => (
                 <Route path="roles" element={<RolesPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="discipleship" element={<DiscipleshipPage />} />
+                <Route path="zones" element={<ZonesPage />} />
+                <Route path="group-management" element={<GroupManagementPage />} />
               </Route>
             </Routes>
           </BrowserRouter>
