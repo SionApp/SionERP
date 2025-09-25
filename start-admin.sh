@@ -55,12 +55,24 @@ if [ -d "$ROOT_DIR/apps/backend-go" ]; then
     source .env
     set +o allexport
     
+    # Validar SUPABASE_DB_URL (evitar placeholders)
+    if [[ -z "${SUPABASE_DB_URL:-}" ]]; then
+      echo "❌ SUPABASE_DB_URL no está configurada en apps/backend-go/.env"
+      echo "   Ejecuta ./setup-environment.sh para configurarla."
+      exit 1
+    fi
+    if [[ "${SUPABASE_DB_URL}" == *"[password]"* || "${SUPABASE_DB_URL}" == *"["*"]"* ]]; then
+      echo "❌ SUPABASE_DB_URL contiene placeholders como [password]."
+      echo "   Aborta el arranque del Backend. Ejecuta ./setup-environment.sh para completar la configuración."
+      exit 1
+    fi
+    
     # Preparar dependencias
     go env -w GOPROXY=https://proxy.golang.org,direct
     go mod tidy
     go mod download
     
-    echo "🟦 Iniciando Backend Go en puerto ${PORT:-8081}..."
+    echo "🟦 Iniciando Backend Go en puerto ${PORT:-8080}..."
     go run main.go 2>&1 | sed -u 's/^/[BACKEND] /'
   ) &
 else
@@ -79,7 +91,7 @@ else
 fi
 
 printf "\n✅ Servicios ejecutándose:\n"
-echo "   🟦 Backend Go:  http://localhost:8081/api/v1/health"
+echo "   🟦 Backend Go:  http://localhost:${PORT:-8080}/"
 echo "   🟩 Dashboard:   http://localhost:3001"
 echo ""
 echo "💡 Consejo: Espera unos segundos a que ambos servicios estén listos"

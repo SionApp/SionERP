@@ -41,6 +41,11 @@ if [ -z "${SUPABASE_DB_URL:-}" ]; then
     echo "   Ejecuta ./setup-environment.sh para configurar correctamente"
     exit 1
 fi
+if [[ "${SUPABASE_DB_URL}" == *"[password]"* || "${SUPABASE_DB_URL}" == *"["*"]"* ]]; then
+    echo "❌ SUPABASE_DB_URL contiene placeholders como [password]."
+    echo "   Ejecuta ./setup-environment.sh para completar la configuración."
+    exit 1
+fi
 
 # Configurar proxy y descargar dependencias
 echo "📦 Preparando dependencias de Go..."
@@ -60,13 +65,13 @@ cleanup() {
 # Capturar señal de interrupción
 trap cleanup SIGINT SIGTERM
 
-echo "🚀 Iniciando Backend Go en puerto ${PORT:-8081}..."
+echo "🚀 Iniciando Backend Go en puerto ${PORT:-8080}..."
 
 # Iniciar Backend Go (las variables ya están cargadas del .env)
 go run main.go &
 
 printf "\n✅ Backend Go ejecutándose:\n"
-echo "   🟦 Backend: http://localhost:8081"
+echo "   🟦 Backend: http://localhost:${PORT:-8080}"
 echo ""
 echo "Presiona Ctrl+C para detener el servicio"
 
