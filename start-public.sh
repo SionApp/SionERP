@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Script para levantar solo el Panel Admin
+# Script para levantar solo el Sitio Público
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "🟨 Iniciando Panel Admin..."
+echo "🟡 Iniciando Sitio Público..."
 
 # Verificar que pnpm esté instalado
 if ! command -v pnpm &> /dev/null; then
@@ -12,9 +12,9 @@ if ! command -v pnpm &> /dev/null; then
     exit 1
 fi
 
-# Verificar que existe el directorio del admin panel
-if [ ! -d "$ROOT_DIR/apps/admin-panel" ]; then
-    echo "❌ No se encontró el directorio $ROOT_DIR/apps/admin-panel"
+# Verificar que existe el directorio del sitio público
+if [ ! -d "$ROOT_DIR/apps/public-site" ]; then
+    echo "❌ No se encontró el directorio $ROOT_DIR/apps/public-site"
     exit 1
 fi
 
@@ -26,7 +26,7 @@ fi
 
 # Función para limpiar procesos al salir
 cleanup() {
-    echo "🛑 Deteniendo Panel Admin..."
+    echo "🛑 Deteniendo Sitio Público..."
     kill $! 2>/dev/null || true
     exit 0
 }
@@ -34,14 +34,14 @@ cleanup() {
 # Capturar señal de interrupción
 trap cleanup SIGINT SIGTERM
 
-echo "🚀 Iniciando Panel Admin en puerto 3001..."
+echo "🚀 Iniciando Sitio Público en puerto 3000..."
 
-# Iniciar Panel Admin
-cd "$ROOT_DIR/apps/admin-panel"
+# Iniciar Sitio Público
+cd "$ROOT_DIR/apps/public-site"
 pnpm dev &
 
-printf "\n✅ Panel Admin ejecutándose:\n"
-echo "   🟨 Admin Panel: http://localhost:3001"
+printf "\n✅ Sitio Público ejecutándose:\n"
+echo "   🟡 Sitio Público: http://localhost:3000"
 echo ""
 echo "Presiona Ctrl+C para detener el servicio"
 
