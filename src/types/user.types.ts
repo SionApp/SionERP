@@ -32,6 +32,7 @@ export interface User {
   fecha_bautizo?: string;
   membership_date?: string;
   pastoral_notes?: string;
+  discipleship_level?: number;
   is_active_member?: boolean;
   is_active: boolean;
   created_at: string;

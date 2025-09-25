@@ -24,7 +24,7 @@ export interface DiscipleshipGroup {
   meeting_time?: string;
   member_count: number;
   active_members: number;
-  status: 'active' | 'inactive' | 'multiplying';
+  status: 'active' | 'inactive' | 'multiplying' | 'planned';
   zone_name?: string;
   created_at: string;
   updated_at: string;
