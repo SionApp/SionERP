@@ -462,7 +462,6 @@ export type Database = {
           membership_date: string | null
           ministry_interest: string | null
           occupation: string | null
-          password_hash: string
           pastoral_notes: string | null
           phone: string
           role: Database["public"]["Enums"]["user_role"]
@@ -495,7 +494,6 @@ export type Database = {
           membership_date?: string | null
           ministry_interest?: string | null
           occupation?: string | null
-          password_hash: string
           pastoral_notes?: string | null
           phone: string
           role?: Database["public"]["Enums"]["user_role"]
@@ -528,7 +526,6 @@ export type Database = {
           membership_date?: string | null
           ministry_interest?: string | null
           occupation?: string | null
-          password_hash?: string
           pastoral_notes?: string | null
           phone?: string
           role?: Database["public"]["Enums"]["user_role"]

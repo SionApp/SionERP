@@ -58,18 +58,8 @@ func validateSupabaseToken(tokenString string) (*Claims, error) {
 		return nil, fmt.Errorf("SUPABASE_URL not configured")
 	}
 
-	// En desarrollo, usar validación simple
-	if os.Getenv("GO_ENV") == "development" {
-		return &Claims{
-			Sub:   "dummy-user-id",
-			Email: "user@example.com",
-			Role:  "authenticated",
-			RegisteredClaims: jwt.RegisteredClaims{
-				ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-				IssuedAt:  jwt.NewNumericDate(time.Now()),
-			},
-		}, nil
-	}
+	// Remove development bypass - always validate tokens properly in production
+	// This was a critical security vulnerability allowing unauthorized access
 
 	// Parsear el token
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
@@ -98,8 +88,14 @@ func validateSupabaseToken(tokenString string) (*Claims, error) {
 }
 
 func getSupabasePublicKey() (*rsa.PublicKey, error) {
-	// En producción, esto debería obtener la clave pública de Supabase
-	// desde el endpoint /.well-known/jwks.json
-	// Por ahora, devolvemos un error para forzar el uso del modo desarrollo
-	return nil, fmt.Errorf("production JWT validation not implemented yet")
+	// TODO: Implement proper JWKS endpoint validation
+	// For now, require proper JWT validation in production
+	supabaseURL := os.Getenv("SUPABASE_URL")
+	if supabaseURL == "" {
+		return nil, fmt.Errorf("SUPABASE_URL not configured")
+	}
+	
+	// This should fetch from ${SUPABASE_URL}/.well-known/jwks.json
+	// and validate the JWT properly using the public key
+	return nil, fmt.Errorf("JWKS validation must be implemented for production use")
 }
