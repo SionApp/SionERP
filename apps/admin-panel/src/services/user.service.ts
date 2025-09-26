@@ -1,5 +1,6 @@
 import { ApiService } from './api.service';
 import { CreateUserData, UpdateUserData, User } from '../types/user.types';
+import { supabase } from '@/integrations/supabase/client';
 
 export class UserService {
   private static endpoint = '/users';
@@ -27,7 +28,36 @@ export class UserService {
 
   static async createUser(userData: CreateUserData): Promise<User> {
     try {
-      const response = await ApiService.post<{ data: User }>(this.endpoint, userData);
+      // Create user with Supabase Auth first (secure password handling)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            full_name: userData.full_name,
+            role: userData.role
+          }
+        }
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create user');
+
+      // Create user record in our users table (without password)
+      const userRecord = {
+        id: authData.user.id,
+        email: userData.email,
+        full_name: userData.full_name,
+        phone: userData.phone,
+        role: userData.role,
+        birth_date: userData.birth_date,
+        address: userData.address,
+        emergency_contact_name: userData.emergency_contact_name,
+        emergency_contact_phone: userData.emergency_contact_phone,
+        is_active: true
+      };
+
+      const response = await ApiService.post<{ data: User }>(this.endpoint, userRecord);
       return response.data;
     } catch (error) {
       console.error('Error creating user:', error);
