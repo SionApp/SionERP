@@ -67,7 +67,7 @@ const DiscipleshipPage = () => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Ministerio de Discipulado
+            Ministerio de Discipuladoasda
           </h1>
           <p className="text-muted-foreground mt-1">
             Dashboard nivel {getDiscipleshipLevel()} - {user?.role === 'pastor' ? 'Pastoral' : 
