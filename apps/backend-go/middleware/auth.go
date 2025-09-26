@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
@@ -94,7 +93,7 @@ func getSupabasePublicKey() (*rsa.PublicKey, error) {
 	if supabaseURL == "" {
 		return nil, fmt.Errorf("SUPABASE_URL not configured")
 	}
-	
+
 	// This should fetch from ${SUPABASE_URL}/.well-known/jwks.json
 	// and validate the JWT properly using the public key
 	return nil, fmt.Errorf("JWKS validation must be implemented for production use")
