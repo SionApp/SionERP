@@ -36,6 +36,17 @@ const roleNames = {
   server: 'Servidor'
 };
 
+export interface DiscipleshipDashboardStats {
+  totalGroups: number;
+  totalMembers: number;
+  activeLeaders: number;
+  avgAttendance: number;
+  monthlyGrowth: number;
+  spiritualHealth: number;
+  multiplications: number;
+  alertsCount: number;
+}
+
 export class DashboardService {
   static async getStats(): Promise<DashboardStats> {
     try {
@@ -75,6 +86,45 @@ export class DashboardService {
         newRegistrations: 0,
         activeRoles: 0,
         systemActivity: 0
+      };
+    }
+  }
+
+  static async getDiscipleshipStats(): Promise<DiscipleshipDashboardStats> {
+    try {
+      // Obtener estadísticas de discipulado usando la función SQL
+      const { data: statsData } = await supabase.rpc('calculate_discipleship_stats');
+      
+      // Contar alertas activas
+      const { count: alertsCount } = await supabase
+        .from('discipleship_alerts')
+        .select('*', { count: 'exact', head: true })
+        .eq('resolved', false);
+
+      // Casting seguro de la respuesta JSON
+      const stats = statsData as any;
+
+      return {
+        totalGroups: stats?.total_groups || 0,
+        totalMembers: stats?.total_members || 0,
+        activeLeaders: stats?.active_leaders || 0,
+        avgAttendance: stats?.average_attendance || 0,
+        monthlyGrowth: stats?.growth_rate || 0,
+        spiritualHealth: stats?.spiritual_health || 0,
+        multiplications: stats?.multiplications || 0,
+        alertsCount: alertsCount || 0
+      };
+    } catch (error) {
+      console.error('Error fetching discipleship stats:', error);
+      return {
+        totalGroups: 0,
+        totalMembers: 0,
+        activeLeaders: 0,
+        avgAttendance: 0,
+        monthlyGrowth: 0,
+        spiritualHealth: 0,
+        multiplications: 0,
+        alertsCount: 0
       };
     }
   }
@@ -183,14 +233,16 @@ export class DashboardService {
 
   static async getAllDashboardData() {
     try {
-      const [stats, roleDistribution, recentActivity] = await Promise.all([
+      const [stats, discipleshipStats, roleDistribution, recentActivity] = await Promise.all([
         this.getStats(),
+        this.getDiscipleshipStats(),
         this.getRoleDistribution(),
         this.getRecentActivity()
       ]);
 
       return {
         stats,
+        discipleshipStats,
         roleDistribution,
         recentActivity
       };

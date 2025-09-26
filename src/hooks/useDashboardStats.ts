@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { DashboardService, DashboardStats, RoleDistribution, RecentActivity } from '@/services/dashboard.service';
+import { DashboardService, DashboardStats, DiscipleshipDashboardStats, RoleDistribution, RecentActivity } from '@/services/dashboard.service';
 
 export const useDashboardStats = () => {
   const [stats, setStats] = useState<DashboardStats>({
@@ -7,6 +7,17 @@ export const useDashboardStats = () => {
     newRegistrations: 0,
     activeRoles: 0,
     systemActivity: 0
+  });
+
+  const [discipleshipStats, setDiscipleshipStats] = useState<DiscipleshipDashboardStats>({
+    totalGroups: 0,
+    totalMembers: 0,
+    activeLeaders: 0,
+    avgAttendance: 0,
+    monthlyGrowth: 0,
+    spiritualHealth: 0,
+    multiplications: 0,
+    alertsCount: 0
   });
   
   const [roleDistribution, setRoleDistribution] = useState<RoleDistribution[]>([]);
@@ -22,6 +33,7 @@ export const useDashboardStats = () => {
       const data = await DashboardService.getAllDashboardData();
       
       setStats(data.stats);
+      setDiscipleshipStats(data.discipleshipStats);
       setRoleDistribution(data.roleDistribution);
       setRecentActivity(data.recentActivity);
     } catch (err) {
@@ -38,6 +50,7 @@ export const useDashboardStats = () => {
 
   return {
     stats,
+    discipleshipStats,
     roleDistribution,
     recentActivity,
     loading,
