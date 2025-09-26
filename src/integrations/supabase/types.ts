@@ -55,6 +55,153 @@ export type Database = {
           },
         ]
       }
+      cell_multiplication_tracking: {
+        Row: {
+          created_at: string
+          id: string
+          initial_members: number | null
+          multiplication_date: string
+          multiplication_type: string | null
+          new_group_id: string | null
+          new_leader_id: string | null
+          notes: string | null
+          parent_group_id: string
+          parent_leader_id: string
+          success_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          initial_members?: number | null
+          multiplication_date: string
+          multiplication_type?: string | null
+          new_group_id?: string | null
+          new_leader_id?: string | null
+          notes?: string | null
+          parent_group_id: string
+          parent_leader_id: string
+          success_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          initial_members?: number | null
+          multiplication_date?: string
+          multiplication_type?: string | null
+          new_group_id?: string | null
+          new_leader_id?: string | null
+          notes?: string | null
+          parent_group_id?: string
+          parent_leader_id?: string
+          success_status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      discipleship_alerts: {
+        Row: {
+          action_required: boolean | null
+          alert_type: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          message: string
+          priority: number | null
+          related_group_id: string | null
+          related_user_id: string | null
+          resolved: boolean | null
+          resolved_at: string | null
+          resolved_by: string | null
+          title: string
+          updated_at: string
+          zone_name: string | null
+        }
+        Insert: {
+          action_required?: boolean | null
+          alert_type: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          message: string
+          priority?: number | null
+          related_group_id?: string | null
+          related_user_id?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          title: string
+          updated_at?: string
+          zone_name?: string | null
+        }
+        Update: {
+          action_required?: boolean | null
+          alert_type?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          message?: string
+          priority?: number | null
+          related_group_id?: string | null
+          related_user_id?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          title?: string
+          updated_at?: string
+          zone_name?: string | null
+        }
+        Relationships: []
+      }
+      discipleship_goals: {
+        Row: {
+          created_at: string
+          current_value: number | null
+          deadline: string
+          description: string | null
+          goal_type: string
+          id: string
+          progress_percentage: number | null
+          status: string | null
+          supervisor_id: string | null
+          target_metric: string
+          target_value: number
+          updated_at: string
+          zone_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_value?: number | null
+          deadline: string
+          description?: string | null
+          goal_type: string
+          id?: string
+          progress_percentage?: number | null
+          status?: string | null
+          supervisor_id?: string | null
+          target_metric: string
+          target_value: number
+          updated_at?: string
+          zone_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_value?: number | null
+          deadline?: string
+          description?: string | null
+          goal_type?: string
+          id?: string
+          progress_percentage?: number | null
+          status?: string | null
+          supervisor_id?: string | null
+          target_metric?: string
+          target_value?: number
+          updated_at?: string
+          zone_name?: string | null
+        }
+        Relationships: []
+      }
       discipleship_groups: {
         Row: {
           active_members: number | null
@@ -142,45 +289,72 @@ export type Database = {
       discipleship_metrics: {
         Row: {
           attendance: number | null
+          baptisms: number | null
+          cells_multiplied: number | null
+          conversions: number | null
           created_at: string
+          first_time_visitors: number | null
           group_id: string
           id: string
           leader_notes: string | null
+          leaders_trained: number | null
+          month_year: string | null
           new_visitors: number | null
+          offering_amount: number | null
           prayer_requests: number | null
           returning_visitors: number | null
+          special_events: number | null
           spiritual_temperature: number | null
           testimonies_count: number | null
           updated_at: string
           week_date: string
+          week_number: number | null
         }
         Insert: {
           attendance?: number | null
+          baptisms?: number | null
+          cells_multiplied?: number | null
+          conversions?: number | null
           created_at?: string
+          first_time_visitors?: number | null
           group_id: string
           id?: string
           leader_notes?: string | null
+          leaders_trained?: number | null
+          month_year?: string | null
           new_visitors?: number | null
+          offering_amount?: number | null
           prayer_requests?: number | null
           returning_visitors?: number | null
+          special_events?: number | null
           spiritual_temperature?: number | null
           testimonies_count?: number | null
           updated_at?: string
           week_date: string
+          week_number?: number | null
         }
         Update: {
           attendance?: number | null
+          baptisms?: number | null
+          cells_multiplied?: number | null
+          conversions?: number | null
           created_at?: string
+          first_time_visitors?: number | null
           group_id?: string
           id?: string
           leader_notes?: string | null
+          leaders_trained?: number | null
+          month_year?: string | null
           new_visitors?: number | null
+          offering_amount?: number | null
           prayer_requests?: number | null
           returning_visitors?: number | null
+          special_events?: number | null
           spiritual_temperature?: number | null
           testimonies_count?: number | null
           updated_at?: string
           week_date?: string
+          week_number?: number | null
         }
         Relationships: []
       }
@@ -549,6 +723,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_discipleship_stats: {
+        Args: { date_from?: string; date_to?: string; zone_filter?: string }
+        Returns: Json
+      }
       can_access_user: {
         Args: { target_user_id: string }
         Returns: boolean

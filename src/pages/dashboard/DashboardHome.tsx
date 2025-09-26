@@ -7,13 +7,14 @@ import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, X
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { AuditLogModal } from '@/components/AuditLogModal';
+import { DiscipleshipAnalyticsSection } from '@/components/dashboard/DiscipleshipAnalyticsSection';
 
 const DashboardHome = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [selectedAuditLog, setSelectedAuditLog] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { stats, roleDistribution, recentActivity, loading: statsLoading } = useDashboardStats();
+  const { stats, discipleshipStats, roleDistribution, recentActivity, loading: statsLoading } = useDashboardStats();
 
 
   const handleActivityClick = (activity: any) => {
@@ -225,6 +226,11 @@ const DashboardHome = () => {
           </Card>
         )}
       </div>
+
+      {/* Sección de Analytics de Discipulado - Solo para Pastor */}
+      {currentUserRole === 'pastor' && (
+        <DiscipleshipAnalyticsSection discipleshipStats={discipleshipStats} />
+      )}
     </div>
 
     {/* Modal de detalles de audit log */}
