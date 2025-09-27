@@ -186,12 +186,6 @@ const Login = () => {
               </Link>
             </p>
           </div>
-
-          <div className="mt-4 p-3 bg-muted rounded-lg">
-            <p className="text-xs text-center text-muted-foreground">
-              <strong>Demo:</strong> Usa cualquier email y contraseña para probar
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

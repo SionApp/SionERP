@@ -13,10 +13,10 @@ type DashboardHandler struct {
 }
 
 type DashboardStats struct {
-	TotalUsers        int `json:"totalUsers"`
-	NewRegistrations  int `json:"newRegistrations"`
-	ActiveRoles       int `json:"activeRoles"`
-	SystemActivity    int `json:"systemActivity"`
+	TotalUsers       int `json:"totalUsers"`
+	NewRegistrations int `json:"newRegistrations"`
+	ActiveRoles      int `json:"activeRoles"`
+	SystemActivity   int `json:"systemActivity"`
 }
 
 type RoleDistribution struct {
@@ -34,8 +34,8 @@ type RecentActivity struct {
 	Details interface{} `json:"details,omitempty"`
 }
 
-func NewDashboardHandler(db *config.Database) *DashboardHandler {
-	return &DashboardHandler{db: db}
+func NewDashboardHandler() *DashboardHandler {
+	return &DashboardHandler{}
 }
 
 // GetStats returns dashboard statistics
@@ -120,9 +120,9 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) error {
 	// For now, return empty array since audit logs require special handling
 	// In a full implementation, this would query the audit_logs table
 	// and format the activities similar to the frontend fallback
-	
+
 	activities := []RecentActivity{}
-	
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"data": activities,
 	})
