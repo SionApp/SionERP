@@ -79,6 +79,7 @@ export class DashboardService {
         newRegistrations: newRegistrations || 0,
         activeRoles: uniqueRoles.size,
         systemActivity: Math.floor(Math.random() * 100), // TODO: Implement real activity tracking
+        lastLogin: new Date().toISOString(),
       };
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
@@ -87,6 +88,7 @@ export class DashboardService {
         newRegistrations: 0,
         activeRoles: 0,
         systemActivity: 0,
+        lastLogin: new Date().toISOString(),
       };
     }
   }
