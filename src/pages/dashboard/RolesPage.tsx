@@ -104,7 +104,7 @@ const RolesPage = () => {
       setRoles(rolesData);
       setTotalUsers(roleStats?.length || 0);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading role stats:', error);
       toast.error('Error al cargar estadísticas de roles');
     } finally {
@@ -140,10 +140,12 @@ const RolesPage = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Gestión de Roles</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Gestión de Roles
+          </h1>
           <p className="text-muted-foreground">
             Administra los roles y permisos del sistema
           </p>
@@ -207,7 +209,7 @@ const RolesPage = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Badge variant={getRoleColor(roleData.role) as any}>
+                  <Badge variant={getRoleColor(roleData.role)}>
                     {getRoleName(roleData.role)}
                   </Badge>
                   <div>
@@ -264,7 +266,7 @@ const RolesPage = () => {
                   <th className="text-left p-2">Permiso</th>
                   {roles.map((roleData) => (
                     <th key={roleData.role} className="text-center p-2">
-                      <Badge variant={getRoleColor(roleData.role) as any}>
+                      <Badge variant={getRoleColor(roleData.role)}>
                         {getRoleName(roleData.role)}
                       </Badge>
                     </th>

@@ -2,7 +2,6 @@ package main
 
 import (
 	"backend-sion/routes"
-	"backend-sion/config"
 	"log"
 	"os"
 
@@ -11,13 +10,6 @@ import (
 )
 
 func main() {
-	// Initialize database
-	db, err := config.NewDatabase()
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
-	}
-	defer db.Close()
-
 	e := echo.New()
 
 	// Middleware
@@ -28,14 +20,14 @@ func main() {
 	// Routes
 	e.GET("/", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{
-			"message": "Backend Sion API",
-			"version": "1.0.0",
+			"message":     "Backend Sion API",
+			"version":     "1.0.0",
 			"description": "API Backend para la Iglesia Sion",
 		})
 	})
 
 	// Setup all routes
-	routes.SetupRoutes(e, db)
+	routes.SetupRoutes(e)
 
 	// Start server
 	port := os.Getenv("PORT")

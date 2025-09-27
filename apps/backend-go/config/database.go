@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -12,6 +13,11 @@ import (
 type Database struct {
 	DB *sql.DB
 }
+
+var (
+	dbInstance *Database
+	once       sync.Once
+)
 
 func NewDatabase() (*Database, error) {
 	// Cargar variables de entorno desde el archivo .env
@@ -34,6 +40,17 @@ func NewDatabase() (*Database, error) {
 	}
 
 	return &Database{DB: db}, nil
+}
+
+func GetDB() *Database {
+	once.Do(func() {
+		var err error
+		dbInstance, err = NewDatabase()
+		if err != nil {
+			panic("Failed to connect to database: " + err.Error())
+		}
+	})
+	return dbInstance
 }
 
 func (d *Database) Close() error {

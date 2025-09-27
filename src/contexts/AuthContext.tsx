@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-
+import { User as UserType } from "@/types/user.types";
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  login: (email: string, password: string) => Promise<{ error?: any }>;
-  signUp: (email: string, password: string, userData?: any) => Promise<{ error?: any }>;
+  login: (email: string, password: string) => Promise<{ error?: AuthError }>;
+  signUp: (email: string, password: string, userData?: UserType) => Promise<{ error?: AuthError }>;
   logout: () => Promise<void>;
   isLoading: boolean;
 }
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, userData?: any) => {
+  const signUp = async (email: string, password: string, userData?: UserType) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
