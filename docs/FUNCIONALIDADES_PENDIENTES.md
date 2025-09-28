@@ -1,23 +1,23 @@
-# Características Pendientes - Proyecto Sion
+# Funcionalidades Pendientes - Proyecto Sion
 
 ## Estado Actual del Desarrollo
 
 ### ✅ Completado
 - [x] Sistema de autenticación básico
-- [x] Dashboard administrativo
+- [x] Panel administrativo (dashboard)
 - [x] Gestión de usuarios con roles
 - [x] Estructura de base de datos
 - [x] Sistema de auditoría
-- [x] Website público básico
+- [x] Sitio web público básico
 - [x] Integración con Supabase
 - [x] Diseño responsivo con Tailwind
 
 ### 🚧 En Desarrollo
 - [ ] Sistema de discipulado completo
-- [ ] Dashboard de métricas espirituales
+- [ ] Panel de métricas espirituales
 - [ ] Reportes por niveles de jerarquía
 
-## Características Críticas Pendientes
+## Funcionalidades Críticas Pendientes
 
 ### 1. Sistema de Discipulado Completo
 
@@ -53,7 +53,7 @@ flowchart TD
 - Completar diseño de formularios
 - Implementar validaciones
 
-### 2. Dashboard de Analytics Avanzado
+### 2. Panel de Análisis Avanzado
 
 **Características Requeridas:**
 - [ ] Gráficos de crecimiento temporal
@@ -103,7 +103,7 @@ graph LR
 ### 5. Aplicación Móvil PWA
 
 **Características:**
-- [ ] Versión PWA responsive
+- [ ] Versión PWA responsiva
 - [ ] Notificaciones push
 - [ ] Funcionamiento offline
 - [ ] Sincronización automática
@@ -113,26 +113,26 @@ graph LR
 
 ## Módulos Técnicos Pendientes
 
-### 1. Sistema de Backup y Recuperación
-- [ ] Backups automáticos diarios
+### 1. Sistema de Respaldo y Recuperación
+- [ ] Respaldos automáticos diarios
 - [ ] Restauración point-in-time
 - [ ] Pruebas de recuperación
 - [ ] Monitoreo de integridad
 
-### 2. Optimización de Performance
-- [ ] Lazy loading de componentes
+### 2. Optimización de Rendimiento
+- [ ] Carga perezosa de componentes
 - [ ] Caché de consultas frecuentes
 - [ ] Optimización de imágenes
-- [ ] Bundle splitting
+- [ ] División de paquetes (bundle splitting)
 
 ### 3. Seguridad Avanzada
-- [ ] Rate limiting
+- [ ] Limitación de velocidad (rate limiting)
 - [ ] Detección de ataques
 - [ ] Encriptación de datos sensibles
 - [ ] Auditoría de seguridad
 
-### 4. Integrations Externas
-- [ ] WhatsApp Business API
+### 4. Integraciones Externas
+- [ ] API de WhatsApp Business
 - [ ] Sistema de correos masivos
 - [ ] Plataforma de pagos
 - [ ] CRM externo
@@ -146,17 +146,17 @@ gantt
     section Fase 1 - Core
     Roles Híbridos           :done, des1, 2024-01-01, 2024-01-07
     Sistema Discipulado      :active, des2, 2024-01-08, 2024-02-05
-    Dashboard Analytics      :des3, after des2, 21d
+    Panel Analytics         :des3, after des2, 21d
     
     section Fase 2 - Features
     Notificaciones          :des4, after des3, 14d
-    PWA Mobile             :des5, after des4, 35d
+    PWA Móvil              :des5, after des4, 35d
     
-    section Fase 3 - Optimization
-    Performance            :des6, after des5, 14d
+    section Fase 3 - Optimización
+    Rendimiento            :des6, after des5, 14d
     Seguridad             :des7, after des6, 21d
     
-    section Fase 4 - Integration
+    section Fase 4 - Integración
     APIs Externas         :des8, after des7, 28d
     Capacitación          :des9, after des8, 21d
 </lov-mermaid>
@@ -170,7 +170,7 @@ gantt
 - [ ] Reportes por nivel jerárquico
 - [ ] Validaciones de negocio implementadas
 
-### Dashboard Analytics
+### Panel de Análisis
 - [ ] 5+ tipos de gráficos implementados
 - [ ] Filtros por fecha y zona
 - [ ] Exportación de datos
@@ -186,31 +186,31 @@ gantt
 
 ## Riesgos y Dependencias
 
-### Riesgos Alto Impacto
+### Riesgos de Alto Impacto
 1. **Complejidad de Roles**: La integración de sistemas puede generar bugs de permisos
-2. **Performance**: Gran volumen de datos puede afectar velocidad
-3. **UX Consistency**: Mantener diseño coherente entre módulos
+2. **Rendimiento**: Gran volumen de datos puede afectar velocidad
+3. **Consistencia UX**: Mantener diseño coherente entre módulos
 
 ### Dependencias Críticas
-1. **Finalización de DB Schema**: Antes de implementar reportes
-2. **Definición de Business Rules**: Para validaciones de discipulado
-3. **UI/UX Guidelines**: Para mantener consistencia
+1. **Finalización de Esquema BD**: Antes de implementar reportes
+2. **Definición de Reglas de Negocio**: Para validaciones de discipulado
+3. **Guías UI/UX**: Para mantener consistencia
 
 ## Recursos Necesarios
 
 ### Desarrollo
 - 1 Desarrollador Full-Stack (principal)
 - 1 Desarrollador Frontend (apoyo)
-- 1 QA Tester (medio tiempo)
+- 1 Tester QA (medio tiempo)
 
-### Testing
+### Pruebas
 - Testing automatizado para cada módulo
 - Testing de integración
-- Testing de performance
+- Testing de rendimiento
 - Testing de seguridad
 
 ### Infraestructura
 - Monitoreo de aplicación
 - Logs centralizados
-- Métricas de performance
+- Métricas de rendimiento
 - Alertas de sistema

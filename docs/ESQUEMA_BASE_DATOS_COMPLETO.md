@@ -304,7 +304,7 @@ flowchart TD
     F --> K
     H --> K
     
-    J --> L[Dashboard Analytics]
+    J --> L[Panel Analytics]
     K --> L
     L --> M[Alertas Automáticas]
     L --> N[Métricas Consolidadas]
@@ -327,7 +327,7 @@ flowchart LR
     G --> J[(discipleship_groups - Nueva)]
     
     H --> K[Métricas de Multiplicación]
-    I --> L[Dashboard Consolidado]
+    I --> L[Panel Consolidado]
     J --> L
 </lov-mermaid>
 
@@ -355,7 +355,7 @@ flowchart LR
 
 ## Índices Estratégicos Recomendados
 
-### Índices de Performance
+### Índices de Rendimiento
 ```sql
 -- Búsquedas frecuentes por zona
 CREATE INDEX idx_users_zone_active ON users(zone_name, is_active);
@@ -526,7 +526,7 @@ $$ LANGUAGE plpgsql;
 
 1. **Crear tablas pendientes** (zones, group_members, training_modules)
 2. **Implementar vistas estratégicas** para consultas frecuentes
-3. **Agregar índices de performance** según patrones de uso
+3. **Agregar índices de rendimiento** según patrones de uso
 4. **Implementar triggers de validación** para integridad de datos
 5. **Configurar particionamiento** para tablas que crezcan rápidamente
 6. **Establecer políticas de archivado** para datos históricos
