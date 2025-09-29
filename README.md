@@ -6,16 +6,14 @@ Sistema completo para la gestión de la Iglesia Sion que incluye sitio web públ
 
 ```
 ├── apps/
-│   ├── public-site/        # 🌐 Sitio web público de la iglesia
-│   ├── admin-panel/        # 👥 Panel administrativo unificado
 │   └── backend-go/         # 🔧 API Backend en Go con Echo Framework
 ├── packages/
 │   ├── shared-ui/          # 🎨 Componentes UI compartidos
 │   ├── shared-types/       # 📝 Tipos TypeScript compartidos
 │   └── shared-utils/       # 🛠️ Utilidades compartidas
+├── src/                    # 🌐 Frontend React (sitio web + admin)
 ├── supabase/               # 🗃️ Configuración y migraciones de BD
-├── start-dev.sh           # 🚀 Script para levantar todo
-└── start-admin.sh         # 🚀 Script para backend + admin
+└── scripts/                # 🚀 Scripts de desarrollo
 ```
 
 ## 🚀 Inicio Rápido
@@ -53,36 +51,26 @@ cp apps/backend-go/.env.example apps/backend-go/.env
 
 ### Ejecutar el Proyecto
 
-#### 🎯 Opción 1: Todo el Entorno (Recomendado)
-```bash
-# Dale permisos de ejecución al script
-chmod +x start-dev.sh
-
-# Ejecuta todo: Backend + Admin + Sitio Público
-./start-dev.sh
-```
-
-#### 🎯 Opción 2: Solo Backend + Admin
-```bash
-# Dale permisos de ejecución al script
-chmod +x start-admin.sh
-
-# Ejecuta solo: Backend + Panel Admin
-./start-admin.sh
-```
-
-#### 🎯 Opción 3: Manual
+#### 🎯 Opción 1: Desarrollo Completo (Recomendado)
 ```bash
 # Terminal 1: Backend Go
 cd apps/backend-go
-go run main.go
+go run .
 
-# Terminal 2: Panel Admin
-cd apps/admin-panel
+# Terminal 2: Frontend (React)
+pnpm install
 pnpm dev
+```
 
-# Terminal 3: Sitio Público
-cd apps/public-site
+#### 🎯 Opción 2: Solo Backend
+```bash
+cd apps/backend-go
+go run .
+```
+
+#### 🎯 Opción 3: Solo Frontend
+```bash
+pnpm install
 pnpm dev
 ```
 
@@ -91,25 +79,20 @@ pnpm dev
 Una vez ejecutado, tendrás acceso a:
 
 - **🟦 Backend API**: http://localhost:8080
-- **🟩 Panel Admin**: http://localhost:3001
-- **🟨 Sitio Público**: http://localhost:3000
+- **🌐 Frontend**: http://localhost:5173 (Vite dev server)
 
 ## 📱 Funcionalidades
 
-### Panel Administrativo (`apps/admin-panel/`)
-- **🔐 Autenticación**: Login y registro de administradores
+### Frontend React (`src/`)
+- **🔐 Autenticación**: Login y registro de usuarios
 - **👥 Gestión de Usuarios**: CRUD completo con roles y permisos
 - **📊 Dashboard**: Estadísticas en tiempo real
 - **📺 Transmisiones**: Gestión de links de YouTube Live
-- **⚙️ Configuración**: Ajustes del sistema
-- **📝 Auditoría**: Logs de todas las acciones
-
-### Sitio Web Público (`apps/public-site/`)
-- **🏠 Página Principal**: Información de la iglesia
-- **📺 Transmisión en Vivo**: Integración con YouTube
+- **🏠 Sitio Web Público**: Información de la iglesia
 - **📧 Newsletter**: Suscripción a boletín
 - **📞 Contacto**: Formulario de contacto
 - **📱 Responsive**: Totalmente adaptable
+- **📝 Auditoría**: Logs de todas las acciones
 
 ### Backend API (`apps/backend-go/`)
 - **🔧 Go + Echo**: Framework rápido y eficiente
@@ -157,7 +140,7 @@ Una vez ejecutado, tendrás acceso a:
 
 ### Estructura de Directorios
 ```
-apps/admin-panel/src/
+src/
 ├── components/          # Componentes React
 ├── pages/              # Páginas principales
 ├── hooks/              # Custom hooks
@@ -175,19 +158,16 @@ apps/backend-go/
 
 ### Scripts Útiles
 ```bash
-# Desarrollo individual
-pnpm dev                    # Solo sitio principal
-cd apps/admin-panel && pnpm dev   # Solo panel admin
-cd apps/public-site && pnpm dev   # Solo sitio público
-cd apps/backend-go && go run main.go  # Solo backend
+# Desarrollo
+pnpm dev                    # Frontend (React)
+cd apps/backend-go && go run .  # Backend (Go)
 
 # Build
-pnpm build                  # Build principal
-cd apps/admin-panel && pnpm build     # Build admin
-cd apps/public-site && pnpm build     # Build público
+pnpm build                  # Build del frontend
+cd apps/backend-go && go build .  # Build del backend
 
 # Linting
-pnpm lint                   # Linter
+pnpm lint                   # Linter del frontend
 ```
 
 ## 🔐 Variables de Entorno
@@ -203,10 +183,9 @@ PORT=8080
 
 ## 🚢 Despliegue
 
-### Frontend (Lovable/Vercel/Netlify)
+### Frontend (Vercel/Netlify)
 ```bash
-pnpm build:admin    # Build del panel admin
-pnpm build:public   # Build del sitio público
+pnpm build    # Build del frontend
 ```
 
 ### Backend (Railway/Heroku/Digital Ocean)
@@ -226,10 +205,10 @@ go build -o main .
 
 ## 📝 Notas Importantes
 
-- **El admin panel** ahora incluye tanto login como registro
-- **Todo está conectado con Go** - el frontend no maneja lógica de negocio
-- **Supabase** se usa solo para autenticación y almacenamiento
-- **Go + Echo** maneja toda la lógica del backend
+- **Frontend unificado** - React con sitio público y panel admin en una sola aplicación
+- **Backend en Go** - API REST con Echo Framework
+- **Supabase** para base de datos y autenticación
+- **Monorepo** con packages compartidos para UI, tipos y utilidades
 - **Real-time** mediante WebSockets desde Supabase Edge Functions
 
 ## 🆘 Solución de Problemas
@@ -246,8 +225,7 @@ Instala Go desde https://golang.org/dl/
 ```bash
 # Matar procesos en puertos específicos
 lsof -ti:8080 | xargs kill -9  # Backend
-lsof -ti:3001 | xargs kill -9  # Admin
-lsof -ti:3000 | xargs kill -9  # Public
+lsof -ti:5173 | xargs kill -9  # Frontend (Vite)
 ```
 
 ### Error: "Supabase connection"
@@ -257,10 +235,12 @@ Verifica las variables de entorno en `apps/backend-go/.env`
 
 Si tienes problemas para levantar el proyecto:
 
-1. Verifica que tengas todas las dependencias instaladas
-2. Revisa que las variables de entorno estén configuradas
-3. Usa los scripts `start-dev.sh` o `start-admin.sh`
-4. Revisa los logs en cada terminal para identificar errores específicos
+1. Verifica que tengas todas las dependencias instaladas (Go, Node.js, pnpm)
+2. Revisa que las variables de entorno estén configuradas en `apps/backend-go/.env`
+3. Ejecuta `pnpm install` en la raíz del proyecto
+4. Para el backend: `cd apps/backend-go && go run .`
+5. Para el frontend: `pnpm dev`
+6. Revisa los logs en cada terminal para identificar errores específicos
 
 ---
 

@@ -104,12 +104,11 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 		var user models.User
 		err := rows.Scan(
 			&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
-			&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
-			&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
-			&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
-			&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
-			&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
-			&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
+			&user.Phone, &user.Address,
+			&user.Baptized,
+			&user.BaptismDate,
+			&user.Role,
+			&user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
 		)
 		if err != nil {
 			continue
