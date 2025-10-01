@@ -1,5 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 
+// ========================================
+// INTERFACES
+// ========================================
+
 export interface DashboardStats {
   totalUsers: number;
   newRegistrations: number;
@@ -23,20 +27,6 @@ export interface RecentActivity {
   details?: Record<string, unknown>;
 }
 
-const roleColors = {
-  pastor: "#ff7c7c",
-  staff: "#ffc658",
-  supervisor: "#82ca9d",
-  server: "#8884d8",
-};
-
-const roleNames = {
-  pastor: "Pastor",
-  staff: "Personal",
-  supervisor: "Supervisor",
-  server: "Servidor",
-};
-
 export interface DiscipleshipDashboardStats {
   totalGroups: number;
   totalMembers: number;
@@ -48,233 +38,78 @@ export interface DiscipleshipDashboardStats {
   alertsCount: number;
 }
 
+// ========================================
+// DASHBOARD SERVICE - TODO DESDE GO
+// ========================================
+
 export class DashboardService {
-  static async getStats(): Promise<DashboardStats> {
+  /**
+   * Obtiene todos los datos del dashboard desde el backend Go
+   * Esta es la única función que debe usarse
+   */
+  static async getAllDashboardDataFromGo(): Promise<{
+    stats: DashboardStats;
+    discipleshipStats: DiscipleshipDashboardStats;
+    roleDistribution: RoleDistribution[];
+    recentActivity: RecentActivity[];
+    currentUserRole?: string;
+  }> {
     try {
-      // Total users
-      const { count: totalUsers } = await supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true);
+      // Obtener token de Supabase Auth
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
-      // New registrations (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const { count: newRegistrations } = await supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", thirtyDaysAgo.toISOString());
-
-      // Active roles count
-      const { data: roles } = await supabase
-        .from("users")
-        .select("role")
-        .eq("is_active", true);
-
-      const uniqueRoles = new Set(roles?.map((r) => r.role) || []);
-
-      return {
-        totalUsers: totalUsers || 0,
-        newRegistrations: newRegistrations || 0,
-        activeRoles: uniqueRoles.size,
-        systemActivity: Math.floor(Math.random() * 100), // TODO: Implement real activity tracking
-        lastLogin: new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-      return {
-        totalUsers: 0,
-        newRegistrations: 0,
-        activeRoles: 0,
-        systemActivity: 0,
-        lastLogin: new Date().toISOString(),
-      };
-    }
-  }
-
-  static async getDiscipleshipStats(): Promise<DiscipleshipDashboardStats> {
-    try {
-      // Obtener estadísticas de discipulado usando la función SQL
-      const { data: statsData } = await supabase.rpc(
-        "calculate_discipleship_stats",
-      );
-
-      // Contar alertas activas
-      const { count: alertsCount } = await supabase
-        .from("discipleship_alerts")
-        .select("*", { count: "exact", head: true })
-        .eq("resolved", false);
-
-      // Casting seguro de la respuesta JSON
-      const stats = statsData as Record<string, number>;
-
-      return {
-        totalGroups: stats?.total_groups || 0,
-        totalMembers: stats?.total_members || 0,
-        activeLeaders: stats?.active_leaders || 0,
-        avgAttendance: stats?.average_attendance || 0,
-        monthlyGrowth: stats?.growth_rate || 0,
-        spiritualHealth: stats?.spiritual_health || 0,
-        multiplications: stats?.multiplications || 0,
-        alertsCount: alertsCount || 0,
-      };
-    } catch (error) {
-      console.error("Error fetching discipleship stats:", error);
-      return {
-        totalGroups: 0,
-        totalMembers: 0,
-        activeLeaders: 0,
-        avgAttendance: 0,
-        monthlyGrowth: 0,
-        spiritualHealth: 0,
-        multiplications: 0,
-        alertsCount: 0,
-      };
-    }
-  }
-
-  static async getRoleDistribution(): Promise<RoleDistribution[]> {
-    try {
-      const { data: users } = await supabase
-        .from("users")
-        .select("role")
-        .eq("is_active", true);
-
-      if (!users) return [];
-
-      // Count users by role
-      const roleCounts: Record<string, number> = {};
-      users.forEach((user) => {
-        roleCounts[user.role] = (roleCounts[user.role] || 0) + 1;
-      });
-
-      // Convert to RoleDistribution array
-      return Object.entries(roleCounts).map(([role, value]) => ({
-        name: roleNames[role as keyof typeof roleNames] || role,
-        value,
-        color: roleColors[role as keyof typeof roleColors] || "#8884d8",
-      }));
-    } catch (error) {
-      console.error("Error fetching role distribution:", error);
-      return [];
-    }
-  }
-
-  static async getRecentLogin(): Promise<string> {
-    const { data: users } = await supabase
-      .from("users")
-      .select("created_at")
-      .order("created_at", { ascending: false })
-      .limit(1);
-    console.log(users);
-    return users[0]?.created_at;
-  }
-
-  static async getRecentActivity(): Promise<RecentActivity[]> {
-    try {
-      const { data: auditLogs } = await supabase
-        .from("audit_logs")
-        .select(
-          `
-          id,
-          action,
-          changed_at,
-          new_values,
-          old_values
-        `,
-        )
-        .order("changed_at", { ascending: false })
-        .limit(10);
-
-      if (!auditLogs) return [];
-
-      return auditLogs.map((log) => {
-        const newValues = log.new_values as Record<string, unknown>;
-        const userName =
-          newValues?.first_name && newValues?.last_name
-            ? `${newValues.first_name} ${newValues.last_name}`
-            : "Usuario desconocido";
-
-        const timeAgo = this.getTimeAgo(new Date(log.changed_at));
-
-        let actionText = "";
-        let type: "success" | "warning" | "info" = "info";
-
-        switch (log.action) {
-          case "INSERT":
-            actionText = "Usuario registrado";
-            type = "success";
-            break;
-          case "UPDATE":
-            actionText = "Perfil actualizado";
-            type = "info";
-            break;
-          case "DELETE":
-            actionText = "Usuario eliminado";
-            type = "warning";
-            break;
-          default:
-            actionText = log.action;
+      // Llamar al backend Go
+      const response = await fetch('http://localhost:8181/api/v1/dashboard/stats', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
         }
-
-        return {
-          id: log.id,
-          action: actionText,
-          user: userName,
-          time: timeAgo,
-          type,
-          details: log,
-        };
       });
-    } catch (error) {
-      console.error("Error fetching recent activity:", error);
-      return [];
-    }
-  }
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-  private static getTimeAgo(date: Date): string {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 60) {
-      return `hace ${diffMins} min`;
-    } else if (diffHours < 24) {
-      return `hace ${diffHours} h`;
-    } else {
-      return `hace ${diffDays} días`;
-    }
-  }
-
-  static async getAllDashboardData() {
-    try {
-      const [
-        stats,
-        discipleshipStats,
-        roleDistribution,
-        recentActivity,
-        recentLogin,
-      ] = await Promise.all([
-        this.getStats(),
-        this.getDiscipleshipStats(),
-        this.getRoleDistribution(),
-        this.getRecentActivity(),
-        this.getRecentLogin(),
-      ]);
-
+      const data = await response.json();
+      console.log('Dashboard data from Go:', data);
+      
+      // El backend Go devuelve toda la estructura
       return {
-        stats,
-        discipleshipStats,
-        roleDistribution,
-        recentActivity,
-        recentLogin,
+        stats: data.stats || {
+          totalUsers: 0,
+          newRegistrations: 0,
+          activeRoles: 0,
+          systemActivity: 0,
+          lastLogin: new Date().toISOString(),
+        },
+        roleDistribution: data.roleDistribution || [],
+        recentActivity: data.recentActivity || [],
+        discipleshipStats: data.discipleshipStats || this.getEmptyDiscipleshipStats(),
+        currentUserRole: data.currentUserRole || null,
       };
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
+      console.error('Error fetching dashboard data from Go backend:', error);
+      console.error('Error details:', error);
       throw error;
     }
+  }
+
+  /**
+   * Placeholder para estadísticas de discipulado
+   * TODO: Implementar en Go
+   */
+  private static getEmptyDiscipleshipStats(): DiscipleshipDashboardStats {
+    return {
+      totalGroups: 0,
+      totalMembers: 0,
+      activeLeaders: 0,
+      avgAttendance: 0,
+      monthlyGrowth: 0,
+      spiritualHealth: 0,
+      multiplications: 0,
+      alertsCount: 0,
+    };
   }
 }

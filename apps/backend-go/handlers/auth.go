@@ -3,6 +3,7 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/models"
+	"database/sql"
 	"net/http"
 	"os"
 	"time"
@@ -52,6 +53,11 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		&passwordHash, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusUnauthorized, map[string]string{
+				"error": "Invalid email or password",
+			})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error logging in",
 		})

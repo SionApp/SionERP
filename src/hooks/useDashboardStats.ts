@@ -13,7 +13,7 @@ export const useDashboardStats = () => {
     newRegistrations: 0,
     activeRoles: 0,
     systemActivity: 0,
-    lastLogin: null,
+    lastLogin: "",
   });
 
   const [discipleshipStats, setDiscipleshipStats] =
@@ -34,6 +34,7 @@ export const useDashboardStats = () => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [recentLogin, setRecentLogin] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>('pastor');
   const [error, setError] = useState<string | null>(null);
 
   const loadDashboardData = async () => {
@@ -41,13 +42,15 @@ export const useDashboardStats = () => {
       setLoading(true);
       setError(null);
 
-      const data = await DashboardService.getAllDashboardData();
+      // Usar el backend Go
+      const data = await DashboardService.getAllDashboardDataFromGo();
 
       setStats(data.stats);
       setDiscipleshipStats(data.discipleshipStats);
       setRoleDistribution(data.roleDistribution);
       setRecentActivity(data.recentActivity);
       setRecentLogin(data.stats.lastLogin);
+      setCurrentUserRole(data.currentUserRole || null);
     } catch (err) {
       console.error("Error loading dashboard data:", err);
       setError("Error al cargar los datos del dashboard");
@@ -66,6 +69,7 @@ export const useDashboardStats = () => {
     roleDistribution,
     recentActivity,
     recentLogin,
+    currentUserRole,
     loading,
     error,
     refetch: loadDashboardData,
