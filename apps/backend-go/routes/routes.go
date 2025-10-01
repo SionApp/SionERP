@@ -49,8 +49,6 @@ func SetupRoutes(e *echo.Echo) {
 	// Dashboard routes
 	dashboard := protected.Group("/dashboard")
 	{
-		dashboard.GET("/stats", dashboardHandler.GetStats)                        // GET /api/v1/dashboard/stats
-		dashboard.GET("/role-distribution", dashboardHandler.GetRoleDistribution) // GET /api/v1/dashboard/role-distribution
-		dashboard.GET("/recent-activity", dashboardHandler.GetRecentActivity)     // GET /api/v1/dashboard/recent-activity
+		dashboard.GET("/stats", dashboardHandler.GetStats) // GET /api/v1/dashboard/stats
 	}
 }

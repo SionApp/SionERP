@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
 import {
   Card,
   CardContent,
@@ -48,8 +46,7 @@ import { RecentActivity } from "@/services/dashboard.service";
 import { useAuth } from "@/hooks/useAuth";
 
 const DashboardHome = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const { user } = useAuth();  // Obtener usuario del contexto
   const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(
     null,
   );
@@ -60,6 +57,7 @@ const DashboardHome = () => {
     roleDistribution,
     recentActivity,
     recentLogin,
+    currentUserRole,
     loading: statsLoading,
   } = useDashboardStats();
 
@@ -70,39 +68,9 @@ const DashboardHome = () => {
     }
   };
 
-  useEffect(() => {
-    getCurrentUser();
-    getCurrentUserRole();
-  }, []);
-
-  const getCurrentUser = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    setUser(user);
-  };
-
-  const userLogged = useAuth();
-  const lastLogin = userLogged.user?.last_sign_in_at
+  const lastLogin = user?.last_sign_in_at
     ? new Date(user.last_sign_in_at).toLocaleString("es-ES")
     : "Nunca";
-
-  const getCurrentUserRole = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: userData, error } = await supabase
-        .from("users")
-        .select("role")
-        .eq("email", user.email)
-        .single();
-
-      if (userData && !error) {
-        setCurrentUserRole(userData.role);
-      }
-    }
-  };
 
   return (
     <>

@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"crypto/rsa"
 	"fmt"
 	"net/http"
 	"os"
@@ -24,6 +23,7 @@ func SupabaseAuth() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
+				fmt.Println("❌ No Authorization header")
 				return c.JSON(http.StatusUnauthorized, map[string]string{
 					"error": "Authorization header required",
 				})
@@ -31,70 +31,59 @@ func SupabaseAuth() echo.MiddlewareFunc {
 
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 			if token == authHeader {
+				fmt.Println("❌ No Bearer token")
 				return c.JSON(http.StatusUnauthorized, map[string]string{
 					"error": "Bearer token required",
 				})
 			}
 
+			fmt.Printf("🔑 Validating token: %s...\n", token[:20])
+
 			// Validar el token JWT con Supabase
 			claims, err := validateSupabaseToken(token)
 			if err != nil {
+				fmt.Printf("❌ Token validation failed: %v\n", err)
 				return c.JSON(http.StatusUnauthorized, map[string]string{
 					"error": "Invalid token: " + err.Error(),
 				})
 			}
 
+			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", claims.Sub, claims.Email, claims.Role)
+
 			// Agregar claims al contexto
 			c.Set("user", claims)
+			c.Set("user_id", claims.Sub)
+			c.Set("email", claims.Email)
+			c.Set("role", claims.Role)
 			return next(c)
 		}
 	}
 }
 
 func validateSupabaseToken(tokenString string) (*Claims, error) {
-	supabaseURL := os.Getenv("SUPABASE_URL")
-	if supabaseURL == "" {
-		return nil, fmt.Errorf("SUPABASE_URL not configured")
+	// Supabase usa el JWT_SECRET para validar tokens
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET not configured")
 	}
 
-	// Remove development bypass - always validate tokens properly in production
-	// This was a critical security vulnerability allowing unauthorized access
-
-	// Parsear el token
+	// Parsear el token con el secreto de Supabase
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		// Verificar que el algoritmo sea el esperado
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+		// Verificar que el algoritmo sea HS256 (usado por Supabase)
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-
-		// Obtener la clave pública de Supabase
-		publicKey, err := getSupabasePublicKey()
-		if err != nil {
-			return nil, err
-		}
-		return publicKey, nil
+		// Devolver el secreto como bytes
+		return []byte(jwtSecret), nil
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing token: %w", err)
 	}
 
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, fmt.Errorf("invalid token")
-}
-
-func getSupabasePublicKey() (*rsa.PublicKey, error) {
-	// TODO: Implement proper JWKS endpoint validation
-	// For now, require proper JWT validation in production
-	supabaseURL := os.Getenv("SUPABASE_URL")
-	if supabaseURL == "" {
-		return nil, fmt.Errorf("SUPABASE_URL not configured")
-	}
-
-	// This should fetch from ${SUPABASE_URL}/.well-known/jwks.json
-	// and validate the JWT properly using the public key
-	return nil, fmt.Errorf("JWKS validation must be implemented for production use")
+	return nil, fmt.Errorf("invalid token claims")
 }
