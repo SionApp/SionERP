@@ -56,25 +56,30 @@ export class DashboardService {
   }> {
     try {
       // Obtener token de Supabase Auth
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
 
       // Llamar al backend Go
-      const response = await fetch('http://localhost:8181/api/v1/dashboard/stats', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        }
-      });
-      
+      const response = await fetch(
+        "http://localhost:8181/api/v1/dashboard/stats",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+        },
+      );
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Dashboard data from Go:', data);
-      
+      console.log("Dashboard data from Go:", data);
+
       // El backend Go devuelve toda la estructura
       return {
         stats: data.stats || {
@@ -86,12 +91,13 @@ export class DashboardService {
         },
         roleDistribution: data.roleDistribution || [],
         recentActivity: data.recentActivity || [],
-        discipleshipStats: data.discipleshipStats || this.getEmptyDiscipleshipStats(),
+        discipleshipStats:
+          data.discipleshipStats || this.getEmptyDiscipleshipStats(),
         currentUserRole: data.currentUserRole || null,
       };
     } catch (error) {
-      console.error('Error fetching dashboard data from Go backend:', error);
-      console.error('Error details:', error);
+      console.error("Error fetching dashboard data from Go backend:", error);
+      console.error("Error details:", error);
       throw error;
     }
   }
