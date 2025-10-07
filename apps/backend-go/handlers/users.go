@@ -3,8 +3,9 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/models"
+	"database/sql"
+	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -93,8 +94,11 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 
 	rows, err := config.GetDB().DB.Query(query)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Error fetching users",
+		c.Logger().Error("Database query error in GetUsers: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error fetching users from database",
+			"message": err.Error(),
+			"details": "Failed to execute query",
 		})
 	}
 	defer rows.Close()
@@ -104,16 +108,30 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 		var user models.User
 		err := rows.Scan(
 			&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
-			&user.Phone, &user.Address,
-			&user.Baptized,
-			&user.BaptismDate,
-			&user.Role,
-			&user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
+			&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
+			&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
+			&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
+			&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
+			&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
+			&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
 		)
 		if err != nil {
-			continue
+			c.Logger().Error("Row scan error in GetUsers: ", err)
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error":   "Error scanning user data",
+				"message": err.Error(),
+				"details": "Column count mismatch or type conversion error",
+			})
 		}
 		users = append(users, user)
+	}
+
+	if err = rows.Err(); err != nil {
+		c.Logger().Error("Rows iteration error in GetUsers: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error iterating through results",
+			"message": err.Error(),
+		})
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -126,22 +144,41 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 func (h *UserHandler) GetUser(c echo.Context) error {
 	userID := c.Param("id")
 
-	// TODO: Query user from database
-	user := models.User{
-		ID:        userID,
-		FirstName: "Juan",
-		LastName:  "Pérez",
-		IdNumber:  "001-1234567-1",
-		Email:     "juan@example.com",
-		Phone:     "8095551234",
-		Address:   "Santo Domingo",
-		Role:      "server",
-		Baptized:  true,
-		WhatsApp:  true,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	query := `
+		SELECT id, first_name, last_name, id_number, email, phone, address,
+			   birth_date, marital_status, occupation, education_level, 
+			   how_found_church, ministry_interest, first_visit_date,
+			   baptized, baptism_date, is_active_member, membership_date,
+			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
+			   whatsapp, created_at, updated_at
+		FROM users 
+		WHERE id = $1
+	`
+	var user models.User
+	err := config.GetDB().DB.QueryRow(query, userID).Scan(
+		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
+		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
+		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
+		&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
+		&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
+		&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
+		&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.Logger().Warn(fmt.Sprintf("User not found with ID: %s", userID))
+			return c.JSON(http.StatusNotFound, map[string]interface{}{
+				"error":   "User not found",
+				"message": fmt.Sprintf("No user exists with ID: %s", userID),
+			})
+		}
+		c.Logger().Error("Database error in GetUser: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error fetching user",
+			"message": err.Error(),
+			"details": "Database query or scan error",
+		})
 	}
-
 	return c.JSON(http.StatusOK, user)
 }
 
@@ -150,8 +187,11 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 	var req CreateUserRequest
 
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request body",
+		c.Logger().Error("Bind error in CreateUser: ", err)
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid request body",
+			"message": err.Error(),
+			"details": "Failed to parse JSON request body",
 		})
 	}
 
@@ -179,8 +219,11 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 		req.CellGroup, req.Role, req.PastoralNotes, req.WhatsApp,
 	).Scan(&userID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Error creating user",
+		c.Logger().Error("Database error in CreateUser: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error creating user",
+			"message": err.Error(),
+			"details": "Failed to insert user into database - check for duplicate email/id_number",
 		})
 	}
 
@@ -228,22 +271,51 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 
 // GetCurrentUser obtiene el perfil del usuario actual
 func (h *UserHandler) GetCurrentUser(c echo.Context) error {
-	// TODO: Get user ID from JWT token
-	// TODO: Query user from database
+	userID, ok := c.Get("user_id").(string)
+	if !ok {
+		c.Logger().Error("Invalid user_id in context")
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error":   "Unauthorized",
+			"message": "User ID not found in authentication context",
+		})
+	}
 
-	user := models.User{
-		ID:        "current-user-id",
-		FirstName: "Usuario",
-		LastName:  "Actual",
-		IdNumber:  "001-1234567-1",
-		Email:     "usuario@example.com",
-		Phone:     "8095551234",
-		Address:   "Santo Domingo",
-		Role:      "server",
-		Baptized:  true,
-		WhatsApp:  true,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	query := `
+		SELECT id, first_name, last_name, id_number, email, phone, address,
+			   birth_date, marital_status, occupation, education_level, 
+			   how_found_church, ministry_interest, first_visit_date,
+			   baptized, baptism_date, is_active_member, membership_date,
+			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
+			   whatsapp, created_at, updated_at
+		FROM users 
+		WHERE id = $1
+	`
+	var user models.User
+	err := config.GetDB().DB.QueryRow(query, userID).Scan(
+		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
+		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
+		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
+		&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
+		&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
+		&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
+		&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.Logger().Warn(fmt.Sprintf("Current user not found in database with ID: %s", userID))
+			return c.JSON(http.StatusNotFound, map[string]interface{}{
+				"error":   "User not found",
+				"message": "Your user profile was not found in the database",
+				"user_id": userID,
+			})
+		}
+		c.Logger().Error(fmt.Sprintf("Database error in GetCurrentUser for user %s: %v", userID, err))
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error fetching user profile",
+			"message": err.Error(),
+			"details": "Database query or scan error - check server logs",
+		})
 	}
 
 	return c.JSON(http.StatusOK, user)
@@ -254,15 +326,52 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 	var req UpdateUserRequest
 
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request body",
+		c.Logger().Error("Bind error in UpdateCurrentUser: ", err)
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid request body",
+			"message": err.Error(),
 		})
 	}
 
-	// TODO: Get user ID from JWT token
-	// TODO: Validate that user can only update their own profile
-	// TODO: Update user in database
+	userID, ok := c.Get("user_id").(string)
+	if !ok {
+		c.Logger().Error("Invalid user_id in context")
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error":   "Unauthorized",
+			"message": "User ID not found in authentication context",
+		})
+	}
 
+	query := `
+		UPDATE users 
+		SET first_name = $1, last_name = $2, phone = $3, address = $4,
+			birth_date = $5, marital_status = $6, occupation = $7, education_level = $8,
+			how_found_church = $9, ministry_interest = $10, first_visit_date = $11,
+			baptized = $12, baptism_date = $13, is_active_member = $14, membership_date = $15,
+			cell_group = $16, pastoral_notes = $17, whatsapp = $18
+		WHERE id = $19
+	`
+	result, err := config.GetDB().DB.Exec(query, req.FirstName, req.LastName, req.Phone, req.Address,
+		req.BirthDate, req.MaritalStatus, req.Occupation, req.EducationLevel,
+		req.HowFoundChurch, req.MinistryInterest, req.FirstVisitDate, req.Baptized, req.BaptismDate, req.IsActiveMember, req.MembershipDate,
+		req.CellGroup, req.PastoralNotes, req.WhatsApp, userID)
+	if err != nil {
+		c.Logger().Error(fmt.Sprintf("Database error in UpdateCurrentUser for user %s: %v", userID, err))
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error updating user profile",
+			"message": err.Error(),
+			"details": "Database update failed",
+		})
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s", userID))
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error":   "User not found",
+			"message": fmt.Sprintf("User with ID %s does not exist", userID),
+		})
+	}
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Profile updated successfully",
 	})
