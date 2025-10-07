@@ -1,5 +1,15 @@
 import { supabase } from '@/integrations/supabase/client';
 
+// Singleton para callbacks de loading
+let loadingCallbacks: {
+  setFetching?: (loading: boolean) => void;
+  setSubmitting?: (loading: boolean) => void;
+} = {};
+
+export const setLoadingCallbacks = (callbacks: typeof loadingCallbacks) => {
+  loadingCallbacks = callbacks;
+};
+
 export class ApiService {
   private static baseUrl = 'http://localhost:8081/api/v1';
 
@@ -22,6 +32,7 @@ export class ApiService {
    * Generic GET request
    */
   static async get<T>(endpoint: string): Promise<T> {
+    loadingCallbacks.setFetching?.(true);
     try {
       const headers = await this.getAuthHeaders();
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -37,6 +48,8 @@ export class ApiService {
     } catch (error) {
       console.error(`Error in GET ${endpoint}:`, error);
       throw error;
+    } finally {
+      loadingCallbacks.setFetching?.(false);
     }
   }
 
@@ -44,6 +57,7 @@ export class ApiService {
    * Generic POST request
    */
   static async post<T, U = any>(endpoint: string, data?: U): Promise<T> {
+    loadingCallbacks.setSubmitting?.(true);
     try {
       const headers = await this.getAuthHeaders();
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -60,6 +74,8 @@ export class ApiService {
     } catch (error) {
       console.error(`Error in POST ${endpoint}:`, error);
       throw error;
+    } finally {
+      loadingCallbacks.setSubmitting?.(false);
     }
   }
 
@@ -67,6 +83,7 @@ export class ApiService {
    * Generic PUT request
    */
   static async put<T, U = any>(endpoint: string, data?: U): Promise<T> {
+    loadingCallbacks.setSubmitting?.(true);
     try {
       const headers = await this.getAuthHeaders();
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -83,6 +100,8 @@ export class ApiService {
     } catch (error) {
       console.error(`Error in PUT ${endpoint}:`, error);
       throw error;
+    } finally {
+      loadingCallbacks.setSubmitting?.(false);
     }
   }
 
@@ -90,6 +109,7 @@ export class ApiService {
    * Generic DELETE request
    */
   static async delete<T>(endpoint: string): Promise<T> {
+    loadingCallbacks.setSubmitting?.(true);
     try {
       const headers = await this.getAuthHeaders();
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -105,6 +125,8 @@ export class ApiService {
     } catch (error) {
       console.error(`Error in DELETE ${endpoint}:`, error);
       throw error;
+    } finally {
+      loadingCallbacks.setSubmitting?.(false);
     }
   }
 
