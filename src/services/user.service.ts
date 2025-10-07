@@ -1,18 +1,14 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CreateUserData, UpdateUserData, User } from '@/types/user.types';
+import { ApiService } from './api.service';
 
 export class UserService {
   static async getUsers(): Promise<User[]> {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const res = await ApiService.get<{ users: User[] }>('/users');
       
       // Add full_name field from first_name + last_name
-      return (data || []).map(user => ({
+      return (res?.users || []).map(user => ({
         ...user,
         full_name: `${user.first_name} ${user.last_name}`.trim()
       }));
@@ -28,23 +24,10 @@ export class UserService {
 
   static async getCurrentUser(): Promise<User> {
     try {
-      const { data: authUser } = await supabase.auth.getUser();
-      
-      if (!authUser.user) {
-        throw new Error('No authenticated user');
-      }
-
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', authUser.user.email)
-        .single();
-
-      if (error) throw error;
-      
+      const user = await ApiService.get<User>('/users/me');
       return {
-        ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim()
+        ...user,
+        full_name: `${user.first_name} ${user.last_name}`.trim()
       };
     } catch (error) {
       console.error('Error fetching current user:', error);
@@ -63,7 +46,7 @@ export class UserService {
         address: userData.address || userData.direccion || '',
         id_number: userData.cedula || '',
         password_hash: userData.password || 'temp', // This should be hashed
-        role: (userData.role === 'admin' ? 'pastor' : userData.role || 'server') as any,
+        role: (userData.role === 'admin' ? 'pastor' : userData.role || 'server') as string,
         birth_date: userData.birth_date,
         baptized: userData.bautizado || false,
         whatsapp: userData.whatsapp || false,
@@ -80,7 +63,7 @@ export class UserService {
 
       const { data, error } = await supabase
         .from('users')
-        .insert(dbData)
+        .insert(dbData as never)
         .select()
         .single();
 
@@ -101,7 +84,7 @@ export class UserService {
       // Only update the fields that are provided and remove undefined values
       const updateData = Object.fromEntries(
         Object.entries(userData).filter(([key, value]) => key !== 'id' && value !== undefined)
-      ) as any;
+      ) as never;
 
       const { data, error } = await supabase
         .from('users')
@@ -133,7 +116,7 @@ export class UserService {
       // Only update the fields that are provided and remove undefined values
       const updateData = Object.fromEntries(
         Object.entries(userData).filter(([key, value]) => key !== 'id' && value !== undefined)
-      ) as any;
+      ) as never;
 
       const { data, error } = await supabase
         .from('users')
