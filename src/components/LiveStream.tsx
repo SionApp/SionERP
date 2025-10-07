@@ -1,8 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Users } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock, Users } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useState } from 'react';
 
 const LiveStream = () => {
   const [liveStream, setLiveStream] = useState<any>(null);
@@ -35,9 +35,9 @@ const LiveStream = () => {
   };
 
   const nextService = {
-    date: "Domingo, 14 de Enero",
-    time: "9:00 AM",
-    title: "Servicio Dominical"
+    date: 'Domingo, 14 de Enero',
+    time: '9:00 AM',
+    title: 'Servicio Dominical',
   };
 
   const isLive = liveStream?.is_live && liveStream?.youtube_video_id;
@@ -46,9 +46,7 @@ const LiveStream = () => {
     <section id="streaming" className="py-20 bg-gradient-to-br from-primary/5 to-background">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Servicio en Vivo
-          </h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Servicio en Vivo</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Únete a nosotros desde cualquier lugar del mundo
           </p>
@@ -70,16 +68,16 @@ const LiveStream = () => {
                 )}
               </div>
               <CardTitle className="text-2xl font-bold text-foreground">
-                {isLive ? (liveStream.title || "Servicio en Vivo") : nextService.title}
+                {isLive ? liveStream.title || 'Servicio en Vivo' : nextService.title}
               </CardTitle>
             </CardHeader>
-            
+
             <CardContent className="p-0">
               {isLive ? (
                 <div className="relative aspect-video bg-black">
                   <iframe
                     src={`https://www.youtube.com/embed/${liveStream.youtube_video_id}?autoplay=1&mute=1`}
-                    title={liveStream.title || "Iglesia Vida Nueva - Servicio en Vivo"}
+                    title={liveStream.title || 'Iglesia Vida Nueva - Servicio en Vivo'}
                     className="w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
@@ -108,14 +106,13 @@ const LiveStream = () => {
                 </div>
               )}
             </CardContent>
-            
+
             <div className="p-6 bg-muted/30">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground mb-4">
-                  {isLive 
-                    ? "¡Gracias por acompañarnos en este servicio!" 
-                    : "Nos vemos en nuestro próximo servicio en vivo"
-                  }
+                  {isLive
+                    ? '¡Gracias por acompañarnos en este servicio!'
+                    : 'Nos vemos en nuestro próximo servicio en vivo'}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div className="flex items-center justify-center gap-2">

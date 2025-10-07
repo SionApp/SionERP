@@ -1,4 +1,4 @@
-import { useLoadingContext } from "@/contexts/LoadingContext";
+import { useLoadingContext } from '@/contexts/LoadingContext';
 
 export const useLoading = () => {
   const { setFetching, setSubmitting } = useLoadingContext();
@@ -6,7 +6,7 @@ export const useLoading = () => {
   /**
    * Wrapper for async operations that require fetching loading state
    */
-  const withFetchingLoading = async <T,>(fn: () => Promise<T>): Promise<T> => {
+  const withFetchingLoading = async <T>(fn: () => Promise<T>): Promise<T> => {
     setFetching(true);
     try {
       const result = await fn();
@@ -19,7 +19,7 @@ export const useLoading = () => {
   /**
    * Wrapper for async operations that require submitting loading state
    */
-  const withSubmittingLoading = async <T,>(fn: () => Promise<T>): Promise<T> => {
+  const withSubmittingLoading = async <T>(fn: () => Promise<T>): Promise<T> => {
     setSubmitting(true);
     try {
       const result = await fn();

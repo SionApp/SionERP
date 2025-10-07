@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/client';
 
 // Singleton para callbacks de loading
 let dashboardLoadingCallbacks: {
@@ -32,7 +32,7 @@ export interface RecentActivity {
   action: string;
   user: string;
   time: string;
-  type: "success" | "warning" | "info";
+  type: 'success' | 'warning' | 'info';
   details?: Record<string, unknown>;
 }
 
@@ -72,23 +72,20 @@ export class DashboardService {
       const token = session?.access_token;
 
       // Llamar al backend Go
-      const response = await fetch(
-        "http://localhost:8181/api/v1/dashboard/stats",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
+      const response = await fetch('http://localhost:8181/api/v1/dashboard/stats', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
-      );
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log("Dashboard data from Go:", data);
+      console.log('Dashboard data from Go:', data);
 
       // El backend Go devuelve toda la estructura
       return {
@@ -101,13 +98,12 @@ export class DashboardService {
         },
         roleDistribution: data.roleDistribution || [],
         recentActivity: data.recentActivity || [],
-        discipleshipStats:
-          data.discipleshipStats || this.getEmptyDiscipleshipStats(),
+        discipleshipStats: data.discipleshipStats || this.getEmptyDiscipleshipStats(),
         currentUserRole: data.currentUserRole || null,
       };
     } catch (error) {
-      console.error("Error fetching dashboard data from Go backend:", error);
-      console.error("Error details:", error);
+      console.error('Error fetching dashboard data from Go backend:', error);
+      console.error('Error details:', error);
       throw error;
     } finally {
       dashboardLoadingCallbacks.setFetching?.(false);

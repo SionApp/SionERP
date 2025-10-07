@@ -6,11 +6,11 @@ export class UserService {
   static async getUsers(): Promise<User[]> {
     try {
       const res = await ApiService.get<{ users: User[] }>('/users');
-      
+
       // Add full_name field from first_name + last_name
       return (res?.users || []).map(user => ({
         ...user,
-        full_name: `${user.first_name} ${user.last_name}`.trim()
+        full_name: `${user.first_name} ${user.last_name}`.trim(),
       }));
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -27,7 +27,7 @@ export class UserService {
       const user = await ApiService.get<User>('/users/me');
       return {
         ...user,
-        full_name: `${user.first_name} ${user.last_name}`.trim()
+        full_name: `${user.first_name} ${user.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error fetching current user:', error);
@@ -58,7 +58,7 @@ export class UserService {
         first_visit_date: userData.first_visit_date,
         cell_group: userData.cell_group,
         pastoral_notes: userData.pastoral_notes,
-        is_active_member: userData.is_active_member || false
+        is_active_member: userData.is_active_member || false,
       };
 
       const { data, error } = await supabase
@@ -68,10 +68,10 @@ export class UserService {
         .single();
 
       if (error) throw error;
-      
+
       return {
         ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim()
+        full_name: `${data.first_name} ${data.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error creating user:', error);
@@ -94,10 +94,10 @@ export class UserService {
         .single();
 
       if (error) throw error;
-      
+
       return {
         ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim()
+        full_name: `${data.first_name} ${data.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error updating user:', error);
@@ -108,7 +108,7 @@ export class UserService {
   static async updateProfile(userData: Partial<User>): Promise<User> {
     try {
       const { data: authUser } = await supabase.auth.getUser();
-      
+
       if (!authUser.user) {
         throw new Error('No authenticated user');
       }
@@ -126,10 +126,10 @@ export class UserService {
         .single();
 
       if (error) throw error;
-      
+
       return {
         ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim()
+        full_name: `${data.first_name} ${data.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -139,10 +139,7 @@ export class UserService {
 
   static async deleteUser(userId: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
+      const { error } = await supabase.from('users').delete().eq('id', userId);
 
       if (error) throw error;
     } catch (error) {
@@ -153,17 +150,13 @@ export class UserService {
 
   static async getUserById(userId: string): Promise<User> {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
 
       if (error) throw error;
-      
+
       return {
         ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim()
+        full_name: `${data.first_name} ${data.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error fetching user:', error);

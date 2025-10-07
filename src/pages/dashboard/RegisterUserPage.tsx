@@ -5,7 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { UserPlus } from 'lucide-react';
@@ -21,15 +27,15 @@ const RegisterUserPage = () => {
     formState: { errors },
     setValue,
     watch,
-    reset
+    reset,
   } = useForm<RegisterUserFormData>({
     resolver: zodResolver(registerUserSchema),
     defaultValues: {
       bautizado: false,
       whatsapp: false,
       is_active_member: false,
-      role: 'server' as const
-    }
+      role: 'server' as const,
+    },
   });
 
   const bautizado = watch('bautizado');
@@ -54,11 +60,9 @@ const RegisterUserPage = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          Registro de Usuarios
+            Registro de Usuarios
           </h1>
-          <p className="text-muted-foreground">
-          Registra un nuevo usuario en el sistema
-          </p>
+          <p className="text-muted-foreground">Registra un nuevo usuario en el sistema</p>
         </div>
       </div>
 
@@ -80,11 +84,7 @@ const RegisterUserPage = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="nombres">Nombres *</Label>
-                  <Input
-                    id="nombres"
-                    {...register('nombres')}
-                    placeholder="Ingresa los nombres"
-                  />
+                  <Input id="nombres" {...register('nombres')} placeholder="Ingresa los nombres" />
                   {errors.nombres && (
                     <p className="text-sm text-destructive">{errors.nombres.message}</p>
                   )}
@@ -104,11 +104,7 @@ const RegisterUserPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="cedula">Cédula *</Label>
-                  <Input
-                    id="cedula"
-                    {...register('cedula')}
-                    placeholder="Número de cédula"
-                  />
+                  <Input id="cedula" {...register('cedula')} placeholder="Número de cédula" />
                   {errors.cedula && (
                     <p className="text-sm text-destructive">{errors.cedula.message}</p>
                   )}
@@ -116,11 +112,7 @@ const RegisterUserPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="telefono">Teléfono *</Label>
-                  <Input
-                    id="telefono"
-                    {...register('telefono')}
-                    placeholder="Número de teléfono"
-                  />
+                  <Input id="telefono" {...register('telefono')} placeholder="Número de teléfono" />
                   {errors.telefono && (
                     <p className="text-sm text-destructive">{errors.telefono.message}</p>
                   )}
@@ -161,11 +153,7 @@ const RegisterUserPage = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="direccion">Dirección *</Label>
-                <Input
-                  id="direccion"
-                  {...register('direccion')}
-                  placeholder="Dirección completa"
-                />
+                <Input id="direccion" {...register('direccion')} placeholder="Dirección completa" />
                 {errors.direccion && (
                   <p className="text-sm text-destructive">{errors.direccion.message}</p>
                 )}
@@ -178,16 +166,12 @@ const RegisterUserPage = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
-                  <Input
-                    id="birth_date"
-                    type="date"
-                    {...register('birth_date')}
-                  />
+                  <Input id="birth_date" type="date" {...register('birth_date')} />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="marital_status">Estado Civil</Label>
-                  <Select onValueChange={(value) => setValue('marital_status', value)}>
+                  <Select onValueChange={value => setValue('marital_status', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona estado civil" />
                     </SelectTrigger>
@@ -211,7 +195,7 @@ const RegisterUserPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="education_level">Nivel Educativo</Label>
-                  <Select onValueChange={(value) => setValue('education_level', value)}>
+                  <Select onValueChange={value => setValue('education_level', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona nivel educativo" />
                     </SelectTrigger>
@@ -245,11 +229,7 @@ const RegisterUserPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="first_visit_date">Fecha de Primera Visita</Label>
-                  <Input
-                    id="first_visit_date"
-                    type="date"
-                    {...register('first_visit_date')}
-                  />
+                  <Input id="first_visit_date" type="date" {...register('first_visit_date')} />
                 </div>
 
                 <div className="space-y-2">
@@ -270,22 +250,14 @@ const RegisterUserPage = () => {
                 {bautizado && (
                   <div className="space-y-2">
                     <Label htmlFor="fecha_bautizo">Fecha de Bautizo</Label>
-                    <Input
-                      id="fecha_bautizo"
-                      type="date"
-                      {...register('fecha_bautizo')}
-                    />
+                    <Input id="fecha_bautizo" type="date" {...register('fecha_bautizo')} />
                   </div>
                 )}
-                
+
                 {isActiveMember && (
                   <div className="space-y-2">
                     <Label htmlFor="membership_date">Fecha de Membresía</Label>
-                    <Input
-                      id="membership_date"
-                      type="date"
-                      {...register('membership_date')}
-                    />
+                    <Input id="membership_date" type="date" {...register('membership_date')} />
                   </div>
                 )}
               </div>
@@ -297,7 +269,11 @@ const RegisterUserPage = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="role">Rol *</Label>
-                  <Select onValueChange={(value) => setValue('role', value as 'pastor' | 'staff' | 'supervisor' | 'server')}>
+                  <Select
+                    onValueChange={value =>
+                      setValue('role', value as 'pastor' | 'staff' | 'supervisor' | 'server')
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un rol" />
                     </SelectTrigger>
@@ -308,9 +284,7 @@ const RegisterUserPage = () => {
                       <SelectItem value="pastor">Pastor</SelectItem>
                     </SelectContent>
                   </Select>
-                  {errors.role && (
-                    <p className="text-sm text-destructive">{errors.role.message}</p>
-                  )}
+                  {errors.role && <p className="text-sm text-destructive">{errors.role.message}</p>}
                 </div>
               </div>
             </div>
@@ -334,7 +308,7 @@ const RegisterUserPage = () => {
                   <Checkbox
                     id="bautizado"
                     checked={bautizado}
-                    onCheckedChange={(checked) => setValue('bautizado', checked as boolean)}
+                    onCheckedChange={checked => setValue('bautizado', checked as boolean)}
                   />
                   <Label htmlFor="bautizado">Usuario bautizado</Label>
                 </div>
@@ -343,7 +317,7 @@ const RegisterUserPage = () => {
                   <Checkbox
                     id="is_active_member"
                     checked={isActiveMember}
-                    onCheckedChange={(checked) => setValue('is_active_member', checked as boolean)}
+                    onCheckedChange={checked => setValue('is_active_member', checked as boolean)}
                   />
                   <Label htmlFor="is_active_member">Miembro activo</Label>
                 </div>
@@ -351,7 +325,7 @@ const RegisterUserPage = () => {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="whatsapp"
-                    onCheckedChange={(checked) => setValue('whatsapp', checked as boolean)}
+                    onCheckedChange={checked => setValue('whatsapp', checked as boolean)}
                   />
                   <Label htmlFor="whatsapp">Recibir notificaciones por WhatsApp</Label>
                 </div>

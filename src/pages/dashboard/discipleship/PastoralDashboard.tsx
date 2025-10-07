@@ -3,20 +3,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Users, 
-  TrendingUp, 
-  Building2, 
-  Crown, 
+import {
+  Users,
+  TrendingUp,
+  Building2,
+  Crown,
   BarChart3,
   PieChart,
   Target,
   AlertTriangle,
   CheckCircle,
   Clock,
-  Zap
+  Zap,
 } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart as RechartsPieChart, Cell, LineChart, Line } from 'recharts';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  BarChart,
+  Bar,
+  PieChart as RechartsPieChart,
+  Cell,
+  LineChart,
+  Line,
+} from 'recharts';
 import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
 import { Alert, Goal } from '@/types/discipleship.types';
 import { toast } from '@/hooks/use-toast';
@@ -33,7 +47,7 @@ const PastoralDashboard: React.FC = () => {
       const dashboardStats = await DiscipleshipMockService.getDashboardStats(5, 'current-user-id');
       const systemAlerts = await DiscipleshipMockService.getAlerts(5, 'current-user-id');
       const strategicGoals = await DiscipleshipMockService.getGoals(5, 'current-user-id');
-      
+
       setStats(dashboardStats);
       setAlerts(systemAlerts);
       setGoals(strategicGoals);
@@ -55,28 +69,52 @@ const PastoralDashboard: React.FC = () => {
     { month: 'Mar', grupos: 32, miembros: 384, conversion: 18, retention: 94 },
     { month: 'Abr', grupos: 34, miembros: 408, conversion: 22, retention: 91 },
     { month: 'May', grupos: 36, miembros: 432, conversion: 25, retention: 93 },
-    { month: 'Jun', grupos: 38, miembros: 456, conversion: 28, retention: 95 }
+    { month: 'Jun', grupos: 38, miembros: 456, conversion: 28, retention: 95 },
   ];
 
   const zoneHealthData = [
     { name: 'Zona Norte', salud: 88, color: '#22c55e' },
     { name: 'Zona Sur', salud: 82, color: '#3b82f6' },
     { name: 'Zona Este', salud: 91, color: '#10b981' },
-    { name: 'Zona Oeste', salud: 75, color: '#f59e0b' }
+    { name: 'Zona Oeste', salud: 75, color: '#f59e0b' },
   ];
 
   const leadershipPipeline = [
     { nivel: 'Líderes', actual: 36, meta: 40, color: '#3b82f6' },
     { nivel: 'Sup. Auxiliares', actual: 12, meta: 15, color: '#22c55e' },
     { nivel: 'Sup. Generales', actual: 4, meta: 6, color: '#f59e0b' },
-    { nivel: 'Coordinadores', actual: 2, meta: 3, color: '#8b5cf6' }
+    { nivel: 'Coordinadores', actual: 2, meta: 3, color: '#8b5cf6' },
   ];
 
   const approvalQueue = [
-    { id: '1', type: 'Multiplicación de Grupo', title: 'Juventud Victoriosa - División', priority: 'high', deadline: '2024-10-15' },
-    { id: '2', type: 'Promoción de Líder', title: 'Carmen Torres a Supervisor Auxiliar', priority: 'medium', deadline: '2024-10-20' },
-    { id: '3', type: 'Presupuesto', title: 'Capacitación Liderazgo Q4', priority: 'medium', deadline: '2024-10-25' },
-    { id: '4', type: 'Nueva Zona', title: 'Expansión Zona Rural Este', priority: 'high', deadline: '2024-11-01' }
+    {
+      id: '1',
+      type: 'Multiplicación de Grupo',
+      title: 'Juventud Victoriosa - División',
+      priority: 'high',
+      deadline: '2024-10-15',
+    },
+    {
+      id: '2',
+      type: 'Promoción de Líder',
+      title: 'Carmen Torres a Supervisor Auxiliar',
+      priority: 'medium',
+      deadline: '2024-10-20',
+    },
+    {
+      id: '3',
+      type: 'Presupuesto',
+      title: 'Capacitación Liderazgo Q4',
+      priority: 'medium',
+      deadline: '2024-10-25',
+    },
+    {
+      id: '4',
+      type: 'Nueva Zona',
+      title: 'Expansión Zona Rural Este',
+      priority: 'high',
+      deadline: '2024-11-01',
+    },
   ];
 
   return (
@@ -156,7 +194,9 @@ const PastoralDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Análisis Integral de Crecimiento</CardTitle>
-              <CardDescription>Tendencias de grupos, miembros, conversiones y retención</CardDescription>
+              <CardDescription>
+                Tendencias de grupos, miembros, conversiones y retención
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
@@ -166,10 +206,34 @@ const PastoralDashboard: React.FC = () => {
                   <YAxis yAxisId="left" />
                   <YAxis yAxisId="right" orientation="right" />
                   <Tooltip />
-                  <Line yAxisId="left" type="monotone" dataKey="miembros" stroke="#3b82f6" strokeWidth={3} />
-                  <Line yAxisId="right" type="monotone" dataKey="grupos" stroke="#22c55e" strokeWidth={2} />
-                  <Line yAxisId="right" type="monotone" dataKey="conversion" stroke="#f59e0b" strokeWidth={2} />
-                  <Line yAxisId="right" type="monotone" dataKey="retention" stroke="#8b5cf6" strokeWidth={2} />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="miembros"
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="grupos"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="conversion"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="retention"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
@@ -205,14 +269,16 @@ const PastoralDashboard: React.FC = () => {
                     <div key={index}>
                       <div className="flex justify-between text-sm mb-2">
                         <span>{level.nivel}</span>
-                        <span>{level.actual}/{level.meta}</span>
+                        <span>
+                          {level.actual}/{level.meta}
+                        </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="h-2 rounded-full" 
-                          style={{ 
+                        <div
+                          className="h-2 rounded-full"
+                          style={{
                             width: `${(level.actual / level.meta) * 100}%`,
-                            backgroundColor: level.color
+                            backgroundColor: level.color,
                           }}
                         ></div>
                       </div>
@@ -264,28 +330,42 @@ const PastoralDashboard: React.FC = () => {
                   <div key={index}>
                     <div className="flex justify-between items-center mb-2">
                       <h3 className="font-medium">{goal.description}</h3>
-                      <Badge 
+                      <Badge
                         variant={
-                          goal.status === 'completed' ? 'default' : 
-                          goal.status === 'on_track' ? 'secondary' : 
-                          goal.status === 'behind' ? 'outline' : 'destructive'
+                          goal.status === 'completed'
+                            ? 'default'
+                            : goal.status === 'on_track'
+                              ? 'secondary'
+                              : goal.status === 'behind'
+                                ? 'outline'
+                                : 'destructive'
                         }
                       >
-                        {goal.status === 'completed' ? 'Completado' :
-                         goal.status === 'on_track' ? 'En Progreso' :
-                         goal.status === 'behind' ? 'Retrasado' : 'Crítico'}
+                        {goal.status === 'completed'
+                          ? 'Completado'
+                          : goal.status === 'on_track'
+                            ? 'En Progreso'
+                            : goal.status === 'behind'
+                              ? 'Retrasado'
+                              : 'Crítico'}
                       </Badge>
                     </div>
                     <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                      <span>Progreso: {goal.current}/{goal.target}</span>
+                      <span>
+                        Progreso: {goal.current}/{goal.target}
+                      </span>
                       <span>Meta: {goal.deadline}</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
+                      <div
                         className={`h-2 rounded-full ${
-                          goal.status === 'completed' ? 'bg-green-500' :
-                          goal.status === 'on_track' ? 'bg-blue-500' :
-                          goal.status === 'behind' ? 'bg-yellow-500' : 'bg-red-500'
+                          goal.status === 'completed'
+                            ? 'bg-green-500'
+                            : goal.status === 'on_track'
+                              ? 'bg-blue-500'
+                              : goal.status === 'behind'
+                                ? 'bg-yellow-500'
+                                : 'bg-red-500'
                         }`}
                         style={{ width: `${(goal.current / goal.target) * 100}%` }}
                       ></div>
@@ -304,10 +384,30 @@ const PastoralDashboard: React.FC = () => {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
                 {[
-                  { title: 'Expansión Digital', progress: 75, status: 'En Progreso', impact: 'Alto' },
-                  { title: 'Programa de Mentoría', progress: 90, status: 'Avanzado', impact: 'Alto' },
-                  { title: 'Certificación de Líderes', progress: 45, status: 'Inicial', impact: 'Medio' },
-                  { title: 'Alcance Comunitario', progress: 60, status: 'En Progreso', impact: 'Alto' }
+                  {
+                    title: 'Expansión Digital',
+                    progress: 75,
+                    status: 'En Progreso',
+                    impact: 'Alto',
+                  },
+                  {
+                    title: 'Programa de Mentoría',
+                    progress: 90,
+                    status: 'Avanzado',
+                    impact: 'Alto',
+                  },
+                  {
+                    title: 'Certificación de Líderes',
+                    progress: 45,
+                    status: 'Inicial',
+                    impact: 'Medio',
+                  },
+                  {
+                    title: 'Alcance Comunitario',
+                    progress: 60,
+                    status: 'En Progreso',
+                    impact: 'Alto',
+                  },
                 ].map((initiative, index) => (
                   <div key={index} className="border rounded-lg p-4">
                     <div className="flex justify-between items-start mb-2">
@@ -316,12 +416,14 @@ const PastoralDashboard: React.FC = () => {
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">{initiative.status}</p>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
+                      <div
                         className="h-2 rounded-full bg-blue-500"
                         style={{ width: `${initiative.progress}%` }}
                       ></div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{initiative.progress}% completado</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {initiative.progress}% completado
+                    </p>
                   </div>
                 ))}
               </div>
@@ -339,16 +441,17 @@ const PastoralDashboard: React.FC = () => {
             <CardContent>
               <div className="space-y-4">
                 {approvalQueue.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div>
                       <h4 className="font-medium">{item.title}</h4>
                       <p className="text-sm text-muted-foreground">{item.type}</p>
                       <p className="text-xs text-muted-foreground">Plazo: {item.deadline}</p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Badge 
-                        variant={item.priority === 'high' ? 'destructive' : 'secondary'}
-                      >
+                      <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
                         {item.priority === 'high' ? 'Alta' : 'Media'}
                       </Badge>
                       <Button size="sm" onClick={() => handleApproveAlert(item.id)}>
@@ -374,7 +477,9 @@ const PastoralDashboard: React.FC = () => {
                 {alerts.map((alert, index) => (
                   <div key={index} className="flex items-start space-x-3 p-3 border rounded-lg">
                     <div className="flex-shrink-0">
-                      {alert.type === 'critical' && <AlertTriangle className="h-5 w-5 text-red-500" />}
+                      {alert.type === 'critical' && (
+                        <AlertTriangle className="h-5 w-5 text-red-500" />
+                      )}
                       {alert.type === 'warning' && <Clock className="h-5 w-5 text-yellow-500" />}
                       {alert.type === 'info' && <CheckCircle className="h-5 w-5 text-blue-500" />}
                     </div>
@@ -449,15 +554,17 @@ const PastoralDashboard: React.FC = () => {
                   { metric: 'Satisfacción de Líderes', value: 85, benchmark: 80, status: 'above' },
                   { metric: 'Eficiencia de Reportes', value: 78, benchmark: 85, status: 'below' },
                   { metric: 'Multiplicación de Grupos', value: 15, benchmark: 12, status: 'above' },
-                  { metric: 'Desarrollo de Liderazgo', value: 82, benchmark: 75, status: 'above' }
+                  { metric: 'Desarrollo de Liderazgo', value: 82, benchmark: 75, status: 'above' },
                 ].map((item, index) => (
                   <div key={index} className="flex items-center justify-between">
                     <span className="text-sm">{item.metric}</span>
                     <div className="flex items-center space-x-2">
                       <span className="text-sm font-medium">{item.value}%</span>
-                      <div className={`w-2 h-2 rounded-full ${
-                        item.status === 'above' ? 'bg-green-500' : 'bg-red-500'
-                      }`}></div>
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          item.status === 'above' ? 'bg-green-500' : 'bg-red-500'
+                        }`}
+                      ></div>
                     </div>
                   </div>
                 ))}
@@ -471,39 +578,56 @@ const PastoralDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Decisiones Estratégicas Pendientes</CardTitle>
-              <CardDescription>Decisiones de alto impacto que requieren tu dirección</CardDescription>
+              <CardDescription>
+                Decisiones de alto impacto que requieren tu dirección
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {[
                   {
                     title: 'Expansión a Zona Rural Este',
-                    description: 'Evaluar la viabilidad de abrir 5 nuevos grupos en comunidades rurales',
+                    description:
+                      'Evaluar la viabilidad de abrir 5 nuevos grupos en comunidades rurales',
                     impact: 'Alto',
                     urgency: 'Esta semana',
-                    options: ['Proceder con expansión completa', 'Fase piloto con 2 grupos', 'Posponer 6 meses']
+                    options: [
+                      'Proceder con expansión completa',
+                      'Fase piloto con 2 grupos',
+                      'Posponer 6 meses',
+                    ],
                   },
                   {
                     title: 'Implementación de Sistema Digital',
                     description: 'Adoptar plataforma digital para reportes y comunicación',
                     impact: 'Medio',
                     urgency: 'Este mes',
-                    options: ['Implementación inmediata', 'Prueba piloto', 'Mantener sistema actual']
+                    options: [
+                      'Implementación inmediata',
+                      'Prueba piloto',
+                      'Mantener sistema actual',
+                    ],
                   },
                   {
                     title: 'Restructuración de Supervisión',
                     description: 'Reorganizar estructura de supervisión para optimizar eficiencia',
                     impact: 'Alto',
                     urgency: 'Inmediato',
-                    options: ['Restructurar completamente', 'Ajustes menores', 'Mantener estructura actual']
-                  }
+                    options: [
+                      'Restructurar completamente',
+                      'Ajustes menores',
+                      'Mantener estructura actual',
+                    ],
+                  },
                 ].map((decision, index) => (
                   <div key={index} className="border rounded-lg p-4">
                     <div className="flex justify-between items-start mb-3">
                       <h4 className="font-medium">{decision.title}</h4>
                       <div className="flex space-x-2">
                         <Badge variant="outline">{decision.impact}</Badge>
-                        <Badge variant={decision.urgency === 'Inmediato' ? 'destructive' : 'secondary'}>
+                        <Badge
+                          variant={decision.urgency === 'Inmediato' ? 'destructive' : 'secondary'}
+                        >
                           {decision.urgency}
                         </Badge>
                       </div>

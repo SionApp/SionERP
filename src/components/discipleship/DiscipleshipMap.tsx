@@ -1,22 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { 
-  Map, 
-  MapPin, 
-  Users, 
-  Calendar,
-  Clock,
-  Filter,
-  Layers,
-  ZoomIn,
-  ZoomOut
-} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Map, MapPin, Users, Calendar, Clock, Filter, Layers, ZoomIn, ZoomOut } from 'lucide-react';
 import { mockGroups } from '@/mocks/discipleship/data.mock';
 import { DiscipleshipGroup } from '@/types/discipleship.types';
 
@@ -26,39 +22,39 @@ const groupsWithCoordinates: (DiscipleshipGroup & { latitude: number; longitude:
     ...mockGroups[0],
     latitude: 10.2547,
     longitude: -67.5926,
-    meeting_address: 'Av. Bolívar Norte #45, Sector La Paz'
+    meeting_address: 'Av. Bolívar Norte #45, Sector La Paz',
   },
   {
     ...mockGroups[1],
     latitude: 10.2612,
     longitude: -67.5889,
-    meeting_address: 'Calle Miranda #78, Centro Norte'
+    meeting_address: 'Calle Miranda #78, Centro Norte',
   },
   {
     ...mockGroups[2],
     latitude: 10.2489,
     longitude: -67.5945,
-    meeting_address: 'Urbanización Parque Residencial #23'
+    meeting_address: 'Urbanización Parque Residencial #23',
   },
   {
     ...mockGroups[3],
     latitude: 10.2145,
     longitude: -67.5934,
-    meeting_address: 'Av. Sur #156, Las Delicias'
+    meeting_address: 'Av. Sur #156, Las Delicias',
   },
   {
     ...mockGroups[4],
     latitude: 10.2089,
     longitude: -67.5812,
-    meeting_address: 'Calle Principal #89, El Limón'
-  }
+    meeting_address: 'Calle Principal #89, El Limón',
+  },
 ];
 
 const zoneColors = {
   'Zona Norte': '#3b82f6',
   'Zona Sur': '#ef4444',
   'Zona Este': '#10b981',
-  'Zona Oeste': '#f59e0b'
+  'Zona Oeste': '#f59e0b',
 };
 
 const DiscipleshipMap: React.FC = () => {
@@ -74,17 +70,18 @@ const DiscipleshipMap: React.FC = () => {
     if (!mapContainer.current) return;
 
     // Use a temporary token for demonstration - in production this should come from Supabase secrets
-    const tempToken = 'pk.eyJ1IjoidGVzdHVzZXIiLCJhIjoiY2ttZXJpeHZ2MDMxaDJ3cXhqdTZ0ejJ5MyJ9.demo_token_for_mapbox';
+    const tempToken =
+      'pk.eyJ1IjoidGVzdHVzZXIiLCJhIjoiY2ttZXJpeHZ2MDMxaDJ3cXhqdTZ0ejJ5MyJ9.demo_token_for_mapbox';
     const token = mapboxToken || tempToken;
 
     mapboxgl.accessToken = token;
-    
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
       center: [-67.5926, 10.2425], // Centered on Maracay, Venezuela
       zoom: 12,
-      pitch: 0
+      pitch: 0,
     });
 
     // Add navigation controls
@@ -125,7 +122,8 @@ const DiscipleshipMap: React.FC = () => {
         markerElement.style.width = '30px';
         markerElement.style.height = '30px';
         markerElement.style.borderRadius = '50%';
-        markerElement.style.backgroundColor = zoneColors[group.zone_name as keyof typeof zoneColors] || '#6b7280';
+        markerElement.style.backgroundColor =
+          zoneColors[group.zone_name as keyof typeof zoneColors] || '#6b7280';
         markerElement.style.border = '3px solid white';
         markerElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
         markerElement.style.cursor = 'pointer';
@@ -175,9 +173,11 @@ const DiscipleshipMap: React.FC = () => {
               </div>
               <div class="mt-2">
                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                  group.status === 'active' ? 'bg-green-100 text-green-800' :
-                  group.status === 'multiplying' ? 'bg-blue-100 text-blue-800' :
-                  'bg-gray-100 text-gray-800'
+                  group.status === 'active'
+                    ? 'bg-green-100 text-green-800'
+                    : group.status === 'multiplying'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-800'
                 }">
                   ${group.status === 'active' ? 'Activo' : group.status === 'multiplying' ? 'Multiplicando' : 'Inactivo'}
                 </span>
@@ -190,7 +190,7 @@ const DiscipleshipMap: React.FC = () => {
         const popup = new mapboxgl.Popup({
           offset: 25,
           closeButton: true,
-          closeOnClick: false
+          closeOnClick: false,
         }).setHTML(popupContent);
 
         // Create marker
@@ -243,7 +243,8 @@ const DiscipleshipMap: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-              💡 <strong>Demo disponible:</strong> Puedes ver el mapa con datos de ejemplo sin configurar token
+              💡 <strong>Demo disponible:</strong> Puedes ver el mapa con datos de ejemplo sin
+              configurar token
             </p>
             <div className="flex gap-2">
               <Button onClick={() => initializeMap()} variant="default">
@@ -255,20 +256,20 @@ const DiscipleshipMap: React.FC = () => {
               </Button>
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium">Token de Mapbox (Opcional)</label>
             <Input
               type="password"
               placeholder="Ingresa tu token público de Mapbox para mapas reales"
               value={mapboxToken}
-              onChange={(e) => setMapboxToken(e.target.value)}
+              onChange={e => setMapboxToken(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
               Obtén tu token público gratuito en{' '}
-              <a 
-                href="https://mapbox.com/" 
-                target="_blank" 
+              <a
+                href="https://mapbox.com/"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
@@ -276,8 +277,13 @@ const DiscipleshipMap: React.FC = () => {
               </a>
             </p>
           </div>
-          
-          <Button onClick={initializeMap} disabled={!mapboxToken} variant="outline" className="w-full">
+
+          <Button
+            onClick={initializeMap}
+            disabled={!mapboxToken}
+            variant="outline"
+            className="w-full"
+          >
             <Map className="w-4 h-4 mr-2" />
             Cargar Mapa con Token Personal
           </Button>
