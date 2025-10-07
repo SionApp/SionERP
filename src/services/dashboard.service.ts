@@ -1,5 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 
+// Singleton para callbacks de loading
+let dashboardLoadingCallbacks: {
+  setFetching?: (loading: boolean) => void;
+} = {};
+
+export const setDashboardLoadingCallbacks = (callbacks: typeof dashboardLoadingCallbacks) => {
+  dashboardLoadingCallbacks = callbacks;
+};
+
 // ========================================
 // INTERFACES
 // ========================================
@@ -54,6 +63,7 @@ export class DashboardService {
     recentActivity: RecentActivity[];
     currentUserRole?: string;
   }> {
+    dashboardLoadingCallbacks.setFetching?.(true);
     try {
       // Obtener token de Supabase Auth
       const { data: { session } } = await supabase.auth.getSession();
@@ -93,6 +103,8 @@ export class DashboardService {
       console.error('Error fetching dashboard data from Go backend:', error);
       console.error('Error details:', error);
       throw error;
+    } finally {
+      dashboardLoadingCallbacks.setFetching?.(false);
     }
   }
 
