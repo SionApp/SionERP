@@ -1,11 +1,11 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  MapPin, 
-  Users, 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  MapPin,
+  Users,
   Calendar,
   Clock,
   Phone,
@@ -14,20 +14,20 @@ import {
   AlertCircle,
   CheckCircle,
   Heart,
-  Target
-} from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { NotificationCenter } from "@/components/ui/notifications";
-import { mockNotifications } from "@/mocks/discipleship/data.mock";
+  Target,
+} from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { NotificationCenter } from '@/components/ui/notifications';
+import { mockNotifications } from '@/mocks/discipleship/data.mock';
 
 interface PersonalDashboardProps {
   title?: string;
   subtitle?: string;
 }
 
-const PersonalDashboard: React.FC<PersonalDashboardProps> = ({ 
-  title = "Mi Dashboard Personal",
-  subtitle = "Información sobre tu participación en el discipulado"
+const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
+  title = 'Mi Dashboard Personal',
+  subtitle = 'Información sobre tu participación en el discipulado',
 }) => {
   const { user } = useAuth();
 
@@ -43,15 +43,13 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
     meetingLocation: 'Casa de María - Colonia Centro',
     phone: '+58 414-567-8901',
     lastAttendance: '2024-09-18',
-    nextMeeting: '2024-09-25'
+    nextMeeting: '2024-09-25',
   };
 
   const [notifications, setNotifications] = React.useState(mockNotifications);
 
   const handleMarkAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
+    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
   };
 
   const handleMarkAllAsRead = () => {
@@ -105,13 +103,20 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
               {/* Profile Section */}
               <div className="flex items-center gap-4">
                 <Avatar className="w-16 h-16">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${(user as any)?.full_name || user?.email}`} />
+                  <AvatarImage
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${(user as any)?.full_name || user?.email}`}
+                  />
                   <AvatarFallback>
-                    {((user as any)?.full_name || user?.email || 'U')?.split(' ').map((n: string) => n[0]).join('')}
+                    {((user as any)?.full_name || user?.email || 'U')
+                      ?.split(' ')
+                      .map((n: string) => n[0])
+                      .join('')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <h3 className="text-xl font-semibold">{(user as any)?.full_name || user?.email}</h3>
+                  <h3 className="text-xl font-semibold">
+                    {(user as any)?.full_name || user?.email}
+                  </h3>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge className={`${roleInfo.color} text-white`}>
                       Nivel {roleInfo.level} - {roleInfo.label}
@@ -138,9 +143,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
                     <h4 className="font-semibold">Mi Zona</h4>
                   </div>
                   <p className="text-lg font-medium">{userInfo.zone}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Supervisor: {userInfo.supervisor}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Supervisor: {userInfo.supervisor}</p>
                 </div>
 
                 <div className="p-4 bg-muted/50 rounded-lg">
@@ -149,9 +152,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
                     <h4 className="font-semibold">Mi Grupo</h4>
                   </div>
                   <p className="text-lg font-medium">{userInfo.group}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Líder: {userInfo.leader}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Líder: {userInfo.leader}</p>
                 </div>
               </div>
 
@@ -197,7 +198,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
                       weekday: 'long',
                       year: 'numeric',
                       month: 'long',
-                      day: 'numeric'
+                      day: 'numeric',
                     })}
                   </p>
                 </div>
@@ -214,7 +215,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
                       weekday: 'long',
                       year: 'numeric',
                       month: 'long',
-                      day: 'numeric'
+                      day: 'numeric',
                     })}
                   </p>
                 </div>

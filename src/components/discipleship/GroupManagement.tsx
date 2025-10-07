@@ -1,19 +1,39 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  Users, 
-  Plus, 
-  Edit2, 
-  Trash2, 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Users,
+  Plus,
+  Edit2,
+  Trash2,
   Save,
   MapPin,
   Clock,
@@ -21,9 +41,9 @@ import {
   User,
   Target,
   AlertCircle,
-  TrendingUp
-} from "lucide-react";
-import { toast } from "sonner";
+  TrendingUp,
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { DiscipleshipGroup } from '@/types/discipleship.types';
 import { mockGroups } from '@/mocks/discipleship/data.mock';
 
@@ -33,7 +53,7 @@ const mockSupervisors = [
   { id: '00000000-0000-0000-0000-000000000009', name: 'Ricardo Morales', zone: 'Zona Norte' },
   { id: '00000000-0000-0000-0000-000000000012', name: 'Carmen Torres', zone: 'Zona Sur' },
   { id: '00000000-0000-0000-0000-000000000013', name: 'Miguel Santos', zone: 'Zona Este' },
-  { id: '00000000-0000-0000-0000-000000000014', name: 'Elena Vargas', zone: 'Zona Oeste' }
+  { id: '00000000-0000-0000-0000-000000000014', name: 'Elena Vargas', zone: 'Zona Oeste' },
 ];
 
 const mockLeaders = [
@@ -43,7 +63,7 @@ const mockLeaders = [
   { id: 'leader-004', name: 'Ana Ruiz', zone: 'Zona Sur', available: true },
   { id: 'leader-005', name: 'Pedro Moreno', zone: 'Zona Sur', available: false },
   { id: 'leader-006', name: 'Laura Jiménez', zone: 'Zona Este', available: true },
-  { id: 'leader-007', name: 'José García', zone: 'Zona Oeste', available: true }
+  { id: 'leader-007', name: 'José García', zone: 'Zona Oeste', available: true },
 ];
 
 const zones = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste'];
@@ -52,7 +72,7 @@ const statusOptions = [
   { value: 'active', label: 'Activo', color: 'bg-green-100 text-green-800' },
   { value: 'multiplying', label: 'Multiplicando', color: 'bg-blue-100 text-blue-800' },
   { value: 'inactive', label: 'Inactivo', color: 'bg-gray-100 text-gray-800' },
-  { value: 'planned', label: 'Planificado', color: 'bg-yellow-100 text-yellow-800' }
+  { value: 'planned', label: 'Planificado', color: 'bg-yellow-100 text-yellow-800' },
 ];
 
 const GroupManagement: React.FC = () => {
@@ -73,7 +93,7 @@ const GroupManagement: React.FC = () => {
     zone_name: '',
     status: 'planned' as 'active' | 'inactive' | 'multiplying' | 'planned',
     member_count: 0,
-    active_members: 0
+    active_members: 0,
   });
 
   const resetForm = () => {
@@ -88,7 +108,7 @@ const GroupManagement: React.FC = () => {
       zone_name: '',
       status: 'planned' as 'active' | 'inactive' | 'multiplying' | 'planned',
       member_count: 0,
-      active_members: 0
+      active_members: 0,
     });
     setEditingGroup(null);
   };
@@ -96,11 +116,11 @@ const GroupManagement: React.FC = () => {
   const handleSave = () => {
     if (editingGroup) {
       // Update existing group
-      setGroups(groups.map(g => 
-        g.id === editingGroup.id 
-          ? { ...g, ...formData, updated_at: new Date().toISOString() }
-          : g
-      ));
+      setGroups(
+        groups.map(g =>
+          g.id === editingGroup.id ? { ...g, ...formData, updated_at: new Date().toISOString() } : g
+        )
+      );
       toast.success('Grupo actualizado exitosamente');
     } else {
       // Create new group
@@ -108,12 +128,12 @@ const GroupManagement: React.FC = () => {
         id: `group-${Date.now()}`,
         ...formData,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
       setGroups([...groups, newGroup]);
       toast.success('Nuevo grupo creado exitosamente');
     }
-    
+
     setIsDialogOpen(false);
     resetForm();
   };
@@ -131,7 +151,7 @@ const GroupManagement: React.FC = () => {
       zone_name: group.zone_name || '',
       status: group.status || 'planned',
       member_count: group.member_count || 0,
-      active_members: group.active_members || 0
+      active_members: group.active_members || 0,
     });
     setIsDialogOpen(true);
   };
@@ -164,13 +184,12 @@ const GroupManagement: React.FC = () => {
     );
   };
 
-  const availableLeaders = mockLeaders.filter(leader => 
-    leader.available && 
-    (formData.zone_name === '' || leader.zone === formData.zone_name)
+  const availableLeaders = mockLeaders.filter(
+    leader => leader.available && (formData.zone_name === '' || leader.zone === formData.zone_name)
   );
 
-  const availableSupervisors = mockSupervisors.filter(supervisor => 
-    formData.zone_name === '' || supervisor.zone === formData.zone_name
+  const availableSupervisors = mockSupervisors.filter(
+    supervisor => formData.zone_name === '' || supervisor.zone === formData.zone_name
   );
 
   return (
@@ -200,10 +219,9 @@ const GroupManagement: React.FC = () => {
                     {editingGroup ? 'Editar Grupo Familiar' : 'Nuevo Grupo Familiar'}
                   </DialogTitle>
                   <DialogDescription>
-                    {editingGroup 
-                      ? 'Modifica los datos del grupo de discipulado' 
-                      : 'Crea un nuevo grupo familiar y asigna todo el personal necesario'
-                    }
+                    {editingGroup
+                      ? 'Modifica los datos del grupo de discipulado'
+                      : 'Crea un nuevo grupo familiar y asigna todo el personal necesario'}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -216,21 +234,28 @@ const GroupManagement: React.FC = () => {
                         <Input
                           id="group-name"
                           value={formData.group_name}
-                          onChange={(e) => setFormData({ ...formData, group_name: e.target.value })}
+                          onChange={e => setFormData({ ...formData, group_name: e.target.value })}
                           placeholder="Ej: Célula Esperanza"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="zone">Zona</Label>
-                        <Select 
-                          value={formData.zone_name} 
-                          onValueChange={(value) => setFormData({ ...formData, zone_name: value, leader_id: '', supervisor_id: '' })}
+                        <Select
+                          value={formData.zone_name}
+                          onValueChange={value =>
+                            setFormData({
+                              ...formData,
+                              zone_name: value,
+                              leader_id: '',
+                              supervisor_id: '',
+                            })
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Selecciona una zona" />
                           </SelectTrigger>
                           <SelectContent>
-                            {zones.map((zone) => (
+                            {zones.map(zone => (
                               <SelectItem key={zone} value={zone}>
                                 {zone}
                               </SelectItem>
@@ -242,12 +267,15 @@ const GroupManagement: React.FC = () => {
 
                     <div className="space-y-2">
                       <Label htmlFor="status">Estado del Grupo</Label>
-                      <Select value={formData.status} onValueChange={(value: any) => setFormData({ ...formData, status: value })}>
+                      <Select
+                        value={formData.status}
+                        onValueChange={(value: any) => setFormData({ ...formData, status: value })}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {statusOptions.map((status) => (
+                          {statusOptions.map(status => (
                             <SelectItem key={status.value} value={status.value}>
                               {status.label}
                             </SelectItem>
@@ -265,15 +293,17 @@ const GroupManagement: React.FC = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="supervisor">Supervisor Auxiliar</Label>
-                        <Select 
-                          value={formData.supervisor_id} 
-                          onValueChange={(value) => setFormData({ ...formData, supervisor_id: value })}
+                        <Select
+                          value={formData.supervisor_id}
+                          onValueChange={value =>
+                            setFormData({ ...formData, supervisor_id: value })
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Selecciona supervisor" />
                           </SelectTrigger>
                           <SelectContent>
-                            {availableSupervisors.map((supervisor) => (
+                            {availableSupervisors.map(supervisor => (
                               <SelectItem key={supervisor.id} value={supervisor.id}>
                                 {supervisor.name}
                               </SelectItem>
@@ -281,18 +311,18 @@ const GroupManagement: React.FC = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="leader">Líder del Grupo</Label>
-                        <Select 
-                          value={formData.leader_id} 
-                          onValueChange={(value) => setFormData({ ...formData, leader_id: value })}
+                        <Select
+                          value={formData.leader_id}
+                          onValueChange={value => setFormData({ ...formData, leader_id: value })}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Selecciona líder" />
                           </SelectTrigger>
                           <SelectContent>
-                            {availableLeaders.map((leader) => (
+                            {availableLeaders.map(leader => (
                               <SelectItem key={leader.id} value={leader.id}>
                                 {leader.name}
                               </SelectItem>
@@ -316,12 +346,15 @@ const GroupManagement: React.FC = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="meeting-day">Día de Reunión</Label>
-                        <Select value={formData.meeting_day} onValueChange={(value) => setFormData({ ...formData, meeting_day: value })}>
+                        <Select
+                          value={formData.meeting_day}
+                          onValueChange={value => setFormData({ ...formData, meeting_day: value })}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Selecciona día" />
                           </SelectTrigger>
                           <SelectContent>
-                            {meetingDays.map((day) => (
+                            {meetingDays.map(day => (
                               <SelectItem key={day} value={day}>
                                 {day}
                               </SelectItem>
@@ -329,14 +362,14 @@ const GroupManagement: React.FC = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="meeting-time">Hora de Reunión</Label>
                         <Input
                           id="meeting-time"
                           type="time"
                           value={formData.meeting_time}
-                          onChange={(e) => setFormData({ ...formData, meeting_time: e.target.value })}
+                          onChange={e => setFormData({ ...formData, meeting_time: e.target.value })}
                         />
                       </div>
                     </div>
@@ -346,7 +379,9 @@ const GroupManagement: React.FC = () => {
                       <Input
                         id="meeting-location"
                         value={formData.meeting_location}
-                        onChange={(e) => setFormData({ ...formData, meeting_location: e.target.value })}
+                        onChange={e =>
+                          setFormData({ ...formData, meeting_location: e.target.value })
+                        }
                         placeholder="Ej: Casa de María, Centro Comunitario"
                       />
                     </div>
@@ -356,7 +391,9 @@ const GroupManagement: React.FC = () => {
                       <Textarea
                         id="meeting-address"
                         value={formData.meeting_address}
-                        onChange={(e) => setFormData({ ...formData, meeting_address: e.target.value })}
+                        onChange={e =>
+                          setFormData({ ...formData, meeting_address: e.target.value })
+                        }
                         placeholder="Dirección completa para ubicación en mapa"
                         rows={2}
                       />
@@ -376,10 +413,15 @@ const GroupManagement: React.FC = () => {
                           type="number"
                           min="0"
                           value={formData.member_count}
-                          onChange={(e) => setFormData({ ...formData, member_count: parseInt(e.target.value) || 0 })}
+                          onChange={e =>
+                            setFormData({
+                              ...formData,
+                              member_count: parseInt(e.target.value) || 0,
+                            })
+                          }
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="active-members">Miembros Activos</Label>
                         <Input
@@ -388,7 +430,12 @@ const GroupManagement: React.FC = () => {
                           min="0"
                           max={formData.member_count}
                           value={formData.active_members}
-                          onChange={(e) => setFormData({ ...formData, active_members: parseInt(e.target.value) || 0 })}
+                          onChange={e =>
+                            setFormData({
+                              ...formData,
+                              active_members: parseInt(e.target.value) || 0,
+                            })
+                          }
                         />
                       </div>
                     </div>
@@ -419,7 +466,7 @@ const GroupManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las Zonas</SelectItem>
-                  {zones.map((zone) => (
+                  {zones.map(zone => (
                     <SelectItem key={zone} value={zone}>
                       {zone}
                     </SelectItem>
@@ -436,7 +483,7 @@ const GroupManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los Estados</SelectItem>
-                  {statusOptions.map((status) => (
+                  {statusOptions.map(status => (
                     <SelectItem key={status.value} value={status.value}>
                       {status.label}
                     </SelectItem>
@@ -462,7 +509,7 @@ const GroupManagement: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredGroups.map((group) => (
+                {filteredGroups.map(group => (
                   <TableRow key={group.id}>
                     <TableCell>
                       <div>
@@ -502,27 +549,19 @@ const GroupManagement: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        <div className="font-medium">{group.active_members}/{group.member_count}</div>
+                        <div className="font-medium">
+                          {group.active_members}/{group.member_count}
+                        </div>
                         <div className="text-muted-foreground">activos/total</div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      {getStatusBadge(group.status || 'planned')}
-                    </TableCell>
+                    <TableCell>{getStatusBadge(group.status || 'planned')}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center gap-2 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(group)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(group)}>
                           <Edit2 className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(group.id)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => handleDelete(group.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -559,9 +598,7 @@ const GroupManagement: React.FC = () => {
               <TrendingUp className="w-4 h-4 text-green-600" />
               <span className="text-sm font-medium">Activos</span>
             </div>
-            <p className="text-2xl font-bold">
-              {groups.filter(g => g.status === 'active').length}
-            </p>
+            <p className="text-2xl font-bold">{groups.filter(g => g.status === 'active').length}</p>
           </CardContent>
         </Card>
         <Card>

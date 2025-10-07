@@ -22,39 +22,47 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
 
   const getChangedFields = () => {
     if (!auditLog.old_values || !auditLog.new_values) return [];
-    
+
     const changes = [];
     const oldValues = auditLog.old_values;
     const newValues = auditLog.new_values;
-    
+
     for (const key in newValues) {
       if (oldValues[key] !== newValues[key]) {
         changes.push({
           field: key,
           oldValue: oldValues[key],
-          newValue: newValues[key]
+          newValue: newValues[key],
         });
       }
     }
-    
+
     return changes;
   };
 
   const getActionColor = (action: string) => {
     switch (action) {
-      case 'INSERT': return 'default';
-      case 'UPDATE': return 'secondary';
-      case 'DELETE': return 'destructive';
-      default: return 'outline';
+      case 'INSERT':
+        return 'default';
+      case 'UPDATE':
+        return 'secondary';
+      case 'DELETE':
+        return 'destructive';
+      default:
+        return 'outline';
     }
   };
 
   const getActionIcon = (action: string) => {
     switch (action) {
-      case 'INSERT': return <Activity className="h-4 w-4" />;
-      case 'UPDATE': return <ArrowRight className="h-4 w-4" />;
-      case 'DELETE': return <Database className="h-4 w-4" />;
-      default: return <Activity className="h-4 w-4" />;
+      case 'INSERT':
+        return <Activity className="h-4 w-4" />;
+      case 'UPDATE':
+        return <ArrowRight className="h-4 w-4" />;
+      case 'DELETE':
+        return <Database className="h-4 w-4" />;
+      default:
+        return <Activity className="h-4 w-4" />;
     }
   };
 
@@ -70,7 +78,7 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
     fecha_bautizo: 'Fecha de Bautizo',
     cell_group: 'Grupo Celular',
     pastoral_notes: 'Notas Pastorales',
-    updated_at: 'Actualizado el'
+    updated_at: 'Actualizado el',
   };
 
   return (
@@ -82,7 +90,7 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
             Detalle de Actividad del Sistema
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-6">
           {/* Información General */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
@@ -95,17 +103,19 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">Usuario</p>
                 <p className="text-sm text-muted-foreground">
-                  {auditLog.users ? `${auditLog.users.nombres} ${auditLog.users.apellidos}` : 'Sistema'}
+                  {auditLog.users
+                    ? `${auditLog.users.nombres} ${auditLog.users.apellidos}`
+                    : 'Sistema'}
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Database className="h-4 w-4 text-muted-foreground" />
               <div>
@@ -113,14 +123,12 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
                 <p className="text-sm text-muted-foreground">{auditLog.table_name}</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">Acción</p>
-                <Badge variant={getActionColor(auditLog.action)}>
-                  {auditLog.action}
-                </Badge>
+                <Badge variant={getActionColor(auditLog.action)}>{auditLog.action}</Badge>
               </div>
             </div>
           </div>
@@ -143,7 +151,9 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
                         </p>
                       </div>
                       <div className="p-2 bg-green-50 dark:bg-green-950/20 rounded border">
-                        <p className="text-green-600 dark:text-green-400 font-medium mb-1">Después:</p>
+                        <p className="text-green-600 dark:text-green-400 font-medium mb-1">
+                          Después:
+                        </p>
                         <p className="text-green-800 dark:text-green-200">
                           {formatValue(change.newValue)}
                         </p>
@@ -166,9 +176,7 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
                       <p className="font-medium text-green-700 dark:text-green-300">
                         {fieldLabels[key] || key}:
                       </p>
-                      <p className="text-green-800 dark:text-green-200">
-                        {formatValue(value)}
-                      </p>
+                      <p className="text-green-800 dark:text-green-200">{formatValue(value)}</p>
                     </div>
                   ))}
                 </div>
@@ -187,9 +195,7 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
                       <p className="font-medium text-red-700 dark:text-red-300">
                         {fieldLabels[key] || key}:
                       </p>
-                      <p className="text-red-800 dark:text-red-200">
-                        {formatValue(value)}
-                      </p>
+                      <p className="text-red-800 dark:text-red-200">{formatValue(value)}</p>
                     </div>
                   ))}
                 </div>
@@ -199,12 +205,8 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
 
           {/* ID del Registro */}
           <div className="pt-4 border-t">
-            <p className="text-xs text-muted-foreground">
-              ID del registro: {auditLog.record_id}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              ID del audit log: {auditLog.id}
-            </p>
+            <p className="text-xs text-muted-foreground">ID del registro: {auditLog.record_id}</p>
+            <p className="text-xs text-muted-foreground">ID del audit log: {auditLog.id}</p>
           </div>
         </div>
       </DialogContent>

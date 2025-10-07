@@ -18,17 +18,22 @@ const UsersPage = () => {
   const navigate = useNavigate();
 
   const filterFields: FilterField[] = [
-    { key: 'search', label: 'Búsqueda general', type: 'text', placeholder: 'Nombre, email o cédula...' },
-    { 
-      key: 'role', 
-      label: 'Rol', 
+    {
+      key: 'search',
+      label: 'Búsqueda general',
+      type: 'text',
+      placeholder: 'Nombre, email o cédula...',
+    },
+    {
+      key: 'role',
+      label: 'Rol',
       type: 'select',
       options: [
         { value: 'pastor', label: 'Pastor' },
         { value: 'staff', label: 'Staff' },
         { value: 'supervisor', label: 'Supervisor' },
         { value: 'server', label: 'Servidor' },
-      ]
+      ],
     },
     { key: 'baptized', label: 'Solo bautizados', type: 'boolean' },
     { key: 'whatsapp', label: 'Con WhatsApp', type: 'boolean' },
@@ -56,12 +61,12 @@ const UsersPage = () => {
     // Búsqueda general
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         user.first_name.toLowerCase().includes(searchLower) ||
         user.last_name.toLowerCase().includes(searchLower) ||
         user.email.toLowerCase().includes(searchLower) ||
         user.id_number.includes(filters.search);
-      
+
       if (!matchesSearch) return false;
     }
 
@@ -85,7 +90,7 @@ const UsersPage = () => {
       const userDate = new Date(user.created_at);
       const fromDate = new Date(filters.created_at.from);
       if (userDate < fromDate) return false;
-      
+
       if (filters.created_at.to) {
         const toDate = new Date(filters.created_at.to);
         if (userDate > toDate) return false;
@@ -140,9 +145,7 @@ const UsersPage = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Usuarios
           </h1>
-          <p className="text-muted-foreground">
-            Administra los usuarios registrados en el sistema
-          </p>
+          <p className="text-muted-foreground">Administra los usuarios registrados en el sistema</p>
         </div>
         <Button onClick={() => navigate('/dashboard/register-user')}>
           <Plus className="h-4 w-4 mr-2" />
@@ -161,9 +164,7 @@ const UsersPage = () => {
       <Card>
         <CardHeader>
           <CardTitle>Usuarios ({filteredUsers.length})</CardTitle>
-          <CardDescription>
-            Lista de todos los usuarios registrados
-          </CardDescription>
+          <CardDescription>Lista de todos los usuarios registrados</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -172,17 +173,18 @@ const UsersPage = () => {
                 <p className="text-muted-foreground">No se encontraron usuarios</p>
               </div>
             ) : (
-              filteredUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+              filteredUsers.map(user => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                >
                   <div className="flex-1">
                     <div className="flex items-center gap-4">
                       <div>
                         <h3 className="font-medium">
                           {user.first_name} {user.last_name}
                         </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {user.email}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
                       <div className="text-sm text-muted-foreground">
                         <p>Cédula: {user.id_number}</p>
@@ -190,29 +192,21 @@ const UsersPage = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <Badge variant={getRoleBadgeVariant(user.role)}>
                       {getRoleDisplayName(user.role)}
                     </Badge>
-                    {user.baptized && (
-                      <Badge variant="outline">Bautizado</Badge>
-                    )}
-                    {user.whatsapp && (
-                      <Badge variant="outline">WhatsApp</Badge>
-                    )}
+                    {user.baptized && <Badge variant="outline">Bautizado</Badge>}
+                    {user.whatsapp && <Badge variant="outline">WhatsApp</Badge>}
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <div className="text-right text-sm text-muted-foreground mr-4">
                       <p>Registrado:</p>
                       <p>{new Date(user.created_at).toLocaleDateString()}</p>
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setEditingUser(user)}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => setEditingUser(user)}>
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button variant="outline" size="sm">

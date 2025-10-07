@@ -1,11 +1,5 @@
-import { useEffect, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Users,
   UserPlus,
@@ -15,7 +9,7 @@ import {
   Calendar,
   Clock,
   Target,
-} from "lucide-react";
+} from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -32,24 +26,18 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-} from "recharts";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { useDashboardStats } from "@/hooks/useDashboardStats";
-import { AuditLogModal } from "@/components/AuditLogModal";
-import { DiscipleshipAnalyticsSection } from "@/components/dashboard/DiscipleshipAnalyticsSection";
-import { AuditLog } from "@/types/audit.types";
-import { RecentActivity } from "@/services/dashboard.service";
-import { useAuth } from "@/hooks/useAuth";
+} from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { AuditLogModal } from '@/components/AuditLogModal';
+import { DiscipleshipAnalyticsSection } from '@/components/dashboard/DiscipleshipAnalyticsSection';
+import { AuditLog } from '@/types/audit.types';
+import { RecentActivity } from '@/services/dashboard.service';
+import { useAuth } from '@/hooks/useAuth';
 
 const DashboardHome = () => {
-  const { user } = useAuth();  // Obtener usuario del contexto
-  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(
-    null,
-  );
+  const { user } = useAuth(); // Obtener usuario del contexto
+  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const {
     stats,
@@ -69,8 +57,8 @@ const DashboardHome = () => {
   };
 
   const lastLogin = user?.last_sign_in_at
-    ? new Date(user.last_sign_in_at).toLocaleString("es-ES")
-    : "Nunca";
+    ? new Date(user.last_sign_in_at).toLocaleString('es-ES')
+    : 'Nunca';
 
   return (
     <>
@@ -82,10 +70,8 @@ const DashboardHome = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-4xl font-bold mb-2 text-foreground drop-shadow-sm">
-                  Bienvenido de vuelta,{" "}
-                  {user?.user_metadata?.first_name ||
-                    user?.email?.split("@")[0] ||
-                    "Admin"}
+                  Bienvenido de vuelta,{' '}
+                  {user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Admin'}
                 </h1>
                 <p className="text-foreground/80 text-lg font-medium">
                   Sistema de Gestión Sion - Panel de Control
@@ -93,9 +79,7 @@ const DashboardHome = () => {
               </div>
               <div className="hidden md:flex items-center space-x-4">
                 <div className="text-right">
-                  <p className="text-sm text-foreground/70 font-medium">
-                    Último acceso
-                  </p>
+                  <p className="text-sm text-foreground/70 font-medium">Último acceso</p>
                   <p className="font-semibold text-foreground">{lastLogin}</p>
                 </div>
                 <div className="w-16 h-16 rounded-full bg-primary/20 backdrop-blur-sm flex items-center justify-center border border-primary/30">
@@ -110,52 +94,48 @@ const DashboardHome = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[
             {
-              title: "Total Usuarios",
+              title: 'Total Usuarios',
               value: stats.totalUsers,
-              change: "+12%",
+              change: '+12%',
               icon: Users,
-              color: "from-blue-500 to-cyan-500",
-              description: "Usuarios registrados",
+              color: 'from-blue-500 to-cyan-500',
+              description: 'Usuarios registrados',
             },
             {
-              title: "Nuevos Registros",
+              title: 'Nuevos Registros',
               value: stats.newRegistrations,
-              change: "+24%",
+              change: '+24%',
               icon: UserPlus,
-              color: "from-emerald-500 to-green-500",
-              description: "Últimos 7 días",
+              color: 'from-emerald-500 to-green-500',
+              description: 'Últimos 7 días',
             },
             {
-              title: "Roles Activos",
+              title: 'Roles Activos',
               value: stats.activeRoles,
-              change: "100%",
+              change: '100%',
               icon: Shield,
-              color: "from-purple-500 to-pink-500",
-              description: "Tipos configurados",
+              color: 'from-purple-500 to-pink-500',
+              description: 'Tipos configurados',
             },
             {
-              title: "Sistema Online",
+              title: 'Sistema Online',
               value: `${stats.systemActivity}%`,
-              change: "+2%",
+              change: '+2%',
               icon: Target,
-              color: "from-orange-500 to-red-500",
-              description: "Uptime del sistema",
+              color: 'from-orange-500 to-red-500',
+              description: 'Uptime del sistema',
             },
           ].map((stat, index) => (
             <Card
               key={index}
               className="relative overflow-hidden border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] hover:shadow-[var(--shadow-accent)] transition-all duration-300 hover:scale-105"
             >
-              <div
-                className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-10`}
-              ></div>
+              <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-10`}></div>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.title}
                 </CardTitle>
-                <div
-                  className={`p-2 rounded-lg bg-gradient-to-br ${stat.color} shadow-lg`}
-                >
+                <div className={`p-2 rounded-lg bg-gradient-to-br ${stat.color} shadow-lg`}>
                   <stat.icon className="h-4 w-4 text-white" />
                 </div>
               </CardHeader>
@@ -167,9 +147,7 @@ const DashboardHome = () => {
                   <span className="text-xs font-medium text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
                     {stat.change}
                   </span>
-                  <p className="text-xs text-muted-foreground">
-                    {stat.description}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{stat.description}</p>
                 </div>
               </CardContent>
             </Card>
@@ -190,12 +168,12 @@ const DashboardHome = () => {
             <CardContent>
               <ChartContainer
                 config={{
-                  admin: { label: "Admin", color: "hsl(var(--primary))" },
-                  moderador: { label: "Moderador", color: "hsl(266 85% 68%)" },
-                  usuario: { label: "Usuario", color: "hsl(295 85% 58%)" },
+                  admin: { label: 'Admin', color: 'hsl(var(--primary))' },
+                  moderador: { label: 'Moderador', color: 'hsl(266 85% 68%)' },
+                  usuario: { label: 'Usuario', color: 'hsl(295 85% 58%)' },
                   invitado: {
-                    label: "Invitado",
-                    color: "hsl(217 32.6% 17.5%)",
+                    label: 'Invitado',
+                    color: 'hsl(217 32.6% 17.5%)',
                   },
                 }}
                 className="h-[250px]"
@@ -224,7 +202,7 @@ const DashboardHome = () => {
           </Card>
 
           {/* Recent Activity - Solo para pastor y staff */}
-          {currentUserRole && ["pastor", "staff"].includes(currentUserRole) && (
+          {currentUserRole && ['pastor', 'staff'].includes(currentUserRole) && (
             <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
               <CardHeader>
                 <CardTitle className="text-xl font-bold flex items-center gap-2">
@@ -250,17 +228,15 @@ const DashboardHome = () => {
                       >
                         <div
                           className={`w-3 h-3 rounded-full ${
-                            activity.type === "success"
-                              ? "bg-green-500"
-                              : activity.type === "warning"
-                                ? "bg-orange-500"
-                                : "bg-blue-500"
+                            activity.type === 'success'
+                              ? 'bg-green-500'
+                              : activity.type === 'warning'
+                                ? 'bg-orange-500'
+                                : 'bg-blue-500'
                           } shadow-lg`}
                         ></div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {activity.action}
-                          </p>
+                          <p className="text-sm font-medium truncate">{activity.action}</p>
                           <p className="text-xs text-muted-foreground truncate">
                             por {activity.user}
                           </p>
@@ -278,7 +254,7 @@ const DashboardHome = () => {
         </div>
 
         {/* Sección de Analytics de Discipulado - Solo para Pastor */}
-        {currentUserRole === "pastor" && (
+        {currentUserRole === 'pastor' && (
           <DiscipleshipAnalyticsSection discipleshipStats={discipleshipStats} />
         )}
       </div>

@@ -8,12 +8,12 @@ export const createUserSchema = z.object({
   full_name: z.string().min(1, 'El nombre completo es requerido'),
   phone: z.string().optional(),
   role: z.enum(userRoles, {
-    errorMap: () => ({ message: 'Rol inválido' })
+    errorMap: () => ({ message: 'Rol inválido' }),
   }),
   birth_date: z.string().optional(),
   address: z.string().optional(),
   emergency_contact_name: z.string().optional(),
-  emergency_contact_phone: z.string().optional()
+  emergency_contact_phone: z.string().optional(),
 });
 
 export const profileUpdateSchema = z.object({
@@ -35,7 +35,7 @@ export const profileUpdateSchema = z.object({
   how_found_church: z.string().optional(),
   ministry_interest: z.string().optional(),
   first_visit_date: z.string().optional(),
-  cell_group: z.string().optional()
+  cell_group: z.string().optional(),
 });
 
 export const registerUserSchema = z.object({
@@ -50,7 +50,7 @@ export const registerUserSchema = z.object({
   phone: z.string().optional(),
   whatsapp: z.boolean().optional(),
   role: z.enum(userRoles, {
-    errorMap: () => ({ message: 'Rol inválido' })
+    errorMap: () => ({ message: 'Rol inválido' }),
   }),
   birth_date: z.string().optional(),
   direccion: z.string().optional(),
@@ -68,11 +68,11 @@ export const registerUserSchema = z.object({
   membership_date: z.string().optional(),
   pastoral_notes: z.string().optional(),
   bautizado: z.boolean().optional(),
-  is_active_member: z.boolean().optional()
+  is_active_member: z.boolean().optional(),
 });
 
 export const updateUserSchema = registerUserSchema.partial().extend({
-  id: z.string().uuid()
+  id: z.string().uuid(),
 });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;

@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
-import { useTranslation } from "@/hooks/useTranslation";
-import { Globe } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/hooks/useTranslation';
+import { Globe } from 'lucide-react';
 
 export const LanguageSwitcher = () => {
   const { language, changeLanguage } = useTranslation();

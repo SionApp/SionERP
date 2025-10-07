@@ -7,18 +7,30 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Users, 
-  TrendingUp, 
-  Target, 
-  Building2, 
-  Send, 
+import {
+  Users,
+  TrendingUp,
+  Target,
+  Building2,
+  Send,
   BarChart3,
   PieChart,
   Zap,
-  Award
+  Award,
 } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart as RechartsPieChart, Cell } from 'recharts';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  BarChart,
+  Bar,
+  PieChart as RechartsPieChart,
+  Cell,
+} from 'recharts';
 import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
 import { QuarterlyCoordinatorReport } from '@/types/discipleship.types';
 import { toast } from '@/hooks/use-toast';
@@ -31,7 +43,7 @@ const CoordinatorDashboard: React.FC = () => {
   const [quarterlyReport, setQuarterlyReport] = useState<Partial<QuarterlyCoordinatorReport>>({
     ministryOverview: { totalZones: 0, totalGroups: 0, totalMembers: 0, quarterlyGrowth: 0 },
     strategicGoals: { annualTargets: [], quarterProgress: 0, adjustmentNeeded: false },
-    systemHealth: { leadershipStrength: 5, systemEfficiency: 5, memberSatisfaction: 5 }
+    systemHealth: { leadershipStrength: 5, systemEfficiency: 5, memberSatisfaction: 5 },
   });
 
   useEffect(() => {
@@ -51,9 +63,9 @@ const CoordinatorDashboard: React.FC = () => {
         ...quarterlyReport,
         coordinatorId: 'current-user-id',
         quarter: Math.ceil((new Date().getMonth() + 1) / 3),
-        year: new Date().getFullYear()
+        year: new Date().getFullYear(),
       } as QuarterlyCoordinatorReport);
-      
+
       if (result.success) {
         toast({
           title: 'Reporte Enviado',
@@ -75,21 +87,21 @@ const CoordinatorDashboard: React.FC = () => {
     { quarter: 'Q1', grupos: 12, miembros: 144, crecimiento: 8 },
     { quarter: 'Q2', grupos: 15, miembros: 180, crecimiento: 25 },
     { quarter: 'Q3', grupos: 18, miembros: 216, crecimiento: 20 },
-    { quarter: 'Q4', grupos: 22, miembros: 264, crecimiento: 22 }
+    { quarter: 'Q4', grupos: 22, miembros: 264, crecimiento: 22 },
   ];
 
   const systemHealthData = [
     { name: 'Liderazgo', value: 85, color: '#22c55e' },
     { name: 'Eficiencia', value: 78, color: '#3b82f6' },
     { name: 'Satisfacción', value: 92, color: '#f59e0b' },
-    { name: 'Crecimiento', value: 88, color: '#8b5cf6' }
+    { name: 'Crecimiento', value: 88, color: '#8b5cf6' },
   ];
 
   const strategicGoals = [
     { goal: 'Alcanzar 25 grupos activos', current: 22, target: 25, progress: 88 },
     { goal: 'Entrenar 15 supervisores', current: 12, target: 15, progress: 80 },
     { goal: 'Multiplicar 8 grupos', current: 5, target: 8, progress: 63 },
-    { goal: '300 miembros totales', current: 264, target: 300, progress: 88 }
+    { goal: '300 miembros totales', current: 264, target: 300, progress: 88 },
   ];
 
   return (
@@ -174,8 +186,22 @@ const CoordinatorDashboard: React.FC = () => {
                   <XAxis dataKey="quarter" />
                   <YAxis />
                   <Tooltip />
-                  <Area type="monotone" dataKey="miembros" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="grupos" stackId="2" stroke="#22c55e" fill="#22c55e" fillOpacity={0.8} />
+                  <Area
+                    type="monotone"
+                    dataKey="miembros"
+                    stackId="1"
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
+                    fillOpacity={0.6}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="grupos"
+                    stackId="2"
+                    stroke="#22c55e"
+                    fill="#22c55e"
+                    fillOpacity={0.8}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
@@ -231,9 +257,7 @@ const CoordinatorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Objetivos Estratégicos Anuales</CardTitle>
-              <CardDescription>
-                Progreso hacia las metas establecidas para este año
-              </CardDescription>
+              <CardDescription>Progreso hacia las metas establecidas para este año</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -241,7 +265,15 @@ const CoordinatorDashboard: React.FC = () => {
                   <div key={index}>
                     <div className="flex justify-between items-center mb-2">
                       <h3 className="font-medium">{goal.goal}</h3>
-                      <Badge variant={goal.progress >= 80 ? 'default' : goal.progress >= 60 ? 'secondary' : 'destructive'}>
+                      <Badge
+                        variant={
+                          goal.progress >= 80
+                            ? 'default'
+                            : goal.progress >= 60
+                              ? 'secondary'
+                              : 'destructive'
+                        }
+                      >
                         {goal.progress}%
                       </Badge>
                     </div>
@@ -264,46 +296,50 @@ const CoordinatorDashboard: React.FC = () => {
             <CardContent>
               <div className="space-y-4">
                 {[
-                  { 
-                    initiative: 'Programa de Mentoría para Líderes', 
-                    status: 'En Progreso', 
+                  {
+                    initiative: 'Programa de Mentoría para Líderes',
+                    status: 'En Progreso',
                     completion: 65,
-                    impact: 'Alto' 
+                    impact: 'Alto',
                   },
-                  { 
-                    initiative: 'Expansión a Zonas Rurales', 
-                    status: 'Planificación', 
+                  {
+                    initiative: 'Expansión a Zonas Rurales',
+                    status: 'Planificación',
                     completion: 25,
-                    impact: 'Medio' 
+                    impact: 'Medio',
                   },
-                  { 
-                    initiative: 'Sistema Digital de Reportes', 
-                    status: 'Implementación', 
+                  {
+                    initiative: 'Sistema Digital de Reportes',
+                    status: 'Implementación',
                     completion: 80,
-                    impact: 'Alto' 
+                    impact: 'Alto',
                   },
-                  { 
-                    initiative: 'Capacitación en Multiplicación', 
-                    status: 'Completado', 
+                  {
+                    initiative: 'Capacitación en Multiplicación',
+                    status: 'Completado',
                     completion: 100,
-                    impact: 'Alto' 
-                  }
+                    impact: 'Alto',
+                  },
                 ].map((initiative, index) => (
                   <div key={index} className="border rounded-lg p-4">
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="font-medium">{initiative.initiative}</h4>
-                      <Badge 
+                      <Badge
                         variant={
-                          initiative.status === 'Completado' ? 'default' : 
-                          initiative.status === 'En Progreso' ? 'secondary' : 
-                          'outline'
+                          initiative.status === 'Completado'
+                            ? 'default'
+                            : initiative.status === 'En Progreso'
+                              ? 'secondary'
+                              : 'outline'
                         }
                       >
                         {initiative.status}
                       </Badge>
                     </div>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-muted-foreground">Impacto: {initiative.impact}</span>
+                      <span className="text-sm text-muted-foreground">
+                        Impacto: {initiative.impact}
+                      </span>
                       <span className="text-sm">{initiative.completion}%</span>
                     </div>
                     <Progress value={initiative.completion} className="h-1" />
@@ -333,13 +369,13 @@ const CoordinatorDashboard: React.FC = () => {
                       id="totalZones"
                       type="number"
                       value={quarterlyReport.ministryOverview?.totalZones || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          ministryOverview: { 
-                            ...prev.ministryOverview!, 
-                            totalZones: parseInt(e.target.value) || 0 
-                          }
+                          ministryOverview: {
+                            ...prev.ministryOverview!,
+                            totalZones: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -350,13 +386,13 @@ const CoordinatorDashboard: React.FC = () => {
                       id="totalGroups"
                       type="number"
                       value={quarterlyReport.ministryOverview?.totalGroups || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          ministryOverview: { 
-                            ...prev.ministryOverview!, 
-                            totalGroups: parseInt(e.target.value) || 0 
-                          }
+                          ministryOverview: {
+                            ...prev.ministryOverview!,
+                            totalGroups: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -367,13 +403,13 @@ const CoordinatorDashboard: React.FC = () => {
                       id="totalMembers"
                       type="number"
                       value={quarterlyReport.ministryOverview?.totalMembers || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          ministryOverview: { 
-                            ...prev.ministryOverview!, 
-                            totalMembers: parseInt(e.target.value) || 0 
-                          }
+                          ministryOverview: {
+                            ...prev.ministryOverview!,
+                            totalMembers: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -384,13 +420,13 @@ const CoordinatorDashboard: React.FC = () => {
                       id="quarterlyGrowth"
                       type="number"
                       value={quarterlyReport.ministryOverview?.quarterlyGrowth || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          ministryOverview: { 
-                            ...prev.ministryOverview!, 
-                            quarterlyGrowth: parseInt(e.target.value) || 0 
-                          }
+                          ministryOverview: {
+                            ...prev.ministryOverview!,
+                            quarterlyGrowth: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -410,13 +446,13 @@ const CoordinatorDashboard: React.FC = () => {
                       min="1"
                       max="10"
                       value={quarterlyReport.systemHealth?.leadershipStrength || 5}
-                      onChange={(e) =>
+                      onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          systemHealth: { 
-                            ...prev.systemHealth!, 
-                            leadershipStrength: parseInt(e.target.value) || 5 
-                          }
+                          systemHealth: {
+                            ...prev.systemHealth!,
+                            leadershipStrength: parseInt(e.target.value) || 5,
+                          },
                         }))
                       }
                     />
@@ -429,13 +465,13 @@ const CoordinatorDashboard: React.FC = () => {
                       min="1"
                       max="10"
                       value={quarterlyReport.systemHealth?.systemEfficiency || 5}
-                      onChange={(e) =>
+                      onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          systemHealth: { 
-                            ...prev.systemHealth!, 
-                            systemEfficiency: parseInt(e.target.value) || 5 
-                          }
+                          systemHealth: {
+                            ...prev.systemHealth!,
+                            systemEfficiency: parseInt(e.target.value) || 5,
+                          },
                         }))
                       }
                     />
@@ -448,13 +484,13 @@ const CoordinatorDashboard: React.FC = () => {
                       min="1"
                       max="10"
                       value={quarterlyReport.systemHealth?.memberSatisfaction || 5}
-                      onChange={(e) =>
+                      onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          systemHealth: { 
-                            ...prev.systemHealth!, 
-                            memberSatisfaction: parseInt(e.target.value) || 5 
-                          }
+                          systemHealth: {
+                            ...prev.systemHealth!,
+                            memberSatisfaction: parseInt(e.target.value) || 5,
+                          },
                         }))
                       }
                     />
@@ -472,19 +508,21 @@ const CoordinatorDashboard: React.FC = () => {
                       id="quarterProgress"
                       type="number"
                       value={quarterlyReport.strategicGoals?.quarterProgress || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          strategicGoals: { 
-                            ...prev.strategicGoals!, 
-                            quarterProgress: parseInt(e.target.value) || 0 
-                          }
+                          strategicGoals: {
+                            ...prev.strategicGoals!,
+                            quarterProgress: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
                   </div>
                   <div>
-                    <Label htmlFor="strategicAnalysis">Análisis de Tendencias y Oportunidades</Label>
+                    <Label htmlFor="strategicAnalysis">
+                      Análisis de Tendencias y Oportunidades
+                    </Label>
                     <Textarea
                       id="strategicAnalysis"
                       placeholder="Describe las principales tendencias observadas y oportunidades identificadas..."
@@ -492,7 +530,9 @@ const CoordinatorDashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="recommendations">Recomendaciones para el Próximo Trimestre</Label>
+                    <Label htmlFor="recommendations">
+                      Recomendaciones para el Próximo Trimestre
+                    </Label>
                     <Textarea
                       id="recommendations"
                       placeholder="Propuestas estratégicas y ajustes recomendados..."
@@ -502,8 +542,8 @@ const CoordinatorDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <Button 
-                onClick={handleSubmitQuarterlyReport} 
+              <Button
+                onClick={handleSubmitQuarterlyReport}
                 disabled={isSubmittingReport}
                 className="w-full"
                 size="lg"
@@ -525,9 +565,7 @@ const CoordinatorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Rendimiento por Zona</CardTitle>
-              <CardDescription>
-                Comparativo de métricas entre diferentes zonas
-              </CardDescription>
+              <CardDescription>Comparativo de métricas entre diferentes zonas</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -536,10 +574,18 @@ const CoordinatorDashboard: React.FC = () => {
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="font-semibold">{zone.zoneName}</h3>
-                        <p className="text-sm text-muted-foreground">Supervisor: {zone.supervisor}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Supervisor: {zone.supervisor}
+                        </p>
                       </div>
-                      <Badge 
-                        variant={zone.healthScore >= 8 ? 'default' : zone.healthScore >= 7 ? 'secondary' : 'outline'}
+                      <Badge
+                        variant={
+                          zone.healthScore >= 8
+                            ? 'default'
+                            : zone.healthScore >= 7
+                              ? 'secondary'
+                              : 'outline'
+                        }
                       >
                         Salud: {zone.healthScore}/10
                       </Badge>

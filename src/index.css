@@ -42,11 +42,11 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(220 90% 30%), hsl(45 93% 50%));
     --gradient-secondary: linear-gradient(135deg, hsl(220 20% 88%), hsl(220 15% 97%));
     --gradient-accent: linear-gradient(135deg, hsl(220 90% 30% / 0.08), hsl(45 93% 50% / 0.05));
-    
+
     /* Glass Morphism - Light */
     --glass-background: hsl(220 15% 99% / 0.8);
     --glass-border: hsl(220 26% 14% / 0.1);
-    
+
     /* Shadows - Light & Colorful */
     --shadow-primary: 0 25px 50px -12px hsl(220 90% 30% / 0.15);
     --shadow-accent: 0 10px 40px -15px hsl(220 90% 30% / 0.2);
@@ -100,11 +100,11 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(220 90% 30%), hsl(45 93% 50%));
     --gradient-secondary: linear-gradient(135deg, hsl(217 32.6% 17.5%), hsl(240 10% 3.9%));
     --gradient-accent: linear-gradient(135deg, hsl(220 90% 30% / 0.1), hsl(45 93% 50% / 0.05));
-    
+
     /* Dark glass morphism */
     --glass-background: hsl(240 10% 3.9% / 0.8);
     --glass-border: hsl(0 0% 98% / 0.1);
-    
+
     /* Dark shadows */
     --shadow-primary: 0 25px 50px -12px hsl(220 90% 30% / 0.25);
     --shadow-accent: 0 10px 40px -15px hsl(220 90% 30% / 0.4);

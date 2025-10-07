@@ -3,7 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -59,7 +65,7 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
                 id={field.key}
                 placeholder={field.placeholder || `Buscar por ${field.label.toLowerCase()}...`}
                 value={filters[field.key] || ''}
-                onChange={(e) => handleFilterChange(field.key, e.target.value)}
+                onChange={e => handleFilterChange(field.key, e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -72,13 +78,15 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
             <Label htmlFor={field.key}>{field.label}</Label>
             <Select
               value={filters[field.key] || ''}
-              onValueChange={(value) => handleFilterChange(field.key, value)}
+              onValueChange={value => handleFilterChange(field.key, value)}
             >
               <SelectTrigger id={field.key}>
-                <SelectValue placeholder={field.placeholder || `Seleccionar ${field.label.toLowerCase()}`} />
+                <SelectValue
+                  placeholder={field.placeholder || `Seleccionar ${field.label.toLowerCase()}`}
+                />
               </SelectTrigger>
               <SelectContent>
-                {field.options?.map((option) => (
+                {field.options?.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -103,14 +111,16 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters[field.key] ? format(filters[field.key], 'PPP') : field.placeholder || 'Seleccionar fecha'}
+                  {filters[field.key]
+                    ? format(filters[field.key], 'PPP')
+                    : field.placeholder || 'Seleccionar fecha'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={filters[field.key]}
-                  onSelect={(date) => handleFilterChange(field.key, date)}
+                  onSelect={date => handleFilterChange(field.key, date)}
                   initialFocus
                 />
               </PopoverContent>
@@ -151,7 +161,7 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
                 <Calendar
                   mode="range"
                   selected={filters[field.key]}
-                  onSelect={(range) => handleFilterChange(field.key, range)}
+                  onSelect={range => handleFilterChange(field.key, range)}
                   initialFocus
                 />
               </PopoverContent>
@@ -165,7 +175,7 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
             <Checkbox
               id={field.key}
               checked={filters[field.key] || false}
-              onCheckedChange={(checked) => handleFilterChange(field.key, checked)}
+              onCheckedChange={checked => handleFilterChange(field.key, checked)}
             />
             <Label htmlFor={field.key} className="cursor-pointer">
               {field.label}
@@ -178,7 +188,9 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
     }
   };
 
-  const activeFilterCount = Object.values(filters).filter(v => v !== '' && v !== undefined && v !== false).length;
+  const activeFilterCount = Object.values(filters).filter(
+    v => v !== '' && v !== undefined && v !== false
+  ).length;
 
   return (
     <Card>
@@ -197,7 +209,7 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   handleClear();
                 }}

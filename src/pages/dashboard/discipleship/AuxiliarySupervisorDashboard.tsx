@@ -7,15 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Users, 
-  TrendingUp, 
-  AlertTriangle, 
-  UserCheck, 
-  Send, 
+import {
+  Users,
+  TrendingUp,
+  AlertTriangle,
+  UserCheck,
+  Send,
   BarChart3,
   Target,
-  Clock
+  Clock,
 } from 'lucide-react';
 import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
 import { BiweeklyAuxiliaryReport } from '@/types/discipleship.types';
@@ -26,9 +26,14 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [stats, setStats] = useState<any>({});
   const [biweeklyReport, setBiweeklyReport] = useState<Partial<BiweeklyAuxiliaryReport>>({
-    groupsOverview: { totalGroups: 0, healthyGroups: 0, groupsNeedingAttention: [], newGroupsStarted: 0 },
+    groupsOverview: {
+      totalGroups: 0,
+      healthyGroups: 0,
+      groupsNeedingAttention: [],
+      newGroupsStarted: 0,
+    },
     leaderDevelopment: { trainingSessions: 0, leadersNeedingSupport: [], potentialNewLeaders: [] },
-    zoneMetrics: { totalAttendance: 0, growthPercentage: 0, newConversions: 0 }
+    zoneMetrics: { totalAttendance: 0, growthPercentage: 0, newConversions: 0 },
   });
 
   useEffect(() => {
@@ -46,9 +51,9 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
         ...biweeklyReport,
         supervisorId: 'current-user-id',
         periodStart: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        periodEnd: new Date().toISOString().split('T')[0]
+        periodEnd: new Date().toISOString().split('T')[0],
       } as BiweeklyAuxiliaryReport);
-      
+
       if (result.success) {
         toast({
           title: 'Reporte Enviado',
@@ -56,9 +61,18 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
         });
         // Reset form
         setBiweeklyReport({
-          groupsOverview: { totalGroups: 0, healthyGroups: 0, groupsNeedingAttention: [], newGroupsStarted: 0 },
-          leaderDevelopment: { trainingSessions: 0, leadersNeedingSupport: [], potentialNewLeaders: [] },
-          zoneMetrics: { totalAttendance: 0, growthPercentage: 0, newConversions: 0 }
+          groupsOverview: {
+            totalGroups: 0,
+            healthyGroups: 0,
+            groupsNeedingAttention: [],
+            newGroupsStarted: 0,
+          },
+          leaderDevelopment: {
+            trainingSessions: 0,
+            leadersNeedingSupport: [],
+            potentialNewLeaders: [],
+          },
+          zoneMetrics: { totalAttendance: 0, growthPercentage: 0, newConversions: 0 },
         });
       }
     } catch (error) {
@@ -73,10 +87,34 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
   };
 
   const groupsData = [
-    { name: 'Célula Esperanza', leader: 'Roberto Silva', members: 12, attendance: 85, status: 'Saludable' },
-    { name: 'Juventud Victoriosa', leader: 'Carmen Torres', members: 18, attendance: 92, status: 'Multiplicando' },
-    { name: 'Familia en Cristo', leader: 'Miguel Herrera', members: 8, attendance: 78, status: 'Saludable' },
-    { name: 'Guerreros de Fe', leader: 'Ana Ruiz', members: 10, attendance: 65, status: 'Necesita Atención' }
+    {
+      name: 'Célula Esperanza',
+      leader: 'Roberto Silva',
+      members: 12,
+      attendance: 85,
+      status: 'Saludable',
+    },
+    {
+      name: 'Juventud Victoriosa',
+      leader: 'Carmen Torres',
+      members: 18,
+      attendance: 92,
+      status: 'Multiplicando',
+    },
+    {
+      name: 'Familia en Cristo',
+      leader: 'Miguel Herrera',
+      members: 8,
+      attendance: 78,
+      status: 'Saludable',
+    },
+    {
+      name: 'Guerreros de Fe',
+      leader: 'Ana Ruiz',
+      members: 10,
+      attendance: 65,
+      status: 'Necesita Atención',
+    },
   ];
 
   return (
@@ -238,9 +276,7 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Grupos Bajo Supervisión</CardTitle>
-              <CardDescription>
-                Estado actual de los grupos asignados
-              </CardDescription>
+              <CardDescription>Estado actual de los grupos asignados</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -251,11 +287,13 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                         <h3 className="font-semibold">{group.name}</h3>
                         <p className="text-sm text-muted-foreground">Líder: {group.leader}</p>
                       </div>
-                      <Badge 
+                      <Badge
                         variant={
-                          group.status === 'Saludable' ? 'default' : 
-                          group.status === 'Multiplicando' ? 'secondary' : 
-                          'destructive'
+                          group.status === 'Saludable'
+                            ? 'default'
+                            : group.status === 'Multiplicando'
+                              ? 'secondary'
+                              : 'destructive'
                         }
                       >
                         {group.status}
@@ -287,9 +325,7 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Reporte Quincenal</CardTitle>
-              <CardDescription>
-                Consolidación de grupos y desarrollo de líderes
-              </CardDescription>
+              <CardDescription>Consolidación de grupos y desarrollo de líderes</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Groups Overview */}
@@ -302,13 +338,13 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                       id="totalGroups"
                       type="number"
                       value={biweeklyReport.groupsOverview?.totalGroups || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setBiweeklyReport(prev => ({
                           ...prev,
-                          groupsOverview: { 
-                            ...prev.groupsOverview!, 
-                            totalGroups: parseInt(e.target.value) || 0 
-                          }
+                          groupsOverview: {
+                            ...prev.groupsOverview!,
+                            totalGroups: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -319,13 +355,13 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                       id="healthyGroups"
                       type="number"
                       value={biweeklyReport.groupsOverview?.healthyGroups || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setBiweeklyReport(prev => ({
                           ...prev,
-                          groupsOverview: { 
-                            ...prev.groupsOverview!, 
-                            healthyGroups: parseInt(e.target.value) || 0 
-                          }
+                          groupsOverview: {
+                            ...prev.groupsOverview!,
+                            healthyGroups: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -351,13 +387,13 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                       id="trainingSessions"
                       type="number"
                       value={biweeklyReport.leaderDevelopment?.trainingSessions || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setBiweeklyReport(prev => ({
                           ...prev,
-                          leaderDevelopment: { 
-                            ...prev.leaderDevelopment!, 
-                            trainingSessions: parseInt(e.target.value) || 0 
-                          }
+                          leaderDevelopment: {
+                            ...prev.leaderDevelopment!,
+                            trainingSessions: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -368,13 +404,13 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                       id="totalAttendance"
                       type="number"
                       value={biweeklyReport.zoneMetrics?.totalAttendance || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setBiweeklyReport(prev => ({
                           ...prev,
-                          zoneMetrics: { 
-                            ...prev.zoneMetrics!, 
-                            totalAttendance: parseInt(e.target.value) || 0 
-                          }
+                          zoneMetrics: {
+                            ...prev.zoneMetrics!,
+                            totalAttendance: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -400,8 +436,8 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <Button 
-                onClick={handleSubmitBiweeklyReport} 
+              <Button
+                onClick={handleSubmitBiweeklyReport}
                 disabled={isSubmittingReport}
                 className="w-full"
                 size="lg"
@@ -423,32 +459,62 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Desarrollo de Líderes</CardTitle>
-              <CardDescription>
-                Seguimiento y capacitación de líderes
-              </CardDescription>
+              <CardDescription>Seguimiento y capacitación de líderes</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {[
-                  { name: 'Roberto Silva', group: 'Célula Esperanza', level: 'Avanzado', lastTraining: '15 Sep 2024', status: 'Activo' },
-                  { name: 'Carmen Torres', group: 'Juventud Victoriosa', level: 'Experto', lastTraining: '10 Sep 2024', status: 'Listo para Multiplicar' },
-                  { name: 'Miguel Herrera', group: 'Familia en Cristo', level: 'Intermedio', lastTraining: '12 Sep 2024', status: 'En Desarrollo' },
-                  { name: 'Ana Ruiz', group: 'Guerreros de Fe', level: 'Básico', lastTraining: '05 Sep 2024', status: 'Necesita Apoyo' }
+                  {
+                    name: 'Roberto Silva',
+                    group: 'Célula Esperanza',
+                    level: 'Avanzado',
+                    lastTraining: '15 Sep 2024',
+                    status: 'Activo',
+                  },
+                  {
+                    name: 'Carmen Torres',
+                    group: 'Juventud Victoriosa',
+                    level: 'Experto',
+                    lastTraining: '10 Sep 2024',
+                    status: 'Listo para Multiplicar',
+                  },
+                  {
+                    name: 'Miguel Herrera',
+                    group: 'Familia en Cristo',
+                    level: 'Intermedio',
+                    lastTraining: '12 Sep 2024',
+                    status: 'En Desarrollo',
+                  },
+                  {
+                    name: 'Ana Ruiz',
+                    group: 'Guerreros de Fe',
+                    level: 'Básico',
+                    lastTraining: '05 Sep 2024',
+                    status: 'Necesita Apoyo',
+                  },
                 ].map((leader, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div>
                       <p className="font-medium">{leader.name}</p>
                       <p className="text-sm text-muted-foreground">{leader.group}</p>
-                      <p className="text-xs text-muted-foreground">Último entrenamiento: {leader.lastTraining}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Último entrenamiento: {leader.lastTraining}
+                      </p>
                     </div>
                     <div className="flex items-center space-x-4">
                       <Badge variant="outline">{leader.level}</Badge>
-                      <Badge 
+                      <Badge
                         variant={
-                          leader.status === 'Activo' ? 'default' : 
-                          leader.status === 'Listo para Multiplicar' ? 'secondary' : 
-                          leader.status === 'En Desarrollo' ? 'outline' :
-                          'destructive'
+                          leader.status === 'Activo'
+                            ? 'default'
+                            : leader.status === 'Listo para Multiplicar'
+                              ? 'secondary'
+                              : leader.status === 'En Desarrollo'
+                                ? 'outline'
+                                : 'destructive'
                         }
                       >
                         {leader.status}
