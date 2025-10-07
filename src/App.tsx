@@ -19,8 +19,58 @@ import ProfilePage from "./pages/dashboard/ProfilePage";
 import DiscipleshipPage from "./pages/dashboard/DiscipleshipPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
+import { LoadingProvider, useLoadingContext } from "./contexts/LoadingContext";
+import { LoadingOverlay } from "./components/LoadingOverlay";
+import { setLoadingCallbacks } from "./services/api.service";
+import { setDashboardLoadingCallbacks } from "./services/dashboard.service";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
+
+const AppContent = () => {
+  const { isFetching, isSubmitting, setFetching, setSubmitting } = useLoadingContext();
+
+  useEffect(() => {
+    // Configurar callbacks de loading para los servicios
+    setLoadingCallbacks({ setFetching, setSubmitting });
+    setDashboardLoadingCallbacks({ setFetching });
+  }, [setFetching, setSubmitting]);
+
+  return (
+    <>
+      <LoadingOverlay isLoading={isFetching} variant="fetching" />
+      <LoadingOverlay isLoading={isSubmitting} variant="submitting" />
+      <BrowserRouter>
+        <Toaster />
+        <Sonner />
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            } 
+          >
+            <Route index element={<DashboardHome />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="register-user" element={<RegisterUserPage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="events" element={<EventsPage />} />
+            <Route path="role-management" element={<RoleManagementPage />} />
+            <Route path="roles" element={<RolesPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="discipleship" element={<DiscipleshipPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -31,36 +81,11 @@ const App = () => (
       disableTransitionOnChange
     >
       <TooltipProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              <Route path="/" element={<Login />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route 
-                path="/dashboard" 
-                element={
-                  <ProtectedRoute>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                } 
-              >
-                <Route index element={<DashboardHome />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="register-user" element={<RegisterUserPage />} />
-                <Route path="reports" element={<ReportsPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="events" element={<EventsPage />} />
-                <Route path="role-management" element={<RoleManagementPage />} />
-                <Route path="roles" element={<RolesPage />} />
-                <Route path="profile" element={<ProfilePage />} />
-                <Route path="discipleship" element={<DiscipleshipPage />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
+        <LoadingProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </LoadingProvider>
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>

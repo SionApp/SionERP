@@ -1,21 +1,39 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Filter, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import EditUserModal from '@/components/EditUserModal';
+import { DynamicFilter, FilterField, FilterValues } from '@/components/DynamicFilter';
 import { User } from '@/types/user.types';
 import { UserService } from '@/services/user.service';
 
 const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState<FilterValues>({});
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const navigate = useNavigate();
+
+  const filterFields: FilterField[] = [
+    { key: 'search', label: 'Búsqueda general', type: 'text', placeholder: 'Nombre, email o cédula...' },
+    { 
+      key: 'role', 
+      label: 'Rol', 
+      type: 'select',
+      options: [
+        { value: 'pastor', label: 'Pastor' },
+        { value: 'staff', label: 'Staff' },
+        { value: 'supervisor', label: 'Supervisor' },
+        { value: 'server', label: 'Servidor' },
+      ]
+    },
+    { key: 'baptized', label: 'Solo bautizados', type: 'boolean' },
+    { key: 'whatsapp', label: 'Con WhatsApp', type: 'boolean' },
+    { key: 'created_at', label: 'Fecha de registro', type: 'dateRange' },
+  ];
 
   useEffect(() => {
     loadUsers();
@@ -34,12 +52,48 @@ const UsersPage = () => {
     }
   };
 
-  const filteredUsers = users.filter(user =>
-    user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.id_number.includes(searchTerm)
-  );
+  const filteredUsers = users.filter(user => {
+    // Búsqueda general
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      const matchesSearch = 
+        user.first_name.toLowerCase().includes(searchLower) ||
+        user.last_name.toLowerCase().includes(searchLower) ||
+        user.email.toLowerCase().includes(searchLower) ||
+        user.id_number.includes(filters.search);
+      
+      if (!matchesSearch) return false;
+    }
+
+    // Filtro por rol
+    if (filters.role && user.role !== filters.role) {
+      return false;
+    }
+
+    // Filtro por bautizado
+    if (filters.baptized && !user.baptized) {
+      return false;
+    }
+
+    // Filtro por WhatsApp
+    if (filters.whatsapp && !user.whatsapp) {
+      return false;
+    }
+
+    // Filtro por rango de fechas
+    if (filters.created_at?.from) {
+      const userDate = new Date(user.created_at);
+      const fromDate = new Date(filters.created_at.from);
+      if (userDate < fromDate) return false;
+      
+      if (filters.created_at.to) {
+        const toDate = new Date(filters.created_at.to);
+        if (userDate > toDate) return false;
+      }
+    }
+
+    return true;
+  });
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
@@ -96,31 +150,12 @@ const UsersPage = () => {
         </Button>
       </div>
 
-      {/* Search and Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Buscar por nombre, email o cédula..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Button variant="outline">
-              <Filter className="h-4 w-4 mr-2" />
-              Filtros
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Dynamic Filters */}
+      <DynamicFilter
+        fields={filterFields}
+        onFilterChange={setFilters}
+        onClear={() => setFilters({})}
+      />
 
       {/* Users List */}
       <Card>
