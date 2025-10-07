@@ -17,13 +17,11 @@ import {
   Phone,
   MapPin,
   Calendar,
-  Shield,
   Bell,
   Lock,
   Settings,
   Heart,
   Users,
-  Clock,
   Edit,
   Camera,
 } from 'lucide-react';
@@ -54,6 +52,7 @@ const ProfilePage = () => {
 
   useEffect(() => {
     loadUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const initialWordName = () => {
