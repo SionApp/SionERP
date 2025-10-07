@@ -1,16 +1,21 @@
+// Package handlers contiene los controladores para manejar las solicitudes HTTP relacionadas con usuarios.
 package handlers
 
 import (
 	"backend-sion/config"
+	"backend-sion/database"
 	"backend-sion/models"
 	"database/sql"
 	"fmt"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
 type UserHandler struct{}
+
+var validate = validator.New()
 
 type CreateUserRequest struct {
 	FirstName string `json:"first_name" validate:"required,min=2"`
@@ -82,12 +87,12 @@ func NewUserHandler() *UserHandler {
 func (h *UserHandler) GetUsers(c echo.Context) error {
 	query := `
 		SELECT id, first_name, last_name, id_number, email, phone, address,
-			   birth_date, marital_status, occupation, education_level, 
+			   birth_date, marital_status, occupation, education_level,
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
 			   whatsapp, created_at, updated_at
-		FROM users 
+		FROM users
 		WHERE is_active = true
 		ORDER BY created_at DESC
 	`
@@ -146,12 +151,12 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 
 	query := `
 		SELECT id, first_name, last_name, id_number, email, phone, address,
-			   birth_date, marital_status, occupation, education_level, 
+			   birth_date, marital_status, occupation, education_level,
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
 			   whatsapp, created_at, updated_at
-		FROM users 
+		FROM users
 		WHERE id = $1
 	`
 	var user models.User
@@ -201,7 +206,7 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 	query := `
 		INSERT INTO users (
 			first_name, last_name, id_number, email, phone, address, password_hash,
-			birth_date, marital_status, occupation, education_level, 
+			birth_date, marital_status, occupation, education_level,
 			how_found_church, ministry_interest, first_visit_date,
 			baptized, baptism_date, is_active_member, membership_date,
 			cell_group, role, pastoral_notes, whatsapp
@@ -236,23 +241,74 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 // UpdateUser actualiza un usuario existente
 func (h *UserHandler) UpdateUser(c echo.Context) error {
 	userID := c.Param("id")
+	currentUserID := c.Get("user_id").(string)
+	currentUserRole := c.Get("role").(string)
 
 	var req UpdateUserRequest
 
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request body",
+		c.Logger().Error("Bind error in UpdateUser: ", err)
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid request body",
+			"message": err.Error(),
 		})
 	}
 
-	// TODO: Validate request data
-	// TODO: Check role-based authorization
-	// TODO: Update user in database
+	if currentUserID != userID && (currentUserRole != "pastor" && currentUserRole != "staff") {
+		c.Logger().Error("Unauthorized access in UpdateUser: ", currentUserID, " is not allowed to update user ", userID)
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error":   "Unauthorized",
+			"message": "You are not allowed to update this user",
+		})
+	}
 
-	// For now, return success
+	if err := validate.Struct(req); err != nil {
+
+		validationErrors := err.(validator.ValidationErrors)
+
+		errorMessages := make(map[string]string)
+		for _, fieldError := range validationErrors {
+			errorMessages[fieldError.Field()] = fmt.Sprintf("Validation error: %s", fieldError.Error())
+		}
+		c.Logger().Error("Validation error in UpdateUser: ", err)
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Validation error",
+			"message": errorMessages,
+		})
+	}
+
+	query, args, err := database.BuildUpdateQuery(&req, "users", "id", userID)
+	if err != nil {
+		c.Logger().Error("Error building update query: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error building update query",
+			"message": err.Error(),
+		})
+	}
+
+	result, err := config.GetDB().DB.Exec(query, args...)
+	if err != nil {
+		c.Logger().Error(fmt.Sprintf("Database error in UpdateUser for user %s: %v", userID, err))
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error updating user",
+			"message": err.Error(),
+			"details": "Database update failed",
+		})
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s", userID))
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error":   "User not found",
+			"message": fmt.Sprintf("User with ID %s does not exist", userID),
+		})
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "User updated successfully",
 		"user_id": userID,
+		"user":    req,
 	})
 }
 
@@ -282,12 +338,12 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 
 	query := `
 		SELECT id, first_name, last_name, id_number, email, phone, address,
-			   birth_date, marital_status, occupation, education_level, 
+			   birth_date, marital_status, occupation, education_level,
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
 			   whatsapp, created_at, updated_at
-		FROM users 
+		FROM users
 		WHERE id = $1
 	`
 	var user models.User
@@ -300,7 +356,6 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
 		&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.Logger().Warn(fmt.Sprintf("Current user not found in database with ID: %s", userID))
@@ -343,7 +398,7 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 	}
 
 	query := `
-		UPDATE users 
+		UPDATE users
 		SET first_name = $1, last_name = $2, phone = $3, address = $4,
 			birth_date = $5, marital_status = $6, occupation = $7, education_level = $8,
 			how_found_church = $9, ministry_interest = $10, first_visit_date = $11,

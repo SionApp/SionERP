@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { CreateUserData, UpdateUserData, User } from '@/types/user.types';
+import { CreateUserData, UpdateUserData, UpdateUserRequest, User } from '@/types/user.types';
 import { ApiService } from './api.service';
 
 export class UserService {
@@ -63,7 +63,7 @@ export class UserService {
 
       const { data, error } = await supabase
         .from('users')
-        .insert(dbData as never)
+        .insert(dbData as never) // TODO: Fix type error
         .select()
         .single();
 
@@ -84,20 +84,12 @@ export class UserService {
       // Only update the fields that are provided and remove undefined values
       const updateData = Object.fromEntries(
         Object.entries(userData).filter(([key, value]) => key !== 'id' && value !== undefined)
-      ) as never;
+      ) as UpdateUserRequest;
 
-      const { data, error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('id', userData.id)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await ApiService.put<User>(`/users/${userData.id}`, updateData);
 
       return {
         ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error updating user:', error);

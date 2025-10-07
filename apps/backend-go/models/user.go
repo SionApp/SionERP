@@ -1,3 +1,4 @@
+// Package models contiene los modelos de la base de datos
 package models
 
 import (

@@ -82,3 +82,24 @@ export interface UpdateUserData {
   emergency_contact_phone?: string;
   is_active?: boolean;
 }
+
+export interface UpdateUserRequest {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  address?: string;
+  birth_date?: string;
+  marital_status?: string;
+  occupation?: string;
+  education_level?: string;
+  how_found_church?: string;
+  ministry_interest?: string;
+  first_visit_date?: string;
+  baptized?: boolean;
+  baptism_date?: string;
+  is_active_member?: boolean;
+  membership_date?: string;
+  cell_group?: string;
+  whatsapp?: boolean;
+  pastoral_notes?: string;
+}
