@@ -9,6 +9,7 @@ export interface User {
   first_name?: string;
   last_name?: string;
   cedula?: string;
+  identification_number?: string;
   correo?: string;
   telefono?: string;
   phone?: string;
@@ -21,6 +22,7 @@ export interface User {
   emergency_contact_phone?: string;
   id_number?: string;
   baptized?: boolean;
+  baptism_date?: string;
   bautizado?: boolean;
   marital_status?: string;
   occupation?: string;
@@ -44,9 +46,12 @@ export interface CreateUserData {
   correo?: string;
   password?: string;
   full_name?: string;
+  first_name?: string;
+  last_name?: string;
   nombres?: string;
   apellidos?: string;
   cedula?: string;
+  identification_number?: string;
   telefono?: string;
   phone?: string;
   whatsapp?: boolean;
@@ -64,9 +69,11 @@ export interface CreateUserData {
   first_visit_date?: string;
   cell_group?: string;
   fecha_bautizo?: string;
+  baptism_date?: string;
   membership_date?: string;
   pastoral_notes?: string;
   bautizado?: boolean;
+  baptized?: boolean;
   is_active_member?: boolean;
 }
 
