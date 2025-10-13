@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {format, parseISO} from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,12 +41,19 @@ const RegisterUserPage = () => {
     }
   }, [userId]);
 
+
+  const formatDate = (dateString: string) => {
+    const date =  dateString ? format(parseISO(dateString), 'dd/MM/yyyy') : null;
+    return date;
+  }
+
+
   const loadUserForEdit = async (id: string) => {
     try {
       setLoading(true);
       const user = await UserService.getUserById(id);
       setEditingUser(user);
-      console.log('user', user);
+      
 
       // Poblar el formulario con los datos del usuario
       reset({
@@ -56,7 +64,7 @@ const RegisterUserPage = () => {
         phone: user.phone || '',
         address: user.address || '',
         role: user.role,
-        birth_date: user.birth_date || '',
+        birth_date: formatDate(user.birth_date) || '',
         baptized: user.baptized || false,
         whatsapp: user.whatsapp || false,
         marital_status: user.marital_status || '',
@@ -66,13 +74,14 @@ const RegisterUserPage = () => {
         ministry_interest: user.ministry_interest || '',
         first_visit_date: user.first_visit_date || '',
         cell_group: user.cell_group || '',
-        baptism_date: user.baptism_date || '',
+        baptism_date: formatDate(user.baptism_date) || '',
         membership_date: user.membership_date || '',
         pastoral_notes: user.pastoral_notes || '',
         is_active_member: user.is_active_member || false,
         emergency_contact_name: user.emergency_contact_name || '',
         emergency_contact_phone: user.emergency_contact_phone || '',
       });
+      console.log('user', user.baptism_date);
     } catch (error) {
       console.error('Error loading user:', error);
       toast.error('Error al cargar los datos del usuario');
@@ -333,7 +342,7 @@ const RegisterUserPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="cell_group">Grupo Celular</Label>
+                  <Label htmlFor="cell_group">Grupo o Celula</Label>
                   <Input
                     id="cell_group"
                     {...register('cell_group')}
