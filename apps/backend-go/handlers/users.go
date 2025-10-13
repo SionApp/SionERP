@@ -17,38 +17,38 @@ type UserHandler struct{}
 
 var validate = validator.New()
 
-type CreateUserRequest struct {
-	FirstName string `json:"first_name" validate:"required,min=2"`
-	LastName  string `json:"last_name" validate:"required,min=2"`
-	IdNumber  string `json:"id_number" validate:"required,min=8"`
-	Email     string `json:"email" validate:"required,email"`
-	Phone     string `json:"phone" validate:"required,min=10"`
-	Address   string `json:"address" validate:"required,min=5"`
-	Password  string `json:"password" validate:"required,min=6"`
+// type CreateUserRequest struct {
+// 	FirstName string `json:"first_name" validate:"required,min=2"`
+// 	LastName  string `json:"last_name" validate:"required,min=2"`
+// 	IdNumber  string `json:"id_number" validate:"required,min=8"`
+// 	Email     string `json:"email" validate:"required,email"`
+// 	Phone     string `json:"phone" validate:"required,min=10"`
+// 	Address   string `json:"address" validate:"required,min=5"`
+// 	Password  string `json:"password" validate:"required,min=6"`
 
-	// Extended fields
-	BirthDate        *string `json:"birth_date,omitempty"`
-	MaritalStatus    *string `json:"marital_status,omitempty"`
-	Occupation       *string `json:"occupation,omitempty"`
-	EducationLevel   *string `json:"education_level,omitempty"`
-	HowFoundChurch   *string `json:"how_found_church,omitempty"`
-	MinistryInterest *string `json:"ministry_interest,omitempty"`
-	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
+// 	// Extended fields
+// 	BirthDate        *string `json:"birth_date,omitempty"`
+// 	MaritalStatus    *string `json:"marital_status,omitempty"`
+// 	Occupation       *string `json:"occupation,omitempty"`
+// 	EducationLevel   *string `json:"education_level,omitempty"`
+// 	HowFoundChurch   *string `json:"how_found_church,omitempty"`
+// 	MinistryInterest *string `json:"ministry_interest,omitempty"`
+// 	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
 
-	// Church membership
-	Baptized       bool    `json:"baptized"`
-	BaptismDate    *string `json:"baptism_date,omitempty"`
-	IsActiveMember bool    `json:"is_active_member"`
-	MembershipDate *string `json:"membership_date,omitempty"`
+// 	// Church membership
+// 	Baptized       bool    `json:"baptized"`
+// 	BaptismDate    *string `json:"baptism_date,omitempty"`
+// 	IsActiveMember bool    `json:"is_active_member"`
+// 	MembershipDate *string `json:"membership_date,omitempty"`
 
-	// Cell group
-	CellGroup *string `json:"cell_group,omitempty"`
+// 	// Cell group
+// 	CellGroup *string `json:"cell_group,omitempty"`
 
-	// Role and preferences
-	Role          string  `json:"role" validate:"required,oneof=pastor staff supervisor server"`
-	WhatsApp      bool    `json:"whatsapp"`
-	PastoralNotes *string `json:"pastoral_notes,omitempty"`
-}
+// 	// Role and preferences
+// 	Role          string  `json:"role" validate:"required,oneof=pastor staff supervisor server"`
+// 	WhatsApp      bool    `json:"whatsapp"`
+// 	PastoralNotes *string `json:"pastoral_notes,omitempty"`
+// }
 
 type UpdateUserRequest struct {
 	FirstName *string `json:"first_name,omitempty" validate:"omitempty,min=2"`
@@ -155,7 +155,7 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
-			   whatsapp, created_at, updated_at
+			   whatsapp,created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -189,7 +189,7 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 
 // CreateUser crea un nuevo usuario
 func (h *UserHandler) CreateUser(c echo.Context) error {
-	var req CreateUserRequest
+	var req models.User
 
 	if err := c.Bind(&req); err != nil {
 		c.Logger().Error("Bind error in CreateUser: ", err)
