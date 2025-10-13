@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {format, parseISO} from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import { UserPlus, Save } from 'lucide-react';
 import { registerUserSchema, RegisterUserFormData } from '@/schemas/user.schemas';
 import { UserService } from '@/services/user.service';
 import { User } from '@/types/user.types';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const RegisterUserPage = () => {
   const [loading, setLoading] = useState(false);
@@ -27,9 +28,66 @@ const RegisterUserPage = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
-
+  const {
+    canManageRoles,
+    canViewPastoralNotes,
+    isLoading: isLoadingPermissions,
+  } = usePermissions();
   // Obtener userId del state de navegación
   const userId = location.state?.userId;
+  console.log('permissions', { canManageRoles, canViewPastoralNotes, isLoadingPermissions });
+
+  const formatDateForInput = (dateString: string) => {
+    const date = dateString ? format(parseISO(dateString), 'yyyy-MM-dd') : '';
+    return date;
+  };
+
+  const loadUserForEdit = useCallback(
+    async (id: string) => {
+      try {
+        setLoading(true);
+        const user = await UserService.getUserById(id);
+        console.log('user', user);
+        setEditingUser(user);
+        console.log('editingUser', editingUser);
+
+        // Poblar el formulario con los datos del usuario
+        reset({
+          email: user.email,
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
+          id_number: user.id_number || '',
+          phone: user.phone || '',
+          address: user.address || '',
+          role: user.role,
+          birth_date: formatDateForInput(user.birth_date) || '',
+          baptized: user.baptized || false,
+          whatsapp: user.whatsapp || false,
+          marital_status: user.marital_status || '',
+          occupation: user.occupation || '',
+          education_level: user.education_level || '',
+          how_found_church: user.how_found_church || '',
+          ministry_interest: user.ministry_interest || '',
+          first_visit_date: formatDateForInput(user.first_visit_date) || '',
+          cell_group: user.cell_group || '',
+          baptism_date: formatDateForInput(user.baptism_date) || '',
+          membership_date: formatDateForInput(user.membership_date) || '',
+          pastoral_notes: user.pastoral_notes || '',
+          is_active_member: user.is_active_member || false,
+          emergency_contact_name: user.emergency_contact_name || '',
+          emergency_contact_phone: user.emergency_contact_phone || '',
+        });
+        console.log('user', user.baptism_date);
+      } catch (error) {
+        console.error('Error loading user:', error);
+        toast.error('Error al cargar los datos del usuario');
+        navigate('/dashboard/users');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [navigate, setLoading, setEditingUser]
+  );
 
   // useEffect para cargar datos del usuario si estamos editando
   useEffect(() => {
@@ -39,57 +97,7 @@ const RegisterUserPage = () => {
     } else {
       setIsEditMode(false);
     }
-  }, [userId]);
-
-
-  const formatDate = (dateString: string) => {
-    const date =  dateString ? format(parseISO(dateString), 'dd/MM/yyyy') : null;
-    return date;
-  }
-
-
-  const loadUserForEdit = async (id: string) => {
-    try {
-      setLoading(true);
-      const user = await UserService.getUserById(id);
-      setEditingUser(user);
-      
-
-      // Poblar el formulario con los datos del usuario
-      reset({
-        email: user.email,
-        first_name: user.first_name || '',
-        last_name: user.last_name || '',
-        id_number: user.id_number || '',
-        phone: user.phone || '',
-        address: user.address || '',
-        role: user.role,
-        birth_date: formatDate(user.birth_date) || '',
-        baptized: user.baptized || false,
-        whatsapp: user.whatsapp || false,
-        marital_status: user.marital_status || '',
-        occupation: user.occupation || '',
-        education_level: user.education_level || '',
-        how_found_church: user.how_found_church || '',
-        ministry_interest: user.ministry_interest || '',
-        first_visit_date: user.first_visit_date || '',
-        cell_group: user.cell_group || '',
-        baptism_date: formatDate(user.baptism_date) || '',
-        membership_date: user.membership_date || '',
-        pastoral_notes: user.pastoral_notes || '',
-        is_active_member: user.is_active_member || false,
-        emergency_contact_name: user.emergency_contact_name || '',
-        emergency_contact_phone: user.emergency_contact_phone || '',
-      });
-      console.log('user', user.baptism_date);
-    } catch (error) {
-      console.error('Error loading user:', error);
-      toast.error('Error al cargar los datos del usuario');
-      navigate('/dashboard/users');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [userId, loadUserForEdit, setIsEditMode]);
 
   const {
     register,
@@ -112,7 +120,7 @@ const RegisterUserPage = () => {
   const isActiveMember = watch('is_active_member');
 
   // Handler para mostrar errores de validación
-  const onError = (errors: any) => {
+  const onError = (errors: Record<string, { message?: string }>) => {
     console.log('Errores de validación:', errors);
 
     // Obtener el primer error para mostrarlo
@@ -127,7 +135,7 @@ const RegisterUserPage = () => {
     }
 
     // Mostrar todos los errores en consola
-    Object.entries(errors).forEach(([field, error]: [string, any]) => {
+    Object.entries(errors).forEach(([field, error]: [string, { message?: string }]) => {
       console.log(`Campo "${field}":`, error.message);
     });
   };
@@ -220,15 +228,9 @@ const RegisterUserPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="cedula">Cédula *</Label>
-                  <Input
-                    id="cedula"
-                    {...register('id_number')}
-                    placeholder="Número de cédula"
-                  />
+                  <Input id="cedula" {...register('id_number')} placeholder="Número de cédula" />
                   {errors.id_number && (
-                    <p className="text-sm text-destructive">
-                      {errors.id_number.message}
-                    </p>
+                    <p className="text-sm text-destructive">{errors.id_number.message}</p>
                   )}
                 </div>
 
@@ -280,7 +282,10 @@ const RegisterUserPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="marital_status">Estado Civil</Label>
-                  <Select onValueChange={value => setValue('marital_status', value)}>
+                  <Select
+                    value={watch('marital_status')}
+                    onValueChange={value => setValue('marital_status', value)}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona estado civil" />
                     </SelectTrigger>
@@ -304,7 +309,10 @@ const RegisterUserPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="education_level">Nivel Educativo</Label>
-                  <Select onValueChange={value => setValue('education_level', value)}>
+                  <Select
+                    value={watch('education_level')}
+                    onValueChange={value => setValue('education_level', value)}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona nivel educativo" />
                     </SelectTrigger>
@@ -372,44 +380,47 @@ const RegisterUserPage = () => {
               </div>
             </div>
 
-            {/* Role and Configuration */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Rol y Configuración</h3>
-              <div className="grid gap-4 md:grid-cols-2">
+            {/* Role and Configuration - Solo visible para staff y pastor */}
+            {!isLoadingPermissions && canManageRoles && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Rol y Configuración</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Rol *</Label>
+                    <Select
+                      value={watch('role')}
+                      onValueChange={value =>
+                        setValue('role', value as 'pastor' | 'staff' | 'supervisor' | 'server')
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un rol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="server">Servidor</SelectItem>
+                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                        <SelectItem value="staff">Staff</SelectItem>
+                        <SelectItem value="pastor">Pastor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {errors.role && (
+                      <p className="text-sm text-destructive">{errors.role.message}</p>
+                    )}
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="role">Rol *</Label>
-                  <Select
-                    onValueChange={value =>
-                      setValue('role', value as 'pastor' | 'staff' | 'supervisor' | 'server')
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="server">Servidor</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="staff">Staff</SelectItem>
-                      <SelectItem value="pastor">Pastor</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.role && <p className="text-sm text-destructive">{errors.role.message}</p>}
+                  <Label htmlFor="pastoral_notes">Notas Pastorales (Solo Admin)</Label>
+                  <textarea
+                    id="pastoral_notes"
+                    {...register('pastoral_notes')}
+                    className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder="Notas adicionales sobre el miembro"
+                  />
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Notes for Admin */}
-            <div className="space-y-2">
-              <Label htmlFor="pastoral_notes">Notas Pastorales (Solo Admin)</Label>
-              <textarea
-                id="pastoral_notes"
-                {...register('pastoral_notes')}
-                className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="Notas adicionales sobre el miembro"
-              />
-            </div>
-
-            {/* Options */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Configuraciones</h3>
               <div className="space-y-4">

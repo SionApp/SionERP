@@ -128,7 +128,7 @@ export class UserService {
   static async getUserById(userId: string): Promise<User> {
     try {
       const data = await ApiService.get<User>(`/users/${userId}`);
-
+      console.log(data, 'backend');
       return {
         ...data,
         full_name: `${data.first_name} ${data.last_name}`.trim(),
