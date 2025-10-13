@@ -1,4 +1,3 @@
-import { supabase } from '@/integrations/supabase/client';
 import { CreateUserData, UpdateUserData, UpdateUserRequest, User } from '@/types/user.types';
 import { ApiService } from './api.service';
 
@@ -40,15 +39,15 @@ export class UserService {
       // Transform CreateUserData to match database schema
       const dbData = {
         email: userData.email || '',
-        first_name: userData.full_name?.split(' ')[0] || userData.nombres || '',
-        last_name: userData.full_name?.split(' ').slice(1).join(' ') || userData.apellidos || '',
-        phone: userData.phone || userData.telefono || '',
-        address: userData.address || userData.direccion || '',
-        id_number: userData.cedula || '',
+        first_name: userData.first_name || '',
+        last_name: userData.last_name || '',
+        phone: userData.phone || '',
+        address: userData.address || '',
+        id_number: userData.identification_number || '',
         password_hash: userData.password || 'temp', // This should be hashed
         role: (userData.role === 'admin' ? 'pastor' : userData.role || 'server') as string,
         birth_date: userData.birth_date,
-        baptized: userData.bautizado || false,
+        baptized: userData.baptized || false,
         whatsapp: userData.whatsapp || false,
         marital_status: userData.marital_status,
         occupation: userData.occupation,
@@ -59,15 +58,14 @@ export class UserService {
         cell_group: userData.cell_group,
         pastoral_notes: userData.pastoral_notes,
         is_active_member: userData.is_active_member || false,
+        baptism_date: userData.baptism_date,
+        membership_date: userData.membership_date,
+        emergency_contact_name: userData.emergency_contact_name,
+        emergency_contact_phone: userData.emergency_contact_phone,
       };
 
-      const { data, error } = await supabase
-        .from('users')
-        .insert(dbData as never) // TODO: Fix type error
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await ApiService.post<User>('/users', dbData);
+      console.log('res', data);
 
       return {
         ...data,
@@ -99,29 +97,16 @@ export class UserService {
 
   static async updateProfile(userData: Partial<User>): Promise<User> {
     try {
-      const { data: authUser } = await supabase.auth.getUser();
-
-      if (!authUser.user) {
-        throw new Error('No authenticated user');
-      }
-
       // Only update the fields that are provided and remove undefined values
       const updateData = Object.fromEntries(
         Object.entries(userData).filter(([key, value]) => key !== 'id' && value !== undefined)
       ) as never;
 
-      const { data, error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('email', authUser.user.email)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const res = await ApiService.put<User>(`/users/me/${userData.id}`, updateData);
+      console.log('res', res);
 
       return {
-        ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim(),
+        ...res,
       };
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -131,7 +116,7 @@ export class UserService {
 
   static async deleteUser(userId: string): Promise<void> {
     try {
-      const { error } = await supabase.from('users').delete().eq('id', userId);
+      const error = await ApiService.delete<User>(`/users/${userId}`);
 
       if (error) throw error;
     } catch (error) {
@@ -142,9 +127,7 @@ export class UserService {
 
   static async getUserById(userId: string): Promise<User> {
     try {
-      const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
-
-      if (error) throw error;
+      const data = await ApiService.get<User>(`/users/${userId}`);
 
       return {
         ...data,

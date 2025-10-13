@@ -397,19 +397,7 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
-	query := `
-		UPDATE users
-		SET first_name = $1, last_name = $2, phone = $3, address = $4,
-			birth_date = $5, marital_status = $6, occupation = $7, education_level = $8,
-			how_found_church = $9, ministry_interest = $10, first_visit_date = $11,
-			baptized = $12, baptism_date = $13, is_active_member = $14, membership_date = $15,
-			cell_group = $16, pastoral_notes = $17, whatsapp = $18
-		WHERE id = $19
-	`
-	result, err := config.GetDB().DB.Exec(query, req.FirstName, req.LastName, req.Phone, req.Address,
-		req.BirthDate, req.MaritalStatus, req.Occupation, req.EducationLevel,
-		req.HowFoundChurch, req.MinistryInterest, req.FirstVisitDate, req.Baptized, req.BaptismDate, req.IsActiveMember, req.MembershipDate,
-		req.CellGroup, req.PastoralNotes, req.WhatsApp, userID)
+	query, args, err := database.BuildUpdateQuery(&req, "users", "id", userID)
 	if err != nil {
 		c.Logger().Error(fmt.Sprintf("Database error in UpdateCurrentUser for user %s: %v", userID, err))
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -419,9 +407,11 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
+	result, err := config.GetDB().DB.Exec(query, args...)
+
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s", userID))
+		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s: %v", userID, err))
 		return c.JSON(http.StatusNotFound, map[string]interface{}{
 			"error":   "User not found",
 			"message": fmt.Sprintf("User with ID %s does not exist", userID),
@@ -429,5 +419,7 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Profile updated successfully",
+		"user_id": userID,
+		"user":    req,
 	})
 }
