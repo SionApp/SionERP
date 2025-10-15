@@ -21,6 +21,7 @@ import { registerUserSchema, RegisterUserFormData } from '@/schemas/user.schemas
 import { UserService } from '@/services/user.service';
 import { User } from '@/types/user.types';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useAuth } from '@/contexts/AuthContext';
 
 const RegisterUserPage = () => {
   const [loading, setLoading] = useState(false);
@@ -28,14 +29,13 @@ const RegisterUserPage = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const {
     canManageRoles,
-    canViewPastoralNotes,
     isLoading: isLoadingPermissions,
   } = usePermissions();
-  // Obtener userId del state de navegación
+
   const userId = location.state?.userId;
-  console.log('permissions', { canManageRoles, canViewPastoralNotes, isLoadingPermissions });
 
   const formatDateForInput = (dateString: string) => {
     const date = dateString ? format(parseISO(dateString), 'yyyy-MM-dd') : '';
@@ -47,11 +47,8 @@ const RegisterUserPage = () => {
       try {
         setLoading(true);
         const user = await UserService.getUserById(id);
-        console.log('user', user);
         setEditingUser(user);
-        console.log('editingUser', editingUser);
 
-        // Poblar el formulario con los datos del usuario
         reset({
           email: user.email,
           first_name: user.first_name || '',
@@ -77,9 +74,7 @@ const RegisterUserPage = () => {
           emergency_contact_name: user.emergency_contact_name || '',
           emergency_contact_phone: user.emergency_contact_phone || '',
         });
-        console.log('user', user.baptism_date);
       } catch (error) {
-        console.error('Error loading user:', error);
         toast.error('Error al cargar los datos del usuario');
         navigate('/dashboard/users');
       } finally {
@@ -135,16 +130,14 @@ const RegisterUserPage = () => {
     }
 
     // Mostrar todos los errores en consola
-    Object.entries(errors).forEach(([field, error]: [string, { message?: string }]) => {
-      console.log(`Campo "${field}":`, error.message);
+    Object.entries(errors).forEach(([, error]: [string, { message?: string }]) => {
+      toast.error(`Error de validación: ${error.message}`);
     });
   };
 
   const onSubmit = async (data: RegisterUserFormData) => {
     try {
-      console.log('data', data);
       setLoading(true);
-
       if (isEditMode && editingUser) {
         // Modo edición
         const updateData = {

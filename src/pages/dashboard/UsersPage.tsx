@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Eye, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import EditUserModal from '@/components/EditUserModal';
+import UserDetailSheet from '@/components/UserDetailSheet';
+import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { DynamicFilter, FilterField, FilterValues } from '@/components/DynamicFilter';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { User } from '@/types/user.types';
@@ -15,9 +16,9 @@ const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<FilterValues>({});
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
-  const [detailUser, setDetailUser] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
 
   const filterFields: FilterField[] = [
@@ -53,7 +54,6 @@ const UsersPage = () => {
       const usersData = await UserService.getAllUsers();
       setUsers(usersData);
     } catch (error) {
-      console.error('Error loading users:', error);
       toast.error('Error al cargar los usuarios');
     } finally {
       setLoading(false);
@@ -61,7 +61,6 @@ const UsersPage = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    // Búsqueda general
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       const matchesSearch =
@@ -73,22 +72,18 @@ const UsersPage = () => {
       if (!matchesSearch) return false;
     }
 
-    // Filtro por rol
     if (filters.role && user.role !== filters.role) {
       return false;
     }
 
-    // Filtro por bautizado
     if (filters.baptized && !user.baptized) {
       return false;
     }
 
-    // Filtro por WhatsApp
     if (filters.whatsapp && !user.whatsapp) {
       return false;
     }
 
-    // Filtro por rango de fechas
     if (filters.created_at?.from) {
       const userDate = new Date(user.created_at);
       const fromDate = new Date(filters.created_at.from);
@@ -134,21 +129,36 @@ const UsersPage = () => {
   };
 
   const handleDetailUser = (user: User) => {
-    const userId = user.id;
-    console.log('Redirecting to user details:', userId );
+    setSelectedUserId(user.id);
   };
 
   const handleEditUser = (user: User) => {
-    const userId = user.id;
-    console.log('Redirecting to edit user:', userId);
-    navigate(`/dashboard/register-user`, { state: { userId } });
+    navigate(`/dashboard/register-user`, { state: { userId: user.id } });
   };
 
   const handleDeleteUser = (user: User) => {
-    console.log('User details:', user);
-  }
+    setDeletingUser(user);
+  };
 
-  // Definir columnas para la tabla
+  const confirmDeleteUser = async () => {
+    if (!deletingUser) return;
+
+    try {
+      setIsDeleting(true);
+      await UserService.deleteUser(deletingUser.id);
+      toast.success(
+        `Usuario ${deletingUser.first_name} ${deletingUser.last_name} eliminado correctamente`
+      );
+      setDeletingUser(null);
+      loadUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Error al eliminar el usuario');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const columns: Column<User>[] = [
     {
       key: 'full_name',
@@ -230,10 +240,15 @@ const UsersPage = () => {
     },
   ];
 
-  // Acciones para cada usuario
   const userActions = (user: User) => (
     <div className="flex items-center gap-1">
-      <Button variant="outline" size="sm" onClick={() => handleDetailUser(user)} title="Ver detalles" className="h-8 w-8 p-0">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleDetailUser(user)}
+        title="Ver detalles"
+        className="h-8 w-8 p-0"
+      >
         <Eye className="h-3 w-3" />
       </Button>
       <Button
@@ -257,10 +272,8 @@ const UsersPage = () => {
     </div>
   );
 
-  // Renderizado personalizado para mobile (diseño vertical optimizado)
   const mobileCardRender = (user: User, actions?: React.ReactNode) => (
     <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors space-y-3">
-      {/* Header con nombre y email */}
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-base truncate">
@@ -280,7 +293,6 @@ const UsersPage = () => {
         </div>
       </div>
 
-      {/* Información de contacto */}
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div>
           <span className="text-muted-foreground">Cédula:</span>
@@ -292,7 +304,6 @@ const UsersPage = () => {
         </div>
       </div>
 
-      {/* WhatsApp badge si aplica */}
       {user.whatsapp && (
         <div className="flex justify-start">
           <Badge variant="outline" className="text-xs">
@@ -301,7 +312,6 @@ const UsersPage = () => {
         </div>
       )}
 
-      {/* Footer con fecha y acciones */}
       <div className="flex justify-between items-center pt-2 border-t">
         <div className="text-xs text-muted-foreground">
           <span>Registrado: </span>
@@ -314,6 +324,7 @@ const UsersPage = () => {
 
   return (
     <div className="space-y-6 p-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -327,14 +338,12 @@ const UsersPage = () => {
         </Button>
       </div>
 
-      {/* Dynamic Filters */}
       <DynamicFilter
         fields={filterFields}
         onFilterChange={setFilters}
         onClear={() => setFilters({})}
       />
 
-      {/* Data Table */}
       <Card>
         <CardHeader>
           <CardTitle>Usuarios ({filteredUsers.length})</CardTitle>
@@ -349,17 +358,24 @@ const UsersPage = () => {
             emptyMessage="No se encontraron usuarios"
             pagination={true}
             itemsPerPage={10}
-            searchable={false} // Ya tenemos filtros dinámicos
+            searchable={false}
             mobileCardRender={mobileCardRender}
           />
         </CardContent>
       </Card>
 
-      <EditUserModal
-        user={editingUser}
-        isOpen={!!editingUser}
-        onClose={() => setEditingUser(null)}
-        onUserUpdated={loadUsers}
+      <UserDetailSheet
+        user={selectedUserId ? users.find(user => user.id === selectedUserId) : null} // Obtener usuario seleccionado
+        isOpen={!!selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+      />
+
+      <DeleteUserDialog
+        user={deletingUser}
+        isOpen={!!deletingUser}
+        isDeleting={isDeleting}
+        onClose={() => setDeletingUser(null)}
+        onConfirm={confirmDeleteUser}
       />
     </div>
   );

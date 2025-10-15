@@ -84,6 +84,8 @@ export class UserService {
         Object.entries(userData).filter(([key, value]) => key !== 'id' && value !== undefined)
       ) as UpdateUserRequest;
 
+      console.log('updateData', updateData);
+
       const data = await ApiService.put<User>(`/users/${userData.id}`, updateData);
 
       return {

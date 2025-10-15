@@ -4,7 +4,7 @@ export const userRoles = ['admin', 'pastor', 'staff', 'supervisor', 'server', 'm
 
 export const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
   first_name: z.string().min(2, 'Los nombres son requeridos'),
   last_name: z.string().min(2, 'Los apellidos son requeridos'),
   identification_number: z.string().min(8, 'La cédula debe tener al menos 8 caracteres'),
@@ -46,7 +46,7 @@ export const profileUpdateSchema = z.object({
 
 export const registerUserSchema = z.object({
   email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
   first_name: z.string().min(2, 'Los nombres son requeridos'),
   last_name: z.string().min(2, 'Los apellidos son requeridos'),
   id_number: z.string().min(8, 'La cédula debe tener al menos 8 caracteres'),
