@@ -145,7 +145,6 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	})
 }
 
-// GetUser obtiene un usuario por ID
 func (h *UserHandler) GetUser(c echo.Context) error {
 	userID := c.Param("id")
 
@@ -200,9 +199,6 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 		})
 	}
 
-	// TODO: Hash password
-	// TODO: Create auth user first
-
 	query := `
 		INSERT INTO users (
 			first_name, last_name, id_number, email, phone, address, password_hash,
@@ -238,16 +234,29 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 	})
 }
 
-// UpdateUser actualiza un usuario existente
 func (h *UserHandler) UpdateUser(c echo.Context) error {
 	userID := c.Param("id")
 	currentUserID := c.Get("user_id").(string)
-	currentUserRole := c.Get("role").(string)
+
+	var currentUserRole string
+	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+				"error":   "User not found",
+				"message": "You must be a valid user to perform this action",
+			})
+		}
+		c.Logger().Error("Database error fetching user role:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Database error",
+			"message": err.Error(),
+		})
+	}
 
 	var req UpdateUserRequest
-
 	if err := c.Bind(&req); err != nil {
-		c.Logger().Error("Bind error in UpdateUser: ", err)
+		c.Logger().Error("Bind error in UpdateUser:", err)
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"error":   "Invalid request body",
 			"message": err.Error(),
@@ -255,7 +264,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	}
 
 	if currentUserID != userID && (currentUserRole != "pastor" && currentUserRole != "staff") {
-		c.Logger().Error("Unauthorized access in UpdateUser: ", currentUserID, " is not allowed to update user ", userID)
+		c.Logger().Error("Unauthorized access in UpdateUser:", currentUserID, "is not allowed to update user", userID)
 		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"error":   "Unauthorized",
 			"message": "You are not allowed to update this user",
@@ -263,14 +272,12 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	}
 
 	if err := validate.Struct(req); err != nil {
-
 		validationErrors := err.(validator.ValidationErrors)
-
 		errorMessages := make(map[string]string)
 		for _, fieldError := range validationErrors {
 			errorMessages[fieldError.Field()] = fmt.Sprintf("Validation error: %s", fieldError.Error())
 		}
-		c.Logger().Error("Validation error in UpdateUser: ", err)
+		c.Logger().Error("Validation error in UpdateUser:", err)
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"error":   "Validation error",
 			"message": errorMessages,
@@ -279,7 +286,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 
 	query, args, err := database.BuildUpdateQuery(&req, "users", "id", userID)
 	if err != nil {
-		c.Logger().Error("Error building update query: ", err)
+		c.Logger().Error("Error building update query:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Error building update query",
 			"message": err.Error(),
@@ -312,13 +319,8 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	})
 }
 
-// DeleteUser elimina un usuario
 func (h *UserHandler) DeleteUser(c echo.Context) error {
 	userID := c.Param("id")
-
-	// TODO: Check role-based authorization (pastors cannot be deleted)
-	// TODO: Delete user from database
-
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "User deleted successfully",
 		"user_id": userID,

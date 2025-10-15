@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"backend-sion/config"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
@@ -23,7 +25,6 @@ func SupabaseAuth() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
-				fmt.Println("❌ No Authorization header")
 				return c.JSON(http.StatusUnauthorized, map[string]string{
 					"error": "Authorization header required",
 				})
@@ -31,7 +32,6 @@ func SupabaseAuth() echo.MiddlewareFunc {
 
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 			if token == authHeader {
-				fmt.Println("❌ No Bearer token")
 				return c.JSON(http.StatusUnauthorized, map[string]string{
 					"error": "Bearer token required",
 				})
@@ -42,10 +42,16 @@ func SupabaseAuth() echo.MiddlewareFunc {
 			// Validar el token JWT con Supabase
 			claims, err := validateSupabaseToken(token)
 			if err != nil {
-				fmt.Printf("❌ Token validation failed: %v\n", err)
 				return c.JSON(http.StatusUnauthorized, map[string]string{
 					"error": "Invalid token: " + err.Error(),
 				})
+			}
+			var dbRole string
+
+			err = config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", claims.Sub).Scan(&dbRole)
+			if err != nil {
+					fmt.Printf("Could not fetch user role for %s: %v\n", claims.Sub, err)
+					dbRole = "guest" // valor por defecto si falla
 			}
 
 			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", claims.Sub, claims.Email, claims.Role)
@@ -55,6 +61,7 @@ func SupabaseAuth() echo.MiddlewareFunc {
 			c.Set("user_id", claims.Sub)
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
+			c.Set("db_role", dbRole)
 			return next(c)
 		}
 	}
