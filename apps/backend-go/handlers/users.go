@@ -5,7 +5,9 @@ import (
 	"backend-sion/config"
 	"backend-sion/database"
 	"backend-sion/models"
+	"backend-sion/utils"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -16,68 +18,6 @@ import (
 type UserHandler struct{}
 
 var validate = validator.New()
-
-// type CreateUserRequest struct {
-// 	FirstName string `json:"first_name" validate:"required,min=2"`
-// 	LastName  string `json:"last_name" validate:"required,min=2"`
-// 	IdNumber  string `json:"id_number" validate:"required,min=8"`
-// 	Email     string `json:"email" validate:"required,email"`
-// 	Phone     string `json:"phone" validate:"required,min=10"`
-// 	Address   string `json:"address" validate:"required,min=5"`
-// 	Password  string `json:"password" validate:"required,min=6"`
-
-// 	// Extended fields
-// 	BirthDate        *string `json:"birth_date,omitempty"`
-// 	MaritalStatus    *string `json:"marital_status,omitempty"`
-// 	Occupation       *string `json:"occupation,omitempty"`
-// 	EducationLevel   *string `json:"education_level,omitempty"`
-// 	HowFoundChurch   *string `json:"how_found_church,omitempty"`
-// 	MinistryInterest *string `json:"ministry_interest,omitempty"`
-// 	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
-
-// 	// Church membership
-// 	Baptized       bool    `json:"baptized"`
-// 	BaptismDate    *string `json:"baptism_date,omitempty"`
-// 	IsActiveMember bool    `json:"is_active_member"`
-// 	MembershipDate *string `json:"membership_date,omitempty"`
-
-// 	// Cell group
-// 	CellGroup *string `json:"cell_group,omitempty"`
-
-// 	// Role and preferences
-// 	Role          string  `json:"role" validate:"required,oneof=pastor staff supervisor server"`
-// 	WhatsApp      bool    `json:"whatsapp"`
-// 	PastoralNotes *string `json:"pastoral_notes,omitempty"`
-// }
-
-type UpdateUserRequest struct {
-	FirstName *string `json:"first_name,omitempty" validate:"omitempty,min=2"`
-	LastName  *string `json:"last_name,omitempty" validate:"omitempty,min=2"`
-	Phone     *string `json:"phone,omitempty" validate:"omitempty,min=10"`
-	Address   *string `json:"address,omitempty" validate:"omitempty,min=5"`
-
-	// Extended fields
-	BirthDate        *string `json:"birth_date,omitempty"`
-	MaritalStatus    *string `json:"marital_status,omitempty"`
-	Occupation       *string `json:"occupation,omitempty"`
-	EducationLevel   *string `json:"education_level,omitempty"`
-	HowFoundChurch   *string `json:"how_found_church,omitempty"`
-	MinistryInterest *string `json:"ministry_interest,omitempty"`
-	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
-
-	// Church membership
-	Baptized       *bool   `json:"baptized,omitempty"`
-	BaptismDate    *string `json:"baptism_date,omitempty"`
-	IsActiveMember *bool   `json:"is_active_member,omitempty"`
-	MembershipDate *string `json:"membership_date,omitempty"`
-
-	// Cell group
-	CellGroup *string `json:"cell_group,omitempty"`
-
-	// Preferences
-	WhatsApp      *bool   `json:"whatsapp,omitempty"`
-	PastoralNotes *string `json:"pastoral_notes,omitempty"`
-}
 
 func NewUserHandler() *UserHandler {
 	return &UserHandler{}
@@ -254,7 +194,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
-	var req UpdateUserRequest
+	var req models.UpdateUserRequest
 	if err := c.Bind(&req); err != nil {
 		c.Logger().Error("Bind error in UpdateUser:", err)
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
@@ -321,13 +261,79 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 
 func (h *UserHandler) DeleteUser(c echo.Context) error {
 	userID := c.Param("id")
+	userToDelete := c.Get("user_id").(string)
+
+	var currentUserRole string
+
+	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", userToDelete).Scan(&currentUserRole)
+	if err != nil {
+		if !(!errors.Is(err, sql.ErrNoRows)) {
+			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+				"error":   "User not found",
+				"message": "You must be a valid user to perform this action",
+			})
+		}
+		c.Logger().Error("Database error fetching user role:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Database error",
+			"message": err.Error(),
+		})
+	}
+
+	if currentUserRole != utils.RolePastor && currentUserRole != utils.RoleStaff {
+		c.Logger().Error("Unauthorized delete attempt:", currentUserRole, "is not allowed to delete user", userID)
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error":   "Unauthorized",
+			"message": "You are not allowed to delete this user",
+		})
+	}
+
+	var exists bool
+	err = config.GetDB().DB.QueryRow("SELECT EXISTS(SELECT FROM users WHERE id = $1", userToDelete).Scan(&exists)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+				"error":   "Database error",
+				"message": "You must be a valid user to perform this action",
+			})
+		}
+	}
+
+	if !exists {
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error":   "User not found",
+			"message": fmt.Sprintf("User with ID %s does not exist", userID),
+		})
+	}
+
+	query := `UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1`
+	result, err := config.GetDB().DB.Exec(query, userID)
+
+	if err != nil {
+		c.Logger().Error(fmt.Sprintf("Database error in UpdateUser for user %s: %v", userID, err))
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Database error",
+			"message": err.Error(),
+			"details": "Database update failed",
+		})
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s", userID))
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error":   "User not found",
+			"message": fmt.Sprintf("User with ID %s does not exist", userID),
+		})
+	}
+
+	c.Logger().Info(fmt.Sprintf("User deleted successfully with ID: %s", userID, userToDelete))
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "User deleted successfully",
 		"user_id": userID,
 	})
 }
 
-// GetCurrentUser obtiene el perfil del usuario actual
 func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 	userID, ok := c.Get("user_id").(string)
 	if !ok {
@@ -380,7 +386,7 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 
 // UpdateCurrentUser actualiza el perfil del usuario actual
 func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
-	var req UpdateUserRequest
+	var req models.UpdateUserRequest
 
 	if err := c.Bind(&req); err != nil {
 		c.Logger().Error("Bind error in UpdateCurrentUser: ", err)

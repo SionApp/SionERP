@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"backend-sion/config"
+	"backend-sion/models"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,49 +11,6 @@ import (
 )
 
 type DashboardHandler struct{}
-
-type DashboardStats struct {
-	TotalUsers       int       `json:"totalUsers"`
-	NewRegistrations int       `json:"newRegistrations"`
-	ActiveRoles      int       `json:"activeRoles"`
-	SystemActivity   float64   `json:"systemActivity"`
-	LastLogin        time.Time `json:"lastLogin"`
-}
-
-type RoleDistribution struct {
-	Name  string `json:"name"`
-	Value int    `json:"value"`
-	Color string `json:"color"`
-}
-
-type RecentActivity struct {
-	ID      string                 `json:"id,omitempty"`
-	Action  string                 `json:"action"`
-	User    string                 `json:"user"`
-	Time    string                 `json:"time"`
-	Type    string                 `json:"type"`
-	Details map[string]interface{} `json:"details,omitempty"`
-}
-
-// Estructura para estadísticas de discipulado
-type DiscipleshipStats struct {
-	TotalGroups     int     `json:"totalGroups"`
-	TotalMembers    int     `json:"totalMembers"`
-	ActiveLeaders   int     `json:"activeLeaders"`
-	AvgAttendance   float64 `json:"avgAttendance"`
-	MonthlyGrowth   float64 `json:"monthlyGrowth"`
-	SpiritualHealth float64 `json:"spiritualHealth"`
-	Multiplications int     `json:"multiplications"`
-	AlertsCount     int     `json:"alertsCount"`
-}
-
-type DashboardResponse struct {
-	Stats             DashboardStats     `json:"stats"`
-	RoleDistribution  []RoleDistribution `json:"roleDistribution"`
-	RecentActivity    []RecentActivity   `json:"recentActivity"`
-	DiscipleshipStats DiscipleshipStats  `json:"discipleshipStats"`
-	CurrentUserRole   string             `json:"currentUserRole,omitempty"`
-}
 
 func NewDashboardHandler() *DashboardHandler {
 	return &DashboardHandler{}
@@ -134,7 +92,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	} else {
 		systemActivity = 0.0
 	}
-	stats := DashboardStats{
+	stats := models.DashboardStats{
 		TotalUsers:       totalUser,
 		NewRegistrations: newRegistrations,
 		ActiveRoles:      activeRoles,
@@ -142,8 +100,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		LastLogin:        time.Now(),
 	}
 
-	// TODO: Implementar estadísticas de discipulado
-	discipleshipStats := DiscipleshipStats{
+	discipleshipStats := models.DiscipleshipStats{
 		TotalGroups:     0,
 		TotalMembers:    0,
 		ActiveLeaders:   0,
@@ -154,7 +111,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		AlertsCount:     0,
 	}
 
-	response := DashboardResponse{
+	response := models.DashboardResponse{
 		Stats:             stats,
 		RoleDistribution:  rolesDistribution,
 		RecentActivity:    recentActivity,
@@ -165,7 +122,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]RoleDistribution, error) {
+func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]models.RoleDistribution, error) {
 	roleColors := map[string]string{
 		"pastor":     "#ff7c7c",
 		"staff":      "#ffc658",
@@ -194,7 +151,7 @@ func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]RoleDistributi
 	}
 	defer rows.Close()
 
-	var distribution []RoleDistribution
+	var distribution []models.RoleDistribution
 	for rows.Next() {
 		var role string
 		var count int
@@ -204,10 +161,9 @@ func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]RoleDistributi
 			continue
 		}
 
-		// Obtener color y nombre, usar defaults si no existen
 		color := roleColors[role]
 		if color == "" {
-			color = "#cccccc" // Gris por defecto
+			color = "#cccccc"
 		}
 
 		name := roleNames[role]
@@ -217,7 +173,7 @@ func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]RoleDistributi
 
 		fmt.Printf("Adding role: %s, count: %d, color: %s\n", name, count, color)
 
-		distribution = append(distribution, RoleDistribution{
+		distribution = append(distribution, models.RoleDistribution{
 			Name:  name,
 			Value: count,
 			Color: color,
@@ -228,7 +184,7 @@ func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]RoleDistributi
 	return distribution, nil
 }
 
-func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]RecentActivity, error) {
+func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentActivity, error) {
 	query := `
 		SELECT
 			a.id,
@@ -237,7 +193,7 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]RecentActivity, 
 			u.email as user_email,
 			u.first_name || ' ' || u.last_name as user_name,
 			a.changed_at
-		FROM audit_logs a 
+		FROM audit_logs a
 		JOIN users u ON a.changed_by = u.id
 		ORDER BY a.changed_at DESC
 		LIMIT 10
@@ -249,7 +205,7 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]RecentActivity, 
 	}
 	defer rows.Close()
 
-	var activities []RecentActivity
+	var activities []models.RecentActivity
 	for rows.Next() {
 
 		var id, action, tableName, userEmail string
@@ -271,7 +227,7 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]RecentActivity, 
 			activityType = "danger"
 		}
 		formattedAction := formatAction(action, tableName)
-		activities = append(activities, RecentActivity{
+		activities = append(activities, models.RecentActivity{
 			ID:     id,
 			Action: formattedAction,
 			User:   userEmail,
