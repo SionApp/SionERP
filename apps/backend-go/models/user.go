@@ -40,6 +40,35 @@ type User struct {
 	DiscipleshipLevel *int    `json:"discipleship_level,omitempty" db:"discipleship_level"`
 }
 
+type UpdateUserRequest struct {
+	FirstName *string `json:"first_name,omitempty" validate:"omitempty,min=2"`
+	LastName  *string `json:"last_name,omitempty" validate:"omitempty,min=2"`
+	Phone     *string `json:"phone,omitempty" validate:"omitempty,min=10"`
+	Address   *string `json:"address,omitempty" validate:"omitempty,min=5"`
+
+	// Extended fields
+	BirthDate        *string `json:"birth_date,omitempty"`
+	MaritalStatus    *string `json:"marital_status,omitempty"`
+	Occupation       *string `json:"occupation,omitempty"`
+	EducationLevel   *string `json:"education_level,omitempty"`
+	HowFoundChurch   *string `json:"how_found_church,omitempty"`
+	MinistryInterest *string `json:"ministry_interest,omitempty"`
+	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
+
+	// Church membership
+	Baptized       *bool   `json:"baptized,omitempty"`
+	BaptismDate    *string `json:"baptism_date,omitempty"`
+	IsActiveMember *bool   `json:"is_active_member,omitempty"`
+	MembershipDate *string `json:"membership_date,omitempty"`
+
+	// Cell group
+	CellGroup *string `json:"cell_group,omitempty"`
+
+	// Preferences
+	WhatsApp      *bool   `json:"whatsapp,omitempty"`
+	PastoralNotes *string `json:"pastoral_notes,omitempty"`
+}
+
 type LiveStream struct {
 	ID             string     `json:"id" db:"id"`
 	Title          string     `json:"title" db:"title"`
