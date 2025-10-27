@@ -69,7 +69,7 @@ export class ApiService {
   /**
    * Generic POST request
    */
-  static async post<T, U = unknown>(endpoint: string, data?: U): Promise<T> {
+  static async post<T, U = any>(endpoint: string, data?: U): Promise<T> {
     loadingCallbacks.setSubmitting?.(true);
     try {
       const headers = await this.getAuthHeaders();
@@ -106,7 +106,7 @@ export class ApiService {
   /**
    * Generic PUT request
    */
-  static async put<T, U = unknown>(endpoint: string, data?: U): Promise<T> {
+  static async put<T, U = any>(endpoint: string, data?: U): Promise<T> {
     loadingCallbacks.setSubmitting?.(true);
     try {
       const headers = await this.getAuthHeaders();
