@@ -267,10 +267,11 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 
 	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", userToDelete).Scan(&currentUserRole)
 	if err != nil {
-		if !(!errors.Is(err, sql.ErrNoRows)) {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.Logger().Error("User not found in database:", err)
 			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
 				"error":   "User not found",
-				"message": "You must be a valid user to perform this action",
+				"message": "You must be a valid user to perform this action. User not found in database",
 			})
 		}
 		c.Logger().Error("Database error fetching user role:", err)
@@ -327,7 +328,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 		})
 	}
 
-	c.Logger().Info(fmt.Sprintf("User deleted successfully with ID: %s", userID, userToDelete))
+	c.Logger().Info(fmt.Sprintf("User deleted successfully with ID: %s and userToDelete: %s", userID, userToDelete))
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "User deleted successfully",
 		"user_id": userID,
@@ -425,6 +426,7 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 			"message": fmt.Sprintf("User with ID %s does not exist", userID),
 		})
 	}
+	c.Logger().Info(fmt.Sprintf("Profile updated successfully with ID: %s", userID))
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Profile updated successfully",
 		"user_id": userID,
