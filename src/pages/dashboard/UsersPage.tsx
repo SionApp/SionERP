@@ -1,34 +1,43 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
-import EditUserModal from '@/components/EditUserModal';
+import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { DynamicFilter, FilterField, FilterValues } from '@/components/DynamicFilter';
-import { User } from '@/types/user.types';
+import UserDetailSheet from '@/components/UserDetailSheet';
+import { Column, DataTable } from '@/components/ui/DataTable';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserService } from '@/services/user.service';
+import { User } from '@/types/user.types';
+import { Calendar, Edit, Eye, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<FilterValues>({});
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
 
   const filterFields: FilterField[] = [
-    { key: 'search', label: 'Búsqueda general', type: 'text', placeholder: 'Nombre, email o cédula...' },
-    { 
-      key: 'role', 
-      label: 'Rol', 
+    {
+      key: 'search',
+      label: 'Búsqueda general',
+      type: 'text',
+      placeholder: 'Nombre, email o cédula...',
+    },
+    {
+      key: 'role',
+      label: 'Rol',
       type: 'select',
       options: [
         { value: 'pastor', label: 'Pastor' },
         { value: 'staff', label: 'Staff' },
         { value: 'supervisor', label: 'Supervisor' },
         { value: 'server', label: 'Servidor' },
-      ]
+      ],
     },
     { key: 'baptized', label: 'Solo bautizados', type: 'boolean' },
     { key: 'whatsapp', label: 'Con WhatsApp', type: 'boolean' },
@@ -52,39 +61,34 @@ const UsersPage = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    // Búsqueda general
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         user.first_name.toLowerCase().includes(searchLower) ||
         user.last_name.toLowerCase().includes(searchLower) ||
         user.email.toLowerCase().includes(searchLower) ||
         user.id_number.includes(filters.search);
-      
+
       if (!matchesSearch) return false;
     }
 
-    // Filtro por rol
     if (filters.role && user.role !== filters.role) {
       return false;
     }
 
-    // Filtro por bautizado
     if (filters.baptized && !user.baptized) {
       return false;
     }
 
-    // Filtro por WhatsApp
     if (filters.whatsapp && !user.whatsapp) {
       return false;
     }
 
-    // Filtro por rango de fechas
     if (filters.created_at?.from) {
       const userDate = new Date(user.created_at);
       const fromDate = new Date(filters.created_at.from);
       if (userDate < fromDate) return false;
-      
+
       if (filters.created_at.to) {
         const toDate = new Date(filters.created_at.to);
         if (userDate > toDate) return false;
@@ -334,7 +338,6 @@ const UsersPage = () => {
         </Button>
       </div>
 
-      {/* Dynamic Filters */}
       <DynamicFilter
         fields={filterFields}
         onFilterChange={setFilters}
