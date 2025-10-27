@@ -16,17 +16,18 @@ const translations: Translations = {
     'header.gallery': 'Galería',
     'header.contact': 'Contacto',
     'header.join': 'Únete a Nosotros',
-    
+
     // Church Info
     'church.name': 'Iglesia Evangélica Pentecostal Sion',
     'church.slogan': 'Cambiando vidas',
-    'church.description': 'Transformando vidas a través del amor de Cristo desde 1995. Una iglesia donde todos son bienvenidos.',
-    
+    'church.description':
+      'Transformando vidas a través del amor de Cristo desde 1995. Una iglesia donde todos son bienvenidos.',
+
     // Live Stream
     'live.title': 'Servicio en Vivo',
     'live.banner': '🔴 ESTAMOS EN VIVO',
     'live.joinNow': 'Únete ahora al servicio',
-    
+
     // Services
     'services.title': 'Horarios de Servicio',
     'services.first': 'Primer Servicio: 9:00 AM',
@@ -35,7 +36,7 @@ const translations: Translations = {
     'services.bible': 'Estudio Bíblico: Miércoles 7:00 PM',
     'services.groups': 'Grupos Pequeños: Viernes 7:30 PM',
     'services.praise': 'Alabanza: Sábados 7:00 PM',
-    
+
     // Footer
     'footer.quickLinks': 'Enlaces Rápidos',
     'footer.serviceHours': 'Horarios de Servicio',
@@ -51,17 +52,18 @@ const translations: Translations = {
     'header.gallery': 'Gallery',
     'header.contact': 'Contact',
     'header.join': 'Join Us',
-    
+
     // Church Info
     'church.name': 'Sion Pentecostal Evangelical Church',
     'church.slogan': 'Changing lives',
-    'church.description': 'Transforming lives through Christ\'s love since 1995. A church where everyone is welcome.',
-    
+    'church.description':
+      "Transforming lives through Christ's love since 1995. A church where everyone is welcome.",
+
     // Live Stream
     'live.title': 'Live Service',
     'live.banner': '🔴 WE ARE LIVE',
     'live.joinNow': 'Join the service now',
-    
+
     // Services
     'services.title': 'Service Hours',
     'services.first': 'First Service: 9:00 AM',
@@ -70,13 +72,13 @@ const translations: Translations = {
     'services.bible': 'Bible Study: Wednesday 7:00 PM',
     'services.groups': 'Small Groups: Friday 7:30 PM',
     'services.praise': 'Praise: Saturday 7:00 PM',
-    
+
     // Footer
     'footer.quickLinks': 'Quick Links',
     'footer.serviceHours': 'Service Hours',
     'footer.contact': 'Contact',
-    'footer.copyright': 'Made with love for God\'s glory',
-  }
+    'footer.copyright': "Made with love for God's glory",
+  },
 };
 
 export const useTranslation = () => {

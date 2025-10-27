@@ -1,45 +1,47 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Clock, Users, Gift } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, MapPin, Clock, Users, Gift } from 'lucide-react';
 
 const Newsletter = () => {
   // En producción, estos datos vendrían de tu base de datos
   const events = [
     {
       id: 1,
-      title: "Retiro Espiritual 2024",
-      description: "Únete a nosotros para un fin de semana de renovación espiritual en las montañas.",
-      date: "2024-02-15",
-      time: "6:00 PM",
-      location: "Centro de Retiros El Refugio",
-      category: "retiro",
+      title: 'Retiro Espiritual 2024',
+      description:
+        'Únete a nosotros para un fin de semana de renovación espiritual en las montañas.',
+      date: '2024-02-15',
+      time: '6:00 PM',
+      location: 'Centro de Retiros El Refugio',
+      category: 'retiro',
       featured: true,
-      image: "/api/placeholder/400/200"
+      image: '/api/placeholder/400/200',
     },
     {
       id: 2,
-      title: "Conferencia de Jóvenes",
-      description: "Tres días de enseñanza, adoración y compañerismo para jóvenes de 13 a 25 años.",
-      date: "2024-02-28",
-      time: "7:00 PM",
-      location: "Iglesia Vida Nueva",
-      category: "jovenes",
+      title: 'Conferencia de Jóvenes',
+      description: 'Tres días de enseñanza, adoración y compañerismo para jóvenes de 13 a 25 años.',
+      date: '2024-02-28',
+      time: '7:00 PM',
+      location: 'Iglesia Vida Nueva',
+      category: 'jovenes',
       featured: false,
-      image: "/api/placeholder/400/200"
-    }
+      image: '/api/placeholder/400/200',
+    },
   ];
 
   // Evento por defecto cuando no hay eventos especiales
   const defaultEvent = {
-    title: "Servicios Regulares",
-    description: "Te invitamos a nuestros servicios dominicales. Ven y experimenta el amor de Dios en comunidad.",
+    title: 'Servicios Regulares',
+    description:
+      'Te invitamos a nuestros servicios dominicales. Ven y experimenta el amor de Dios en comunidad.',
     highlights: [
-      "Adoración en vivo",
-      "Enseñanza bíblica",
-      "Oración comunitaria",
-      "Compañerismo cristiano"
-    ]
+      'Adoración en vivo',
+      'Enseñanza bíblica',
+      'Oración comunitaria',
+      'Compañerismo cristiano',
+    ],
   };
 
   const hasSpecialEvents = events.length > 0;
@@ -58,8 +60,11 @@ const Newsletter = () => {
 
         {hasSpecialEvents ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-            {events.map((event) => (
-              <Card key={event.id} className={`overflow-hidden hover:shadow-lg transition-all duration-300 ${event.featured ? 'ring-2 ring-primary/20' : ''}`}>
+            {events.map(event => (
+              <Card
+                key={event.id}
+                className={`overflow-hidden hover:shadow-lg transition-all duration-300 ${event.featured ? 'ring-2 ring-primary/20' : ''}`}
+              >
                 {event.featured && (
                   <div className="bg-primary/10 px-4 py-2">
                     <Badge variant="default" className="text-xs">
@@ -68,30 +73,25 @@ const Newsletter = () => {
                     </Badge>
                   </div>
                 )}
-                
+
                 <div className="relative">
-                  <img 
-                    src={event.image} 
-                    alt={event.title}
-                    className="w-full h-48 object-cover"
-                  />
+                  <img src={event.image} alt={event.title} className="w-full h-48 object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                  <Badge 
-                    variant="secondary" 
+                  <Badge
+                    variant="secondary"
                     className="absolute top-4 right-4 bg-white/90 text-primary"
                   >
-                    {event.category === 'retiro' ? 'Retiro' : 
-                     event.category === 'jovenes' ? 'Jóvenes' : 'Evento'}
+                    {event.category === 'retiro'
+                      ? 'Retiro'
+                      : event.category === 'jovenes'
+                        ? 'Jóvenes'
+                        : 'Evento'}
                   </Badge>
                 </div>
 
                 <CardHeader>
-                  <CardTitle className="text-xl font-bold text-foreground">
-                    {event.title}
-                  </CardTitle>
-                  <p className="text-muted-foreground">
-                    {event.description}
-                  </p>
+                  <CardTitle className="text-xl font-bold text-foreground">{event.title}</CardTitle>
+                  <p className="text-muted-foreground">{event.description}</p>
                 </CardHeader>
 
                 <CardContent>
@@ -103,7 +103,7 @@ const Newsletter = () => {
                           weekday: 'long',
                           year: 'numeric',
                           month: 'long',
-                          day: 'numeric'
+                          day: 'numeric',
                         })}
                       </span>
                     </div>
@@ -117,7 +117,7 @@ const Newsletter = () => {
                     </div>
                   </div>
 
-                  <Button className="w-full" variant={event.featured ? "default" : "outline"}>
+                  <Button className="w-full" variant={event.featured ? 'default' : 'outline'}>
                     <Users className="w-4 h-4 mr-2" />
                     Inscribirse Ahora
                   </Button>
@@ -130,11 +130,11 @@ const Newsletter = () => {
           <div className="max-w-4xl mx-auto">
             <Card className="overflow-hidden shadow-xl">
               <div className="relative">
-                  <img 
-                    src="/api/placeholder/800/300" 
-                    alt="Servicios regulares de la Iglesia Sion - Congregación reunida para adoración y enseñanza bíblica"
-                    className="w-full h-64 object-cover"
-                  />
+                <img
+                  src="/api/placeholder/800/300"
+                  alt="Servicios regulares de la Iglesia Sion - Congregación reunida para adoración y enseñanza bíblica"
+                  className="w-full h-64 object-cover"
+                />
                 <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/60" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center text-white">

@@ -1,6 +1,6 @@
-import { Heart, Facebook, Instagram, Youtube, Mail, Phone, MapPin } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import sionLogo from "@/assets/sion-logo-final.png";
+import { Heart, Facebook, Instagram, Youtube, Mail, Phone, MapPin } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import sionLogo from '@/assets/sion-logo-final.png';
 
 const Footer = () => {
   const location = useLocation();
@@ -22,9 +22,9 @@ const Footer = () => {
           <div className="col-span-1">
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden bg-background">
-                <img 
-                  src={sionLogo} 
-                  alt="Logo de Iglesia Evangélica Pentecostal Sion - Cruz cristiana con texto Sion" 
+                <img
+                  src={sionLogo}
+                  alt="Logo de Iglesia Evangélica Pentecostal Sion - Cruz cristiana con texto Sion"
                   className="w-full h-full object-contain"
                 />
               </div>
@@ -34,17 +34,26 @@ const Footer = () => {
               </div>
             </div>
             <p className="opacity-80 mb-4">
-              Transformando vidas a través del amor de Cristo desde 1995. 
-              Una iglesia donde todos son bienvenidos.
+              Transformando vidas a través del amor de Cristo desde 1995. Una iglesia donde todos
+              son bienvenidos.
             </p>
             <div className="flex space-x-3">
-              <a href="#" className="w-8 h-8 bg-background/10 rounded-full flex items-center justify-center hover:bg-secondary transition-colors">
+              <a
+                href="#"
+                className="w-8 h-8 bg-background/10 rounded-full flex items-center justify-center hover:bg-secondary transition-colors"
+              >
                 <Facebook className="w-4 h-4" />
               </a>
-              <a href="#" className="w-8 h-8 bg-background/10 rounded-full flex items-center justify-center hover:bg-secondary transition-colors">
+              <a
+                href="#"
+                className="w-8 h-8 bg-background/10 rounded-full flex items-center justify-center hover:bg-secondary transition-colors"
+              >
                 <Instagram className="w-4 h-4" />
               </a>
-              <a href="#" className="w-8 h-8 bg-background/10 rounded-full flex items-center justify-center hover:bg-secondary transition-colors">
+              <a
+                href="#"
+                className="w-8 h-8 bg-background/10 rounded-full flex items-center justify-center hover:bg-secondary transition-colors"
+              >
                 <Youtube className="w-4 h-4" />
               </a>
             </div>
@@ -54,12 +63,51 @@ const Footer = () => {
           <div>
             <h4 className="text-lg font-semibold mb-4">Enlaces Rápidos</h4>
             <ul className="space-y-2 opacity-80">
-              <li><button onClick={() => handleNavigation('#inicio')} className="hover:text-accent transition-colors text-left">Inicio</button></li>
-              <li><button onClick={() => handleNavigation('#servicios')} className="hover:text-accent transition-colors text-left">Servicios</button></li>
-              <li><button onClick={() => handleNavigation('#nosotros')} className="hover:text-accent transition-colors text-left">Acerca de Nosotros</button></li>
-              <li><button onClick={() => handleNavigation('#contacto')} className="hover:text-accent transition-colors text-left">Contacto</button></li>
-              <li><Link to="/galeria" className="hover:text-accent transition-colors">Galería</Link></li>
-              <li><button onClick={() => handleNavigation('#streaming')} className="hover:text-accent transition-colors text-left">En Vivo</button></li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('#inicio')}
+                  className="hover:text-accent transition-colors text-left"
+                >
+                  Inicio
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('#servicios')}
+                  className="hover:text-accent transition-colors text-left"
+                >
+                  Servicios
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('#nosotros')}
+                  className="hover:text-accent transition-colors text-left"
+                >
+                  Acerca de Nosotros
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('#contacto')}
+                  className="hover:text-accent transition-colors text-left"
+                >
+                  Contacto
+                </button>
+              </li>
+              <li>
+                <Link to="/galeria" className="hover:text-accent transition-colors">
+                  Galería
+                </Link>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('#streaming')}
+                  className="hover:text-accent transition-colors text-left"
+                >
+                  En Vivo
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -83,7 +131,8 @@ const Footer = () => {
               <div className="flex items-start space-x-2">
                 <MapPin className="w-4 h-4 mt-1 flex-shrink-0" />
                 <span className="text-sm">
-                  Av. Principal 123, Colonia Centro<br />
+                  Av. Principal 123, Colonia Centro
+                  <br />
                   Ciudad, Estado 12345
                 </span>
               </div>
@@ -98,7 +147,7 @@ const Footer = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="border-t border-border/20 mt-8 pt-8 text-center">
           <p className="opacity-60 text-sm flex items-center justify-center">
             © 2024 Iglesia Evangélica Pentecostal Sion. Hecho con

@@ -40,8 +40,8 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 	db := config.GetDB()
 
-	query := `SELECT id, first_name, last_name, email, phone, address, 
-              id_number, role, baptized, baptism_date, whatsapp, 
+	query := `SELECT id, first_name, last_name, email, phone, address,
+              id_number, role, baptized, baptism_date, whatsapp,
               password_hash, created_at, updated_at FROM users WHERE email = $1`
 
 	var user models.User
@@ -72,7 +72,6 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	}
 
 	// validate jwt
-
 	token, err := generateJWT(user.ID, user.Email, user.Role)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{

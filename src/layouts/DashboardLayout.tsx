@@ -4,10 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { LogOut } from 'lucide-react';
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/AppSidebar";
-import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/components/AppSidebar';
+import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const DashboardLayout = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -20,7 +20,9 @@ const DashboardLayout = () => {
 
   const getUser = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       setUser(user);
     } catch (error) {
       console.error('Error fetching user:', error);
@@ -70,7 +72,7 @@ const DashboardLayout = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl bg-accent/30 backdrop-blur-sm border border-border/30">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md">
@@ -85,11 +87,11 @@ const DashboardLayout = () => {
                 <p className="text-xs text-muted-foreground">Administrador</p>
               </div>
             </div>
-            
+
             <ThemeToggle />
-            
-            <Button 
-              variant="ghost" 
+
+            <Button
+              variant="ghost"
               size="sm"
               onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all duration-200"

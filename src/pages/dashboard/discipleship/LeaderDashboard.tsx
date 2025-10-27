@@ -5,10 +5,25 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, Users, TrendingUp, Heart, Plus, Send, Calendar, MapPin } from 'lucide-react';
+import {
+  AlertTriangle,
+  Users,
+  TrendingUp,
+  Heart,
+  Plus,
+  Send,
+  Calendar,
+  MapPin,
+} from 'lucide-react';
 import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
 import { WeeklyLeaderReport } from '@/types/discipleship.types';
 import { toast } from '@/hooks/use-toast';
@@ -18,10 +33,15 @@ const LeaderDashboard: React.FC = () => {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [weeklyReport, setWeeklyReport] = useState<Partial<WeeklyLeaderReport>>({
     attendance: { members: 0, newVisitors: 0, returningVisitors: 0 },
-    spiritualHealth: { testimonies: 0, prayerRequests: [], spiritualTemperature: 5, groupMorale: 'good' },
+    spiritualHealth: {
+      testimonies: 0,
+      prayerRequests: [],
+      spiritualTemperature: 5,
+      groupMorale: 'good',
+    },
     followUp: { visitorsContacted: 0, membersCared: [], upcomingEvents: [] },
     concerns: [],
-    blessings: []
+    blessings: [],
   });
 
   const handleSubmitWeeklyReport = async () => {
@@ -30,9 +50,9 @@ const LeaderDashboard: React.FC = () => {
       const result = await DiscipleshipMockService.submitWeeklyReport({
         ...weeklyReport,
         groupId: 'group-001',
-        weekDate: new Date().toISOString().split('T')[0]
+        weekDate: new Date().toISOString().split('T')[0],
       } as WeeklyLeaderReport);
-      
+
       if (result.success) {
         toast({
           title: 'Reporte Enviado',
@@ -41,10 +61,15 @@ const LeaderDashboard: React.FC = () => {
         // Reset form
         setWeeklyReport({
           attendance: { members: 0, newVisitors: 0, returningVisitors: 0 },
-          spiritualHealth: { testimonies: 0, prayerRequests: [], spiritualTemperature: 5, groupMorale: 'good' },
+          spiritualHealth: {
+            testimonies: 0,
+            prayerRequests: [],
+            spiritualTemperature: 5,
+            groupMorale: 'good',
+          },
           followUp: { visitorsContacted: 0, membersCared: [], upcomingEvents: [] },
           concerns: [],
-          blessings: []
+          blessings: [],
         });
       }
     } catch (error) {
@@ -194,9 +219,7 @@ const LeaderDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Reporte Semanal</CardTitle>
-              <CardDescription>
-                Completa el reporte de la reunión de esta semana
-              </CardDescription>
+              <CardDescription>Completa el reporte de la reunión de esta semana</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Attendance Section */}
@@ -209,10 +232,13 @@ const LeaderDashboard: React.FC = () => {
                       id="members"
                       type="number"
                       value={weeklyReport.attendance?.members || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setWeeklyReport(prev => ({
                           ...prev,
-                          attendance: { ...prev.attendance!, members: parseInt(e.target.value) || 0 }
+                          attendance: {
+                            ...prev.attendance!,
+                            members: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -223,10 +249,13 @@ const LeaderDashboard: React.FC = () => {
                       id="newVisitors"
                       type="number"
                       value={weeklyReport.attendance?.newVisitors || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setWeeklyReport(prev => ({
                           ...prev,
-                          attendance: { ...prev.attendance!, newVisitors: parseInt(e.target.value) || 0 }
+                          attendance: {
+                            ...prev.attendance!,
+                            newVisitors: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -237,10 +266,13 @@ const LeaderDashboard: React.FC = () => {
                       id="returningVisitors"
                       type="number"
                       value={weeklyReport.attendance?.returningVisitors || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setWeeklyReport(prev => ({
                           ...prev,
-                          attendance: { ...prev.attendance!, returningVisitors: parseInt(e.target.value) || 0 }
+                          attendance: {
+                            ...prev.attendance!,
+                            returningVisitors: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -258,10 +290,13 @@ const LeaderDashboard: React.FC = () => {
                       id="testimonies"
                       type="number"
                       value={weeklyReport.spiritualHealth?.testimonies || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setWeeklyReport(prev => ({
                           ...prev,
-                          spiritualHealth: { ...prev.spiritualHealth!, testimonies: parseInt(e.target.value) || 0 }
+                          spiritualHealth: {
+                            ...prev.spiritualHealth!,
+                            testimonies: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -274,10 +309,13 @@ const LeaderDashboard: React.FC = () => {
                       min="1"
                       max="10"
                       value={weeklyReport.spiritualHealth?.spiritualTemperature || 5}
-                      onChange={(e) =>
+                      onChange={e =>
                         setWeeklyReport(prev => ({
                           ...prev,
-                          spiritualHealth: { ...prev.spiritualHealth!, spiritualTemperature: parseInt(e.target.value) || 5 }
+                          spiritualHealth: {
+                            ...prev.spiritualHealth!,
+                            spiritualTemperature: parseInt(e.target.value) || 5,
+                          },
                         }))
                       }
                     />
@@ -287,10 +325,10 @@ const LeaderDashboard: React.FC = () => {
                   <Label htmlFor="groupMorale">Estado General del Grupo</Label>
                   <Select
                     value={weeklyReport.spiritualHealth?.groupMorale || 'good'}
-                    onValueChange={(value) =>
+                    onValueChange={value =>
                       setWeeklyReport(prev => ({
                         ...prev,
-                        spiritualHealth: { ...prev.spiritualHealth!, groupMorale: value as any }
+                        spiritualHealth: { ...prev.spiritualHealth!, groupMorale: value as any },
                       }))
                     }
                   >
@@ -327,8 +365,8 @@ const LeaderDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <Button 
-                onClick={handleSubmitWeeklyReport} 
+              <Button
+                onClick={handleSubmitWeeklyReport}
                 disabled={isSubmittingReport}
                 className="w-full"
                 size="lg"
@@ -350,9 +388,7 @@ const LeaderDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Miembros de la Célula</CardTitle>
-              <CardDescription>
-                Gestiona la información de los miembros de tu grupo
-              </CardDescription>
+              <CardDescription>Gestiona la información de los miembros de tu grupo</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -362,7 +398,10 @@ const LeaderDashboard: React.FC = () => {
                   { name: 'Ana Silva', role: 'Miembro', status: 'Activo', attendance: '85%' },
                   { name: 'Pedro López', role: 'Visitante', status: 'Nuevo', attendance: '100%' },
                 ].map((member, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div>
                       <p className="font-medium">{member.name}</p>
                       <p className="text-sm text-muted-foreground">{member.role}</p>
@@ -384,9 +423,7 @@ const LeaderDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Programación de Reuniones</CardTitle>
-              <CardDescription>
-                Horarios y ubicación de las reuniones
-              </CardDescription>
+              <CardDescription>Horarios y ubicación de las reuniones</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-3 p-4 bg-muted rounded-lg">
