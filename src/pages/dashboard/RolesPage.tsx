@@ -32,8 +32,8 @@ const RolesPage = () => {
         'Configurar roles del sistema',
         'Gestionar livestreams',
         'Ver y modificar datos de cualquier usuario',
-        'Acceso a configuraciones del sistema'
-      ]
+        'Acceso a configuraciones del sistema',
+      ],
     },
     staff: {
       name: 'Personal',
@@ -45,8 +45,8 @@ const RolesPage = () => {
         'Generar y ver reportes básicos',
         'Gestionar permisos de usuarios subordinados',
         'Ver datos de usuarios subordinados',
-        'Gestionar livestreams'
-      ]
+        'Gestionar livestreams',
+      ],
     },
     supervisor: {
       name: 'Supervisor',
@@ -56,8 +56,8 @@ const RolesPage = () => {
         'Ver su propio perfil y datos',
         'Actualizar información de su grupo celular',
         'Ver livestreams públicos',
-        'Gestionar actividades de su grupo'
-      ]
+        'Gestionar actividades de su grupo',
+      ],
     },
     server: {
       name: 'Servidor',
@@ -66,9 +66,9 @@ const RolesPage = () => {
         'Ver y editar solo su propio perfil',
         'Actualizar datos personales',
         'Ver livestreams públicos',
-        'Participar en actividades asignadas'
-      ]
-    }
+        'Participar en actividades asignadas',
+      ],
+    },
   };
 
   useEffect(() => {
@@ -78,7 +78,7 @@ const RolesPage = () => {
   const loadRoleStats = async () => {
     try {
       setLoading(true);
-      
+
       // Obtener estadísticas de roles
       const { data: roleStats, error: roleError } = await supabase
         .from('users')
@@ -98,12 +98,11 @@ const RolesPage = () => {
         role: roleKey,
         count: roleCounts[roleKey] || 0,
         description: roleDef.description,
-        permissions: roleDef.permissions
+        permissions: roleDef.permissions,
       }));
 
       setRoles(rolesData);
       setTotalUsers(roleStats?.length || 0);
-
     } catch (error: unknown) {
       console.error('Error loading role stats:', error);
       toast.error('Error al cargar estadísticas de roles');
@@ -146,9 +145,7 @@ const RolesPage = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Roles
           </h1>
-          <p className="text-muted-foreground">
-            Administra los roles y permisos del sistema
-          </p>
+          <p className="text-muted-foreground">Administra los roles y permisos del sistema</p>
         </div>
         <Button onClick={loadRoleStats}>
           <Shield className="h-4 w-4 mr-2" />
@@ -165,9 +162,7 @@ const RolesPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{roles.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Roles configurados en el sistema
-            </p>
+            <p className="text-xs text-muted-foreground">Roles configurados en el sistema</p>
           </CardContent>
         </Card>
 
@@ -177,12 +172,8 @@ const RolesPage = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {totalUsers}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Total de usuarios con roles
-            </p>
+            <div className="text-2xl font-bold">{totalUsers}</div>
+            <p className="text-xs text-muted-foreground">Total de usuarios con roles</p>
           </CardContent>
         </Card>
 
@@ -195,23 +186,19 @@ const RolesPage = () => {
             <div className="text-2xl font-bold">
               {roles.reduce((total, role) => total + role.permissions.length, 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Permisos diferentes configurados
-            </p>
+            <p className="text-xs text-muted-foreground">Permisos diferentes configurados</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Roles List */}
       <div className="grid gap-4">
-        {roles.map((roleData) => (
+        {roles.map(roleData => (
           <Card key={roleData.role}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Badge variant={getRoleColor(roleData.role)}>
-                    {getRoleName(roleData.role)}
-                  </Badge>
+                  <Badge variant={getRoleColor(roleData.role)}>{getRoleName(roleData.role)}</Badge>
                   <div>
                     <CardTitle className="text-lg">{getRoleName(roleData.role)}</CardTitle>
                     <CardDescription>{roleData.description}</CardDescription>
@@ -235,12 +222,20 @@ const RolesPage = () => {
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2 pt-4 border-t">
-                  <Button variant="outline" size="sm" onClick={() => toast.info('Funcionalidad en desarrollo')}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toast.info('Funcionalidad en desarrollo')}
+                  >
                     Ver Usuarios con este Rol
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => toast.info('Funcionalidad en desarrollo')}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toast.info('Funcionalidad en desarrollo')}
+                  >
                     Gestionar Permisos
                   </Button>
                 </div>
@@ -254,9 +249,7 @@ const RolesPage = () => {
       <Card>
         <CardHeader>
           <CardTitle>Matriz de Permisos</CardTitle>
-          <CardDescription>
-            Vista general de permisos por rol
-          </CardDescription>
+          <CardDescription>Vista general de permisos por rol</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -264,7 +257,7 @@ const RolesPage = () => {
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-2">Permiso</th>
-                  {roles.map((roleData) => (
+                  {roles.map(roleData => (
                     <th key={roleData.role} className="text-center p-2">
                       <Badge variant={getRoleColor(roleData.role)}>
                         {getRoleName(roleData.role)}
@@ -274,20 +267,22 @@ const RolesPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {Array.from(new Set(roles.flatMap(role => role.permissions))).map((permission, index) => (
-                  <tr key={index} className="border-b">
-                    <td className="p-2 font-medium">{permission}</td>
-                    {roles.map((roleData) => (
-                      <td key={roleData.role} className="text-center p-2">
-                        {roleData.permissions.includes(permission) ? (
-                          <div className="w-4 h-4 bg-green-500 rounded-full mx-auto"></div>
-                        ) : (
-                          <div className="w-4 h-4 bg-gray-300 rounded-full mx-auto"></div>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {Array.from(new Set(roles.flatMap(role => role.permissions))).map(
+                  (permission, index) => (
+                    <tr key={index} className="border-b">
+                      <td className="p-2 font-medium">{permission}</td>
+                      {roles.map(roleData => (
+                        <td key={roleData.role} className="text-center p-2">
+                          {roleData.permissions.includes(permission) ? (
+                            <div className="w-4 h-4 bg-green-500 rounded-full mx-auto"></div>
+                          ) : (
+                            <div className="w-4 h-4 bg-gray-300 rounded-full mx-auto"></div>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                )}
               </tbody>
             </table>
           </div>

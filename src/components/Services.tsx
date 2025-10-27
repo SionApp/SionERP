@@ -1,56 +1,83 @@
-import { Heart, Users, BookOpen, Music, Baby, Hand, HandHeart, Globe, Clock, MapPin, Calendar } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Heart,
+  Users,
+  BookOpen,
+  Music,
+  Baby,
+  Hand,
+  HandHeart,
+  Globe,
+  Clock,
+  MapPin,
+  Calendar,
+} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Services = () => {
   const ministerios = [
     {
-      title: "Adoración y Música",
-      description: "Ministerio dedicado a la alabanza y adoración congregacional",
-      features: ["Coro principal", "Música instrumental", "Escuela de música", "Cultos especiales"],
+      title: 'Adoración y Música',
+      description: 'Ministerio dedicado a la alabanza y adoración congregacional',
+      features: ['Coro principal', 'Música instrumental', 'Escuela de música', 'Cultos especiales'],
       icon: Music,
-      color: "bg-primary/10 text-primary",
-      horarios: ["Domingos 9:00 AM", "Miércoles 7:00 PM"]
+      color: 'bg-primary/10 text-primary',
+      horarios: ['Domingos 9:00 AM', 'Miércoles 7:00 PM'],
     },
     {
-      title: "Discipulado",
-      description: "Crecimiento espiritual y formación cristiana integral",
-      features: ["Clases bíblicas", "Mentorías personales", "Grupos pequeños", "Estudios temáticos"],
+      title: 'Discipulado',
+      description: 'Crecimiento espiritual y formación cristiana integral',
+      features: [
+        'Clases bíblicas',
+        'Mentorías personales',
+        'Grupos pequeños',
+        'Estudios temáticos',
+      ],
       icon: BookOpen,
-      color: "bg-accent/20 text-accent",
-      horarios: ["Sábados 2:00 PM", "Martes 7:00 PM"]
+      color: 'bg-accent/20 text-accent',
+      horarios: ['Sábados 2:00 PM', 'Martes 7:00 PM'],
     },
     {
-      title: "Ministerio Infantil",
-      description: "Formación y cuidado especializado para los más pequeños",
-      features: ["Escuela dominical", "Actividades recreativas", "Teatro infantil", "Campamentos"],
+      title: 'Ministerio Infantil',
+      description: 'Formación y cuidado especializado para los más pequeños',
+      features: ['Escuela dominical', 'Actividades recreativas', 'Teatro infantil', 'Campamentos'],
       icon: Baby,
-      color: "bg-primary-light/20 text-primary",
-      horarios: ["Domingos 9:00 AM", "Sábados 3:00 PM"]
+      color: 'bg-primary-light/20 text-primary',
+      horarios: ['Domingos 9:00 AM', 'Sábados 3:00 PM'],
     },
     {
-      title: "Oración e Intercesión",
-      description: "Ministerio dedicado a la vida de oración y intercesión",
-      features: ["Cadenas de oración", "Vigilias", "Intercesión pastoral", "Escuela de oración"],
+      title: 'Oración e Intercesión',
+      description: 'Ministerio dedicado a la vida de oración y intercesión',
+      features: ['Cadenas de oración', 'Vigilias', 'Intercesión pastoral', 'Escuela de oración'],
       icon: Hand,
-      color: "bg-accent/30 text-accent",
-      horarios: ["Viernes 6:00 AM", "Domingos 8:00 AM"]
+      color: 'bg-accent/30 text-accent',
+      horarios: ['Viernes 6:00 AM', 'Domingos 8:00 AM'],
     },
     {
-      title: "Acción Social",
-      description: "Servicio comunitario y ayuda a los más necesitados",
-      features: ["Banco de alimentos", "Visitas hospitalarias", "Apoyo familiar", "Programas sociales"],
+      title: 'Acción Social',
+      description: 'Servicio comunitario y ayuda a los más necesitados',
+      features: [
+        'Banco de alimentos',
+        'Visitas hospitalarias',
+        'Apoyo familiar',
+        'Programas sociales',
+      ],
       icon: HandHeart,
-      color: "bg-primary/15 text-primary",
-      horarios: ["Sábados 10:00 AM"]
+      color: 'bg-primary/15 text-primary',
+      horarios: ['Sábados 10:00 AM'],
     },
     {
-      title: "Misiones",
-      description: "Evangelización y plantación de iglesias locales e internacionales",
-      features: ["Campañas evangelísticas", "Apoyo misionero", "Viajes misioneros", "Plantación de iglesias"],
+      title: 'Misiones',
+      description: 'Evangelización y plantación de iglesias locales e internacionales',
+      features: [
+        'Campañas evangelísticas',
+        'Apoyo misionero',
+        'Viajes misioneros',
+        'Plantación de iglesias',
+      ],
       icon: Globe,
-      color: "bg-accent/25 text-accent",
-      horarios: ["Primer domingo del mes"]
-    }
+      color: 'bg-accent/25 text-accent',
+      horarios: ['Primer domingo del mes'],
+    },
   ];
 
   return (
@@ -65,17 +92,22 @@ const Services = () => {
             Nuestros Ministerios
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Espacios de crecimiento, servicio y comunión donde cada persona puede desarrollar 
-            sus dones y servir a Dios en diferentes áreas del ministerio
+            Espacios de crecimiento, servicio y comunión donde cada persona puede desarrollar sus
+            dones y servir a Dios en diferentes áreas del ministerio
           </p>
         </div>
-        
+
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {ministerios.map((ministerio, index) => (
-            <Card key={index} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-0 shadow-lg bg-card backdrop-blur-sm">
+            <Card
+              key={index}
+              className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-0 shadow-lg bg-card backdrop-blur-sm"
+            >
               <CardHeader className="pb-4">
                 <div className="flex items-start gap-4">
-                  <div className={`w-16 h-16 rounded-xl ${ministerio.color} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+                  <div
+                    className={`w-16 h-16 rounded-xl ${ministerio.color} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg`}
+                  >
                     <ministerio.icon className="w-8 h-8" />
                   </div>
                   <div className="flex-1">
@@ -100,12 +132,15 @@ const Services = () => {
                     ))}
                   </ul>
                 </div>
-                
+
                 <div>
                   <h4 className="font-semibold text-foreground mb-2 text-sm">Horarios:</h4>
                   <div className="flex flex-wrap gap-2">
                     {ministerio.horarios.map((horario, idx) => (
-                      <div key={idx} className="flex items-center bg-secondary/50 rounded-full px-3 py-1">
+                      <div
+                        key={idx}
+                        className="flex items-center bg-secondary/50 rounded-full px-3 py-1"
+                      >
                         <Clock className="w-3 h-3 mr-1.5 text-primary" />
                         <span className="text-xs text-foreground">{horario}</span>
                       </div>
@@ -116,7 +151,7 @@ const Services = () => {
             </Card>
           ))}
         </div>
-        
+
         <div className="text-center mt-16">
           <div className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-2xl p-8 max-w-4xl mx-auto border border-primary/20">
             <h3 className="text-2xl font-bold text-foreground mb-4">

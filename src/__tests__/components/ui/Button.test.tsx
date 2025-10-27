@@ -22,7 +22,7 @@ describe('Button Component', () => {
   test('handles click events', () => {
     const handleClick = jest.fn();
     const { getByRole } = render(<Button onClick={handleClick}>Click me</Button>);
-    
+
     getByRole('button').click();
     expect(handleClick).toHaveBeenCalledTimes(1);
   });

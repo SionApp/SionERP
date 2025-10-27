@@ -26,7 +26,7 @@ describe('useAuth Hook', () => {
 
   test('should initialize with null user', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-    
+
     expect(result.current.user).toBeNull();
     expect(result.current.loading).toBe(true);
   });
@@ -34,7 +34,7 @@ describe('useAuth Hook', () => {
   test('should handle successful login', async () => {
     const mockUser = { id: '123', email: 'test@example.com' };
     const mockSession = { user: mockUser, access_token: 'token' };
-    
+
     (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
       data: { user: mockUser, session: mockSession },
       error: null,

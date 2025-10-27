@@ -1,21 +1,27 @@
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { 
-  Settings, 
-  Church, 
-  Mail, 
-  Bell, 
-  Shield, 
-  Database, 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import {
+  Settings,
+  Church,
+  Mail,
+  Bell,
+  Shield,
+  Database,
   Palette,
   Globe,
   Upload,
@@ -28,16 +34,16 @@ import {
   Eye,
   EyeOff,
   MapPin,
-  Map
-} from "lucide-react";
+  Map,
+} from 'lucide-react';
 import ZoneManagement from '@/components/discipleship/ZoneManagement';
 import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
 import { useAuth } from '@/hooks/useAuth';
-import { toast } from "sonner";
+import { toast } from 'sonner';
 
 const SettingsPage = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState('general');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -83,16 +89,14 @@ const SettingsPage = () => {
                 <Settings className="w-5 h-5" />
                 Configuración General
               </CardTitle>
-              <CardDescription>
-                Configuraciones básicas del sistema
-              </CardDescription>
+              <CardDescription>Configuraciones básicas del sistema</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="system-name">Nombre del Sistema</Label>
-                  <Input 
-                    id="system-name" 
+                  <Input
+                    id="system-name"
                     defaultValue="Sistema Sion"
                     placeholder="Nombre del sistema"
                   />
@@ -100,8 +104,8 @@ const SettingsPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="system-version">Versión</Label>
-                  <Input 
-                    id="system-version" 
+                  <Input
+                    id="system-version"
                     defaultValue="1.0.0"
                     placeholder="Versión del sistema"
                     disabled
@@ -118,7 +122,9 @@ const SettingsPage = () => {
                       <SelectItem value="america/caracas">America/Caracas (UTC-4)</SelectItem>
                       <SelectItem value="america/bogota">America/Bogotá (UTC-5)</SelectItem>
                       <SelectItem value="america/lima">America/Lima (UTC-5)</SelectItem>
-                      <SelectItem value="america/mexico_city">America/Mexico_City (UTC-6)</SelectItem>
+                      <SelectItem value="america/mexico_city">
+                        America/Mexico_City (UTC-6)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -193,16 +199,14 @@ const SettingsPage = () => {
                 <Church className="w-5 h-5" />
                 Información de la Iglesia
               </CardTitle>
-              <CardDescription>
-                Datos generales de tu congregación
-              </CardDescription>
+              <CardDescription>Datos generales de tu congregación</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="church-name">Nombre de la Iglesia</Label>
-                  <Input 
-                    id="church-name" 
+                  <Input
+                    id="church-name"
                     defaultValue="Iglesia Sion"
                     placeholder="Nombre completo de la iglesia"
                   />
@@ -210,8 +214,8 @@ const SettingsPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="pastor-name">Pastor Principal</Label>
-                  <Input 
-                    id="pastor-name" 
+                  <Input
+                    id="pastor-name"
                     defaultValue="Pastor Juan Pérez"
                     placeholder="Nombre del pastor"
                   />
@@ -219,8 +223,8 @@ const SettingsPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="phone">Teléfono</Label>
-                  <Input 
-                    id="phone" 
+                  <Input
+                    id="phone"
                     defaultValue="+58 412-1234567"
                     placeholder="Teléfono de contacto"
                   />
@@ -228,8 +232,8 @@ const SettingsPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
+                  <Input
+                    id="email"
                     defaultValue="contacto@iglesiasion.org"
                     placeholder="Email de contacto"
                     type="email"
@@ -238,8 +242,8 @@ const SettingsPage = () => {
 
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="address">Dirección</Label>
-                  <Textarea 
-                    id="address" 
+                  <Textarea
+                    id="address"
                     defaultValue="Av. Principal #123, Sector Centro, Ciudad, Estado"
                     placeholder="Dirección completa de la iglesia"
                     rows={3}
@@ -248,8 +252,8 @@ const SettingsPage = () => {
 
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="mission">Misión</Label>
-                  <Textarea 
-                    id="mission" 
+                  <Textarea
+                    id="mission"
                     defaultValue="Proclamar el evangelio de Jesucristo y formar discípulos que transformen vidas y comunidades."
                     placeholder="Declaración de misión de la iglesia"
                     rows={3}
@@ -258,8 +262,8 @@ const SettingsPage = () => {
 
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="vision">Visión</Label>
-                  <Textarea 
-                    id="vision" 
+                  <Textarea
+                    id="vision"
                     defaultValue="Ser una iglesia que impacte positivamente nuestra ciudad y las naciones con el amor de Cristo."
                     placeholder="Declaración de visión de la iglesia"
                     rows={3}
@@ -290,11 +294,7 @@ const SettingsPage = () => {
                       <Label htmlFor="primary-color">Color Primario</Label>
                       <div className="flex items-center gap-2">
                         <div className="w-10 h-10 rounded-lg bg-primary border"></div>
-                        <Input 
-                          id="primary-color" 
-                          defaultValue="#1e40af"
-                          placeholder="#000000"
-                        />
+                        <Input id="primary-color" defaultValue="#1e40af" placeholder="#000000" />
                       </div>
                     </div>
 
@@ -302,11 +302,7 @@ const SettingsPage = () => {
                       <Label htmlFor="secondary-color">Color Secundario</Label>
                       <div className="flex items-center gap-2">
                         <div className="w-10 h-10 rounded-lg bg-accent border"></div>
-                        <Input 
-                          id="secondary-color" 
-                          defaultValue="#fbbf24"
-                          placeholder="#000000"
-                        />
+                        <Input id="secondary-color" defaultValue="#fbbf24" placeholder="#000000" />
                       </div>
                     </div>
                   </div>
@@ -354,9 +350,7 @@ const SettingsPage = () => {
                 <Bell className="w-5 h-5" />
                 Configuración de Notificaciones
               </CardTitle>
-              <CardDescription>
-                Gestiona cómo y cuándo enviar notificaciones
-              </CardDescription>
+              <CardDescription>Gestiona cómo y cuándo enviar notificaciones</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-6">
@@ -429,37 +423,26 @@ const SettingsPage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="smtp-host">Servidor SMTP</Label>
-                      <Input 
-                        id="smtp-host" 
-                        placeholder="smtp.gmail.com"
-                      />
+                      <Input id="smtp-host" placeholder="smtp.gmail.com" />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="smtp-port">Puerto</Label>
-                      <Input 
-                        id="smtp-port" 
-                        placeholder="587"
-                        type="number"
-                      />
+                      <Input id="smtp-port" placeholder="587" type="number" />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="smtp-user">Usuario</Label>
-                      <Input 
-                        id="smtp-user" 
-                        placeholder="tu-email@gmail.com"
-                        type="email"
-                      />
+                      <Input id="smtp-user" placeholder="tu-email@gmail.com" type="email" />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="smtp-password">Contraseña</Label>
                       <div className="relative">
-                        <Input 
-                          id="smtp-password" 
+                        <Input
+                          id="smtp-password"
                           placeholder="Tu contraseña"
-                          type={showPassword ? "text" : "password"}
+                          type={showPassword ? 'text' : 'password'}
                         />
                         <Button
                           type="button"
@@ -498,9 +481,7 @@ const SettingsPage = () => {
                 <Shield className="w-5 h-5" />
                 Configuración de Seguridad
               </CardTitle>
-              <CardDescription>
-                Gestiona la seguridad y acceso al sistema
-              </CardDescription>
+              <CardDescription>Gestiona la seguridad y acceso al sistema</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-6">
@@ -530,9 +511,7 @@ const SettingsPage = () => {
                     <div className="flex items-center justify-between">
                       <div className="space-y-0.5">
                         <Label>Requerir Números</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Al menos un número
-                        </p>
+                        <p className="text-sm text-muted-foreground">Al menos un número</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
@@ -642,9 +621,7 @@ const SettingsPage = () => {
                 <Globe className="w-5 h-5" />
                 Integraciones Externas
               </CardTitle>
-              <CardDescription>
-                Conecta con servicios externos y APIs
-              </CardDescription>
+              <CardDescription>Conecta con servicios externos y APIs</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-6">
@@ -657,7 +634,9 @@ const SettingsPage = () => {
                       </div>
                       <div>
                         <h3 className="font-semibold">WhatsApp Business</h3>
-                        <p className="text-sm text-muted-foreground">Envío de mensajes automáticos</p>
+                        <p className="text-sm text-muted-foreground">
+                          Envío de mensajes automáticos
+                        </p>
                       </div>
                     </div>
                     <Badge variant="outline">Desconectado</Badge>
@@ -665,8 +644,8 @@ const SettingsPage = () => {
                   <div className="space-y-3">
                     <div className="space-y-2">
                       <Label htmlFor="whatsapp-token">Token de API</Label>
-                      <Input 
-                        id="whatsapp-token" 
+                      <Input
+                        id="whatsapp-token"
                         placeholder="Ingresa tu token de WhatsApp Business"
                         type="password"
                       />
@@ -723,8 +702,8 @@ const SettingsPage = () => {
                   <div className="space-y-3">
                     <div className="space-y-2">
                       <Label htmlFor="mailchimp-key">API Key</Label>
-                      <Input 
-                        id="mailchimp-key" 
+                      <Input
+                        id="mailchimp-key"
                         placeholder="Ingresa tu API Key de Mailchimp"
                         type="password"
                       />
@@ -750,9 +729,7 @@ const SettingsPage = () => {
                     <Badge variant="default">Conectado</Badge>
                   </div>
                   <div className="space-y-3">
-                    <div className="text-sm text-muted-foreground">
-                      Canal: Iglesia Sion Oficial
-                    </div>
+                    <div className="text-sm text-muted-foreground">Canal: Iglesia Sion Oficial</div>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm">
                         Reconfigurar
@@ -858,18 +835,44 @@ const SettingsPage = () => {
                   <h3 className="text-lg font-semibold mb-4">Historial de Respaldos</h3>
                   <div className="space-y-3">
                     {[
-                      { date: '2024-03-31 02:00:00', size: '45.2 MB', type: 'Automático', status: 'Exitoso' },
-                      { date: '2024-03-30 02:00:00', size: '44.8 MB', type: 'Automático', status: 'Exitoso' },
-                      { date: '2024-03-29 14:30:00', size: '44.5 MB', type: 'Manual', status: 'Exitoso' },
-                      { date: '2024-03-29 02:00:00', size: '44.3 MB', type: 'Automático', status: 'Exitoso' },
+                      {
+                        date: '2024-03-31 02:00:00',
+                        size: '45.2 MB',
+                        type: 'Automático',
+                        status: 'Exitoso',
+                      },
+                      {
+                        date: '2024-03-30 02:00:00',
+                        size: '44.8 MB',
+                        type: 'Automático',
+                        status: 'Exitoso',
+                      },
+                      {
+                        date: '2024-03-29 14:30:00',
+                        size: '44.5 MB',
+                        type: 'Manual',
+                        status: 'Exitoso',
+                      },
+                      {
+                        date: '2024-03-29 02:00:00',
+                        size: '44.3 MB',
+                        type: 'Automático',
+                        status: 'Exitoso',
+                      },
                     ].map((backup, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 border rounded-lg"
+                      >
                         <div className="space-y-1">
                           <p className="font-medium">{backup.date}</p>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             <span>Tamaño: {backup.size}</span>
                             <span>Tipo: {backup.type}</span>
-                            <Badge variant={backup.status === 'Exitoso' ? 'default' : 'destructive'} className="text-xs">
+                            <Badge
+                              variant={backup.status === 'Exitoso' ? 'default' : 'destructive'}
+                              className="text-xs"
+                            >
                               {backup.status}
                             </Badge>
                           </div>

@@ -1,0 +1,34 @@
+# Dependencies
+node_modules
+dist
+build
+.next
+
+# Build outputs
+*.min.js
+*.min.css
+coverage
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lockb
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Generated files
+*.generated.*
+
+# Backend Go
+apps/backend-go/
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+

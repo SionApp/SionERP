@@ -6,7 +6,7 @@ import type {
   GroupPerformance,
   DiscipleshipAlert,
   MultiplicationTracker,
-  WeeklyTrend
+  WeeklyTrend,
 } from '@/services/discipleship-analytics.service';
 
 export const useDiscipleshipAnalytics = () => {
@@ -18,9 +18,9 @@ export const useDiscipleshipAnalytics = () => {
     activeLeaders: 0,
     multiplications: 0,
     spiritualHealth: 0,
-    dateRange: { from: '', to: '' }
+    dateRange: { from: '', to: '' },
   });
-  
+
   const [zoneStats, setZoneStats] = useState<ZoneStats[]>([]);
   const [groupPerformance, setGroupPerformance] = useState<GroupPerformance[]>([]);
   const [alerts, setAlerts] = useState<DiscipleshipAlert[]>([]);
@@ -33,9 +33,9 @@ export const useDiscipleshipAnalytics = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const data = await DiscipleshipAnalyticsService.getAllDiscipleshipData();
-      
+
       setAnalytics(data.analytics);
       setZoneStats(data.zoneStats);
       setGroupPerformance(data.groupPerformance);
@@ -63,6 +63,6 @@ export const useDiscipleshipAnalytics = () => {
     weeklyTrends,
     loading,
     error,
-    refetch: loadDiscipleshipData
+    refetch: loadDiscipleshipData,
   };
 };

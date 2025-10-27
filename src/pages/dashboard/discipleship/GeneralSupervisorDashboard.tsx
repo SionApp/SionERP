@@ -7,18 +7,29 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Users, 
-  TrendingUp, 
-  Map, 
-  Target, 
-  Send, 
+import {
+  Users,
+  TrendingUp,
+  Map,
+  Target,
+  Send,
   BarChart3,
   PieChart,
   Building,
-  UserPlus
+  UserPlus,
 } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  BarChart,
+  Bar,
+  Cell,
+} from 'recharts';
 import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
 import { MonthlyGeneralReport } from '@/types/discipleship.types';
 import { toast } from '@/hooks/use-toast';
@@ -31,7 +42,7 @@ const GeneralSupervisorDashboard: React.FC = () => {
   const [monthlyReport, setMonthlyReport] = useState<Partial<MonthlyGeneralReport>>({
     zoneStatistics: { totalGroups: 0, totalMembers: 0, monthlyGrowth: 0, multiplicationPlans: [] },
     leadershipPipeline: { auxiliarySupervisors: 0, trainingSupervisors: 0, leadershipGaps: [] },
-    strategicInitiatives: { newGroupLocations: [], communityOutreach: [], specialEvents: [] }
+    strategicInitiatives: { newGroupLocations: [], communityOutreach: [], specialEvents: [] },
   });
 
   useEffect(() => {
@@ -51,9 +62,9 @@ const GeneralSupervisorDashboard: React.FC = () => {
         ...monthlyReport,
         supervisorId: 'current-user-id',
         zoneName: 'Zona Norte - Sector A',
-        month: new Date().toISOString().split('T')[0]
+        month: new Date().toISOString().split('T')[0],
       } as MonthlyGeneralReport);
-      
+
       if (result.success) {
         toast({
           title: 'Reporte Enviado',
@@ -77,19 +88,19 @@ const GeneralSupervisorDashboard: React.FC = () => {
     { name: 'Mar', grupos: 7, miembros: 84 },
     { name: 'Abr', grupos: 7, miembros: 91 },
     { name: 'May', grupos: 8, miembros: 96 },
-    { name: 'Jun', grupos: 8, miembros: 104 }
+    { name: 'Jun', grupos: 8, miembros: 104 },
   ];
 
   const groupDistribution = [
     { name: 'Activos', value: 6, color: '#22c55e' },
     { name: 'Multiplicando', value: 2, color: '#3b82f6' },
-    { name: 'Nuevos', value: 1, color: '#f59e0b' }
+    { name: 'Nuevos', value: 1, color: '#f59e0b' },
   ];
 
   const auxiliarySupervisors = [
     { name: 'Patricia Jiménez', groups: 4, members: 48, performance: 92, zone: 'Sector A1' },
     { name: 'Miguel Herrera', groups: 3, members: 36, performance: 88, zone: 'Sector A2' },
-    { name: 'Carmen Ruiz', groups: 2, members: 24, performance: 95, zone: 'Sector A3' }
+    { name: 'Carmen Ruiz', groups: 2, members: 24, performance: 95, zone: 'Sector A3' },
   ];
 
   return (
@@ -165,7 +176,9 @@ const GeneralSupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Crecimiento del Territorio</CardTitle>
-              <CardDescription>Evolución de grupos y miembros en los últimos 6 meses</CardDescription>
+              <CardDescription>
+                Evolución de grupos y miembros en los últimos 6 meses
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -174,8 +187,22 @@ const GeneralSupervisorDashboard: React.FC = () => {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
-                  <Area type="monotone" dataKey="miembros" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="grupos" stackId="2" stroke="#22c55e" fill="#22c55e" fillOpacity={0.8} />
+                  <Area
+                    type="monotone"
+                    dataKey="miembros"
+                    stackId="1"
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
+                    fillOpacity={0.6}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="grupos"
+                    stackId="2"
+                    stroke="#22c55e"
+                    fill="#22c55e"
+                    fillOpacity={0.8}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
@@ -192,7 +219,10 @@ const GeneralSupervisorDashboard: React.FC = () => {
                   {groupDistribution.map((item, index) => (
                     <div key={index} className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: item.color }}
+                        ></div>
                         <span className="text-sm">{item.name}</span>
                       </div>
                       <span className="font-medium">{item.value}</span>
@@ -238,9 +268,7 @@ const GeneralSupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Supervisores Auxiliares</CardTitle>
-              <CardDescription>
-                Rendimiento y métricas de supervisores bajo tu zona
-              </CardDescription>
+              <CardDescription>Rendimiento y métricas de supervisores bajo tu zona</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -251,9 +279,7 @@ const GeneralSupervisorDashboard: React.FC = () => {
                         <h3 className="font-semibold">{supervisor.name}</h3>
                         <p className="text-sm text-muted-foreground">{supervisor.zone}</p>
                       </div>
-                      <Badge variant="default">
-                        Rendimiento: {supervisor.performance}%
-                      </Badge>
+                      <Badge variant="default">Rendimiento: {supervisor.performance}%</Badge>
                     </div>
                     <div className="grid gap-2 md:grid-cols-4 text-sm">
                       <div>
@@ -287,9 +313,7 @@ const GeneralSupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Ubicaciones de Grupos</CardTitle>
-              <CardDescription>
-                Distribución geográfica en el sector
-              </CardDescription>
+              <CardDescription>Distribución geográfica en el sector</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3">
@@ -298,7 +322,7 @@ const GeneralSupervisorDashboard: React.FC = () => {
                   { location: 'Residencial Norte', groups: 2, growth: 'Estable' },
                   { location: 'Sector Industrial', groups: 2, growth: '+1 mes pasado' },
                   { location: 'Barrio San José', groups: 1, growth: 'Nuevo' },
-                  { location: 'Zona Comercial', groups: 1, growth: 'Multiplicando' }
+                  { location: 'Zona Comercial', groups: 1, growth: 'Multiplicando' },
                 ].map((location, index) => (
                   <div key={index} className="p-4 border rounded-lg">
                     <h4 className="font-medium">{location.location}</h4>
@@ -330,13 +354,13 @@ const GeneralSupervisorDashboard: React.FC = () => {
                       id="totalGroups"
                       type="number"
                       value={monthlyReport.zoneStatistics?.totalGroups || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          zoneStatistics: { 
-                            ...prev.zoneStatistics!, 
-                            totalGroups: parseInt(e.target.value) || 0 
-                          }
+                          zoneStatistics: {
+                            ...prev.zoneStatistics!,
+                            totalGroups: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -347,13 +371,13 @@ const GeneralSupervisorDashboard: React.FC = () => {
                       id="totalMembers"
                       type="number"
                       value={monthlyReport.zoneStatistics?.totalMembers || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          zoneStatistics: { 
-                            ...prev.zoneStatistics!, 
-                            totalMembers: parseInt(e.target.value) || 0 
-                          }
+                          zoneStatistics: {
+                            ...prev.zoneStatistics!,
+                            totalMembers: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -364,13 +388,13 @@ const GeneralSupervisorDashboard: React.FC = () => {
                       id="monthlyGrowth"
                       type="number"
                       value={monthlyReport.zoneStatistics?.monthlyGrowth || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          zoneStatistics: { 
-                            ...prev.zoneStatistics!, 
-                            monthlyGrowth: parseInt(e.target.value) || 0 
-                          }
+                          zoneStatistics: {
+                            ...prev.zoneStatistics!,
+                            monthlyGrowth: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -388,13 +412,13 @@ const GeneralSupervisorDashboard: React.FC = () => {
                       id="auxiliarySupervisors"
                       type="number"
                       value={monthlyReport.leadershipPipeline?.auxiliarySupervisors || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          leadershipPipeline: { 
-                            ...prev.leadershipPipeline!, 
-                            auxiliarySupervisors: parseInt(e.target.value) || 0 
-                          }
+                          leadershipPipeline: {
+                            ...prev.leadershipPipeline!,
+                            auxiliarySupervisors: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -405,13 +429,13 @@ const GeneralSupervisorDashboard: React.FC = () => {
                       id="trainingSupervisors"
                       type="number"
                       value={monthlyReport.leadershipPipeline?.trainingSupervisors || 0}
-                      onChange={(e) =>
+                      onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          leadershipPipeline: { 
-                            ...prev.leadershipPipeline!, 
-                            trainingSupervisors: parseInt(e.target.value) || 0 
-                          }
+                          leadershipPipeline: {
+                            ...prev.leadershipPipeline!,
+                            trainingSupervisors: parseInt(e.target.value) || 0,
+                          },
                         }))
                       }
                     />
@@ -450,8 +474,8 @@ const GeneralSupervisorDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <Button 
-                onClick={handleSubmitMonthlyReport} 
+              <Button
+                onClick={handleSubmitMonthlyReport}
                 disabled={isSubmittingReport}
                 className="w-full"
                 size="lg"
@@ -473,47 +497,52 @@ const GeneralSupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Plan de Multiplicación</CardTitle>
-              <CardDescription>
-                Estrategia para multiplicar grupos en el territorio
-              </CardDescription>
+              <CardDescription>Estrategia para multiplicar grupos en el territorio</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {[
-                  { 
-                    group: 'Juventud Victoriosa', 
-                    leader: 'Carmen Torres', 
-                    status: 'Listo', 
+                  {
+                    group: 'Juventud Victoriosa',
+                    leader: 'Carmen Torres',
+                    status: 'Listo',
                     targetDate: 'Oct 2024',
-                    newLocation: 'Centro Comunitario Norte'
+                    newLocation: 'Centro Comunitario Norte',
                   },
-                  { 
-                    group: 'Célula Esperanza', 
-                    leader: 'Roberto Silva', 
-                    status: 'Preparando', 
+                  {
+                    group: 'Célula Esperanza',
+                    leader: 'Roberto Silva',
+                    status: 'Preparando',
                     targetDate: 'Nov 2024',
-                    newLocation: 'Casa de Familia García'
+                    newLocation: 'Casa de Familia García',
                   },
-                  { 
-                    group: 'Familia en Cristo', 
-                    leader: 'Miguel Herrera', 
-                    status: 'Evaluando', 
+                  {
+                    group: 'Familia en Cristo',
+                    leader: 'Miguel Herrera',
+                    status: 'Evaluando',
                     targetDate: 'Dic 2024',
-                    newLocation: 'Por definir'
-                  }
+                    newLocation: 'Por definir',
+                  },
                 ].map((plan, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div>
                       <p className="font-medium">{plan.group}</p>
                       <p className="text-sm text-muted-foreground">Líder: {plan.leader}</p>
-                      <p className="text-sm text-muted-foreground">Nueva ubicación: {plan.newLocation}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Nueva ubicación: {plan.newLocation}
+                      </p>
                     </div>
                     <div className="flex items-center space-x-4">
-                      <Badge 
+                      <Badge
                         variant={
-                          plan.status === 'Listo' ? 'default' : 
-                          plan.status === 'Preparando' ? 'secondary' : 
-                          'outline'
+                          plan.status === 'Listo'
+                            ? 'default'
+                            : plan.status === 'Preparando'
+                              ? 'secondary'
+                              : 'outline'
                         }
                       >
                         {plan.status}

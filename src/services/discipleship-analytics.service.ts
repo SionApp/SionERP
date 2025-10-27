@@ -74,7 +74,7 @@ export class DiscipleshipAnalyticsService {
       const { data, error } = await supabase.rpc('calculate_discipleship_stats', {
         zone_filter: zoneFilter || null,
         date_from: dateFrom || null,
-        date_to: dateTo || null
+        date_to: dateTo || null,
       });
 
       if (error) throw error;
@@ -91,7 +91,7 @@ export class DiscipleshipAnalyticsService {
         activeLeaders: 0,
         multiplications: 0,
         spiritualHealth: 0,
-        dateRange: { from: '', to: '' }
+        dateRange: { from: '', to: '' },
       };
     }
   }
@@ -100,35 +100,47 @@ export class DiscipleshipAnalyticsService {
     try {
       const { data: groups, error: groupsError } = await supabase
         .from('discipleship_groups')
-        .select(`
+        .select(
+          `
           zone_name,
           member_count,
           status
-        `)
+        `
+        )
         .eq('status', 'active');
 
       if (groupsError) throw groupsError;
 
       const { data: metrics, error: metricsError } = await supabase
         .from('discipleship_metrics')
-        .select(`
+        .select(
+          `
           attendance,
           spiritual_temperature,
           week_date,
           discipleship_groups!inner(zone_name)
-        `)
-        .gte('week_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+        `
+        )
+        .gte(
+          'week_date',
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        );
 
       if (metricsError) throw metricsError;
 
       const { data: multiplications, error: multiError } = await supabase
         .from('cell_multiplication_tracking')
-        .select(`
+        .select(
+          `
           multiplication_date,
           success_status,
           discipleship_groups!inner(zone_name)
-        `)
-        .gte('multiplication_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+        `
+        )
+        .gte(
+          'multiplication_date',
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        );
 
       if (multiError) throw multiError;
 
@@ -137,7 +149,7 @@ export class DiscipleshipAnalyticsService {
       // Procesar grupos por zona
       groups?.forEach(group => {
         if (!group.zone_name) return;
-        
+
         const existing = zoneMap.get(group.zone_name) || {
           zoneName: group.zone_name,
           groups: 0,
@@ -145,12 +157,12 @@ export class DiscipleshipAnalyticsService {
           attendance: 0,
           growthRate: 0,
           spiritualHealth: 0,
-          multiplications: 0
+          multiplications: 0,
         };
 
         existing.groups++;
         existing.members += group.member_count || 0;
-        
+
         zoneMap.set(group.zone_name, existing);
       });
 
@@ -184,7 +196,7 @@ export class DiscipleshipAnalyticsService {
           ...zone,
           attendance: Math.round(zone.attendance / groupCount),
           spiritualHealth: Math.round((zone.spiritualHealth / groupCount) * 10) / 10,
-          growthRate: Math.round(Math.random() * 20 - 5) // TODO: Calcular crecimiento real
+          growthRate: Math.round(Math.random() * 20 - 5), // TODO: Calcular crecimiento real
         };
       });
     } catch (error) {
@@ -197,7 +209,8 @@ export class DiscipleshipAnalyticsService {
     try {
       const { data, error } = await supabase
         .from('discipleship_groups')
-        .select(`
+        .select(
+          `
           id,
           group_name,
           leader_id,
@@ -209,32 +222,48 @@ export class DiscipleshipAnalyticsService {
             spiritual_temperature,
             week_date
           )
-        `)
+        `
+        )
         .eq('status', 'active')
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
 
-      return data?.map(group => {
-        const metrics = Array.isArray(group.discipleship_metrics) ? group.discipleship_metrics : [];
-        const recentMetrics = metrics.slice(0, 4); // Últimas 4 semanas
-        
-        const avgAttendance = recentMetrics.length > 0 ? 
-          (recentMetrics as any[]).reduce((sum: number, m: any) => sum + (m.attendance || 0), 0) / recentMetrics.length : 0;
-        const avgSpiritualHealth = recentMetrics.length > 0 ? 
-          (recentMetrics as any[]).reduce((sum: number, m: any) => sum + (m.spiritual_temperature || 0), 0) / recentMetrics.length : 0;
-        
-        return {
-          groupId: group.id,
-          groupName: group.group_name,
-          leaderName: `${(group.users as any)?.first_name || ''} ${(group.users as any)?.last_name || ''}`.trim(),
-          attendance: Math.round(avgAttendance),
-          growth: Math.round(Math.random() * 30 - 10), // TODO: Calcular crecimiento real
-          spiritualHealth: Math.round(avgSpiritualHealth * 10) / 10,
-          consistency: recentMetrics.length * 25, // % basado en reportes enviados
-          lastActivity: group.updated_at
-        };
-      }) || [];
+      return (
+        data?.map(group => {
+          const metrics = Array.isArray(group.discipleship_metrics)
+            ? group.discipleship_metrics
+            : [];
+          const recentMetrics = metrics.slice(0, 4); // Últimas 4 semanas
+
+          const avgAttendance =
+            recentMetrics.length > 0
+              ? (recentMetrics as any[]).reduce(
+                  (sum: number, m: any) => sum + (m.attendance || 0),
+                  0
+                ) / recentMetrics.length
+              : 0;
+          const avgSpiritualHealth =
+            recentMetrics.length > 0
+              ? (recentMetrics as any[]).reduce(
+                  (sum: number, m: any) => sum + (m.spiritual_temperature || 0),
+                  0
+                ) / recentMetrics.length
+              : 0;
+
+          return {
+            groupId: group.id,
+            groupName: group.group_name,
+            leaderName:
+              `${(group.users as any)?.first_name || ''} ${(group.users as any)?.last_name || ''}`.trim(),
+            attendance: Math.round(avgAttendance),
+            growth: Math.round(Math.random() * 30 - 10), // TODO: Calcular crecimiento real
+            spiritualHealth: Math.round(avgSpiritualHealth * 10) / 10,
+            consistency: recentMetrics.length * 25, // % basado en reportes enviados
+            lastActivity: group.updated_at,
+          };
+        }) || []
+      );
     } catch (error) {
       console.error('Error fetching group performance:', error);
       return [];
@@ -245,7 +274,8 @@ export class DiscipleshipAnalyticsService {
     try {
       const { data, error } = await supabase
         .from('discipleship_alerts')
-        .select(`
+        .select(
+          `
           id,
           alert_type,
           title,
@@ -256,7 +286,8 @@ export class DiscipleshipAnalyticsService {
           resolved,
           discipleship_groups(group_name),
           users(first_name, last_name)
-        `)
+        `
+        )
         .eq('resolved', false)
         .order('priority', { ascending: true })
         .order('created_at', { ascending: false })
@@ -264,18 +295,21 @@ export class DiscipleshipAnalyticsService {
 
       if (error) throw error;
 
-      return data?.map(alert => ({
-        id: alert.id,
-        type: alert.alert_type as 'critical' | 'warning' | 'info' | 'success',
-        title: alert.title,
-        message: alert.message,
-        actionRequired: alert.action_required,
-        priority: alert.priority,
-        createdAt: alert.created_at,
-        groupName: (alert.discipleship_groups as any)?.group_name,
-        leaderName: (alert.users as any) ? 
-          `${(alert.users as any).first_name} ${(alert.users as any).last_name}`.trim() : undefined
-      })) || [];
+      return (
+        data?.map(alert => ({
+          id: alert.id,
+          type: alert.alert_type as 'critical' | 'warning' | 'info' | 'success',
+          title: alert.title,
+          message: alert.message,
+          actionRequired: alert.action_required,
+          priority: alert.priority,
+          createdAt: alert.created_at,
+          groupName: (alert.discipleship_groups as any)?.group_name,
+          leaderName: (alert.users as any)
+            ? `${(alert.users as any).first_name} ${(alert.users as any).last_name}`.trim()
+            : undefined,
+        })) || []
+      );
     } catch (error) {
       console.error('Error fetching discipleship alerts:', error);
       return [];
@@ -286,27 +320,31 @@ export class DiscipleshipAnalyticsService {
     try {
       const { data, error } = await supabase
         .from('cell_multiplication_tracking')
-        .select(`
+        .select(
+          `
           multiplication_date,
           initial_members,
           success_status,
           notes,
           parent_group:discipleship_groups!parent_group_id(group_name),
           new_group:discipleship_groups!new_group_id(group_name)
-        `)
+        `
+        )
         .order('multiplication_date', { ascending: false })
         .limit(10);
 
       if (error) throw error;
 
-      return data?.map(track => ({
-        parentGroup: (track.parent_group as any)?.group_name || 'Grupo no encontrado',
-        newGroup: (track.new_group as any)?.group_name,
-        date: track.multiplication_date,
-        status: track.success_status as 'planned' | 'successful' | 'struggling' | 'failed',
-        initialMembers: track.initial_members || 0,
-        notes: track.notes
-      })) || [];
+      return (
+        data?.map(track => ({
+          parentGroup: (track.parent_group as any)?.group_name || 'Grupo no encontrado',
+          newGroup: (track.new_group as any)?.group_name,
+          date: track.multiplication_date,
+          status: track.success_status as 'planned' | 'successful' | 'struggling' | 'failed',
+          initialMembers: track.initial_members || 0,
+          notes: track.notes,
+        })) || []
+      );
     } catch (error) {
       console.error('Error fetching multiplication tracking:', error);
       return [];
@@ -317,22 +355,27 @@ export class DiscipleshipAnalyticsService {
     try {
       const { data, error } = await supabase
         .from('discipleship_metrics')
-        .select(`
+        .select(
+          `
           week_date,
           attendance,
           new_visitors,
           returning_visitors,
           conversions,
           spiritual_temperature
-        `)
-        .gte('week_date', new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        `
+        )
+        .gte(
+          'week_date',
+          new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        )
         .order('week_date', { ascending: true });
 
       if (error) throw error;
 
       // Agrupar por semana
       const weeklyData = new Map<string, WeeklyTrend>();
-      
+
       data?.forEach(metric => {
         const weekKey = metric.week_date;
         const existing = weeklyData.get(weekKey) || {
@@ -340,7 +383,7 @@ export class DiscipleshipAnalyticsService {
           attendance: 0,
           visitors: 0,
           conversions: 0,
-          spiritualHealth: 0
+          spiritualHealth: 0,
         };
 
         existing.attendance += metric.attendance || 0;
@@ -355,7 +398,7 @@ export class DiscipleshipAnalyticsService {
         .slice(-weeks)
         .map(week => ({
           ...week,
-          spiritualHealth: Math.round(week.spiritualHealth * 10) / 10
+          spiritualHealth: Math.round(week.spiritualHealth * 10) / 10,
         }));
     } catch (error) {
       console.error('Error fetching weekly trends:', error);
@@ -365,21 +408,15 @@ export class DiscipleshipAnalyticsService {
 
   static async getAllDiscipleshipData() {
     try {
-      const [
-        analytics,
-        zoneStats,
-        groupPerformance,
-        alerts,
-        multiplications,
-        weeklyTrends
-      ] = await Promise.all([
-        this.getDiscipleshipAnalytics(),
-        this.getZoneStats(),
-        this.getGroupPerformance(),
-        this.getDiscipleshipAlerts(),
-        this.getMultiplicationTracking(),
-        this.getWeeklyTrends()
-      ]);
+      const [analytics, zoneStats, groupPerformance, alerts, multiplications, weeklyTrends] =
+        await Promise.all([
+          this.getDiscipleshipAnalytics(),
+          this.getZoneStats(),
+          this.getGroupPerformance(),
+          this.getDiscipleshipAlerts(),
+          this.getMultiplicationTracking(),
+          this.getWeeklyTrends(),
+        ]);
 
       return {
         analytics,
@@ -387,7 +424,7 @@ export class DiscipleshipAnalyticsService {
         groupPerformance,
         alerts,
         multiplications,
-        weeklyTrends
+        weeklyTrends,
       };
     } catch (error) {
       console.error('Error fetching all discipleship data:', error);

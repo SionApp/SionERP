@@ -1,93 +1,99 @@
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { 
-  BarChart3, 
-  FileText, 
-  Download, 
-  Calendar, 
-  Users, 
-  TrendingUp, 
-  PieChart, 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import {
+  BarChart3,
+  FileText,
+  Download,
+  Calendar,
+  Users,
+  TrendingUp,
+  PieChart,
   Filter,
   Search,
   RefreshCw,
   Eye,
-  Printer
-} from "lucide-react";
-import { DatePickerWithRange } from "@/components/ui/date-picker-with-range";
-import { DateRange } from "react-day-picker";
+  Printer,
+} from 'lucide-react';
+import { DatePickerWithRange } from '@/components/ui/date-picker-with-range';
+import { DateRange } from 'react-day-picker';
 
 const ReportsPage = () => {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [selectedReport, setSelectedReport] = useState<string>("");
+  const [selectedReport, setSelectedReport] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
 
   const reportTypes = [
     {
-      id: "users",
-      title: "Reporte de Usuarios",
-      description: "Estadísticas completas de miembros y visitantes",
+      id: 'users',
+      title: 'Reporte de Usuarios',
+      description: 'Estadísticas completas de miembros y visitantes',
       icon: Users,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50 dark:bg-blue-950/20"
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50 dark:bg-blue-950/20',
     },
     {
-      id: "growth",
-      title: "Reporte de Crecimiento",
-      description: "Análisis de crecimiento congregacional",
+      id: 'growth',
+      title: 'Reporte de Crecimiento',
+      description: 'Análisis de crecimiento congregacional',
       icon: TrendingUp,
-      color: "text-green-600",
-      bgColor: "bg-green-50 dark:bg-green-950/20"
+      color: 'text-green-600',
+      bgColor: 'bg-green-50 dark:bg-green-950/20',
     },
     {
-      id: "demographics",
-      title: "Reporte Demográfico",
-      description: "Análisis por edades, ubicación y estados",
+      id: 'demographics',
+      title: 'Reporte Demográfico',
+      description: 'Análisis por edades, ubicación y estados',
       icon: PieChart,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50 dark:bg-purple-950/20"
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-50 dark:bg-purple-950/20',
     },
     {
-      id: "activities",
-      title: "Reporte de Actividades",
-      description: "Participación en eventos y servicios",
+      id: 'activities',
+      title: 'Reporte de Actividades',
+      description: 'Participación en eventos y servicios',
       icon: BarChart3,
-      color: "text-orange-600",
-      bgColor: "bg-orange-50 dark:bg-orange-950/20"
-    }
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50 dark:bg-orange-950/20',
+    },
   ];
 
   const recentReports = [
     {
       id: 1,
-      name: "Reporte Mensual - Marzo 2024",
-      type: "Usuarios",
-      generatedDate: "2024-03-31",
-      status: "completed",
-      fileSize: "2.3 MB"
+      name: 'Reporte Mensual - Marzo 2024',
+      type: 'Usuarios',
+      generatedDate: '2024-03-31',
+      status: 'completed',
+      fileSize: '2.3 MB',
     },
     {
       id: 2,
-      name: "Análisis de Crecimiento Q1",
-      type: "Crecimiento",
-      generatedDate: "2024-03-28",
-      status: "completed",
-      fileSize: "1.8 MB"
+      name: 'Análisis de Crecimiento Q1',
+      type: 'Crecimiento',
+      generatedDate: '2024-03-28',
+      status: 'completed',
+      fileSize: '1.8 MB',
     },
     {
       id: 3,
-      name: "Demografía Congregacional",
-      type: "Demográfico",
-      generatedDate: "2024-03-25",
-      status: "processing",
-      fileSize: "..."
-    }
+      name: 'Demografía Congregacional',
+      type: 'Demográfico',
+      generatedDate: '2024-03-25',
+      status: 'processing',
+      fileSize: '...',
+    },
   ];
 
   const handleGenerateReport = async () => {
@@ -110,7 +116,7 @@ const ReportsPage = () => {
             Genera reportes detallados y analiza el crecimiento de la congregación
           </p>
         </div>
-        <Button 
+        <Button
           onClick={handleGenerateReport}
           disabled={!selectedReport || isGenerating}
           className="w-full lg:w-auto"
@@ -138,26 +144,26 @@ const ReportsPage = () => {
         <TabsContent value="generator" className="space-y-6">
           {/* Report Types */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {reportTypes.map((report) => {
+            {reportTypes.map(report => {
               const Icon = report.icon;
               return (
-                <Card 
+                <Card
                   key={report.id}
                   className={`cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
-                    selectedReport === report.id 
-                      ? 'ring-2 ring-primary shadow-lg scale-105' 
+                    selectedReport === report.id
+                      ? 'ring-2 ring-primary shadow-lg scale-105'
                       : 'hover:shadow-md'
                   }`}
                   onClick={() => setSelectedReport(report.id)}
                 >
                   <CardHeader className="pb-3">
-                    <div className={`w-12 h-12 rounded-xl ${report.bgColor} flex items-center justify-center mb-3`}>
+                    <div
+                      className={`w-12 h-12 rounded-xl ${report.bgColor} flex items-center justify-center mb-3`}
+                    >
                       <Icon className={`w-6 h-6 ${report.color}`} />
                     </div>
                     <CardTitle className="text-lg">{report.title}</CardTitle>
-                    <CardDescription className="text-sm">
-                      {report.description}
-                    </CardDescription>
+                    <CardDescription className="text-sm">{report.description}</CardDescription>
                   </CardHeader>
                 </Card>
               );
@@ -172,18 +178,13 @@ const ReportsPage = () => {
                   <Filter className="w-5 h-5" />
                   Configuración del Reporte
                 </CardTitle>
-                <CardDescription>
-                  Personaliza los parámetros para tu reporte
-                </CardDescription>
+                <CardDescription>Personaliza los parámetros para tu reporte</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="date-range">Rango de Fechas</Label>
-                    <DatePickerWithRange
-                      date={dateRange}
-                      onDateChange={setDateRange}
-                    />
+                    <DatePickerWithRange date={dateRange} onDateChange={setDateRange} />
                   </div>
 
                   <div className="space-y-2">
@@ -232,7 +233,7 @@ const ReportsPage = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-                  <Button 
+                  <Button
                     onClick={handleGenerateReport}
                     disabled={isGenerating}
                     className="flex-1 sm:flex-none"
@@ -271,10 +272,7 @@ const ReportsPage = () => {
             <CardContent>
               <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
-                  <Input 
-                    placeholder="Buscar por nombre o tipo de reporte..." 
-                    className="w-full"
-                  />
+                  <Input placeholder="Buscar por nombre o tipo de reporte..." className="w-full" />
                 </div>
                 <Select defaultValue="all">
                   <SelectTrigger className="w-full sm:w-[180px]">
@@ -294,7 +292,7 @@ const ReportsPage = () => {
 
           {/* Reports History */}
           <div className="grid gap-4">
-            {recentReports.map((report) => (
+            {recentReports.map(report => (
               <Card key={report.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -302,12 +300,20 @@ const ReportsPage = () => {
                       <div className="flex items-center gap-3">
                         <FileText className="w-5 h-5 text-muted-foreground" />
                         <h3 className="font-semibold">{report.name}</h3>
-                        <Badge variant={
-                          report.status === 'completed' ? 'default' : 
-                          report.status === 'processing' ? 'secondary' : 'destructive'
-                        }>
-                          {report.status === 'completed' ? 'Completado' : 
-                           report.status === 'processing' ? 'Procesando' : 'Error'}
+                        <Badge
+                          variant={
+                            report.status === 'completed'
+                              ? 'default'
+                              : report.status === 'processing'
+                                ? 'secondary'
+                                : 'destructive'
+                          }
+                        >
+                          {report.status === 'completed'
+                            ? 'Completado'
+                            : report.status === 'processing'
+                              ? 'Procesando'
+                              : 'Error'}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
