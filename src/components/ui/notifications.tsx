@@ -1,16 +1,9 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  Bell,
-  CheckCircle,
-  AlertTriangle,
-  Info,
-  X,
-  Clock
-} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Bell, CheckCircle, AlertTriangle, Info, X, Clock } from 'lucide-react';
 
 export interface Notification {
   id: string;
@@ -38,7 +31,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   notification,
   onMarkAsRead,
   onDismiss,
-  onAction
+  onAction,
 }) => {
   const getIcon = () => {
     switch (notification.type) {
@@ -72,7 +65,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
     const date = new Date(dateString);
     const now = new Date();
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return 'Ahora';
     if (diffInMinutes < 60) return `Hace ${diffInMinutes}m`;
     if (diffInMinutes < 1440) return `Hace ${Math.floor(diffInMinutes / 60)}h`;
@@ -87,15 +80,16 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
             <Avatar className="w-8 h-8">
               <AvatarImage src={notification.relatedUser.avatar} />
               <AvatarFallback>
-                {notification.relatedUser.name.split(' ').map(n => n[0]).join('')}
+                {notification.relatedUser.name
+                  .split(' ')
+                  .map(n => n[0])
+                  .join('')}
               </AvatarFallback>
             </Avatar>
           ) : (
-            <div className="flex-shrink-0">
-              {getIcon()}
-            </div>
+            <div className="flex-shrink-0">{getIcon()}</div>
           )}
-          
+
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -103,11 +97,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
                 <Badge variant={getBadgeVariant()} className="text-xs">
                   {notification.type}
                 </Badge>
-                {!notification.read && (
-                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                )}
+                {!notification.read && <div className="w-2 h-2 bg-blue-600 rounded-full"></div>}
               </div>
-              
+
               <div className="flex items-center gap-1">
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="w-3 h-3" />
@@ -123,9 +115,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
                 </Button>
               </div>
             </div>
-            
+
             <p className="text-sm text-muted-foreground">{notification.message}</p>
-            
+
             <div className="flex items-center justify-between">
               <div className="flex gap-2">
                 {notification.actionText && (
@@ -138,11 +130,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
                   </Button>
                 )}
                 {!notification.read && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onMarkAsRead(notification.id)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => onMarkAsRead(notification.id)}>
                     Marcar como leída
                   </Button>
                 )}
@@ -168,7 +156,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   onMarkAsRead,
   onMarkAllAsRead,
   onDismiss,
-  onAction
+  onAction,
 }) => {
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -186,11 +174,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 </Badge>
               )}
             </CardTitle>
-            <CardDescription>
-              Mantente al día con las actividades del discipulado
-            </CardDescription>
+            <CardDescription>Mantente al día con las actividades del discipulado</CardDescription>
           </div>
-          
+
           {unreadCount > 0 && (
             <Button variant="outline" size="sm" onClick={onMarkAllAsRead}>
               Marcar todas como leídas
@@ -198,7 +184,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           )}
         </div>
       </CardHeader>
-      
+
       <CardContent className="space-y-4">
         {notifications.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">

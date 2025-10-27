@@ -1,21 +1,34 @@
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Shield, 
-  Users, 
-  Plus, 
-  Edit, 
-  Trash2, 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Shield,
+  Users,
+  Plus,
+  Edit,
+  Trash2,
   Search,
   Settings,
   Lock,
@@ -29,9 +42,9 @@ import {
   Star,
   AlertTriangle,
   Check,
-  X
-} from "lucide-react";
-import { toast } from "sonner";
+  X,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 const RoleManagementPage = () => {
   const [selectedRole, setSelectedRole] = useState<any>(null);
@@ -52,8 +65,8 @@ const RoleManagementPage = () => {
         roles: { create: true, read: true, update: true, delete: true },
         reports: { create: true, read: true, update: true, delete: true },
         events: { create: true, read: true, update: true, delete: true },
-        settings: { create: true, read: true, update: true, delete: true }
-      }
+        settings: { create: true, read: true, update: true, delete: true },
+      },
     },
     {
       id: 'staff',
@@ -68,8 +81,8 @@ const RoleManagementPage = () => {
         roles: { create: false, read: true, update: false, delete: false },
         reports: { create: true, read: true, update: true, delete: false },
         events: { create: true, read: true, update: true, delete: true },
-        settings: { create: false, read: true, update: false, delete: false }
-      }
+        settings: { create: false, read: true, update: false, delete: false },
+      },
     },
     {
       id: 'supervisor',
@@ -84,8 +97,8 @@ const RoleManagementPage = () => {
         roles: { create: false, read: true, update: false, delete: false },
         reports: { create: false, read: true, update: false, delete: false },
         events: { create: true, read: true, update: true, delete: false },
-        settings: { create: false, read: true, update: false, delete: false }
-      }
+        settings: { create: false, read: true, update: false, delete: false },
+      },
     },
     {
       id: 'server',
@@ -100,9 +113,9 @@ const RoleManagementPage = () => {
         roles: { create: false, read: false, update: false, delete: false },
         reports: { create: false, read: false, update: false, delete: false },
         events: { create: false, read: true, update: false, delete: false },
-        settings: { create: false, read: false, update: false, delete: false }
-      }
-    }
+        settings: { create: false, read: false, update: false, delete: false },
+      },
+    },
   ];
 
   const customRoles = [
@@ -120,8 +133,8 @@ const RoleManagementPage = () => {
         roles: { create: false, read: false, update: false, delete: false },
         reports: { create: false, read: true, update: false, delete: false },
         events: { create: true, read: true, update: true, delete: false },
-        settings: { create: false, read: false, update: false, delete: false }
-      }
+        settings: { create: false, read: false, update: false, delete: false },
+      },
     },
     {
       id: 'youth_leader',
@@ -137,9 +150,9 @@ const RoleManagementPage = () => {
         roles: { create: false, read: false, update: false, delete: false },
         reports: { create: false, read: true, update: false, delete: false },
         events: { create: true, read: true, update: true, delete: false },
-        settings: { create: false, read: false, update: false, delete: false }
-      }
-    }
+        settings: { create: false, read: false, update: false, delete: false },
+      },
+    },
   ];
 
   const allRoles = [...systemRoles, ...customRoles];
@@ -164,13 +177,14 @@ const RoleManagementPage = () => {
     { id: 'settings.create', name: 'Crear Configuraciones', category: 'Configuración' },
     { id: 'settings.read', name: 'Ver Configuraciones', category: 'Configuración' },
     { id: 'settings.update', name: 'Editar Configuraciones', category: 'Configuración' },
-    { id: 'settings.delete', name: 'Eliminar Configuraciones', category: 'Configuración' }
+    { id: 'settings.delete', name: 'Eliminar Configuraciones', category: 'Configuración' },
   ];
 
-  const RoleCard = ({ role, isCustom = false }: { role: any, isCustom?: boolean }) => {
+  const RoleCard = ({ role, isCustom = false }: { role: any; isCustom?: boolean }) => {
     const Icon = role.icon;
-    const totalPermissions = Object.values(role.permissions).reduce((acc: number, perms: any) => 
-      acc + Object.values(perms).filter(Boolean).length, 0
+    const totalPermissions = Object.values(role.permissions).reduce(
+      (acc: number, perms: any) => acc + Object.values(perms).filter(Boolean).length,
+      0
     ) as number;
 
     return (
@@ -178,7 +192,9 @@ const RoleManagementPage = () => {
         <CardContent className="p-6">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-xl ${role.color.split(' ')[0]}-50 dark:${role.color.split(' ')[2].replace('dark:', '')}950/20 flex items-center justify-center`}>
+              <div
+                className={`w-12 h-12 rounded-xl ${role.color.split(' ')[0]}-50 dark:${role.color.split(' ')[2].replace('dark:', '')}950/20 flex items-center justify-center`}
+              >
                 <Icon className="w-6 h-6" />
               </div>
               <div>
@@ -190,9 +206,7 @@ const RoleManagementPage = () => {
                     </Badge>
                   )}
                 </h3>
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {role.description}
-                </p>
+                <p className="text-sm text-muted-foreground line-clamp-2">{role.description}</p>
               </div>
             </div>
           </div>
@@ -216,16 +230,16 @@ const RoleManagementPage = () => {
           </div>
 
           <div className="flex items-center gap-2 mt-4 pt-4 border-t">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex-1"
               onClick={() => setSelectedRole(role)}
             >
               <Eye className="w-4 h-4 mr-1" />
               Ver Detalles
             </Button>
-            
+
             {!role.isSystem && (
               <>
                 <Button variant="outline" size="sm">
@@ -251,33 +265,26 @@ const RoleManagementPage = () => {
             Define un nuevo rol personalizado con permisos específicos
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-6 py-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="role-name">Nombre del Rol *</Label>
-              <Input 
-                id="role-name" 
-                placeholder="Ej: Coordinador de Eventos"
-              />
+              <Input id="role-name" placeholder="Ej: Coordinador de Eventos" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="role-color">Color</Label>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-500 border"></div>
-                <Input 
-                  id="role-color" 
-                  defaultValue="#3b82f6"
-                  placeholder="#3b82f6"
-                />
+                <Input id="role-color" defaultValue="#3b82f6" placeholder="#3b82f6" />
               </div>
             </div>
 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="role-description">Descripción</Label>
-              <Textarea 
-                id="role-description" 
+              <Textarea
+                id="role-description"
                 placeholder="Describe las responsabilidades de este rol..."
                 rows={3}
               />
@@ -298,8 +305,8 @@ const RoleManagementPage = () => {
 
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Permisos</h3>
-            
-            {['Usuarios', 'Roles', 'Reportes', 'Eventos', 'Configuración'].map((category) => (
+
+            {['Usuarios', 'Roles', 'Reportes', 'Eventos', 'Configuración'].map(category => (
               <div key={category} className="space-y-3">
                 <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
                   {category}
@@ -307,11 +314,11 @@ const RoleManagementPage = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pl-4 border-l-2 border-muted">
                   {availablePermissions
                     .filter(perm => perm.category === category)
-                    .map((permission) => (
+                    .map(permission => (
                       <div key={permission.id} className="flex items-center space-x-2">
                         <Checkbox id={permission.id} />
-                        <Label 
-                          htmlFor={permission.id} 
+                        <Label
+                          htmlFor={permission.id}
                           className="text-sm font-normal cursor-pointer"
                         >
                           {permission.name}
@@ -327,10 +334,12 @@ const RoleManagementPage = () => {
             <Button variant="outline" onClick={() => setIsCreateRoleOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={() => {
-              setIsCreateRoleOpen(false);
-              toast.success("Rol creado exitosamente");
-            }}>
+            <Button
+              onClick={() => {
+                setIsCreateRoleOpen(false);
+                toast.success('Rol creado exitosamente');
+              }}
+            >
               Crear Rol
             </Button>
           </div>
@@ -347,9 +356,7 @@ const RoleManagementPage = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Roles
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Administra roles y permisos del sistema
-          </p>
+          <p className="text-muted-foreground mt-1">Administra roles y permisos del sistema</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIsAssignRoleOpen(true)}>
@@ -383,7 +390,7 @@ const RoleManagementPage = () => {
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {systemRoles.map((role) => (
+            {systemRoles.map(role => (
               <RoleCard key={role.id} role={role} />
             ))}
           </div>
@@ -396,19 +403,14 @@ const RoleManagementPage = () => {
                 <Settings className="w-5 h-5" />
                 Roles Personalizados
               </CardTitle>
-              <CardDescription>
-                Roles creados específicamente para tu organización
-              </CardDescription>
+              <CardDescription>Roles creados específicamente para tu organización</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input 
-                      placeholder="Buscar roles personalizados..." 
-                      className="pl-10"
-                    />
+                    <Input placeholder="Buscar roles personalizados..." className="pl-10" />
                   </div>
                 </div>
                 <Select defaultValue="all">
@@ -426,7 +428,7 @@ const RoleManagementPage = () => {
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {customRoles.map((role) => (
+            {customRoles.map(role => (
               <RoleCard key={role.id} role={role} isCustom />
             ))}
           </div>
@@ -441,21 +443,21 @@ const RoleManagementPage = () => {
             <div className="text-sm text-muted-foreground">Total de roles</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6 text-center">
             <div className="text-2xl font-bold text-green-600">65</div>
             <div className="text-sm text-muted-foreground">Usuarios asignados</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6 text-center">
             <div className="text-2xl font-bold text-orange-600">2</div>
             <div className="text-sm text-muted-foreground">Roles personalizados</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6 text-center">
             <div className="text-2xl font-bold text-purple-600">20</div>
@@ -474,15 +476,11 @@ const RoleManagementPage = () => {
               <DialogTitle className="flex items-center gap-3">
                 <selectedRole.icon className="w-6 h-6" />
                 {selectedRole.name}
-                {selectedRole.isSystem && (
-                  <Badge variant="outline">Sistema</Badge>
-                )}
+                {selectedRole.isSystem && <Badge variant="outline">Sistema</Badge>}
               </DialogTitle>
-              <DialogDescription>
-                {selectedRole.description}
-              </DialogDescription>
+              <DialogDescription>{selectedRole.description}</DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -492,34 +490,38 @@ const RoleManagementPage = () => {
                 <div className="space-y-2">
                   <Label>Permisos Activos</Label>
                   <div className="text-2xl font-bold">
-                    {Object.values(selectedRole.permissions).reduce((acc: number, perms: any) => 
-                      acc + Object.values(perms).filter(Boolean).length, 0
-                    ) as number}
+                    {
+                      Object.values(selectedRole.permissions).reduce(
+                        (acc: number, perms: any) =>
+                          acc + Object.values(perms).filter(Boolean).length,
+                        0
+                      ) as number
+                    }
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Permisos Detallados</h3>
-                
+
                 {Object.entries(selectedRole.permissions).map(([module, perms]: [string, any]) => (
-                    <div key={module} className="space-y-2">
-                      <h4 className="font-medium capitalize">{module}</h4>
-                      <div className="grid grid-cols-4 gap-2">
-                        {Object.entries(perms).map(([action, allowed]: [string, any]) => (
-                          <div key={action} className="flex items-center gap-2 text-sm">
-                            {allowed ? (
-                              <Check className="w-4 h-4 text-green-600" />
-                            ) : (
-                              <X className="w-4 h-4 text-red-600" />
-                            )}
-                            <span className={allowed ? 'text-green-600' : 'text-red-600'}>
-                              {action.charAt(0).toUpperCase() + action.slice(1)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                  <div key={module} className="space-y-2">
+                    <h4 className="font-medium capitalize">{module}</h4>
+                    <div className="grid grid-cols-4 gap-2">
+                      {Object.entries(perms).map(([action, allowed]: [string, any]) => (
+                        <div key={action} className="flex items-center gap-2 text-sm">
+                          {allowed ? (
+                            <Check className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-600" />
+                          )}
+                          <span className={allowed ? 'text-green-600' : 'text-red-600'}>
+                            {action.charAt(0).toUpperCase() + action.slice(1)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
+                  </div>
                 ))}
               </div>
 

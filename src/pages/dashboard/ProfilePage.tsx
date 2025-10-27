@@ -11,48 +11,61 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  Shield, 
-  Bell, 
-  Lock, 
-  Settings, 
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar,
+  Bell,
+  Lock,
+  Settings,
   Heart,
   Users,
-  Clock,
   Edit,
-  Camera
+  Camera,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { UserService } from '@/services/user.service';
 import { profileUpdateSchema, ProfileUpdateFormData } from '@/schemas/user.schemas';
+import { User as UserType } from '@/types/user.types';
 
 const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
-  
+
   const {
     register,
     handleSubmit,
     formState: { errors },
     setValue,
     watch,
-    reset
+    reset,
   } = useForm<ProfileUpdateFormData>({
     resolver: zodResolver(profileUpdateSchema),
     defaultValues: {
-      whatsapp: false
-    }
+      whatsapp: false,
+    },
   });
+  const [userData, setUserData] = useState<UserType | null>(null);
 
   const whatsapp = watch('whatsapp');
 
   useEffect(() => {
     loadUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const initialWordName = () => {
+    if (!userData || !userData.full_name) return '';
+    const names = userData.full_name.trim().split(' ');
+    if (names.length === 1) {
+      return names[0][0].toUpperCase();
+    }
+    return (
+      (names[0][0] ? names[0][0].toUpperCase() : '') +
+      (names[names.length - 1][0] ? names[names.length - 1][0].toUpperCase() : '')
+    );
+  };
 
   const loadUserData = async () => {
     try {
@@ -67,6 +80,7 @@ const ProfilePage = () => {
         emergency_contact_phone: userData.emergency_contact_phone || '',
         whatsapp: userData.whatsapp || false,
       });
+      setUserData(userData);
     } catch (error) {
       console.error('Error loading user data:', error);
       toast.error('Error al cargar los datos del usuario');
@@ -98,7 +112,7 @@ const ProfilePage = () => {
             Gestiona tu información personal y preferencias de la cuenta
           </p>
         </div>
-        
+
         {/* Profile Quick Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:min-w-[400px]">
           <Card className="text-center p-4">
@@ -149,16 +163,20 @@ const ProfilePage = () => {
                   <Avatar className="w-24 h-24">
                     <AvatarImage src="" alt="Profile" />
                     <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-primary to-accent text-white">
-                      JP
+                      {initialWordName()}
                     </AvatarFallback>
                   </Avatar>
-                  <Button size="icon" variant="secondary" className="absolute -bottom-2 -right-2 rounded-full">
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute -bottom-2 -right-2 rounded-full"
+                  >
                     <Camera className="w-4 h-4" />
                   </Button>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-2xl font-bold">Juan Pérez</h3>
-                  <p className="text-muted-foreground">juan.perez@sion.church</p>
+                  <h3 className="text-2xl font-bold">{userData?.full_name}</h3>
+                  <p className="text-muted-foreground">{userData?.email}</p>
                   <div className="flex items-center gap-4 mt-2">
                     <Badge variant="default">Pastor Principal</Badge>
                     <Badge variant="outline">Miembro desde 2022</Badge>
@@ -179,9 +197,7 @@ const ProfilePage = () => {
                 <User className="w-5 h-5 text-primary" />
                 Información Personal
               </CardTitle>
-              <CardDescription>
-                Mantén tu información personal actualizada
-              </CardDescription>
+              <CardDescription>Mantén tu información personal actualizada</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -212,9 +228,7 @@ const ProfilePage = () => {
                       {...register('email')}
                       className={errors.email ? 'border-red-500' : ''}
                     />
-                    {errors.email && (
-                      <p className="text-sm text-red-500">{errors.email.message}</p>
-                    )}
+                    {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -222,10 +236,7 @@ const ProfilePage = () => {
                       <Phone className="w-4 h-4" />
                       Teléfono
                     </Label>
-                    <Input
-                      id="phone"
-                      {...register('phone')}
-                    />
+                    <Input id="phone" {...register('phone')} />
                   </div>
 
                   <div className="space-y-2">
@@ -233,11 +244,7 @@ const ProfilePage = () => {
                       <Calendar className="w-4 h-4" />
                       Fecha de Nacimiento
                     </Label>
-                    <Input
-                      id="birth_date"
-                      type="date"
-                      {...register('birth_date')}
-                    />
+                    <Input id="birth_date" type="date" {...register('birth_date')} />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
@@ -245,10 +252,7 @@ const ProfilePage = () => {
                       <MapPin className="w-4 h-4" />
                       Dirección
                     </Label>
-                    <Input
-                      id="address"
-                      {...register('address')}
-                    />
+                    <Input id="address" {...register('address')} />
                   </div>
                 </div>
 
@@ -297,9 +301,7 @@ const ProfilePage = () => {
                 <Heart className="w-5 h-5 text-primary" />
                 Información de la Iglesia
               </CardTitle>
-              <CardDescription>
-                Tu participación y rol en la comunidad
-              </CardDescription>
+              <CardDescription>Tu participación y rol en la comunidad</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -366,16 +368,16 @@ const ProfilePage = () => {
                 <Lock className="w-5 h-5 text-primary" />
                 Seguridad de la Cuenta
               </CardTitle>
-              <CardDescription>
-                Gestiona la seguridad y acceso a tu cuenta
-              </CardDescription>
+              <CardDescription>Gestiona la seguridad y acceso a tu cuenta</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <h4 className="font-medium">Contraseña</h4>
-                    <p className="text-sm text-muted-foreground">Última actualización: Hace 3 meses</p>
+                    <p className="text-sm text-muted-foreground">
+                      Última actualización: Hace 3 meses
+                    </p>
                   </div>
                   <Button variant="outline">Cambiar</Button>
                 </div>
@@ -383,7 +385,9 @@ const ProfilePage = () => {
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <h4 className="font-medium">Verificación en Dos Pasos</h4>
-                    <p className="text-sm text-muted-foreground">Protege tu cuenta con autenticación adicional</p>
+                    <p className="text-sm text-muted-foreground">
+                      Protege tu cuenta con autenticación adicional
+                    </p>
                   </div>
                   <Switch />
                 </div>
@@ -415,22 +419,22 @@ const ProfilePage = () => {
                 <Bell className="w-5 h-5 text-primary" />
                 Notificaciones y Preferencias
               </CardTitle>
-              <CardDescription>
-                Configura cómo y cuándo recibir notificaciones
-              </CardDescription>
+              <CardDescription>Configura cómo y cuándo recibir notificaciones</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <h4 className="font-medium">Notificaciones WhatsApp</h4>
-                    <p className="text-sm text-muted-foreground">Recibe actualizaciones importantes</p>
+                    <p className="text-sm text-muted-foreground">
+                      Recibe actualizaciones importantes
+                    </p>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="whatsapp"
                       checked={Boolean(whatsapp)}
-                      onCheckedChange={(checked) => setValue('whatsapp', Boolean(checked))}
+                      onCheckedChange={checked => setValue('whatsapp', Boolean(checked))}
                     />
                   </div>
                 </div>
@@ -438,7 +442,9 @@ const ProfilePage = () => {
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <h4 className="font-medium">Emails de Eventos</h4>
-                    <p className="text-sm text-muted-foreground">Información sobre eventos y servicios</p>
+                    <p className="text-sm text-muted-foreground">
+                      Información sobre eventos y servicios
+                    </p>
                   </div>
                   <Switch defaultChecked />
                 </div>
@@ -446,7 +452,9 @@ const ProfilePage = () => {
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <h4 className="font-medium">Recordatorios de Servicios</h4>
-                    <p className="text-sm text-muted-foreground">Notificaciones antes de los servicios</p>
+                    <p className="text-sm text-muted-foreground">
+                      Notificaciones antes de los servicios
+                    </p>
                   </div>
                   <Switch defaultChecked />
                 </div>
@@ -454,7 +462,9 @@ const ProfilePage = () => {
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <h4 className="font-medium">Boletín Semanal</h4>
-                    <p className="text-sm text-muted-foreground">Recibe el boletín de noticias semanal</p>
+                    <p className="text-sm text-muted-foreground">
+                      Recibe el boletín de noticias semanal
+                    </p>
                   </div>
                   <Switch defaultChecked />
                 </div>

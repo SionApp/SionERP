@@ -1,12 +1,18 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User, UserRole } from "@/types/user.types";
-import { UserService } from "@/services/user.service";
-import { toast } from "sonner";
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { User, UserRole } from '@/types/user.types';
+import { UserService } from '@/services/user.service';
+import { toast } from 'sonner';
 
 interface EditUserModalProps {
   user: User | null;
@@ -21,7 +27,7 @@ const roles: { value: UserRole; label: string }[] = [
   { value: 'staff', label: 'Staff' },
   { value: 'supervisor', label: 'Supervisor' },
   { value: 'server', label: 'Servidor' },
-  { value: 'member', label: 'Miembro' }
+  { value: 'member', label: 'Miembro' },
 ];
 
 const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalProps) => {
@@ -33,7 +39,7 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
     birth_date: '',
     address: '',
     emergency_contact_name: '',
-    emergency_contact_phone: ''
+    emergency_contact_phone: '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -47,7 +53,7 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
         birth_date: user.birth_date || '',
         address: user.address || '',
         emergency_contact_name: user.emergency_contact_name || '',
-        emergency_contact_phone: user.emergency_contact_phone || ''
+        emergency_contact_phone: user.emergency_contact_phone || '',
       });
     }
   }, [user]);
@@ -60,7 +66,7 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
     try {
       await UserService.updateUser({
         id: user.id,
-        ...formData
+        ...formData,
       });
       toast.success('Usuario actualizado exitosamente');
       onUserUpdated();
@@ -79,14 +85,14 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
         <DialogHeader>
           <DialogTitle>Editar Usuario</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="full_name">Nombre Completo</Label>
             <Input
               id="full_name"
               value={formData.full_name}
-              onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+              onChange={e => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
               required
             />
           </div>
@@ -97,19 +103,22 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
               id="email"
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
               required
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="role">Rol</Label>
-            <Select value={formData.role} onValueChange={(value: UserRole) => setFormData(prev => ({ ...prev, role: value }))}>
+            <Select
+              value={formData.role}
+              onValueChange={(value: UserRole) => setFormData(prev => ({ ...prev, role: value }))}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona un rol" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((role) => (
+                {roles.map(role => (
                   <SelectItem key={role.value} value={role.value}>
                     {role.label}
                   </SelectItem>
@@ -123,7 +132,7 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
             <Input
               id="phone"
               value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
             />
           </div>
 

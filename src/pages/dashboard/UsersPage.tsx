@@ -45,7 +45,6 @@ const UsersPage = () => {
       const usersData = await UserService.getAllUsers();
       setUsers(usersData);
     } catch (error) {
-      console.error('Error loading users:', error);
       toast.error('Error al cargar los usuarios');
     } finally {
       setLoading(false);
@@ -125,24 +124,209 @@ const UsersPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+  const handleDetailUser = (user: User) => {
+    setSelectedUserId(user.id);
+  };
+
+  const handleEditUser = (user: User) => {
+    navigate(`/dashboard/register-user`, { state: { userId: user.id } });
+  };
+
+  const handleDeleteUser = (user: User) => {
+    setDeletingUser(user);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deletingUser) return;
+
+    try {
+      setIsDeleting(true);
+      await UserService.deleteUser(deletingUser.id);
+      toast.success(
+        `Usuario ${deletingUser.first_name} ${deletingUser.last_name} eliminado correctamente`
+      );
+      setDeletingUser(null);
+      loadUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Error al eliminar el usuario');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const columns: Column<User>[] = [
+    {
+      key: 'full_name',
+      label: 'Nombre Completo',
+      render: user => (
+        <div>
+          <div className="font-medium">
+            {user.first_name} {user.last_name}
+          </div>
+          <div className="text-sm text-muted-foreground">{user.email}</div>
+        </div>
+      ),
+      responsive: 'always',
+      sortable: true,
+      width: '250px',
+    },
+    {
+      key: 'id_number',
+      label: 'Cédula',
+      render: user => (
+        <div className="text-sm">
+          <div>{user.id_number}</div>
+          <div className="text-muted-foreground">{user.phone}</div>
+        </div>
+      ),
+      responsive: 'lg',
+      sortable: true,
+      width: '150px',
+    },
+    {
+      key: 'role',
+      label: 'Rol',
+      render: user => (
+        <div className="space-y-1">
+          <Badge variant={getRoleBadgeVariant(user.role)}>{getRoleDisplayName(user.role)}</Badge>
+          <div className="flex gap-1">
+            {user.baptized && (
+              <Badge variant="outline" className="text-xs">
+                Bautizado
+              </Badge>
+            )}
+            {user.whatsapp && (
+              <Badge variant="outline" className="text-xs">
+                WhatsApp
+              </Badge>
+            )}
+          </div>
+        </div>
+      ),
+      responsive: 'md',
+      sortable: true,
+      width: '120px',
+    },
+    {
+      key: 'address',
+      label: 'Dirección',
+      render: user => (
+        <div className="text-sm max-w-xs truncate" title={user.address}>
+          {user.address}
+        </div>
+      ),
+      responsive: 'xl',
+      width: '200px',
+    },
+    {
+      key: 'created_at',
+      label: 'Registrado',
+      render: user => (
+        <div className="text-sm">
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            {new Date(user.created_at).toLocaleDateString()}
+          </div>
+        </div>
+      ),
+      responsive: 'lg',
+      sortable: true,
+      width: '120px',
+    },
+  ];
+
+  const userActions = (user: User) => (
+    <div className="flex items-center gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleDetailUser(user)}
+        title="Ver detalles"
+        className="h-8 w-8 p-0"
+      >
+        <Eye className="h-3 w-3" />
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleEditUser(user)}
+        title="Editar usuario"
+        className="h-8 w-8 p-0"
+      >
+        <Edit className="h-3 w-3" />
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleDeleteUser(user)}
+        title="Eliminar usuario"
+        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+      >
+        <Trash2 className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+
+  const mobileCardRender = (user: User, actions?: React.ReactNode) => (
+    <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors space-y-3">
+      <div className="flex justify-between items-start">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-base truncate">
+            {user.first_name} {user.last_name}
+          </h3>
+          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+        </div>
+        <div className="flex flex-col gap-1 ml-2">
+          <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+            {getRoleDisplayName(user.role)}
+          </Badge>
+          {user.baptized && (
+            <Badge variant="outline" className="text-xs">
+              Bautizado
+            </Badge>
+          )}
+        </div>
       </div>
-    );
-  }
+
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <span className="text-muted-foreground">Cédula:</span>
+          <p className="font-medium">{user.id_number}</p>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Teléfono:</span>
+          <p className="font-medium">{user.phone}</p>
+        </div>
+      </div>
+
+      {user.whatsapp && (
+        <div className="flex justify-start">
+          <Badge variant="outline" className="text-xs">
+            📱 WhatsApp
+          </Badge>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center pt-2 border-t">
+        <div className="text-xs text-muted-foreground">
+          <span>Registrado: </span>
+          <span className="font-medium">{new Date(user.created_at).toLocaleDateString()}</span>
+        </div>
+        <div className="flex items-center gap-1">{actions}</div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6 p-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Usuarios
           </h1>
-          <p className="text-muted-foreground">
-            Administra los usuarios registrados en el sistema
-          </p>
+          <p className="text-muted-foreground">Administra los usuarios registrados en el sistema</p>
         </div>
         <Button onClick={() => navigate('/dashboard/register-user')}>
           <Plus className="h-4 w-4 mr-2" />
@@ -157,80 +341,38 @@ const UsersPage = () => {
         onClear={() => setFilters({})}
       />
 
-      {/* Users List */}
       <Card>
         <CardHeader>
           <CardTitle>Usuarios ({filteredUsers.length})</CardTitle>
-          <CardDescription>
-            Lista de todos los usuarios registrados
-          </CardDescription>
+          <CardDescription>Lista de todos los usuarios registrados</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {filteredUsers.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No se encontraron usuarios</p>
-              </div>
-            ) : (
-              filteredUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <h3 className="font-medium">
-                          {user.first_name} {user.last_name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {user.email}
-                        </p>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        <p>Cédula: {user.id_number}</p>
-                        <p>Teléfono: {user.phone}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {getRoleDisplayName(user.role)}
-                    </Badge>
-                    {user.baptized && (
-                      <Badge variant="outline">Bautizado</Badge>
-                    )}
-                    {user.whatsapp && (
-                      <Badge variant="outline">WhatsApp</Badge>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <div className="text-right text-sm text-muted-foreground mr-4">
-                      <p>Registrado:</p>
-                      <p>{new Date(user.created_at).toLocaleDateString()}</p>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setEditingUser(user)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          <DataTable
+            data={filteredUsers}
+            columns={columns}
+            actions={userActions}
+            loading={loading}
+            emptyMessage="No se encontraron usuarios"
+            pagination={true}
+            itemsPerPage={10}
+            searchable={false}
+            mobileCardRender={mobileCardRender}
+          />
         </CardContent>
       </Card>
 
-      <EditUserModal
-        user={editingUser}
-        isOpen={!!editingUser}
-        onClose={() => setEditingUser(null)}
-        onUserUpdated={loadUsers}
+      <UserDetailSheet
+        user={selectedUserId ? users.find(user => user.id === selectedUserId) : null} // Obtener usuario seleccionado
+        isOpen={!!selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+      />
+
+      <DeleteUserDialog
+        user={deletingUser}
+        isOpen={!!deletingUser}
+        isDeleting={isDeleting}
+        onClose={() => setDeletingUser(null)}
+        onConfirm={confirmDeleteUser}
       />
     </div>
   );

@@ -1,4 +1,13 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/client';
+
+// Singleton para callbacks de loading
+let dashboardLoadingCallbacks: {
+  setFetching?: (loading: boolean) => void;
+} = {};
+
+export const setDashboardLoadingCallbacks = (callbacks: typeof dashboardLoadingCallbacks) => {
+  dashboardLoadingCallbacks = callbacks;
+};
 
 // Singleton para callbacks de loading
 let dashboardLoadingCallbacks: {
@@ -32,7 +41,7 @@ export interface RecentActivity {
   action: string;
   user: string;
   time: string;
-  type: "success" | "warning" | "info";
+  type: 'success' | 'warning' | 'info';
   details?: Record<string, unknown>;
 }
 
@@ -66,7 +75,9 @@ export class DashboardService {
     dashboardLoadingCallbacks.setFetching?.(true);
     try {
       // Obtener token de Supabase Auth
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
 
       // Llamar al backend Go
@@ -74,17 +85,17 @@ export class DashboardService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        }
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
       console.log('Dashboard data from Go:', data);
-      
+
       // El backend Go devuelve toda la estructura
       return {
         stats: data.stats || {
