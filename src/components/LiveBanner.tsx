@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Radio } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Radio } from 'lucide-react';
 
 const LiveBanner = () => {
   const [isLive, setIsLive] = useState(false);
@@ -10,7 +10,7 @@ const LiveBanner = () => {
 
   useEffect(() => {
     checkLiveStatus();
-    
+
     // Subscribe to real-time updates
     const channel = supabase
       .channel('live-stream-updates')
@@ -19,7 +19,7 @@ const LiveBanner = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'live_streams'
+          table: 'live_streams',
         },
         () => {
           checkLiveStatus();
@@ -73,9 +73,9 @@ const LiveBanner = () => {
             <Radio className="w-4 h-4" />
             <span className="font-semibold text-sm">¡ESTAMOS EN VIVO!</span>
           </div>
-          <Button 
-            variant="secondary" 
-            size="sm" 
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={scrollToLiveStream}
             className="bg-white/20 hover:bg-white/30 text-white border-white/30"
           >

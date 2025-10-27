@@ -1,7 +1,7 @@
 import { User } from '@/types/user.types';
-import { 
-  DiscipleshipHierarchy, 
-  DiscipleshipGroup, 
+import {
+  DiscipleshipHierarchy,
+  DiscipleshipGroup,
   DiscipleshipMetrics,
   WeeklyLeaderReport,
   BiweeklyAuxiliaryReport,
@@ -12,7 +12,7 @@ import {
   ChartData,
   TimeSeriesData,
   Alert,
-  Goal
+  Goal,
 } from '@/types/discipleship.types';
 
 // Mock users for discipleship hierarchy - extended from real DB users
@@ -31,7 +31,7 @@ export const mockDiscipleshipUsers: User[] = [
     is_active: true,
     whatsapp: true,
     created_at: '2020-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z'
+    updated_at: '2024-01-01T00:00:00Z',
   },
   // Add more mock users as needed for testing
 ];
@@ -53,7 +53,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     status: 'active',
     zone_name: 'Zona Norte',
     created_at: '2024-01-15T00:00:00Z',
-    updated_at: '2024-09-20T00:00:00Z'
+    updated_at: '2024-09-20T00:00:00Z',
   },
   {
     id: 'group-002',
@@ -71,7 +71,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     status: 'multiplying',
     zone_name: 'Zona Norte',
     created_at: '2024-02-01T00:00:00Z',
-    updated_at: '2024-09-20T00:00:00Z'
+    updated_at: '2024-09-20T00:00:00Z',
   },
   {
     id: 'group-003',
@@ -89,7 +89,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     status: 'active',
     zone_name: 'Zona Norte',
     created_at: '2024-03-10T00:00:00Z',
-    updated_at: '2024-09-20T00:00:00Z'
+    updated_at: '2024-09-20T00:00:00Z',
   },
   {
     id: 'group-004',
@@ -107,7 +107,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     status: 'active',
     zone_name: 'Zona Sur',
     created_at: '2024-01-20T00:00:00Z',
-    updated_at: '2024-09-20T00:00:00Z'
+    updated_at: '2024-09-20T00:00:00Z',
   },
   {
     id: 'group-005',
@@ -125,8 +125,8 @@ export const mockGroups: DiscipleshipGroup[] = [
     status: 'inactive',
     zone_name: 'Zona Sur',
     created_at: '2024-04-05T00:00:00Z',
-    updated_at: '2024-09-20T00:00:00Z'
-  }
+    updated_at: '2024-09-20T00:00:00Z',
+  },
 ];
 
 export const mockHierarchy: DiscipleshipHierarchy[] = [
@@ -137,7 +137,7 @@ export const mockHierarchy: DiscipleshipHierarchy[] = [
     zone_name: 'Toda la Ciudad',
     active_groups_assigned: 30,
     created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-09-20T00:00:00Z'
+    updated_at: '2024-09-20T00:00:00Z',
   },
   {
     id: 'hier-002',
@@ -147,7 +147,7 @@ export const mockHierarchy: DiscipleshipHierarchy[] = [
     zone_name: 'Zona Norte',
     active_groups_assigned: 15,
     created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-09-20T00:00:00Z'
+    updated_at: '2024-09-20T00:00:00Z',
   },
   {
     id: 'hier-003',
@@ -157,8 +157,8 @@ export const mockHierarchy: DiscipleshipHierarchy[] = [
     zone_name: 'Zona Sur',
     active_groups_assigned: 15,
     created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-09-20T00:00:00Z'
-  }
+    updated_at: '2024-09-20T00:00:00Z',
+  },
 ];
 
 export const mockMetrics: DiscipleshipMetrics[] = [
@@ -172,9 +172,10 @@ export const mockMetrics: DiscipleshipMetrics[] = [
     testimonies_count: 3,
     prayer_requests: 5,
     spiritual_temperature: 8,
-    leader_notes: 'Excelente ambiente de adoración. Dos personas expresaron interés en el bautismo.',
+    leader_notes:
+      'Excelente ambiente de adoración. Dos personas expresaron interés en el bautismo.',
     created_at: '2024-09-15T20:00:00Z',
-    updated_at: '2024-09-15T20:00:00Z'
+    updated_at: '2024-09-15T20:00:00Z',
   },
   {
     id: 'metric-002',
@@ -188,8 +189,8 @@ export const mockMetrics: DiscipleshipMetrics[] = [
     spiritual_temperature: 9,
     leader_notes: 'Grupo muy activo. Planeando multiplicación para octubre.',
     created_at: '2024-09-13T19:30:00Z',
-    updated_at: '2024-09-13T19:30:00Z'
-  }
+    updated_at: '2024-09-13T19:30:00Z',
+  },
 ];
 
 // Mock reports data
@@ -200,22 +201,26 @@ export const mockWeeklyReports: WeeklyLeaderReport[] = [
     attendance: {
       members: 10,
       newVisitors: 2,
-      returningVisitors: 1
+      returningVisitors: 1,
     },
     spiritualHealth: {
       testimonies: 3,
       prayerRequests: ['Sanidad para María', 'Trabajo para Juan', 'Salvación familia López'],
       spiritualTemperature: 8,
-      groupMorale: 'excellent'
+      groupMorale: 'excellent',
     },
     followUp: {
       visitorsContacted: 2,
       membersCared: ['Ana (enfermedad)', 'Pedro (problema familiar)'],
-      upcomingEvents: ['Retiro juvenil - Oct 15', 'Evangelismo barrial - Oct 22']
+      upcomingEvents: ['Retiro juvenil - Oct 15', 'Evangelismo barrial - Oct 22'],
     },
     concerns: ['Necesitamos más sillas', 'Algunos jóvenes llegando tarde'],
-    blessings: ['Dos sanidades instantáneas', 'Nueva familia comprometida', 'Ofrenda especial para misiones']
-  }
+    blessings: [
+      'Dos sanidades instantáneas',
+      'Nueva familia comprometida',
+      'Ofrenda especial para misiones',
+    ],
+  },
 ];
 
 // Performance data for charts
@@ -226,7 +231,7 @@ export const mockZonePerformance: ZonePerformance[] = [
     totalMembers: 180,
     growthRate: 12.5,
     healthScore: 8.2,
-    supervisor: 'María González'
+    supervisor: 'María González',
   },
   {
     zoneName: 'Zona Sur',
@@ -234,7 +239,7 @@ export const mockZonePerformance: ZonePerformance[] = [
     totalMembers: 144,
     growthRate: 8.3,
     healthScore: 7.8,
-    supervisor: 'Carlos Rodríguez'
+    supervisor: 'Carlos Rodríguez',
   },
   {
     zoneName: 'Zona Este',
@@ -242,7 +247,7 @@ export const mockZonePerformance: ZonePerformance[] = [
     totalMembers: 96,
     growthRate: 15.7,
     healthScore: 8.9,
-    supervisor: 'Ana López'
+    supervisor: 'Ana López',
   },
   {
     zoneName: 'Zona Oeste',
@@ -250,8 +255,8 @@ export const mockZonePerformance: ZonePerformance[] = [
     totalMembers: 120,
     growthRate: 6.2,
     healthScore: 7.1,
-    supervisor: 'Luis Fernández'
-  }
+    supervisor: 'Luis Fernández',
+  },
 ];
 
 export const mockLeaderPerformance: LeaderPerformance[] = [
@@ -263,7 +268,7 @@ export const mockLeaderPerformance: LeaderPerformance[] = [
     retention: 92,
     growth: 25,
     spiritualHealth: 8.5,
-    consistencyScore: 95
+    consistencyScore: 95,
   },
   {
     leaderId: 'leader-002',
@@ -273,7 +278,7 @@ export const mockLeaderPerformance: LeaderPerformance[] = [
     retention: 88,
     growth: 40,
     spiritualHealth: 9.2,
-    consistencyScore: 98
+    consistencyScore: 98,
   },
   {
     leaderId: 'leader-003',
@@ -283,8 +288,8 @@ export const mockLeaderPerformance: LeaderPerformance[] = [
     retention: 85,
     growth: 12,
     spiritualHealth: 7.8,
-    consistencyScore: 87
-  }
+    consistencyScore: 87,
+  },
 ];
 
 // Time series data for growth charts
@@ -297,7 +302,7 @@ export const mockGrowthData: TimeSeriesData[] = [
   { date: '2024-06', value: 335, comparison: 310 },
   { date: '2024-07', value: 350, comparison: 325 },
   { date: '2024-08', value: 370, comparison: 340 },
-  { date: '2024-09', value: 385, comparison: 355 }
+  { date: '2024-09', value: 385, comparison: 355 },
 ];
 
 export const mockAttendanceData: TimeSeriesData[] = [
@@ -309,7 +314,7 @@ export const mockAttendanceData: TimeSeriesData[] = [
   { date: 'Jun', value: 88 },
   { date: 'Jul', value: 93 },
   { date: 'Ago', value: 90 },
-  { date: 'Sep', value: 94 }
+  { date: 'Sep', value: 94 },
 ];
 
 // Alerts for dashboard
@@ -321,7 +326,7 @@ export const mockAlerts: Alert[] = [
     actionRequired: true,
     relatedGroup: 'group-005',
     relatedLeader: 'leader-005',
-    created_at: '2024-09-20T10:00:00Z'
+    created_at: '2024-09-20T10:00:00Z',
   },
   {
     id: 'alert-002',
@@ -329,7 +334,7 @@ export const mockAlerts: Alert[] = [
     message: 'Supervisor Auxiliar Patricia Jiménez no ha enviado reporte quincenal',
     actionRequired: true,
     relatedLeader: '00000000-0000-0000-0000-000000000008',
-    created_at: '2024-09-19T15:30:00Z'
+    created_at: '2024-09-19T15:30:00Z',
   },
   {
     id: 'alert-003',
@@ -337,8 +342,8 @@ export const mockAlerts: Alert[] = [
     message: 'Grupo "Juventud Victoriosa" listo para multiplicación',
     actionRequired: false,
     relatedGroup: 'group-002',
-    created_at: '2024-09-18T09:00:00Z'
-  }
+    created_at: '2024-09-18T09:00:00Z',
+  },
 ];
 
 // Goals for coordinators and pastor
@@ -349,7 +354,7 @@ export const mockGoals: Goal[] = [
     target: 50,
     current: 35,
     deadline: '2024-12-31',
-    status: 'on_track'
+    status: 'on_track',
   },
   {
     id: 'goal-002',
@@ -357,7 +362,7 @@ export const mockGoals: Goal[] = [
     target: 20,
     current: 12,
     deadline: '2024-11-30',
-    status: 'behind'
+    status: 'behind',
   },
   {
     id: 'goal-003',
@@ -365,8 +370,8 @@ export const mockGoals: Goal[] = [
     target: 8,
     current: 3,
     deadline: '2024-10-31',
-    status: 'critical'
-  }
+    status: 'critical',
+  },
 ];
 
 // Chart data for various dashboards
@@ -374,14 +379,14 @@ export const mockGroupStatusData: ChartData[] = [
   { name: 'Activos', value: 28, color: '#22c55e' },
   { name: 'Multiplicando', value: 4, color: '#3b82f6' },
   { name: 'Necesitan Atención', value: 3, color: '#ef4444' },
-  { name: 'Inactivos', value: 1, color: '#6b7280' }
+  { name: 'Inactivos', value: 1, color: '#6b7280' },
 ];
 
 export const mockSpiritualHealthData: ChartData[] = [
   { name: 'Excelente (9-10)', value: 12, color: '#10b981' },
   { name: 'Bueno (7-8)', value: 18, color: '#3b82f6' },
   { name: 'Regular (5-6)', value: 5, color: '#f59e0b' },
-  { name: 'Necesita Atención (1-4)', value: 1, color: '#ef4444' }
+  { name: 'Necesita Atención (1-4)', value: 1, color: '#ef4444' },
 ];
 
 // Mock notifications for discipleship system
@@ -397,8 +402,8 @@ export const mockNotifications = [
     read: false,
     relatedUser: {
       name: 'Pastor David Martínez',
-      avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=David Martínez'
-    }
+      avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=David Martínez',
+    },
   },
   {
     id: 'notif-002',
@@ -411,8 +416,8 @@ export const mockNotifications = [
     read: false,
     relatedUser: {
       name: 'María González',
-      avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=María González'
-    }
+      avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=María González',
+    },
   },
   {
     id: 'notif-003',
@@ -422,6 +427,6 @@ export const mockNotifications = [
     actionText: 'Enviar Reporte',
     actionUrl: '/dashboard/discipleship?tab=dashboard',
     createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-    read: true
-  }
+    read: true,
+  },
 ];

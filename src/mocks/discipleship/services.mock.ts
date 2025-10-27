@@ -1,4 +1,4 @@
-import { 
+import {
   DiscipleshipGroup,
   DiscipleshipReport,
   DiscipleshipMetrics,
@@ -9,9 +9,9 @@ import {
   ZonePerformance,
   LeaderPerformance,
   Alert,
-  Goal
+  Goal,
 } from '@/types/discipleship.types';
-import { 
+import {
   mockGroups,
   mockMetrics,
   mockWeeklyReports,
@@ -22,7 +22,7 @@ import {
   mockGrowthData,
   mockAttendanceData,
   mockGroupStatusData,
-  mockSpiritualHealthData
+  mockSpiritualHealthData,
 } from './data.mock';
 
 // Simulated API delay
@@ -30,10 +30,14 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export class DiscipleshipMockService {
   // Groups management
-  static async getGroups(filters?: { zone?: string; supervisor?: string; status?: string }): Promise<DiscipleshipGroup[]> {
+  static async getGroups(filters?: {
+    zone?: string;
+    supervisor?: string;
+    status?: string;
+  }): Promise<DiscipleshipGroup[]> {
     await delay(300);
     let filteredGroups = [...mockGroups];
-    
+
     if (filters?.zone) {
       filteredGroups = filteredGroups.filter(g => g.zone_name === filters.zone);
     }
@@ -43,7 +47,7 @@ export class DiscipleshipMockService {
     if (filters?.status) {
       filteredGroups = filteredGroups.filter(g => g.status === filters.status);
     }
-    
+
     return filteredGroups;
   }
 
@@ -67,60 +71,75 @@ export class DiscipleshipMockService {
       status: group.status || 'active',
       zone_name: group.zone_name,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
     mockGroups.push(newGroup);
     return newGroup;
   }
 
-  static async updateGroup(id: string, updates: Partial<DiscipleshipGroup>): Promise<DiscipleshipGroup> {
+  static async updateGroup(
+    id: string,
+    updates: Partial<DiscipleshipGroup>
+  ): Promise<DiscipleshipGroup> {
     await delay(400);
     const groupIndex = mockGroups.findIndex(g => g.id === id);
     if (groupIndex === -1) throw new Error('Group not found');
-    
+
     mockGroups[groupIndex] = {
       ...mockGroups[groupIndex],
       ...updates,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
     return mockGroups[groupIndex];
   }
 
   // Metrics management
-  static async getGroupMetrics(groupId: string, startDate?: string, endDate?: string): Promise<DiscipleshipMetrics[]> {
+  static async getGroupMetrics(
+    groupId: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<DiscipleshipMetrics[]> {
     await delay(300);
     let filteredMetrics = mockMetrics.filter(m => m.group_id === groupId);
-    
+
     if (startDate) {
       filteredMetrics = filteredMetrics.filter(m => m.week_date >= startDate);
     }
     if (endDate) {
       filteredMetrics = filteredMetrics.filter(m => m.week_date <= endDate);
     }
-    
+
     return filteredMetrics;
   }
 
-  static async submitWeeklyReport(report: WeeklyLeaderReport): Promise<{ success: boolean; id: string }> {
+  static async submitWeeklyReport(
+    report: WeeklyLeaderReport
+  ): Promise<{ success: boolean; id: string }> {
     await delay(600);
     // Simulate saving the report
     const reportId = `report-${Date.now()}`;
     return { success: true, id: reportId };
   }
 
-  static async submitBiweeklyReport(report: BiweeklyAuxiliaryReport): Promise<{ success: boolean; id: string }> {
+  static async submitBiweeklyReport(
+    report: BiweeklyAuxiliaryReport
+  ): Promise<{ success: boolean; id: string }> {
     await delay(700);
     const reportId = `aux-report-${Date.now()}`;
     return { success: true, id: reportId };
   }
 
-  static async submitMonthlyReport(report: MonthlyGeneralReport): Promise<{ success: boolean; id: string }> {
+  static async submitMonthlyReport(
+    report: MonthlyGeneralReport
+  ): Promise<{ success: boolean; id: string }> {
     await delay(800);
     const reportId = `monthly-report-${Date.now()}`;
     return { success: true, id: reportId };
   }
 
-  static async submitQuarterlyReport(report: QuarterlyCoordinatorReport): Promise<{ success: boolean; id: string }> {
+  static async submitQuarterlyReport(
+    report: QuarterlyCoordinatorReport
+  ): Promise<{ success: boolean; id: string }> {
     await delay(900);
     const reportId = `quarterly-report-${Date.now()}`;
     return { success: true, id: reportId };
@@ -129,7 +148,7 @@ export class DiscipleshipMockService {
   // Dashboard data
   static async getDashboardStats(level: number, userId: string) {
     await delay(400);
-    
+
     switch (level) {
       case 5: // Pastor
         return {
@@ -140,9 +159,9 @@ export class DiscipleshipMockService {
           growthRate: 12.8,
           healthIndex: 8.3,
           activeZones: 4,
-          monthlyGoalProgress: 75
+          monthlyGoalProgress: 75,
         };
-      
+
       case 4: // Coordinator
         return {
           totalGroups: 18,
@@ -151,9 +170,9 @@ export class DiscipleshipMockService {
           totalSupervisors: 6,
           zoneGrowthRate: 15.2,
           zoneHealthIndex: 8.1,
-          quarterlyGoalProgress: 68
+          quarterlyGoalProgress: 68,
         };
-      
+
       case 3: // General Supervisor
         return {
           totalGroups: 8,
@@ -162,18 +181,18 @@ export class DiscipleshipMockService {
           auxiliarySupervisors: 3,
           territoryGrowthRate: 18.5,
           territoryHealthIndex: 8.7,
-          monthlyGoalProgress: 82
+          monthlyGoalProgress: 82,
         };
-      
+
       case 2: // Auxiliary Supervisor
         return {
           groupsUnderSupervision: 4,
           totalMembers: 48,
           averageAttendance: 89,
           leadersSupportNeeded: 1,
-          biweeklyGoalProgress: 91
+          biweeklyGoalProgress: 91,
         };
-      
+
       case 1: // Group Leader
         return {
           groupMembers: 12,
@@ -181,9 +200,9 @@ export class DiscipleshipMockService {
           monthlyGrowth: 2,
           spiritualTemperature: 8.5,
           visitorsThisMonth: 5,
-          weeklyGoalProgress: 85
+          weeklyGoalProgress: 85,
         };
-      
+
       default:
         return {};
     }
@@ -236,7 +255,11 @@ export class DiscipleshipMockService {
   }
 
   // Reports management
-  static async getReports(filters?: { level?: number; status?: string; dateRange?: { start: string; end: string } }): Promise<DiscipleshipReport[]> {
+  static async getReports(filters?: {
+    level?: number;
+    status?: string;
+    dateRange?: { start: string; end: string };
+  }): Promise<DiscipleshipReport[]> {
     await delay(400);
     // Return mock reports based on filters
     return [];
@@ -247,7 +270,10 @@ export class DiscipleshipMockService {
     return { success: true };
   }
 
-  static async requestReportRevision(reportId: string, feedback: string): Promise<{ success: boolean }> {
+  static async requestReportRevision(
+    reportId: string,
+    feedback: string
+  ): Promise<{ success: boolean }> {
     await delay(600);
     return { success: true };
   }
@@ -257,9 +283,33 @@ export class DiscipleshipMockService {
     await delay(100);
     // Mock logic to determine user level
     if (userId === '00000000-0000-0000-0000-000000000001') return 5; // Pastor
-    if (['00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003'].includes(userId)) return 4; // Coordinators
-    if (['00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000007'].includes(userId)) return 3; // General Supervisors
-    if (userId.includes('aux-supervisor') || ['00000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000013'].includes(userId)) return 2; // Auxiliary Supervisors
+    if (
+      ['00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003'].includes(
+        userId
+      )
+    )
+      return 4; // Coordinators
+    if (
+      [
+        '00000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000006',
+        '00000000-0000-0000-0000-000000000007',
+      ].includes(userId)
+    )
+      return 3; // General Supervisors
+    if (
+      userId.includes('aux-supervisor') ||
+      [
+        '00000000-0000-0000-0000-000000000008',
+        '00000000-0000-0000-0000-000000000009',
+        '00000000-0000-0000-0000-000000000010',
+        '00000000-0000-0000-0000-000000000011',
+        '00000000-0000-0000-0000-000000000012',
+        '00000000-0000-0000-0000-000000000013',
+      ].includes(userId)
+    )
+      return 2; // Auxiliary Supervisors
     return 1; // Group Leaders
   }
 
