@@ -1,34 +1,33 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import {
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  Bell,
-  Lock,
-  Settings,
-  Heart,
-  Users,
-  Edit,
-  Camera,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ProfileUpdateFormData, profileUpdateSchema } from '@/schemas/user.schemas';
 import { UserService } from '@/services/user.service';
-import { profileUpdateSchema, ProfileUpdateFormData } from '@/schemas/user.schemas';
 import { User as UserType } from '@/types/user.types';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Bell,
+  Calendar,
+  Camera,
+  Edit,
+  Heart,
+  Lock,
+  MapPin,
+  Phone,
+  Settings,
+  User,
+  Users,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 
 const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
@@ -56,8 +55,8 @@ const ProfilePage = () => {
   }, []);
 
   const initialWordName = () => {
-    if (!userData || !userData.full_name) return '';
-    const names = userData.full_name.trim().split(' ');
+    if (!userData || !userData.first_name || !userData.last_name) return '';
+    const names = `${userData.first_name} ${userData.last_name}`.trim().split(' ');
     if (names.length === 1) {
       return names[0][0].toUpperCase();
     }
@@ -71,7 +70,9 @@ const ProfilePage = () => {
     try {
       const userData = await UserService.getCurrentUser();
       reset({
-        full_name: userData.full_name || '',
+        first_name: userData.first_name || '',
+        last_name: userData.last_name || '',
+        id_number: userData.id_number || '',
         email: userData.email || '',
         phone: userData.phone || '',
         birth_date: userData.birth_date || '',
@@ -175,11 +176,13 @@ const ProfilePage = () => {
                   </Button>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-2xl font-bold">{userData?.full_name}</h3>
+                  <h3 className="text-2xl font-bold">
+                    {userData?.first_name} {userData?.last_name}
+                  </h3>
                   <p className="text-muted-foreground">{userData?.email}</p>
                   <div className="flex items-center gap-4 mt-2">
                     <Badge variant="default">Pastor Principal</Badge>
-                    <Badge variant="outline">Miembro desde 2022</Badge>
+                    <Badge variant="outline">Miembro desde {userData?.membership_date || ''}</Badge>
                   </div>
                 </div>
                 <Button variant="outline">
@@ -203,34 +206,33 @@ const ProfilePage = () => {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="full_name" className="flex items-center gap-2">
+                    <Label htmlFor="first_name" className="flex items-center gap-2">
                       <User className="w-4 h-4" />
-                      Nombre Completo
+                      Nombres
                     </Label>
                     <Input
-                      id="full_name"
-                      {...register('full_name')}
-                      className={errors.full_name ? 'border-red-500' : ''}
+                      id="first_name"
+                      {...register('first_name')}
+                      className={errors.first_name ? 'border-red-500' : ''}
                     />
-                    {errors.full_name && (
-                      <p className="text-sm text-red-500">{errors.full_name.message}</p>
+                    {errors.first_name && (
+                      <p className="text-sm text-red-500">{errors.first_name.message}</p>
                     )}
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      Email
+                    <Label htmlFor="last_name" className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Apellidos
                     </Label>
                     <Input
-                      id="email"
-                      type="email"
-                      {...register('email')}
-                      className={errors.email ? 'border-red-500' : ''}
+                      id="last_name"
+                      {...register('last_name')}
+                      className={errors.last_name ? 'border-red-500' : ''}
                     />
-                    {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+                    {errors.last_name && (
+                      <p className="text-sm text-red-500">{errors.last_name.message}</p>
+                    )}
                   </div>
-
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="flex items-center gap-2">
                       <Phone className="w-4 h-4" />

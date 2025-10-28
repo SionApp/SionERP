@@ -26,7 +26,6 @@ export class UserService {
       const user = await ApiService.get<User>('/users/me');
       return {
         ...user,
-        full_name: `${user.first_name} ${user.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error fetching current user:', error);
@@ -69,7 +68,6 @@ export class UserService {
 
       return {
         ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error creating user:', error);
@@ -133,7 +131,6 @@ export class UserService {
       console.log(data, 'backend');
       return {
         ...data,
-        full_name: `${data.first_name} ${data.last_name}`.trim(),
       };
     } catch (error) {
       console.error('Error fetching user:', error);

@@ -3,24 +3,19 @@ export type UserRole = 'admin' | 'pastor' | 'staff' | 'supervisor' | 'server' | 
 export interface User {
   id: string;
   email: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   nombres?: string;
   apellidos?: string;
-  first_name?: string;
-  last_name?: string;
-  cedula?: string;
+  id_number?: string;
   identification_number?: string;
-  correo?: string;
-  telefono?: string;
   phone?: string;
   whatsapp?: boolean;
   role: UserRole;
   birth_date?: string;
-  direccion?: string;
   address?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
-  id_number?: string;
   baptized?: boolean;
   baptism_date?: string;
   bautizado?: boolean;
@@ -31,7 +26,6 @@ export interface User {
   ministry_interest?: string;
   first_visit_date?: string;
   cell_group?: string;
-  fecha_bautizo?: string;
   membership_date?: string;
   pastoral_notes?: string;
   discipleship_level?: number;
@@ -45,7 +39,6 @@ export interface CreateUserData {
   email?: string;
   correo?: string;
   password?: string;
-  full_name?: string;
   first_name?: string;
   last_name?: string;
   nombres?: string;
@@ -80,7 +73,10 @@ export interface CreateUserData {
 export interface UpdateUserData {
   id: string;
   email?: string;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  id_number?: string;
+  identification_number?: string;
   phone?: string;
   role?: UserRole;
   birth_date?: string;
@@ -93,6 +89,8 @@ export interface UpdateUserData {
 export interface UpdateUserRequest {
   first_name?: string;
   last_name?: string;
+  id_number?: string;
+  identification_number?: string;
   phone?: string;
   address?: string;
   birth_date?: string;

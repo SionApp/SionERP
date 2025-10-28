@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from 'lucide-react';
-import { Button } from './button';
 import { cn } from '@/lib/utils';
+import { ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Button } from './button';
 
 export interface Column<T> {
   key: keyof T;
@@ -29,7 +29,7 @@ export interface DataTableProps<T> {
 
 type SortDirection = 'asc' | 'desc' | null;
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends object>({
   data,
   columns,
   actions,
@@ -218,7 +218,7 @@ export function DataTable<T extends Record<string, any>>({
                         getResponsiveClass(column.responsive)
                       )}
                     >
-                      {column.render ? column.render(item) : item[column.key]}
+                      {column.render ? column.render(item) : (item[column.key] as React.ReactNode)}
                     </td>
                   ))}
                   {actions && <td className="px-4 py-3">{actions(item)}</td>}
@@ -253,7 +253,9 @@ export function DataTable<T extends Record<string, any>>({
                           {column.label}:
                         </span>
                         <span className="text-sm text-right">
-                          {column.render ? column.render(item) : item[column.key]}
+                          {column.render
+                            ? column.render(item)
+                            : (item[column.key] as React.ReactNode)}
                         </span>
                       </div>
                     ))}

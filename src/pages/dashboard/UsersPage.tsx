@@ -161,7 +161,7 @@ const UsersPage = () => {
 
   const columns: Column<User>[] = [
     {
-      key: 'full_name',
+      key: 'first_name',
       label: 'Nombre Completo',
       render: user => (
         <div>
