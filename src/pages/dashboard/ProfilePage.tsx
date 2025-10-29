@@ -12,6 +12,7 @@ import { ProfileUpdateFormData, profileUpdateSchema } from '@/schemas/user.schem
 import { UserService } from '@/services/user.service';
 import { User as UserType } from '@/types/user.types';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { format, parseISO } from 'date-fns';
 import {
   Bell,
   Calendar,
@@ -66,6 +67,11 @@ const ProfilePage = () => {
     );
   };
 
+  const formatDateForInput = (dateString: string) => {
+    const date = dateString ? format(parseISO(dateString), 'yyyy-MM-dd') : '';
+    return date;
+  };
+
   const loadUserData = async () => {
     try {
       const userData = await UserService.getCurrentUser();
@@ -75,7 +81,7 @@ const ProfilePage = () => {
         id_number: userData.id_number || '',
         email: userData.email || '',
         phone: userData.phone || '',
-        birth_date: userData.birth_date || '',
+        birth_date: formatDateForInput(userData.birth_date) || '',
         address: userData.address || '',
         emergency_contact_name: userData.emergency_contact_name || '',
         emergency_contact_phone: userData.emergency_contact_phone || '',
@@ -83,7 +89,6 @@ const ProfilePage = () => {
       });
       setUserData(userData);
     } catch (error) {
-      console.error('Error loading user data:', error);
       toast.error('Error al cargar los datos del usuario');
     }
   };
@@ -94,7 +99,6 @@ const ProfilePage = () => {
       await UserService.updateProfile(data);
       toast.success('Perfil actualizado exitosamente');
     } catch (error) {
-      console.error('Error updating profile:', error);
       toast.error('Error al actualizar el perfil');
     } finally {
       setLoading(false);
@@ -117,20 +121,28 @@ const ProfilePage = () => {
         {/* Profile Quick Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:min-w-[400px]">
           <Card className="text-center p-4">
-            <div className="text-lg font-bold text-primary">Pastor</div>
+            <div className="text-lg font-bold text-primary">
+              {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
+            </div>
             <div className="text-xs text-muted-foreground">Rol Actual</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-lg font-bold text-green-600">Activo</div>
+            <div className="text-lg font-bold text-green-600">
+              {userData?.is_active ? 'Activo' : 'Inactivo'}
+            </div>
             <div className="text-xs text-muted-foreground">Estado</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-lg font-bold text-blue-600">2 años</div>
+            <div className="text-lg font-bold text-blue-600">
+              {userData?.membership_date ? format(parseISO(userData.membership_date), 'yyyy') : ''}
+            </div>
             <div className="text-xs text-muted-foreground">Miembro</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-lg font-bold text-purple-600">100%</div>
-            <div className="text-xs text-muted-foreground">Perfil</div>
+            <div className="text-lg font-bold text-purple-600">
+              {userData?.discipleship_level || 0}
+            </div>
+            <div className="text-xs text-muted-foreground">Nivel de Discipulado</div>
           </Card>
         </div>
       </div>
@@ -181,8 +193,15 @@ const ProfilePage = () => {
                   </h3>
                   <p className="text-muted-foreground">{userData?.email}</p>
                   <div className="flex items-center gap-4 mt-2">
-                    <Badge variant="default">Pastor Principal</Badge>
-                    <Badge variant="outline">Miembro desde {userData?.membership_date || ''}</Badge>
+                    <Badge variant="default">
+                      {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
+                    </Badge>
+                    <Badge variant="outline">
+                      Miembro desde{' '}
+                      {userData?.membership_date
+                        ? format(parseISO(userData.membership_date), 'MMMM yyyy')
+                        : ''}
+                    </Badge>
                   </div>
                 </div>
                 <Button variant="outline">
@@ -311,7 +330,11 @@ const ProfilePage = () => {
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <h4 className="font-medium">Bautizado</h4>
-                      <p className="text-sm text-muted-foreground">15 de Mayo, 2020</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.baptism_date
+                          ? format(parseISO(userData.baptism_date), 'MMMM yyyy')
+                          : ''}
+                      </p>
                     </div>
                     <Badge variant="default">Sí</Badge>
                   </div>
@@ -319,7 +342,11 @@ const ProfilePage = () => {
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <h4 className="font-medium">Miembro Activo</h4>
-                      <p className="text-sm text-muted-foreground">Desde Enero 2022</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.membership_date
+                          ? format(parseISO(userData.membership_date), 'MMMM yyyy')
+                          : ''}
+                      </p>
                     </div>
                     <Badge variant="default">Activo</Badge>
                   </div>
@@ -327,7 +354,9 @@ const ProfilePage = () => {
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <h4 className="font-medium">Grupo Celular</h4>
-                      <p className="text-sm text-muted-foreground">Líderes Unidos</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.cell_group || 'Sin asignar'}
+                      </p>
                     </div>
                     <Badge variant="outline">Líder</Badge>
                   </div>
@@ -337,25 +366,30 @@ const ProfilePage = () => {
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <h4 className="font-medium">Ministerio</h4>
-                      <p className="text-sm text-muted-foreground">Pastoral Principal</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
+                      </p>
                     </div>
-                    <Badge variant="default">Pastor</Badge>
                   </div>
 
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <h4 className="font-medium">Primera Visita</h4>
-                      <p className="text-sm text-muted-foreground">12 de Marzo, 2020</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.first_visit_date
+                          ? format(parseISO(userData.first_visit_date), 'MMMM yyyy')
+                          : ''}
+                      </p>
                     </div>
-                    <Badge variant="outline">4 años</Badge>
                   </div>
 
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
-                      <h4 className="font-medium">Servicios Asistidos</h4>
-                      <p className="text-sm text-muted-foreground">Este mes</p>
+                      <h4 className="font-medium">Nivel de Discipulado</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.discipleship_level || 'Sin asignar'}
+                      </p>
                     </div>
-                    <Badge variant="default">12/12</Badge>
                   </div>
                 </div>
               </div>
