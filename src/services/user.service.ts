@@ -102,7 +102,7 @@ export class UserService {
         Object.entries(userData).filter(([key, value]) => key !== 'id' && value !== undefined)
       ) as never;
 
-      const res = await ApiService.put<User>(`/users/me/${userData.id}`, updateData);
+      const res = await ApiService.put<User>(`/users/me`, updateData);
       console.log('res', res);
 
       return {
