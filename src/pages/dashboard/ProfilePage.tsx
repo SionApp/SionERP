@@ -81,11 +81,22 @@ const ProfilePage = () => {
         id_number: userData.id_number || '',
         email: userData.email || '',
         phone: userData.phone || '',
+        marital_status: userData.marital_status || '',
+        occupation: userData.occupation || '',
+        education_level: userData.education_level || '',
+        how_found_church: userData.how_found_church || '',
+        ministry_interest: userData.ministry_interest || '',
+        first_visit_date: formatDateForInput(userData.first_visit_date) || '',
+        baptism_date: formatDateForInput(userData.baptism_date) || '',
+        is_active_member: userData.is_active_member || false,
+        membership_date: formatDateForInput(userData.membership_date) || '',
+        cell_group: userData.cell_group || '',
+        pastoral_notes: userData.pastoral_notes || '',
+        whatsapp: userData.whatsapp || false,
         birth_date: formatDateForInput(userData.birth_date) || '',
         address: userData.address || '',
         emergency_contact_name: userData.emergency_contact_name || '',
         emergency_contact_phone: userData.emergency_contact_phone || '',
-        whatsapp: userData.whatsapp || false,
       });
       setUserData(userData);
     } catch (error) {
@@ -136,7 +147,7 @@ const ProfilePage = () => {
             <div className="text-lg font-bold text-blue-600">
               {userData?.membership_date ? format(parseISO(userData.membership_date), 'yyyy') : ''}
             </div>
-            <div className="text-xs text-muted-foreground">Miembro</div>
+            <div className="text-xs text-muted-foreground">Miembro desde</div>
           </Card>
           <Card className="text-center p-4">
             <div className="text-lg font-bold text-purple-600">
@@ -327,7 +338,7 @@ const ProfilePage = () => {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Bautizado</h4>
                       <p className="text-sm text-muted-foreground">
@@ -339,7 +350,7 @@ const ProfilePage = () => {
                     <Badge variant="default">Sí</Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Miembro Activo</h4>
                       <p className="text-sm text-muted-foreground">
@@ -351,7 +362,7 @@ const ProfilePage = () => {
                     <Badge variant="default">Activo</Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Grupo Celular</h4>
                       <p className="text-sm text-muted-foreground">
@@ -363,7 +374,7 @@ const ProfilePage = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Ministerio</h4>
                       <p className="text-sm text-muted-foreground">
@@ -372,7 +383,7 @@ const ProfilePage = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Primera Visita</h4>
                       <p className="text-sm text-muted-foreground">
@@ -383,7 +394,7 @@ const ProfilePage = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Nivel de Discipulado</h4>
                       <p className="text-sm text-muted-foreground">
