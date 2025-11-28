@@ -10,7 +10,7 @@ const LiveBanner = () => {
 
   useEffect(() => {
     checkLiveStatus();
-    
+
     // Subscribe to real-time updates
     const channel = supabase
       .channel('live-stream-updates')
@@ -73,9 +73,9 @@ const LiveBanner = () => {
             <Radio className="w-4 h-4" />
             <span className="font-semibold text-sm">¡ESTAMOS EN VIVO!</span>
           </div>
-          <Button 
-            variant="secondary" 
-            size="sm" 
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={scrollToLiveStream}
             className="bg-white/20 hover:bg-white/30 text-white border-white/30"
           >

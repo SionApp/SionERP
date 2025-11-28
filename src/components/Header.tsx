@@ -28,9 +28,9 @@ const Header = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden bg-background">
-              <img 
-                src={sionLogo} 
-                alt="Iglesia Sion" 
+              <img
+                src={sionLogo}
+                alt="Iglesia Sion"
                 className="w-full h-full object-contain"
               />
             </div>
@@ -39,7 +39,7 @@ const Header = () => {
               <p className="text-sm text-muted-foreground">Cambiando vidas</p>
             </div>
           </div>
-          
+
           <nav className="hidden lg:flex items-center space-x-8">
             <button onClick={() => handleNavigation('#inicio')} className="text-muted-foreground hover:text-foreground transition-colors">
               Inicio
@@ -55,6 +55,9 @@ const Header = () => {
             </button>
             <Link to="/galeria" className="text-muted-foreground hover:text-foreground transition-colors">
               Galería
+            </Link>
+            <Link to="/eventos" className="text-muted-foreground hover:text-foreground transition-colors">
+              Actividades
             </Link>
             <button onClick={() => handleNavigation('#contacto')} className="text-muted-foreground hover:text-foreground transition-colors">
               Contacto
@@ -100,6 +103,9 @@ const Header = () => {
               </button>
               <Link to="/galeria" className="text-muted-foreground hover:text-foreground transition-colors">
                 Galería
+              </Link>
+              <Link to="/eventos" className="text-muted-foreground hover:text-foreground transition-colors">
+                Actividades
               </Link>
               <button onClick={() => handleNavigation('#contacto')} className="text-muted-foreground hover:text-foreground transition-colors text-left">
                 Contacto

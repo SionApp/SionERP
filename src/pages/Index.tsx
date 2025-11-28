@@ -9,15 +9,17 @@ import Footer from "@/components/Footer";
 import RegistrationModal from "@/components/RegistrationModal";
 import LiveBanner from "@/components/LiveBanner";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useLiveStreamStatus } from "@/hooks/useLiveStreamStatus";
 import { useEffect } from "react";
 
 const Index = () => {
   const { registerServiceWorker, requestPermission } = useNotifications();
+  const { isLive, liveData } = useLiveStreamStatus();
 
   useEffect(() => {
     // Register service worker for PWA
     registerServiceWorker();
-    
+
     // Request notification permission after a short delay
     const timer = setTimeout(() => {
       requestPermission();
@@ -33,8 +35,16 @@ const Index = () => {
       <Hero />
       <Services />
       <About />
-      <LiveStream />
-      <Newsletter />
+
+      {/* Conditionally render LiveStream or Newsletter */}
+      <div id="streaming">
+        {isLive ? (
+          <LiveStream liveData={liveData} />
+        ) : (
+          <Newsletter />
+        )}
+      </div>
+
       <Contact />
       <Footer />
       <RegistrationModal />
