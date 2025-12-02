@@ -1,13 +1,15 @@
 import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { DynamicFilter, FilterField, FilterValues } from '@/components/DynamicFilter';
 import UserDetailSheet from '@/components/UserDetailSheet';
+import { InviteUserModal } from '@/components/dashboard/InviteUserModal';
 import { Column, DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserService } from '@/services/user.service';
+import { Invitation } from '@/types/invitation.types';
 import { User } from '@/types/user.types';
-import { Calendar, Edit, Eye, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Edit, Eye, Mail, Plus, SendHorizontal, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -19,6 +21,9 @@ const UsersPage = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
+  const [showInviteModalUser, setShowInviteModalUser] = useState<User | null>(null);
   const navigate = useNavigate();
 
   const filterFields: FilterField[] = [
@@ -101,13 +106,13 @@ const UsersPage = () => {
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case 'pastor':
-        return 'destructive';
+        return 'minister';
       case 'staff':
-        return 'default';
+        return 'staff';
       case 'supervisor':
-        return 'secondary';
+        return 'supervisor';
       case 'server':
-        return 'outline';
+        return 'server';
       default:
         return 'default';
     }
@@ -127,6 +132,33 @@ const UsersPage = () => {
         return role;
     }
   };
+  const loadInvitations = async () => {
+    try {
+      setLoadingInvitations(true);
+      const invitations = await UserService.loadInvitations();
+      setInvitations(invitations || []);
+    } catch (error) {
+      console.error('Error loading invitations:', error);
+      toast.error('Error al cargar las invitaciones');
+    } finally {
+      setLoadingInvitations(false);
+    }
+  };
+
+  const handleResendInvitation = async (invitationId: string) => {
+    try {
+      await UserService.resendInvitation(invitationId);
+      toast.success('Invitación reenviada correctamente');
+      loadInvitations();
+    } catch (error) {
+      console.error('Error resending invitation:', error);
+      toast.error('Error al reenviar la invitación');
+    }
+  };
+
+  useEffect(() => {
+    loadInvitations();
+  }, []);
 
   const handleDetailUser = (user: User) => {
     setSelectedUserId(user.id);
@@ -159,7 +191,7 @@ const UsersPage = () => {
     }
   };
 
-  const columns: Column<User>[] = [
+  const columns: Column<User & { invitation_status: string }>[] = [
     {
       key: 'first_name',
       label: 'Nombre Completo',
@@ -194,18 +226,6 @@ const UsersPage = () => {
       render: user => (
         <div className="space-y-1">
           <Badge variant={getRoleBadgeVariant(user.role)}>{getRoleDisplayName(user.role)}</Badge>
-          <div className="flex gap-1">
-            {user.baptized && (
-              <Badge variant="outline" className="text-xs">
-                Bautizado
-              </Badge>
-            )}
-            {user.whatsapp && (
-              <Badge variant="outline" className="text-xs">
-                WhatsApp
-              </Badge>
-            )}
-          </div>
         </div>
       ),
       responsive: 'md',
@@ -238,6 +258,52 @@ const UsersPage = () => {
       sortable: true,
       width: '120px',
     },
+    {
+      key: 'invitation_status',
+      label: 'Estado',
+      render: user => {
+        const invitation = invitations.find(inv => inv.email === user.email);
+
+        if (!invitation) {
+          return <Badge variant="outline">No invitado</Badge>;
+        }
+
+        const isExpired = new Date(invitation.expires_at) < new Date();
+
+        return (
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                invitation.status === 'accepted'
+                  ? 'default'
+                  : invitation.status === 'pending' && !isExpired
+                    ? 'secondary'
+                    : 'destructive'
+              }
+            >
+              {invitation.status === 'pending' && !isExpired
+                ? 'Invitación pendiente'
+                : invitation.status === 'accepted'
+                  ? 'Aceptada'
+                  : 'Expirada'}
+            </Badge>
+
+            {invitation.status === 'pending' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleResendInvitation(invitation.id_number)}
+                className="h-6 w-6 p-0"
+                title="Reenviar invitación"
+              >
+                <SendHorizontal className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        );
+      },
+      responsive: 'md',
+    },
   ];
 
   const userActions = (user: User) => (
@@ -269,6 +335,17 @@ const UsersPage = () => {
       >
         <Trash2 className="h-3 w-3" />
       </Button>
+      {user.invitation_status !== 'accepted' && (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowInviteModalUser(user)}
+        title="Invitar usuario"
+        className="h-8 w-8 p-0"
+      >
+        <Mail className="h-3 w-3" />
+      </Button>
+      )}
     </div>
   );
 
@@ -285,11 +362,6 @@ const UsersPage = () => {
           <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
             {getRoleDisplayName(user.role)}
           </Badge>
-          {user.baptized && (
-            <Badge variant="outline" className="text-xs">
-              Bautizado
-            </Badge>
-          )}
         </div>
       </div>
 
@@ -351,7 +423,14 @@ const UsersPage = () => {
         </CardHeader>
         <CardContent>
           <DataTable
-            data={filteredUsers}
+            data={filteredUsers.map(
+              user =>
+                ({
+                  ...user,
+                  invitation_status:
+                    invitations.find(inv => inv.email === user.email)?.status || 'pending',
+                }) as User & { invitation_status: 'pending' | 'accepted' | 'expired' }
+            )}
             columns={columns}
             actions={userActions}
             loading={loading}
@@ -376,6 +455,13 @@ const UsersPage = () => {
         isDeleting={isDeleting}
         onClose={() => setDeletingUser(null)}
         onConfirm={confirmDeleteUser}
+      />
+
+      <InviteUserModal
+        user={showInviteModalUser}
+        isOpen={!!showInviteModalUser}
+        onClose={() => setShowInviteModalUser(null)}
+        onInviteSent={() => loadInvitations()}
       />
     </div>
   );

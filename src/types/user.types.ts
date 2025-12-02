@@ -5,11 +5,8 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  nombres?: string;
-  apellidos?: string;
-  id_number?: string;
-  identification_number?: string;
-  phone?: string;
+  id_number: string;
+  phone: string;
   whatsapp?: boolean;
   role: UserRole;
   birth_date?: string;
@@ -33,25 +30,20 @@ export interface User {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  invitation_status?: string;
 }
 
 export interface CreateUserData {
-  email?: string;
-  correo?: string;
+  email: string;
   password?: string;
-  first_name?: string;
-  last_name?: string;
-  nombres?: string;
-  apellidos?: string;
-  cedula?: string;
-  identification_number?: string;
-  telefono?: string;
-  phone?: string;
+  first_name: string;
+  last_name: string;
+  id_number: string;
+  phone: string;
   whatsapp?: boolean;
-  role?: UserRole;
-  birth_date?: string;
-  direccion?: string;
-  address?: string;
+  role: UserRole;
+  birth_date?: string | null;
+  address: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   marital_status?: string;
@@ -61,11 +53,9 @@ export interface CreateUserData {
   ministry_interest?: string;
   first_visit_date?: string;
   cell_group?: string;
-  fecha_bautizo?: string;
-  baptism_date?: string;
-  membership_date?: string;
+  baptism_date?: string | null;
+  membership_date?: string | null;
   pastoral_notes?: string;
-  bautizado?: boolean;
   baptized?: boolean;
   is_active_member?: boolean;
 }
@@ -76,24 +66,35 @@ export interface UpdateUserData {
   first_name?: string;
   last_name?: string;
   id_number?: string;
-  identification_number?: string;
   phone?: string;
+  whatsapp?: boolean;
   role?: UserRole;
-  birth_date?: string;
+  birth_date?: string | null;
   address?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
+  marital_status?: string;
+  occupation?: string;
+  education_level?: string;
+  how_found_church?: string;
+  ministry_interest?: string;
+  first_visit_date?: string | null;
+  cell_group?: string;
+  baptism_date?: string | null;
+  membership_date?: string | null;
+  pastoral_notes?: string;
+  baptized?: boolean;
+  is_active_member?: boolean;
   is_active?: boolean;
 }
 
 export interface UpdateUserRequest {
   first_name?: string;
   last_name?: string;
-  id_number?: string;
-  identification_number?: string;
+  id_number: string;
   phone?: string;
   address?: string;
-  birth_date?: string;
+  birth_date?: string | null;
   marital_status?: string;
   occupation?: string;
   education_level?: string;
@@ -101,9 +102,9 @@ export interface UpdateUserRequest {
   ministry_interest?: string;
   first_visit_date?: string;
   baptized?: boolean;
-  baptism_date?: string;
+  baptism_date?: string | null;
   is_active_member?: boolean;
-  membership_date?: string;
+  membership_date?: string | null;
   cell_group?: string;
   whatsapp?: boolean;
   pastoral_notes?: string;

@@ -33,7 +33,14 @@ func BuildUpdateQuery(data interface{}, tableName, idColumn, idValue string) (st
 			continue
 		}
 
-		columnName := strings.Split(jsonTag, ",")[0]
+		// Prefer db tag over json tag for column name
+		dbTag := fieldType.Tag.Get("db")
+		var columnName string
+		if dbTag != "" && dbTag != "-" {
+			columnName = strings.Split(dbTag, ",")[0]
+		} else {
+			columnName = strings.Split(jsonTag, ",")[0]
+		}
 
 		if field.Kind() == reflect.Ptr && !field.IsNil() {
 			actualValue := field.Elem().Interface()

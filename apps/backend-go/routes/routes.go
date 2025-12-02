@@ -51,4 +51,12 @@ func SetupRoutes(e *echo.Echo) {
 	{
 		dashboard.GET("/stats", dashboardHandler.GetStats) // GET /api/v1/dashboard/stats
 	}
+
+	// Invitation routes
+	invitations := protected.Group("/invitations")
+	{
+		invitations.GET("", handlers.NewInviteHandler().GetInvitations) // GET /api/v1/invitations - List all invitations
+		invitations.POST("", handlers.NewInviteHandler().InviteUser) // POST /api/v1/invitations - Invite a user
+		invitations.POST("/:id/resend", handlers.NewInviteHandler().ResendInvitation) // POST /api/v1/invitations/:id/resend - Resend an invitation
+	}
 }
