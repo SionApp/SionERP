@@ -68,6 +68,11 @@ func (s *SupabaseClient) GenerateMagicLink(email string, redirectTo string, data
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// Read the error response body for more details
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err == nil {
+			return nil, fmt.Errorf("unexpected status code: %d, error: %v", resp.StatusCode, errorResponse)
+		}
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 

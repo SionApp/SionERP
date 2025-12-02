@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 import { ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './button';
 
 export interface Column<T> {
@@ -59,7 +59,10 @@ export function DataTable<T extends object>({
     );
   }, [data, searchTerm, columns]);
 
-  // Sort data
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [data.length, searchTerm]);
+
   const sortedData = useMemo(() => {
     if (!sortColumn || !sortDirection) return filteredData;
 

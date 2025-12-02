@@ -1,3 +1,4 @@
+import { Invitation } from '@/types/invitation.types';
 import { CreateUserData, UpdateUserData, UpdateUserRequest, User } from '@/types/user.types';
 import { ApiService } from './api.service';
 
@@ -42,9 +43,8 @@ export class UserService {
         last_name: userData.last_name || '',
         phone: userData.phone || '',
         address: userData.address || '',
-        id_number: userData.identification_number || '',
-        password_hash: userData.password || 'temp', // This should be hashed
-        role: (userData.role === 'admin' ? 'pastor' : userData.role || 'server') as string,
+        id_number: userData.id_number || '',
+        role: userData.role,
         birth_date: userData.birth_date,
         baptized: userData.baptized || false,
         whatsapp: userData.whatsapp || false,
@@ -63,7 +63,16 @@ export class UserService {
         emergency_contact_phone: userData.emergency_contact_phone,
       };
 
-      const data = await ApiService.post<User>('/users', dbData);
+      // Remove empty strings and undefined values to send clean data to backend
+      const cleanData = Object.fromEntries(
+        Object.entries(dbData).filter(([_, value]) => {
+          // Keep the value if it's not an empty string and not undefined
+          // Also keep false and 0 values
+          return value !== '' && value !== undefined && value !== null;
+        })
+      );
+
+      const data = await ApiService.post<User>('/users', cleanData);
       console.log('res', data);
 
       return {
@@ -79,10 +88,11 @@ export class UserService {
     try {
       // Only update the fields that are provided and remove undefined values
       const updateData = Object.fromEntries(
-        Object.entries(userData).filter(([key, value]) => key !== 'id' && value !== undefined)
+        Object.entries(userData).filter(([key, value]) => {
+          // Exclude the id field and filter out empty strings, undefined, and null
+          return key !== 'id' && value !== undefined && value !== '' && value !== null;
+        })
       ) as UpdateUserRequest;
-
-      console.log('updateData', updateData);
 
       const data = await ApiService.put<User>(`/users/${userData.id}`, updateData);
 
@@ -97,13 +107,14 @@ export class UserService {
 
   static async updateProfile(userData: Partial<User>): Promise<User> {
     try {
-      // Only update the fields that are provided and remove undefined values
+      // Only update the fields that are provided and remove undefined values, empty strings, and null
       const updateData = Object.fromEntries(
-        Object.entries(userData).filter(([key, value]) => key !== 'id' && value !== undefined)
+        Object.entries(userData).filter(([key, value]) => {
+          return key !== 'id' && value !== undefined && value !== '' && value !== null;
+        })
       ) as never;
 
       const res = await ApiService.put<User>(`/users/me`, updateData);
-      console.log('res', res);
 
       return {
         ...res,
@@ -128,12 +139,41 @@ export class UserService {
   static async getUserById(userId: string): Promise<User> {
     try {
       const data = await ApiService.get<User>(`/users/${userId}`);
-      console.log(data, 'backend');
       return {
         ...data,
       };
     } catch (error) {
       console.error('Error fetching user:', error);
+      throw error;
+    }
+  }
+
+  static async loadInvitations(): Promise<Invitation[]> {
+    try {
+      const res = await ApiService.get<Invitation[]>('/invitations');
+      return res || [];
+    } catch (error) {
+      console.error('Error loading invitations:', error);
+      throw error;
+    }
+  }
+
+  static async inviteUser(userData: Invitation): Promise<Invitation | null> {
+    try {
+      const res = await ApiService.post<Invitation>('/invitations', userData);
+      return res || null;
+    } catch (error) {
+      console.error('Error inviting user:', error);
+      throw error;
+    }
+  }
+
+  static async resendInvitation(invitationId: string): Promise<Invitation | null> {
+    try {
+      const res = await ApiService.post<Invitation>(`/invitations/${invitationId}/resend`);
+      return res || null;
+    } catch (error) {
+      console.error('Error resending invitation:', error);
       throw error;
     }
   }

@@ -23,18 +23,22 @@ func NewUserHandler() *UserHandler {
 	return &UserHandler{}
 }
 
-// GetUsers obtiene la lista de usuarios
+// GetUsers obtiene la lista de usuarios con su estado de invitación
 func (h *UserHandler) GetUsers(c echo.Context) error {
 	query := `
-		SELECT id, first_name, last_name, id_number, email, phone, address,
-			   birth_date, marital_status, occupation, education_level,
-			   how_found_church, ministry_interest, first_visit_date,
-			   baptized, baptism_date, is_active_member, membership_date,
-			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
-			   whatsapp, created_at, updated_at
-		FROM users
-		WHERE is_active = true
-		ORDER BY created_at DESC
+		SELECT 
+			u.id, u.first_name, u.last_name, u.id_number, u.email, u.phone, u.address,
+			u.birth_date, u.marital_status, u.occupation, u.education_level,
+			u.how_found_church, u.ministry_interest, u.first_visit_date,
+			u.baptized, u.baptism_date, u.is_active_member, u.membership_date,
+			u.cell_group, u.cell_leader_id, u.role, u.pastoral_notes, u.is_active,
+			u.whatsapp, u.created_at, u.updated_at,
+			i.status as invitation_status
+		FROM users u
+		LEFT JOIN user_invitations i ON u.email = i.email 
+			AND i.status IN ('pending', 'accepted')
+		WHERE u.is_active = true
+		ORDER BY u.created_at DESC
 	`
 
 	rows, err := config.GetDB().DB.Query(query)
@@ -59,6 +63,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
 			&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
 			&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
+			&user.InvitationStatus,
 		)
 		if err != nil {
 			c.Logger().Error("Row scan error in GetUsers: ", err)
@@ -141,20 +146,20 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 
 	query := `
 		INSERT INTO users (
-			first_name, last_name, id_number, email, phone, address, password_hash,
+			first_name, last_name, id_number, email, phone, address,
 			birth_date, marital_status, occupation, education_level,
 			how_found_church, ministry_interest, first_visit_date,
 			baptized, baptism_date, is_active_member, membership_date,
 			cell_group, role, pastoral_notes, whatsapp
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
 		) RETURNING id
 	`
 
 	var userID string
 	err := config.GetDB().DB.QueryRow(
 		query, req.FirstName, req.LastName, req.IdNumber, req.Email, req.Phone,
-		req.Address, "temp_hash", req.BirthDate, req.MaritalStatus, req.Occupation,
+		req.Address, req.BirthDate, req.MaritalStatus, req.Occupation,
 		req.EducationLevel, req.HowFoundChurch, req.MinistryInterest, req.FirstVisitDate,
 		req.Baptized, req.BaptismDate, req.IsActiveMember, req.MembershipDate,
 		req.CellGroup, req.Role, req.PastoralNotes, req.WhatsApp,
@@ -164,7 +169,7 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Error creating user",
 			"message": err.Error(),
-			"details": "Failed to insert user into database - check for duplicate email/id_number",
+			"details": "Failed to insert user into database",
 		})
 	}
 
