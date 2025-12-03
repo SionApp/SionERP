@@ -1,6 +1,7 @@
 import { UserRole } from './user.types';
 
 export interface Invitation {
+  id?: string;
   email: string;
   first_name: string;
   last_name: string;

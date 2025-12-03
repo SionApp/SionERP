@@ -14,10 +14,10 @@ const badgeVariants = cva(
         destructive:
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
         outline: 'text-foreground',
-        minister: 'border-transparent bg-[#ff7c7c] text-primary-foreground hover:bg-[#ff7c7c]/80',
-        staff: 'border-transparent bg-[#ffc658] text-primary-foreground hover:bg-[#ffc658]/80',
-        supervisor: 'border-transparent bg-[#82ca9d] text-primary-foreground hover:bg-[#82ca9d]/80',
-        server: 'border-transparent bg-[#8884d8] text-primary-foreground hover:bg-[#8884d8]/80',
+        red: 'border-transparent bg-[#ff7c7c] text-primary-foreground hover:bg-[#ff7c7c]/80',
+        yellow: 'border-transparent bg-[#ffc658] text-primary-foreground hover:bg-[#ffc658]/80',
+        green: 'border-transparent bg-[#82ca9d] text-primary-foreground hover:bg-[#82ca9d]/80',
+        purple: 'border-transparent bg-[#8884d8] text-primary-foreground hover:bg-[#8884d8]/80',
       },
     },
     defaultVariants: {
