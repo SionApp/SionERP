@@ -77,7 +77,10 @@ func (h *InviteHandler) InviteUser(c echo.Context) error {
 	magicLink, err := h.supabase.GenerateMagicLink(req.Email, redirectURL, userData)
 	if err != nil {
 		// Marcar invitación como fallida
-		db.DB.Exec("UPDATE user_invitations SET status = 'failed' WHERE id = $1", invitationID)
+		_, updateErr := db.DB.Exec("UPDATE user_invitations SET status = 'failed' WHERE id = $1", invitationID)
+		if updateErr != nil {
+			c.Logger().Errorf("Failed to update invitation status to 'failed' for ID %s: %v", invitationID, updateErr)
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("Failed to generate magic link: %v", err),
 		})
@@ -87,7 +90,13 @@ func (h *InviteHandler) InviteUser(c echo.Context) error {
 	SET magic_link_hash = $1
 	WHERE id = $2`
 
-	db.DB.Exec(updateQuery, magicLink.HashedToken, invitationID)
+	_, err = db.DB.Exec(updateQuery, magicLink.HashedToken, invitationID)
+	if err != nil {
+		c.Logger().Errorf("Failed to update magic_link_hash for invitation ID %s: %v", invitationID, err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to save magic link hash. Invitation created but magic link may not be valid.",
+		})
+	}
 	return c.JSON(http.StatusOK, &models.InviteResponse{
 		InvitationID: invitationID,
 		Email:        req.Email,
@@ -129,7 +138,13 @@ func (h *InviteHandler) ResendInvitation(c echo.Context) error {
 			RETURNING expires_at
 	`
 	var newExpiresAt time.Time
-	db.DB.QueryRow(updateQuery, invitationID).Scan(&newExpiresAt)
+	err = db.DB.QueryRow(updateQuery, invitationID).Scan(&newExpiresAt)
+	if err != nil {
+		c.Logger().Errorf("Failed to update invitation expiration for ID %s: %v", invitationID, err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to update invitation expiration",
+		})
+	}
 
 	// 3. Generar nuevo Magic Link
 	userData := map[string]interface{}{

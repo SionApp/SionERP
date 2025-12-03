@@ -357,7 +357,7 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
 			   whatsapp, created_at, updated_at, emergency_contact_name, emergency_contact_phone,
-			   territory, zone_name, active_groups_count, discipleship_level, role
+			   territory, zone_name, active_groups_count, discipleship_level
 		FROM users
 		WHERE id = $1
 	`
@@ -370,7 +370,7 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
 		&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
 		&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt, &user.EmergencyContactName, &user.EmergencyContactPhone,
-		&user.Territory, &user.ZoneName, &user.ActiveGroupsCount, &user.DiscipleshipLevel, &user.Role,
+		&user.Territory, &user.ZoneName, &user.ActiveGroupsCount, &user.DiscipleshipLevel,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
