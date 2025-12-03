@@ -14,7 +14,7 @@ type User struct {
 	Phone            string     `json:"phone" db:"phone"`
 	Address          string     `json:"address" db:"address"`
 	BirthDate        *string    `json:"birth_date" db:"birth_date"`
-	BaptismDate      *string    `json:"baptism_date" db:"baptism_date"`
+	BaptismDate      *time.Time  `json:"baptism_date" db:"baptism_date"`
 	Baptized         bool       `json:"baptized" db:"baptized"`
 	Role             string     `json:"role" db:"role"`
 	WhatsApp         bool       `json:"whatsapp" db:"whatsapp"`
@@ -63,8 +63,8 @@ type UpdateUserRequest struct {
 	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
 
 	// Church membership
-	Baptized       *bool   `json:"baptized,omitempty"`
-	BaptismDate    *string `json:"baptism_date,omitempty"`
+	Baptized       *bool      `json:"baptized,omitempty"`
+	BaptismDate    *time.Time `json:"baptism_date,omitempty"`
 	IsActiveMember *bool   `json:"is_active_member,omitempty"`
 	MembershipDate *string `json:"membership_date,omitempty"`
 

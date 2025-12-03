@@ -106,13 +106,13 @@ const UsersPage = () => {
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case 'pastor':
-        return 'minister';
+        return 'red';
       case 'staff':
-        return 'staff';
+        return 'yellow';
       case 'supervisor':
-        return 'supervisor';
+        return 'green';
       case 'server':
-        return 'server';
+        return 'purple';
       default:
         return 'default';
     }
@@ -274,18 +274,22 @@ const UsersPage = () => {
           <div className="flex items-center gap-2">
             <Badge
               variant={
-                invitation.status === 'accepted'
-                  ? 'default'
-                  : invitation.status === 'pending' && !isExpired
-                    ? 'secondary'
-                    : 'destructive'
+                invitation.status === 'resent'
+                  ? 'outline'
+                  : invitation.status === 'accepted'
+                    ? 'green'
+                    : invitation.status === 'pending' && !isExpired
+                      ? 'yellow'
+                      : 'red'
               }
             >
-              {invitation.status === 'pending' && !isExpired
-                ? 'Invitación pendiente'
-                : invitation.status === 'accepted'
-                  ? 'Aceptada'
-                  : 'Expirada'}
+              {invitation.status === 'resent'
+                ? 'Invitación reenviada'
+                : invitation.status === 'pending' && !isExpired
+                  ? 'Invitación pendiente'
+                  : invitation.status === 'accepted'
+                    ? 'Aceptada'
+                    : 'Expirada'}
             </Badge>
 
             {invitation.status === 'pending' && (

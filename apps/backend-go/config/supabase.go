@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 )
@@ -75,19 +76,26 @@ func (s *SupabaseClient) GenerateMagicLink(email string, redirectTo string, data
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		// Read the error response body for more details
-		var errorResponse map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err == nil {
-			return nil, fmt.Errorf("unexpected status code: %d, error: %v", resp.StatusCode, errorResponse)
-		}
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	// Read the response body once
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		// Decode error response from the body bytes
+		var errorResponse map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &errorResponse); err == nil {
+			return nil, fmt.Errorf("unexpected status code: %d, error: %v", resp.StatusCode, errorResponse)
+		}
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// Decode success response from the body bytes
 	var result GenerateMagicLinkResponse
-	err = json.NewDecoder(resp.Body).Decode(&result)
+	err = json.Unmarshal(bodyBytes, &result)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	return &result, nil
