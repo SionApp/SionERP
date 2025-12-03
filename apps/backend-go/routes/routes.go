@@ -58,5 +58,6 @@ func SetupRoutes(e *echo.Echo) {
 		invitations.GET("", handlers.NewInviteHandler().GetInvitations) // GET /api/v1/invitations - List all invitations
 		invitations.POST("", handlers.NewInviteHandler().InviteUser) // POST /api/v1/invitations - Invite a user
 		invitations.POST("/:id/resend", handlers.NewInviteHandler().ResendInvitation) // POST /api/v1/invitations/:id/resend - Resend an invitation
+		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation) // POST /api/v1/invitations/:id/accept - Accept an invitation
 	}
 }

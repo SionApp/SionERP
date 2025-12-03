@@ -177,4 +177,14 @@ export class UserService {
       throw error;
     }
   }
+
+  static async acceptInvitation(invitationId: string): Promise<Invitation | null> {
+    try {
+      const res = await ApiService.post<Invitation>(`/invitations/${invitationId}/accept`);
+      return res || null;
+    } catch (error) {
+      console.error('Error accepting invitation:', error);
+      throw error;
+    }
+  }
 }

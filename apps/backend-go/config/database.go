@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/joho/godotenv"
@@ -28,6 +29,18 @@ func NewDatabase() (*Database, error) {
 	dbURL := os.Getenv("SUPABASE_DB_URL")
 	if dbURL == "" {
 		return nil, fmt.Errorf("SUPABASE_DB_URL environment variable is required")
+	}
+
+	// Para Supabase local, deshabilitar SSL
+	// Si es una URL local y no tiene sslmode configurado, agregar sslmode=disable
+	if !strings.Contains(dbURL, "sslmode") {
+		if strings.Contains(dbURL, "127.0.0.1") || strings.Contains(dbURL, "localhost") {
+			if strings.Contains(dbURL, "?") {
+				dbURL += "&sslmode=disable"
+			} else {
+				dbURL += "?sslmode=disable"
+			}
+		}
 	}
 
 	db, err := sql.Open("postgres", dbURL)
