@@ -40,6 +40,14 @@ type GenerateMagicLinkResponse struct {
 func (s *SupabaseClient) GenerateMagicLink(email string, redirectTo string, data map[string]interface{}) (*GenerateMagicLinkResponse, error) {
 	url := fmt.Sprintf("%s/auth/v1/admin/generate_link", s.ProjectURL)
 
+	// Validar que tengamos las credenciales necesarias
+	if s.ProjectURL == "" {
+		return nil, fmt.Errorf("SUPABASE_URL is not configured")
+	}
+	if s.ServiceKey == "" {
+		return nil, fmt.Errorf("SUPABASE_SERVICE_ROLE_KEY is not configured")
+	}
+
 	requestBody := GenerateMagicLinkRequest{
 		Type:       "magiclink",
 		Email:      email,
@@ -49,12 +57,12 @@ func (s *SupabaseClient) GenerateMagicLink(email string, redirectTo string, data
 
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")

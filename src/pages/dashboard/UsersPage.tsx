@@ -292,7 +292,7 @@ const UsersPage = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleResendInvitation(invitation.id_number)}
+                onClick={() => handleResendInvitation(invitation.id)}
                 className="h-6 w-6 p-0"
                 title="Reenviar invitación"
               >
@@ -336,15 +336,15 @@ const UsersPage = () => {
         <Trash2 className="h-3 w-3" />
       </Button>
       {user.invitation_status !== 'accepted' && (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setShowInviteModalUser(user)}
-        title="Invitar usuario"
-        className="h-8 w-8 p-0"
-      >
-        <Mail className="h-3 w-3" />
-      </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowInviteModalUser(user)}
+          title="Invitar usuario"
+          className="h-8 w-8 p-0"
+        >
+          <Mail className="h-3 w-3" />
+        </Button>
       )}
     </div>
   );

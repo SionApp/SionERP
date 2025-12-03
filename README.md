@@ -34,6 +34,54 @@ pnpm --version
 go version
 ```
 
+### Desarrollo Local con Supabase
+
+Para trabajar en el entorno local sin afectar producción:
+
+1. **Prerrequisitos:**
+   - Docker Desktop instalado y corriendo
+   - Supabase CLI instalado (`brew install supabase/tap/supabase`)
+
+2. **Iniciar Supabase Local:**
+
+   ```bash
+   supabase start
+   ```
+
+   Esto iniciará los servicios locales en `http://127.0.0.1:54321`.
+
+3. **Configuración de Entorno:**
+   El archivo `.env.local` ya debería estar configurado con las credenciales locales:
+
+   ```env
+   VITE_SUPABASE_URL=http://127.0.0.1:54321
+   VITE_SUPABASE_ANON_KEY=sb_publishable_...
+   ```
+
+4. **Comandos Útiles:**
+   - `supabase status`: Ver URLs y claves del entorno local
+   - `supabase stop`: Detener los servicios
+   - `supabase db reset`: Reiniciar la base de datos (borra datos locales y reaplica esquema)
+   - `supabase db dump --linked > supabase/migrations/new_migration.sql`: Crear backup del esquema de producción
+
+5. **Acceso a Datos:**
+   - Studio Local: [http://127.0.0.1:54323](http://127.0.0.1:54323)
+   - Mailpit (Emails): [http://127.0.0.1:54324](http://127.0.0.1:54324)
+
+6. **🔄 Flujo Diario (Al encender la laptop):**
+
+   ```bash
+   # 1. Iniciar Docker Desktop (si no arranca solo)
+
+   # 2. Iniciar Supabase
+   supabase start
+
+   # 3. Iniciar la App
+   npm run dev
+   ```
+
+   > **Nota:** Si Supabase falla al iniciar, usa `supabase stop` y luego `supabase start`.
+
 ### Instalación
 
 ```bash
@@ -52,6 +100,7 @@ cp apps/backend-go/.env.example apps/backend-go/.env
 ### Ejecutar el Proyecto
 
 #### 🎯 Opción 1: Desarrollo Completo (Recomendado)
+
 ```bash
 # Terminal 1: Backend Go
 cd apps/backend-go
@@ -63,12 +112,14 @@ pnpm dev
 ```
 
 #### 🎯 Opción 2: Solo Backend
+
 ```bash
 cd apps/backend-go
 go run .
 ```
 
 #### 🎯 Opción 3: Solo Frontend
+
 ```bash
 pnpm install
 pnpm dev
@@ -84,6 +135,7 @@ Una vez ejecutado, tendrás acceso a:
 ## 📱 Funcionalidades
 
 ### Frontend React (`src/`)
+
 - **🔐 Autenticación**: Login y registro de usuarios
 - **👥 Gestión de Usuarios**: CRUD completo con roles y permisos
 - **📊 Dashboard**: Estadísticas en tiempo real
@@ -95,6 +147,7 @@ Una vez ejecutado, tendrás acceso a:
 - **📝 Auditoría**: Logs de todas las acciones
 
 ### Backend API (`apps/backend-go/`)
+
 - **🔧 Go + Echo**: Framework rápido y eficiente
 - **🗃️ Supabase**: Base de datos PostgreSQL
 - **🔐 JWT**: Autenticación y autorización
@@ -104,6 +157,7 @@ Una vez ejecutado, tendrás acceso a:
 ## 🔧 Tecnologías
 
 ### Frontend
+
 - **React** 18 + **TypeScript**
 - **Vite** (Build tool)
 - **Tailwind CSS** + **shadcn/ui**
@@ -112,12 +166,14 @@ Una vez ejecutado, tendrás acceso a:
 - **React Hook Form** + **Zod** (Formularios)
 
 ### Backend
+
 - **Go** + **Echo Framework**
 - **Supabase** (PostgreSQL + Auth)
 - **JWT** (Autenticación)
 - **CORS** (Cross-origin)
 
 ### Infraestructura
+
 - **Supabase** (Base de datos y autenticación)
 - **pnpm workspaces** (Monorepo)
 - **ESLint** + **TypeScript** (Linting)
@@ -125,12 +181,14 @@ Una vez ejecutado, tendrás acceso a:
 ## 📊 Base de Datos
 
 ### Tablas Principales
+
 - **users**: Usuarios del sistema con roles
 - **audit_logs**: Registro de todas las acciones
 - **live_streams**: Gestión de transmisiones
 - **profiles**: Perfiles extendidos de usuarios
 
 ### Características
+
 - **RLS (Row Level Security)**: Seguridad a nivel de fila
 - **Real-time**: Actualizaciones en tiempo real
 - **Triggers**: Auditoría automática
@@ -139,6 +197,7 @@ Una vez ejecutado, tendrás acceso a:
 ## 🛠️ Desarrollo
 
 ### Estructura de Directorios
+
 ```
 src/
 ├── components/          # Componentes React
@@ -157,6 +216,7 @@ apps/backend-go/
 ```
 
 ### Scripts Útiles
+
 ```bash
 # Desarrollo
 pnpm dev                    # Frontend (React)
@@ -173,6 +233,7 @@ pnpm lint                   # Linter del frontend
 ## 🔐 Variables de Entorno
 
 ### Backend Go (`apps/backend-go/.env`)
+
 ```env
 SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -184,11 +245,13 @@ PORT=8080
 ## 🚢 Despliegue
 
 ### Frontend (Vercel/Netlify)
+
 ```bash
 pnpm build    # Build del frontend
 ```
 
 ### Backend (Railway/Heroku/Digital Ocean)
+
 ```bash
 cd apps/backend-go
 go build -o main .
@@ -214,14 +277,17 @@ go build -o main .
 ## 🆘 Solución de Problemas
 
 ### Error: "pnpm not found"
+
 ```bash
 npm install -g pnpm
 ```
 
 ### Error: "go not found"
+
 Instala Go desde https://golang.org/dl/
 
 ### Error: "Puerto ocupado"
+
 ```bash
 # Matar procesos en puertos específicos
 lsof -ti:8080 | xargs kill -9  # Backend
@@ -229,6 +295,7 @@ lsof -ti:5173 | xargs kill -9  # Frontend (Vite)
 ```
 
 ### Error: "Supabase connection"
+
 Verifica las variables de entorno en `apps/backend-go/.env`
 
 ## 📧 Soporte

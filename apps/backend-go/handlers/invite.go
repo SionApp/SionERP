@@ -225,3 +225,75 @@ func (h *InviteHandler) GetInvitations(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, invitations)
 }
+
+// AcceptInvitation marca una invitación como aceptada
+// Se puede llamar manualmente o se actualiza automáticamente cuando el usuario acepta el magic link
+func (h *InviteHandler) AcceptInvitation(c echo.Context) error {
+	invitationID := c.Param("id")
+	userID := c.Get("user_id").(string)
+
+	db := config.GetDB()
+
+	// Verificar que la invitación existe y está pendiente
+	var email string
+	var status string
+	checkQuery := `
+		SELECT email, status 
+		FROM user_invitations 
+		WHERE id = $1
+	`
+	err := db.DB.QueryRow(checkQuery, invitationID).Scan(&email, &status)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": "Invitation not found",
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error checking invitation",
+		})
+	}
+
+	// Verificar que el usuario autenticado corresponde al email de la invitación
+	var userEmail string
+	err = db.DB.QueryRow("SELECT email FROM users WHERE id = $1", userID).Scan(&userEmail)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "User not found",
+		})
+	}
+
+	if userEmail != email {
+		return c.JSON(http.StatusForbidden, map[string]string{
+			"error": "This invitation does not belong to the authenticated user",
+		})
+	}
+
+	// Actualizar el estado de la invitación
+	updateQuery := `
+		UPDATE user_invitations
+		SET status = 'accepted',
+		    updated_at = NOW()
+		WHERE id = $1
+		RETURNING id, email, status, expires_at
+	`
+	
+	var updatedID, updatedEmail, updatedStatus string
+	var expiresAt time.Time
+	err = db.DB.QueryRow(updateQuery, invitationID).Scan(&updatedID, &updatedEmail, &updatedStatus, &expiresAt)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error updating invitation",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Invitation accepted successfully",
+		"invitation": map[string]interface{}{
+			"id":         updatedID,
+			"email":      updatedEmail,
+			"status":     updatedStatus,
+			"expires_at": expiresAt.Format(time.RFC3339),
+		},
+	})
+}

@@ -30,10 +30,7 @@ const RegisterUserPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const {
-    canManageRoles,
-    isLoading: isLoadingPermissions,
-  } = usePermissions();
+  const { canManageRoles, isLoading: isLoadingPermissions } = usePermissions();
 
   const userId = location.state?.userId;
 
@@ -363,9 +360,7 @@ const RegisterUserPage = () => {
                     <Label htmlFor="role">Rol *</Label>
                     <Select
                       value={watch('role')}
-                      onValueChange={value =>
-                        setValue('role', value as UserRole)
-                      }
+                      onValueChange={value => setValue('role', value as UserRole)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona un rol" />
