@@ -1110,7 +1110,7 @@ func (h *DiscipleshipHandler) GetGoals(c echo.Context) error {
 		args = append(args, zoneName)
 	}
 
-	query += " ORDER BY deadline ASC, priority DESC"
+	query += " ORDER BY deadline ASC"
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {
