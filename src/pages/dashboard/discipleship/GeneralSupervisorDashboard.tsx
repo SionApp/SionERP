@@ -1,107 +1,175 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/hooks/useAuth';
+import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import { Building, Loader2, Map, Send, Target, TrendingUp, UserPlus, Users } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import {
-  Users,
-  TrendingUp,
-  Map,
-  Target,
-  Send,
-  BarChart3,
-  PieChart,
-  Building,
-  UserPlus,
-} from 'lucide-react';
-import {
-  ResponsiveContainer,
-  AreaChart,
   Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  BarChart,
-  Bar,
-  Cell,
 } from 'recharts';
-import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
-import { MonthlyGeneralReport } from '@/types/discipleship.types';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
+
+interface DashboardStats {
+  total_groups: number;
+  total_members: number;
+  subordinates_count: number;
+  average_attendance: number;
+  spiritual_health: number;
+  pending_alerts: number;
+}
+
+interface Subordinate {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  hierarchy_level: number;
+  groups_assigned: number;
+  total_members: number;
+  avg_attendance: number;
+  performance_score: number;
+}
 
 const GeneralSupervisorDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
-  const [stats, setStats] = useState<any>({});
-  const [zoneData, setZoneData] = useState<any[]>([]);
-  const [monthlyReport, setMonthlyReport] = useState<Partial<MonthlyGeneralReport>>({
-    zoneStatistics: { totalGroups: 0, totalMembers: 0, monthlyGrowth: 0, multiplicationPlans: [] },
-    leadershipPipeline: { auxiliarySupervisors: 0, trainingSupervisors: 0, leadershipGaps: [] },
-    strategicInitiatives: { newGroupLocations: [], communityOutreach: [], specialEvents: [] },
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    total_groups: 0,
+    total_members: 0,
+    subordinates_count: 0,
+    average_attendance: 0,
+    spiritual_health: 0,
+    pending_alerts: 0,
+  });
+  const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
+  const [weeklyTrends, setWeeklyTrends] = useState<any[]>([]);
+  const [monthlyReport, setMonthlyReport] = useState({
+    totalGroups: 0,
+    totalMembers: 0,
+    monthlyGrowth: 0,
+    auxiliarySupervisors: 0,
+    trainingSupervisors: 0,
+    leadershipGaps: '',
+    newGroupLocations: '',
+    communityOutreach: '',
+    specialEvents: '',
+    multiplicationPlans: '',
   });
 
   useEffect(() => {
-    const loadData = async () => {
-      const dashboardStats = await DiscipleshipMockService.getDashboardStats(3, 'current-user-id');
-      const growthData = await DiscipleshipMockService.getGrowthData();
-      setStats(dashboardStats);
-      setZoneData(growthData);
-    };
     loadData();
-  }, []);
+  }, [user]);
+
+  const loadData = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      // Cargar estadísticas
+      const dashboardStats = await DiscipleshipAnalyticsService.getDashboardStatsByLevel(3);
+      setStats(dashboardStats);
+
+      // Cargar subordinados
+      const subs = await DiscipleshipAnalyticsService.getSupervisorSubordinates(user.id);
+      setSubordinates(subs);
+
+      // Cargar tendencias semanales
+      const trends = await DiscipleshipAnalyticsService.getWeeklyTrends(12);
+      setWeeklyTrends(
+        trends.map((t: any) => ({
+          name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
+          asistencia: t.total_attendance,
+          visitantes: t.total_visitors,
+          grupos: t.groups_reporting,
+        }))
+      );
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast.error('Error al cargar los datos');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmitMonthlyReport = async () => {
+    if (!user) return;
+
     setIsSubmittingReport(true);
     try {
-      const result = await DiscipleshipMockService.submitMonthlyReport({
-        ...monthlyReport,
-        supervisorId: 'current-user-id',
-        zoneName: 'Zona Norte - Sector A',
-        month: new Date().toISOString().split('T')[0],
-      } as MonthlyGeneralReport);
+      const today = new Date();
+      const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, 1);
 
-      if (result.success) {
-        toast({
-          title: 'Reporte Enviado',
-          description: 'Tu reporte mensual ha sido enviado exitosamente.',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'No se pudo enviar el reporte. Inténtalo de nuevo.',
-        variant: 'destructive',
+      await DiscipleshipService.createReport({
+        report_type: 'monthly',
+        report_level: 3,
+        period_start: monthAgo.toISOString().split('T')[0],
+        period_end: today.toISOString().split('T')[0],
+        report_data: {
+          zoneStatistics: {
+            totalGroups: monthlyReport.totalGroups,
+            totalMembers: monthlyReport.totalMembers,
+            monthlyGrowth: monthlyReport.monthlyGrowth,
+            multiplicationPlans: monthlyReport.multiplicationPlans.split('\n').filter(Boolean),
+          },
+          leadershipPipeline: {
+            auxiliarySupervisors: monthlyReport.auxiliarySupervisors,
+            trainingSupervisors: monthlyReport.trainingSupervisors,
+            leadershipGaps: monthlyReport.leadershipGaps.split('\n').filter(Boolean),
+          },
+          strategicInitiatives: {
+            newGroupLocations: monthlyReport.newGroupLocations.split('\n').filter(Boolean),
+            communityOutreach: monthlyReport.communityOutreach.split('\n').filter(Boolean),
+            specialEvents: monthlyReport.specialEvents.split('\n').filter(Boolean),
+          },
+        },
       });
+
+      toast.success('Reporte mensual enviado exitosamente');
+
+      // Reset form
+      setMonthlyReport({
+        totalGroups: 0,
+        totalMembers: 0,
+        monthlyGrowth: 0,
+        auxiliarySupervisors: 0,
+        trainingSupervisors: 0,
+        leadershipGaps: '',
+        newGroupLocations: '',
+        communityOutreach: '',
+        specialEvents: '',
+        multiplicationPlans: '',
+      });
+    } catch (error: any) {
+      toast.error(error.message || 'Error al enviar el reporte');
     } finally {
       setIsSubmittingReport(false);
     }
   };
 
-  const territoryStats = [
-    { name: 'Ene', grupos: 6, miembros: 72 },
-    { name: 'Feb', grupos: 6, miembros: 78 },
-    { name: 'Mar', grupos: 7, miembros: 84 },
-    { name: 'Abr', grupos: 7, miembros: 91 },
-    { name: 'May', grupos: 8, miembros: 96 },
-    { name: 'Jun', grupos: 8, miembros: 104 },
-  ];
-
-  const groupDistribution = [
-    { name: 'Activos', value: 6, color: '#22c55e' },
-    { name: 'Multiplicando', value: 2, color: '#3b82f6' },
-    { name: 'Nuevos', value: 1, color: '#f59e0b' },
-  ];
-
-  const auxiliarySupervisors = [
-    { name: 'Patricia Jiménez', groups: 4, members: 48, performance: 92, zone: 'Sector A1' },
-    { name: 'Miguel Herrera', groups: 3, members: 36, performance: 88, zone: 'Sector A2' },
-    { name: 'Carmen Ruiz', groups: 2, members: 24, performance: 95, zone: 'Sector A3' },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Cargando dashboard...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -109,7 +177,9 @@ const GeneralSupervisorDashboard: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Supervisor General</h1>
-          <p className="text-muted-foreground">Ana López - Zona Norte, Sector A</p>
+          <p className="text-muted-foreground">
+            {user?.first_name} {user?.last_name} - {user?.zone_name || 'Zona no asignada'}
+          </p>
         </div>
         <Badge variant="secondary" className="text-lg px-4 py-2">
           Nivel 3 - Supervisor General
@@ -124,8 +194,8 @@ const GeneralSupervisorDashboard: React.FC = () => {
             <Building className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalGroups || 9}</div>
-            <p className="text-xs text-muted-foreground">+2 este mes</p>
+            <div className="text-2xl font-bold">{stats.total_groups}</div>
+            <p className="text-xs text-muted-foreground">En tu zona</p>
           </CardContent>
         </Card>
 
@@ -135,8 +205,8 @@ const GeneralSupervisorDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalMembers || 108}</div>
-            <p className="text-xs text-muted-foreground">+12 últimos 30 días</p>
+            <div className="text-2xl font-bold">{stats.total_members}</div>
+            <p className="text-xs text-muted-foreground">Activos</p>
           </CardContent>
         </Card>
 
@@ -146,8 +216,8 @@ const GeneralSupervisorDashboard: React.FC = () => {
             <UserPlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.auxiliarySupervisors || 3}</div>
-            <p className="text-xs text-muted-foreground">Completamente capacitados</p>
+            <div className="text-2xl font-bold">{stats.subordinates_count}</div>
+            <p className="text-xs text-muted-foreground">Bajo tu liderazgo</p>
           </CardContent>
         </Card>
 
@@ -157,8 +227,8 @@ const GeneralSupervisorDashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.territoryHealthIndex || 8.7}/10</div>
-            <p className="text-xs text-muted-foreground">+0.3 vs mes anterior</p>
+            <div className="text-2xl font-bold">{stats.spiritual_health.toFixed(1)}/10</div>
+            <p className="text-xs text-muted-foreground">Promedio de la zona</p>
           </CardContent>
         </Card>
       </div>
@@ -176,62 +246,45 @@ const GeneralSupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Crecimiento del Territorio</CardTitle>
-              <CardDescription>
-                Evolución de grupos y miembros en los últimos 6 meses
-              </CardDescription>
+              <CardDescription>Tendencias de las últimas 12 semanas</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={territoryStats}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="miembros"
-                    stackId="1"
-                    stroke="#3b82f6"
-                    fill="#3b82f6"
-                    fillOpacity={0.6}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="grupos"
-                    stackId="2"
-                    stroke="#22c55e"
-                    fill="#22c55e"
-                    fillOpacity={0.8}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {weeklyTrends.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={weeklyTrends}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Area
+                      type="monotone"
+                      dataKey="asistencia"
+                      stackId="1"
+                      stroke="#3b82f6"
+                      fill="#3b82f6"
+                      fillOpacity={0.6}
+                      name="Asistencia"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="visitantes"
+                      stackId="2"
+                      stroke="#22c55e"
+                      fill="#22c55e"
+                      fillOpacity={0.8}
+                      name="Visitantes"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-12">
+                  No hay datos de tendencias disponibles
+                </p>
+              )}
             </CardContent>
           </Card>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {/* Group Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Distribución de Grupos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {groupDistribution.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: item.color }}
-                        ></div>
-                        <span className="text-sm">{item.name}</span>
-                      </div>
-                      <span className="font-medium">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Goals Progress */}
             <Card>
               <CardHeader>
@@ -240,25 +293,39 @@ const GeneralSupervisorDashboard: React.FC = () => {
               <CardContent className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Multiplicación de Grupos (Meta: 3)</span>
-                    <span>2</span>
+                    <span>Asistencia Promedio (Meta: 85%)</span>
+                    <span>{Math.round(stats.average_attendance)}%</span>
                   </div>
-                  <Progress value={67} className="h-2" />
+                  <Progress value={stats.average_attendance} className="h-2" />
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Nuevos Líderes (Meta: 4)</span>
-                    <span>3</span>
+                    <span>Salud Espiritual (Meta: 8/10)</span>
+                    <span>{stats.spiritual_health.toFixed(1)}</span>
                   </div>
-                  <Progress value={75} className="h-2" />
+                  <Progress value={(stats.spiritual_health / 10) * 100} className="h-2" />
                 </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Crecimiento en Miembros (Meta: 15)</span>
-                    <span>12</span>
-                  </div>
-                  <Progress value={80} className="h-2" />
-                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Acciones Rápidas</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="outline" className="w-full justify-start">
+                  <Map className="w-4 h-4 mr-2" />
+                  Ver Mapa de Zonas
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Target className="w-4 h-4 mr-2" />
+                  Definir Objetivos
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Agregar Supervisor
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -268,69 +335,54 @@ const GeneralSupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Supervisores Auxiliares</CardTitle>
-              <CardDescription>Rendimiento y métricas de supervisores bajo tu zona</CardDescription>
+              <CardDescription>Rendimiento de supervisores bajo tu zona</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {auxiliarySupervisors.map((supervisor, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-semibold">{supervisor.name}</h3>
-                        <p className="text-sm text-muted-foreground">{supervisor.zone}</p>
+              {subordinates.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No hay supervisores auxiliares asignados
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {subordinates.map(supervisor => (
+                    <div key={supervisor.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold">{supervisor.user_name}</h3>
+                          <p className="text-sm text-muted-foreground">{supervisor.user_email}</p>
+                        </div>
+                        <Badge variant="default">
+                          Rendimiento: {Math.round(supervisor.performance_score)}%
+                        </Badge>
                       </div>
-                      <Badge variant="default">Rendimiento: {supervisor.performance}%</Badge>
+                      <div className="grid gap-2 md:grid-cols-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Grupos: </span>
+                          <span className="font-medium">{supervisor.groups_assigned}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Miembros: </span>
+                          <span className="font-medium">{supervisor.total_members}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Asistencia: </span>
+                          <span className="font-medium">
+                            {Math.round(supervisor.avg_attendance)}%
+                          </span>
+                        </div>
+                        <div>
+                          <Button size="sm" variant="outline">
+                            Ver Detalle
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <Progress value={supervisor.performance_score} className="h-1" />
+                      </div>
                     </div>
-                    <div className="grid gap-2 md:grid-cols-4 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Grupos: </span>
-                        <span className="font-medium">{supervisor.groups}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Miembros: </span>
-                        <span className="font-medium">{supervisor.members}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Rendimiento: </span>
-                        <span className="font-medium">{supervisor.performance}%</span>
-                      </div>
-                      <div>
-                        <Button size="sm" variant="outline">
-                          Ver Detalle
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="mt-2">
-                      <Progress value={supervisor.performance} className="h-1" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Zone Map/Locations */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Ubicaciones de Grupos</CardTitle>
-              <CardDescription>Distribución geográfica en el sector</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                {[
-                  { location: 'Colonia Centro', groups: 3, growth: '+1 mes pasado' },
-                  { location: 'Residencial Norte', groups: 2, growth: 'Estable' },
-                  { location: 'Sector Industrial', groups: 2, growth: '+1 mes pasado' },
-                  { location: 'Barrio San José', groups: 1, growth: 'Nuevo' },
-                  { location: 'Zona Comercial', groups: 1, growth: 'Multiplicando' },
-                ].map((location, index) => (
-                  <div key={index} className="p-4 border rounded-lg">
-                    <h4 className="font-medium">{location.location}</h4>
-                    <p className="text-sm text-muted-foreground">{location.groups} grupos</p>
-                    <p className="text-xs text-muted-foreground">{location.growth}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -339,9 +391,7 @@ const GeneralSupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Reporte Mensual</CardTitle>
-              <CardDescription>
-                Análisis completo del territorio y planes estratégicos
-              </CardDescription>
+              <CardDescription>Análisis completo del territorio</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Zone Statistics */}
@@ -353,14 +403,11 @@ const GeneralSupervisorDashboard: React.FC = () => {
                     <Input
                       id="totalGroups"
                       type="number"
-                      value={monthlyReport.zoneStatistics?.totalGroups || 0}
+                      value={monthlyReport.totalGroups}
                       onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          zoneStatistics: {
-                            ...prev.zoneStatistics!,
-                            totalGroups: parseInt(e.target.value) || 0,
-                          },
+                          totalGroups: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -370,14 +417,11 @@ const GeneralSupervisorDashboard: React.FC = () => {
                     <Input
                       id="totalMembers"
                       type="number"
-                      value={monthlyReport.zoneStatistics?.totalMembers || 0}
+                      value={monthlyReport.totalMembers}
                       onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          zoneStatistics: {
-                            ...prev.zoneStatistics!,
-                            totalMembers: parseInt(e.target.value) || 0,
-                          },
+                          totalMembers: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -387,14 +431,11 @@ const GeneralSupervisorDashboard: React.FC = () => {
                     <Input
                       id="monthlyGrowth"
                       type="number"
-                      value={monthlyReport.zoneStatistics?.monthlyGrowth || 0}
+                      value={monthlyReport.monthlyGrowth}
                       onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          zoneStatistics: {
-                            ...prev.zoneStatistics!,
-                            monthlyGrowth: parseInt(e.target.value) || 0,
-                          },
+                          monthlyGrowth: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -411,14 +452,11 @@ const GeneralSupervisorDashboard: React.FC = () => {
                     <Input
                       id="auxiliarySupervisors"
                       type="number"
-                      value={monthlyReport.leadershipPipeline?.auxiliarySupervisors || 0}
+                      value={monthlyReport.auxiliarySupervisors}
                       onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          leadershipPipeline: {
-                            ...prev.leadershipPipeline!,
-                            auxiliarySupervisors: parseInt(e.target.value) || 0,
-                          },
+                          auxiliarySupervisors: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -428,25 +466,29 @@ const GeneralSupervisorDashboard: React.FC = () => {
                     <Input
                       id="trainingSupervisors"
                       type="number"
-                      value={monthlyReport.leadershipPipeline?.trainingSupervisors || 0}
+                      value={monthlyReport.trainingSupervisors}
                       onChange={e =>
                         setMonthlyReport(prev => ({
                           ...prev,
-                          leadershipPipeline: {
-                            ...prev.leadershipPipeline!,
-                            trainingSupervisors: parseInt(e.target.value) || 0,
-                          },
+                          trainingSupervisors: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
                   </div>
                 </div>
                 <div className="mt-4">
-                  <Label htmlFor="leadershipGaps">Brechas de Liderazgo Identificadas</Label>
+                  <Label htmlFor="leadershipGaps">Brechas de Liderazgo</Label>
                   <Textarea
                     id="leadershipGaps"
-                    placeholder="Describe las áreas donde se necesita más liderazgo..."
+                    placeholder="Describe las brechas o necesidades de liderazgo..."
                     className="min-h-[80px]"
+                    value={monthlyReport.leadershipGaps}
+                    onChange={e =>
+                      setMonthlyReport(prev => ({
+                        ...prev,
+                        leadershipGaps: e.target.value,
+                      }))
+                    }
                   />
                 </div>
               </div>
@@ -459,16 +501,30 @@ const GeneralSupervisorDashboard: React.FC = () => {
                     <Label htmlFor="newGroupLocations">Nuevas Ubicaciones de Grupos</Label>
                     <Textarea
                       id="newGroupLocations"
-                      placeholder="Lista las nuevas ubicaciones planificadas..."
+                      placeholder="Lista las nuevas ubicaciones..."
                       className="min-h-[80px]"
+                      value={monthlyReport.newGroupLocations}
+                      onChange={e =>
+                        setMonthlyReport(prev => ({
+                          ...prev,
+                          newGroupLocations: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                   <div>
                     <Label htmlFor="communityOutreach">Alcance Comunitario</Label>
                     <Textarea
                       id="communityOutreach"
-                      placeholder="Describe las actividades de alcance comunitario..."
+                      placeholder="Actividades de alcance realizadas..."
                       className="min-h-[80px]"
+                      value={monthlyReport.communityOutreach}
+                      onChange={e =>
+                        setMonthlyReport(prev => ({
+                          ...prev,
+                          communityOutreach: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                 </div>
@@ -481,10 +537,13 @@ const GeneralSupervisorDashboard: React.FC = () => {
                 size="lg"
               >
                 {isSubmittingReport ? (
-                  <>Enviando...</>
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Enviando...
+                  </>
                 ) : (
                   <>
-                    <Send className="mr-2 h-4 w-4" />
+                    <Send className="w-4 h-4 mr-2" />
                     Enviar Reporte Mensual
                   </>
                 )}
@@ -497,64 +556,12 @@ const GeneralSupervisorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Plan de Multiplicación</CardTitle>
-              <CardDescription>Estrategia para multiplicar grupos en el territorio</CardDescription>
+              <CardDescription>Grupos en proceso de multiplicación</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  {
-                    group: 'Juventud Victoriosa',
-                    leader: 'Carmen Torres',
-                    status: 'Listo',
-                    targetDate: 'Oct 2024',
-                    newLocation: 'Centro Comunitario Norte',
-                  },
-                  {
-                    group: 'Célula Esperanza',
-                    leader: 'Roberto Silva',
-                    status: 'Preparando',
-                    targetDate: 'Nov 2024',
-                    newLocation: 'Casa de Familia García',
-                  },
-                  {
-                    group: 'Familia en Cristo',
-                    leader: 'Miguel Herrera',
-                    status: 'Evaluando',
-                    targetDate: 'Dic 2024',
-                    newLocation: 'Por definir',
-                  },
-                ].map((plan, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium">{plan.group}</p>
-                      <p className="text-sm text-muted-foreground">Líder: {plan.leader}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Nueva ubicación: {plan.newLocation}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <Badge
-                        variant={
-                          plan.status === 'Listo'
-                            ? 'default'
-                            : plan.status === 'Preparando'
-                              ? 'secondary'
-                              : 'outline'
-                        }
-                      >
-                        {plan.status}
-                      </Badge>
-                      <span className="text-sm">{plan.targetDate}</span>
-                      <Button size="sm" variant="outline">
-                        Gestionar
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-muted-foreground text-center py-8">
+                Funcionalidad de multiplicación próximamente
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

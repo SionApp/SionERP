@@ -60,4 +60,70 @@ func SetupRoutes(e *echo.Echo) {
 		invitations.POST("/:id/resend", handlers.NewInviteHandler().ResendInvitation) // POST /api/v1/invitations/:id/resend - Resend an invitation
 		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation) // POST /api/v1/invitations/:id/accept - Accept an invitation
 	}
+	// Settings routes
+	settings := protected.Group("/settings")
+	{
+		settings.GET("/system", handlers.NewSettingsHandler().GetSystemSettings) // GET /api/v1/settings/system - Get system settings
+		settings.PUT("/system", handlers.NewSettingsHandler().UpdateSystemSettings) // PUT /api/v1/settings/system - Update system settings
+		settings.GET("/church", handlers.NewSettingsHandler().GetChurchInfo) // GET /api/v1/settings/church - Get church info
+		settings.PUT("/church", handlers.NewSettingsHandler().UpdateChurchInfo) // PUT /api/v1/settings/church - Update church info
+		settings.GET("/notifications", handlers.NewSettingsHandler().GetNotificationConfig) // GET /api/v1/settings/notifications - Get notification config
+		settings.PUT("/notifications", handlers.NewSettingsHandler().UpdateNotificationConfig) // PUT /api/v1/settings/notifications - Update notification config
+	}
+
+	preferencesHandler := handlers.NewPreferencesHandler()
+	preferences := protected.Group("/preferences")
+	{
+		preferences.GET("", preferencesHandler.GetUserPreferences) // GET /api/v1/preferences - Get user preferences
+		preferences.PUT("", preferencesHandler.UpdateUserPreferences) // PUT /api/v1/preferences - Update user preferences
+	}
+
+	discipleshipHandler := handlers.NewDiscipleshipHandler()
+	reportsHandler := handlers.NewDiscipleshipReportsHandler()
+	alertsHandler := handlers.NewDiscipleshipAlertsHandler()
+	discipleship := protected.Group("/discipleship")
+	{
+		// Grupos
+		discipleship.GET("/groups", discipleshipHandler.GetGroups)
+		discipleship.GET("/groups/:id", discipleshipHandler.GetGroup)
+		discipleship.POST("/groups", discipleshipHandler.CreateGroup)
+		discipleship.PUT("/groups/:id", discipleshipHandler.UpdateGroup)
+		discipleship.DELETE("/groups/:id", discipleshipHandler.DeleteGroup)
+
+		// Jerarquía
+		discipleship.GET("/hierarchy", discipleshipHandler.GetHierarchy)
+		discipleship.POST("/hierarchy", discipleshipHandler.AssignHierarchy)
+		discipleship.GET("/hierarchy/:id/subordinates", discipleshipHandler.GetSubordinates)
+
+		// Analytics
+		discipleship.GET("/analytics", discipleshipHandler.GetAnalytics)
+		discipleship.GET("/analytics/zones", discipleshipHandler.GetZoneStats)
+		discipleship.GET("/analytics/performance", discipleshipHandler.GetGroupPerformance)
+
+		// Métricas
+		discipleship.GET("/metrics", reportsHandler.GetMetrics)
+		discipleship.POST("/metrics", reportsHandler.CreateMetrics)
+
+		// Reportes
+		discipleship.GET("/reports", reportsHandler.GetReports)
+		discipleship.POST("/reports", reportsHandler.CreateReport)
+		discipleship.PUT("/reports/:id/approve", reportsHandler.ApproveReport)
+		discipleship.PUT("/reports/:id/reject", reportsHandler.RejectReport)
+
+		// Alertas
+		discipleship.GET("/alerts", alertsHandler.GetAlerts)
+		discipleship.GET("/multiplications", discipleshipHandler.GetMultiplications)
+		discipleship.POST("/alerts", alertsHandler.CreateAlert)
+		discipleship.PUT("/alerts/:id/resolve", alertsHandler.ResolveAlert)
+		discipleship.DELETE("/alerts/:id", alertsHandler.DeleteAlert)
+		discipleship.POST("/alerts/generate", alertsHandler.GenerateAutomaticAlerts)
+
+		// Objetivos
+		discipleship.GET("/weekly-trends", discipleshipHandler.GetWeeklyTrends)
+		discipleship.GET("/dashboard-stats", discipleshipHandler.GetDashboardStatsByLevel)
+		discipleship.GET("/leaders/:id/stats", discipleshipHandler.GetLeaderGroupStats)
+		discipleship.GET("/supervisors/:id/subordinates", discipleshipHandler.GetSupervisorSubordinates)
+		discipleship.GET("/goals", discipleshipHandler.GetGoals)
+
+	}
 }

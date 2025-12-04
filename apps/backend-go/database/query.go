@@ -72,3 +72,38 @@ func BuildUpdateQuery(data interface{}, tableName, idColumn, idValue string) (st
 
 	return query, args, nil
 }
+
+// BuildUpdateQueryFromMap construye una query UPDATE desde un map[string]interface{}
+func BuildUpdateQueryFromMap(data map[string]interface{}, tableName, idColumn, idValue string) (string, []interface{}, error) {
+	var updates []string
+	var args []interface{}
+	argPos := 1
+
+	for key, value := range data {
+		// Skip nil values and the id column
+		if value == nil || key == idColumn || key == "id" {
+			continue
+		}
+
+		updates = append(updates, fmt.Sprintf("%s = $%d", key, argPos))
+		args = append(args, value)
+		argPos++
+	}
+
+	if len(updates) == 0 {
+		return "", nil, fmt.Errorf("no fields to update")
+	}
+
+	updates = append(updates, "updated_at = NOW()")
+
+	query := fmt.Sprintf(
+		"UPDATE %s SET %s WHERE %s = $%d",
+		tableName,
+		strings.Join(updates, ", "),
+		idColumn,
+		argPos,
+	)
+	args = append(args, idValue)
+
+	return query, args, nil
+}

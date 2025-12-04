@@ -2,12 +2,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePreferences } from '@/hooks/usePreferences';
 import { ProfileUpdateFormData, profileUpdateSchema } from '@/schemas/user.schemas';
 import { UserService } from '@/services/user.service';
 import { User as UserType } from '@/types/user.types';
@@ -19,6 +26,7 @@ import {
   Camera,
   Edit,
   Heart,
+  Loader2,
   Lock,
   MapPin,
   Phone,
@@ -32,7 +40,7 @@ import { toast } from 'sonner';
 
 const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
-
+  const { preferences, loading: preferencesLoading, updatePreference } = usePreferences();
   const {
     register,
     handleSubmit,
@@ -469,61 +477,155 @@ const ProfilePage = () => {
               <CardDescription>Configura cómo y cuándo recibir notificaciones</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Notificaciones WhatsApp</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Recibe actualizaciones importantes
-                    </p>
+              {preferencesLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : preferences ? (
+                <div className="space-y-4">
+                  {/* Tema */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Tema</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Apariencia visual de la aplicación
+                      </p>
+                    </div>
+                    <Select
+                      value={preferences.theme}
+                      onValueChange={(value: 'light' | 'dark' | 'auto') =>
+                        updatePreference('theme', value)
+                      }
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="light">Claro</SelectItem>
+                        <SelectItem value="dark">Oscuro</SelectItem>
+                        <SelectItem value="auto">Auto</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="whatsapp"
-                      checked={Boolean(whatsapp)}
-                      onCheckedChange={checked => setValue('whatsapp', Boolean(checked))}
+
+                  {/* WhatsApp */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Notificaciones WhatsApp</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Recibe actualizaciones importantes
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.whatsapp_notifications}
+                      onCheckedChange={checked =>
+                        updatePreference('whatsapp_notifications', checked)
+                      }
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Emails de Eventos</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Información sobre eventos y servicios
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.email_notifications}
+                      onCheckedChange={checked => updatePreference('email_notifications', checked)}
+                    />
+                  </div>
+
+                  {/* Recordatorios */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Recordatorios de Servicios</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Notificaciones antes de los servicios
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.event_reminders}
+                      onCheckedChange={checked => updatePreference('event_reminders', checked)}
+                    />
+                  </div>
+
+                  {/* Boletín */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Boletín Semanal</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Recibe el boletín de noticias semanal
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.weekly_newsletter}
+                      onCheckedChange={checked => updatePreference('weekly_newsletter', checked)}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  {/* Privacidad */}
+                  <h4 className="font-medium pt-2">Privacidad</h4>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Visibilidad del Perfil</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Quién puede ver tu información
+                      </p>
+                    </div>
+                    <Select
+                      value={preferences.profile_visibility}
+                      onValueChange={(value: 'public' | 'members' | 'private') =>
+                        updatePreference('profile_visibility', value)
+                      }
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="public">Público</SelectItem>
+                        <SelectItem value="members">Miembros</SelectItem>
+                        <SelectItem value="private">Privado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Mostrar Email</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Permitir que otros vean tu email
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.show_email}
+                      onCheckedChange={checked => updatePreference('show_email', checked)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Mostrar Teléfono</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Permitir que otros vean tu teléfono
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.show_phone}
+                      onCheckedChange={checked => updatePreference('show_phone', checked)}
                     />
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Emails de Eventos</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Información sobre eventos y servicios
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Recordatorios de Servicios</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Notificaciones antes de los servicios
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Boletín Semanal</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Recibe el boletín de noticias semanal
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Modo Oscuro</h4>
-                    <p className="text-sm text-muted-foreground">Tema visual de la aplicación</p>
-                  </div>
-                  <Switch />
-                </div>
-              </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  No se pudieron cargar las preferencias
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

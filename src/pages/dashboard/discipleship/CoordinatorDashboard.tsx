@@ -1,108 +1,168 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/hooks/useAuth';
+import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import { Award, Building2, Loader2, Send, TrendingUp, Users } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import {
-  Users,
-  TrendingUp,
-  Target,
-  Building2,
-  Send,
-  BarChart3,
-  PieChart,
-  Zap,
-  Award,
-} from 'lucide-react';
-import {
-  ResponsiveContainer,
-  AreaChart,
   Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  BarChart,
-  Bar,
-  PieChart as RechartsPieChart,
-  Cell,
 } from 'recharts';
-import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
-import { QuarterlyCoordinatorReport } from '@/types/discipleship.types';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
+
+interface DashboardStats {
+  total_groups: number;
+  total_members: number;
+  active_leaders: number;
+  multiplications: number;
+  average_attendance: number;
+  spiritual_health: number;
+  pending_alerts: number;
+  pending_reports: number;
+}
+
+interface Goal {
+  id: string;
+  description: string;
+  target_value: number;
+  current_value: number;
+  progress_percentage: number;
+  status: string;
+  deadline: string;
+}
 
 const CoordinatorDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
-  const [stats, setStats] = useState<any>({});
-  const [zonePerformance, setZonePerformance] = useState<any[]>([]);
-  const [quarterlyReport, setQuarterlyReport] = useState<Partial<QuarterlyCoordinatorReport>>({
-    ministryOverview: { totalZones: 0, totalGroups: 0, totalMembers: 0, quarterlyGrowth: 0 },
-    strategicGoals: { annualTargets: [], quarterProgress: 0, adjustmentNeeded: false },
-    systemHealth: { leadershipStrength: 5, systemEfficiency: 5, memberSatisfaction: 5 },
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    total_groups: 0,
+    total_members: 0,
+    active_leaders: 0,
+    multiplications: 0,
+    average_attendance: 0,
+    spiritual_health: 0,
+    pending_alerts: 0,
+    pending_reports: 0,
+  });
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [zoneStats, setZoneStats] = useState<any[]>([]);
+  const [weeklyTrends, setWeeklyTrends] = useState<any[]>([]);
+  const [quarterlyReport, setQuarterlyReport] = useState({
+    totalZones: 0,
+    totalGroups: 0,
+    totalMembers: 0,
+    quarterlyGrowth: 0,
+    leadershipStrength: 5,
+    systemEfficiency: 5,
+    memberSatisfaction: 5,
+    strategicNotes: '',
+    challengesAndRisks: '',
+    nextQuarterPriorities: '',
   });
 
   useEffect(() => {
-    const loadData = async () => {
-      const dashboardStats = await DiscipleshipMockService.getDashboardStats(4, 'current-user-id');
-      const zoneData = await DiscipleshipMockService.getZonePerformance();
-      setStats(dashboardStats);
-      setZonePerformance(zoneData);
-    };
     loadData();
-  }, []);
+  }, [user]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+
+      // Cargar estadísticas
+      const dashboardStats = await DiscipleshipAnalyticsService.getDashboardStatsByLevel(4);
+      setStats(dashboardStats);
+
+      // Cargar objetivos
+      const goalsData = await DiscipleshipAnalyticsService.getGoals();
+      setGoals(goalsData);
+
+      // Cargar estadísticas por zona
+      const zones = await DiscipleshipAnalyticsService.getZoneStats();
+      setZoneStats(zones);
+
+      // Cargar tendencias
+      const trends = await DiscipleshipAnalyticsService.getWeeklyTrends(12);
+      setWeeklyTrends(
+        trends.map((t: any) => ({
+          name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
+          asistencia: t.total_attendance,
+          conversiones: t.total_conversions,
+          grupos: t.groups_reporting,
+        }))
+      );
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast.error('Error al cargar los datos');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmitQuarterlyReport = async () => {
     setIsSubmittingReport(true);
     try {
-      const result = await DiscipleshipMockService.submitQuarterlyReport({
-        ...quarterlyReport,
-        coordinatorId: 'current-user-id',
-        quarter: Math.ceil((new Date().getMonth() + 1) / 3),
-        year: new Date().getFullYear(),
-      } as QuarterlyCoordinatorReport);
+      const today = new Date();
+      const quarterStart = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1);
 
-      if (result.success) {
-        toast({
-          title: 'Reporte Enviado',
-          description: 'Tu reporte trimestral ha sido enviado exitosamente.',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'No se pudo enviar el reporte. Inténtalo de nuevo.',
-        variant: 'destructive',
+      await DiscipleshipService.createReport({
+        report_type: 'quarterly',
+        report_level: 4,
+        period_start: quarterStart.toISOString().split('T')[0],
+        period_end: today.toISOString().split('T')[0],
+        report_data: {
+          ministryOverview: {
+            totalZones: quarterlyReport.totalZones,
+            totalGroups: quarterlyReport.totalGroups,
+            totalMembers: quarterlyReport.totalMembers,
+            quarterlyGrowth: quarterlyReport.quarterlyGrowth,
+          },
+          systemHealth: {
+            leadershipStrength: quarterlyReport.leadershipStrength,
+            systemEfficiency: quarterlyReport.systemEfficiency,
+            memberSatisfaction: quarterlyReport.memberSatisfaction,
+          },
+          strategicNotes: quarterlyReport.strategicNotes,
+          challengesAndRisks: quarterlyReport.challengesAndRisks,
+          nextQuarterPriorities: quarterlyReport.nextQuarterPriorities,
+        },
       });
+
+      toast.success('Reporte trimestral enviado exitosamente');
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('Error al enviar el reporte');
+      }
     } finally {
       setIsSubmittingReport(false);
     }
   };
 
-  const quarterlyData = [
-    { quarter: 'Q1', grupos: 12, miembros: 144, crecimiento: 8 },
-    { quarter: 'Q2', grupos: 15, miembros: 180, crecimiento: 25 },
-    { quarter: 'Q3', grupos: 18, miembros: 216, crecimiento: 20 },
-    { quarter: 'Q4', grupos: 22, miembros: 264, crecimiento: 22 },
-  ];
-
-  const systemHealthData = [
-    { name: 'Liderazgo', value: 85, color: '#22c55e' },
-    { name: 'Eficiencia', value: 78, color: '#3b82f6' },
-    { name: 'Satisfacción', value: 92, color: '#f59e0b' },
-    { name: 'Crecimiento', value: 88, color: '#8b5cf6' },
-  ];
-
-  const strategicGoals = [
-    { goal: 'Alcanzar 25 grupos activos', current: 22, target: 25, progress: 88 },
-    { goal: 'Entrenar 15 supervisores', current: 12, target: 15, progress: 80 },
-    { goal: 'Multiplicar 8 grupos', current: 5, target: 8, progress: 63 },
-    { goal: '300 miembros totales', current: 264, target: 300, progress: 88 },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Cargando dashboard...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -110,7 +170,9 @@ const CoordinatorDashboard: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard del Coordinador</h1>
-          <p className="text-muted-foreground">María González - Zona Norte</p>
+          <p className="text-muted-foreground">
+            {user?.first_name} {user?.last_name} - Vista Ejecutiva
+          </p>
         </div>
         <Badge variant="secondary" className="text-lg px-4 py-2">
           Nivel 4 - Coordinador
@@ -125,8 +187,8 @@ const CoordinatorDashboard: React.FC = () => {
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalGroups || 22}</div>
-            <p className="text-xs text-muted-foreground">+4 este trimestre</p>
+            <div className="text-2xl font-bold">{stats.total_groups}</div>
+            <p className="text-xs text-muted-foreground">En todo el sistema</p>
           </CardContent>
         </Card>
 
@@ -136,30 +198,30 @@ const CoordinatorDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalMembers || 264}</div>
-            <p className="text-xs text-muted-foreground">+48 últimos 90 días</p>
+            <div className="text-2xl font-bold">{stats.total_members}</div>
+            <p className="text-xs text-muted-foreground">Activos</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Supervisores</CardTitle>
+            <CardTitle className="text-sm font-medium">Líderes Activos</CardTitle>
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalSupervisors || 12}</div>
-            <p className="text-xs text-muted-foreground">3 niveles de supervisión</p>
+            <div className="text-2xl font-bold">{stats.active_leaders}</div>
+            <p className="text-xs text-muted-foreground">En todos los niveles</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Crecimiento Zonal</CardTitle>
+            <CardTitle className="text-sm font-medium">Multiplicaciones</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.zoneGrowthRate || 22}%</div>
-            <p className="text-xs text-muted-foreground">vs trimestre anterior</p>
+            <div className="text-2xl font-bold">{stats.multiplications}</div>
+            <p className="text-xs text-muted-foreground">Este año</p>
           </CardContent>
         </Card>
       </div>
@@ -169,60 +231,70 @@ const CoordinatorDashboard: React.FC = () => {
           <TabsTrigger value="overview">Resumen Ejecutivo</TabsTrigger>
           <TabsTrigger value="strategic-goals">Objetivos Estratégicos</TabsTrigger>
           <TabsTrigger value="quarterly-report">Reporte Trimestral</TabsTrigger>
-          <TabsTrigger value="zone-performance">Rendimiento Zonal</TabsTrigger>
+          <TabsTrigger value="zone-performance">Rendimiento por Zona</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          {/* Quarterly Growth Chart */}
+          {/* Growth Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Crecimiento Trimestral</CardTitle>
-              <CardDescription>Evolución de grupos y miembros a lo largo del año</CardDescription>
+              <CardTitle>Crecimiento General</CardTitle>
+              <CardDescription>Tendencias de las últimas 12 semanas</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={quarterlyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="quarter" />
-                  <YAxis />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="miembros"
-                    stackId="1"
-                    stroke="#3b82f6"
-                    fill="#3b82f6"
-                    fillOpacity={0.6}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="grupos"
-                    stackId="2"
-                    stroke="#22c55e"
-                    fill="#22c55e"
-                    fillOpacity={0.8}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* System Health */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Salud del Sistema</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={systemHealthData}>
+              {weeklyTrends.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={weeklyTrends}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#3b82f6" />
-                  </BarChart>
+                    <Area
+                      type="monotone"
+                      dataKey="asistencia"
+                      stroke="#3b82f6"
+                      fill="#3b82f6"
+                      fillOpacity={0.6}
+                      name="Asistencia"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="conversiones"
+                      stroke="#22c55e"
+                      fill="#22c55e"
+                      fillOpacity={0.8}
+                      name="Conversiones"
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-12">
+                  No hay datos de tendencias
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Zone Performance */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Rendimiento por Zona</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {zoneStats.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={zoneStats}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="zone_name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="total_members" fill="#3b82f6" name="Miembros" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No hay datos de zonas</p>
+                )}
               </CardContent>
             </Card>
 
@@ -233,20 +305,20 @@ const CoordinatorDashboard: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm">Retención de Miembros</span>
-                  <span className="font-bold">92%</span>
+                  <span className="text-sm">Asistencia Promedio</span>
+                  <span className="font-bold">{Math.round(stats.average_attendance)}%</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm">Satisfacción de Líderes</span>
-                  <span className="font-bold">8.7/10</span>
+                  <span className="text-sm">Salud Espiritual</span>
+                  <span className="font-bold">{stats.spiritual_health.toFixed(1)}/10</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm">Eficiencia Operativa</span>
-                  <span className="font-bold">85%</span>
+                  <span className="text-sm">Alertas Pendientes</span>
+                  <span className="font-bold">{stats.pending_alerts}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm">Índice de Multiplicación</span>
-                  <span className="font-bold">23%</span>
+                  <span className="text-sm">Reportes por Aprobar</span>
+                  <span className="font-bold">{stats.pending_reports}</span>
                 </div>
               </CardContent>
             </Card>
@@ -256,96 +328,39 @@ const CoordinatorDashboard: React.FC = () => {
         <TabsContent value="strategic-goals" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Objetivos Estratégicos Anuales</CardTitle>
-              <CardDescription>Progreso hacia las metas establecidas para este año</CardDescription>
+              <CardTitle>Objetivos Estratégicos</CardTitle>
+              <CardDescription>Progreso hacia las metas establecidas</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {strategicGoals.map((goal, index) => (
-                  <div key={index}>
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="font-medium">{goal.goal}</h3>
-                      <Badge
-                        variant={
-                          goal.progress >= 80
-                            ? 'default'
-                            : goal.progress >= 60
-                              ? 'secondary'
-                              : 'destructive'
-                        }
-                      >
-                        {goal.progress}%
-                      </Badge>
+              {goals.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No hay objetivos definidos</p>
+              ) : (
+                <div className="space-y-6">
+                  {goals.map(goal => (
+                    <div key={goal.id}>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-medium">{goal.description}</h3>
+                        <Badge
+                          variant={
+                            goal.progress_percentage >= 80
+                              ? 'default'
+                              : goal.progress_percentage >= 50
+                                ? 'secondary'
+                                : 'destructive'
+                          }
+                        >
+                          {Math.round(goal.progress_percentage)}%
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between text-sm text-muted-foreground mb-2">
+                        <span>Actual: {goal.current_value}</span>
+                        <span>Meta: {goal.target_value}</span>
+                      </div>
+                      <Progress value={goal.progress_percentage} className="h-2" />
                     </div>
-                    <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                      <span>Actual: {goal.current}</span>
-                      <span>Meta: {goal.target}</span>
-                    </div>
-                    <Progress value={goal.progress} className="h-2" />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Strategic Initiatives */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Iniciativas Estratégicas Activas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  {
-                    initiative: 'Programa de Mentoría para Líderes',
-                    status: 'En Progreso',
-                    completion: 65,
-                    impact: 'Alto',
-                  },
-                  {
-                    initiative: 'Expansión a Zonas Rurales',
-                    status: 'Planificación',
-                    completion: 25,
-                    impact: 'Medio',
-                  },
-                  {
-                    initiative: 'Sistema Digital de Reportes',
-                    status: 'Implementación',
-                    completion: 80,
-                    impact: 'Alto',
-                  },
-                  {
-                    initiative: 'Capacitación en Multiplicación',
-                    status: 'Completado',
-                    completion: 100,
-                    impact: 'Alto',
-                  },
-                ].map((initiative, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-medium">{initiative.initiative}</h4>
-                      <Badge
-                        variant={
-                          initiative.status === 'Completado'
-                            ? 'default'
-                            : initiative.status === 'En Progreso'
-                              ? 'secondary'
-                              : 'outline'
-                        }
-                      >
-                        {initiative.status}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-muted-foreground">
-                        Impacto: {initiative.impact}
-                      </span>
-                      <span className="text-sm">{initiative.completion}%</span>
-                    </div>
-                    <Progress value={initiative.completion} className="h-1" />
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -354,9 +369,7 @@ const CoordinatorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Reporte Trimestral</CardTitle>
-              <CardDescription>
-                Análisis estratégico y metas para el próximo trimestre
-              </CardDescription>
+              <CardDescription>Análisis estratégico del trimestre</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Ministry Overview */}
@@ -368,14 +381,11 @@ const CoordinatorDashboard: React.FC = () => {
                     <Input
                       id="totalZones"
                       type="number"
-                      value={quarterlyReport.ministryOverview?.totalZones || 0}
+                      value={quarterlyReport.totalZones}
                       onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          ministryOverview: {
-                            ...prev.ministryOverview!,
-                            totalZones: parseInt(e.target.value) || 0,
-                          },
+                          totalZones: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -385,14 +395,11 @@ const CoordinatorDashboard: React.FC = () => {
                     <Input
                       id="totalGroups"
                       type="number"
-                      value={quarterlyReport.ministryOverview?.totalGroups || 0}
+                      value={quarterlyReport.totalGroups}
                       onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          ministryOverview: {
-                            ...prev.ministryOverview!,
-                            totalGroups: parseInt(e.target.value) || 0,
-                          },
+                          totalGroups: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -402,31 +409,25 @@ const CoordinatorDashboard: React.FC = () => {
                     <Input
                       id="totalMembers"
                       type="number"
-                      value={quarterlyReport.ministryOverview?.totalMembers || 0}
+                      value={quarterlyReport.totalMembers}
                       onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          ministryOverview: {
-                            ...prev.ministryOverview!,
-                            totalMembers: parseInt(e.target.value) || 0,
-                          },
+                          totalMembers: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
                   </div>
                   <div>
-                    <Label htmlFor="quarterlyGrowth">Crecimiento Trimestral (%)</Label>
+                    <Label htmlFor="quarterlyGrowth">Crecimiento (%)</Label>
                     <Input
                       id="quarterlyGrowth"
                       type="number"
-                      value={quarterlyReport.ministryOverview?.quarterlyGrowth || 0}
+                      value={quarterlyReport.quarterlyGrowth}
                       onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          ministryOverview: {
-                            ...prev.ministryOverview!,
-                            quarterlyGrowth: parseInt(e.target.value) || 0,
-                          },
+                          quarterlyGrowth: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -434,63 +435,63 @@ const CoordinatorDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* System Health Assessment */}
+              {/* System Health */}
               <div>
-                <h3 className="text-lg font-semibold mb-4">Evaluación de Salud del Sistema</h3>
+                <h3 className="text-lg font-semibold mb-4">Evaluación del Sistema (1-10)</h3>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
-                    <Label htmlFor="leadershipStrength">Fortaleza de Liderazgo (1-10)</Label>
+                    <Label htmlFor="leadershipStrength">Fortaleza de Liderazgo</Label>
                     <Input
                       id="leadershipStrength"
                       type="number"
                       min="1"
                       max="10"
-                      value={quarterlyReport.systemHealth?.leadershipStrength || 5}
+                      value={quarterlyReport.leadershipStrength}
                       onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          systemHealth: {
-                            ...prev.systemHealth!,
-                            leadershipStrength: parseInt(e.target.value) || 5,
-                          },
+                          leadershipStrength: Math.min(
+                            10,
+                            Math.max(1, parseInt(e.target.value) || 1)
+                          ),
                         }))
                       }
                     />
                   </div>
                   <div>
-                    <Label htmlFor="systemEfficiency">Eficiencia del Sistema (1-10)</Label>
+                    <Label htmlFor="systemEfficiency">Eficiencia del Sistema</Label>
                     <Input
                       id="systemEfficiency"
                       type="number"
                       min="1"
                       max="10"
-                      value={quarterlyReport.systemHealth?.systemEfficiency || 5}
+                      value={quarterlyReport.systemEfficiency}
                       onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          systemHealth: {
-                            ...prev.systemHealth!,
-                            systemEfficiency: parseInt(e.target.value) || 5,
-                          },
+                          systemEfficiency: Math.min(
+                            10,
+                            Math.max(1, parseInt(e.target.value) || 1)
+                          ),
                         }))
                       }
                     />
                   </div>
                   <div>
-                    <Label htmlFor="memberSatisfaction">Satisfacción de Miembros (1-10)</Label>
+                    <Label htmlFor="memberSatisfaction">Satisfacción de Miembros</Label>
                     <Input
                       id="memberSatisfaction"
                       type="number"
                       min="1"
                       max="10"
-                      value={quarterlyReport.systemHealth?.memberSatisfaction || 5}
+                      value={quarterlyReport.memberSatisfaction}
                       onChange={e =>
                         setQuarterlyReport(prev => ({
                           ...prev,
-                          systemHealth: {
-                            ...prev.systemHealth!,
-                            memberSatisfaction: parseInt(e.target.value) || 5,
-                          },
+                          memberSatisfaction: Math.min(
+                            10,
+                            Math.max(1, parseInt(e.target.value) || 1)
+                          ),
                         }))
                       }
                     />
@@ -498,48 +499,54 @@ const CoordinatorDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Strategic Analysis */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Análisis Estratégico</h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="quarterProgress">Progreso de Objetivos Trimestrales (%)</Label>
-                    <Input
-                      id="quarterProgress"
-                      type="number"
-                      value={quarterlyReport.strategicGoals?.quarterProgress || 0}
-                      onChange={e =>
-                        setQuarterlyReport(prev => ({
-                          ...prev,
-                          strategicGoals: {
-                            ...prev.strategicGoals!,
-                            quarterProgress: parseInt(e.target.value) || 0,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="strategicAnalysis">
-                      Análisis de Tendencias y Oportunidades
-                    </Label>
-                    <Textarea
-                      id="strategicAnalysis"
-                      placeholder="Describe las principales tendencias observadas y oportunidades identificadas..."
-                      className="min-h-[100px]"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="recommendations">
-                      Recomendaciones para el Próximo Trimestre
-                    </Label>
-                    <Textarea
-                      id="recommendations"
-                      placeholder="Propuestas estratégicas y ajustes recomendados..."
-                      className="min-h-[100px]"
-                    />
-                  </div>
+              {/* Strategic Notes */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="strategicNotes">Notas Estratégicas</Label>
+                  <Textarea
+                    id="strategicNotes"
+                    placeholder="Observaciones estratégicas del trimestre..."
+                    className="min-h-[120px]"
+                    value={quarterlyReport.strategicNotes}
+                    onChange={e =>
+                      setQuarterlyReport(prev => ({
+                        ...prev,
+                        strategicNotes: e.target.value,
+                      }))
+                    }
+                  />
                 </div>
+                <div>
+                  <Label htmlFor="challengesAndRisks">Desafíos y Riesgos</Label>
+                  <Textarea
+                    id="challengesAndRisks"
+                    placeholder="Desafíos identificados y riesgos potenciales..."
+                    className="min-h-[120px]"
+                    value={quarterlyReport.challengesAndRisks}
+                    onChange={e =>
+                      setQuarterlyReport(prev => ({
+                        ...prev,
+                        challengesAndRisks: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="nextQuarterPriorities">Prioridades Próximo Trimestre</Label>
+                <Textarea
+                  id="nextQuarterPriorities"
+                  placeholder="Prioridades y enfoque para el próximo trimestre..."
+                  className="min-h-[100px]"
+                  value={quarterlyReport.nextQuarterPriorities}
+                  onChange={e =>
+                    setQuarterlyReport(prev => ({
+                      ...prev,
+                      nextQuarterPriorities: e.target.value,
+                    }))
+                  }
+                />
               </div>
 
               <Button
@@ -549,10 +556,13 @@ const CoordinatorDashboard: React.FC = () => {
                 size="lg"
               >
                 {isSubmittingReport ? (
-                  <>Enviando...</>
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Enviando...
+                  </>
                 ) : (
                   <>
-                    <Send className="mr-2 h-4 w-4" />
+                    <Send className="w-4 h-4 mr-2" />
                     Enviar Reporte Trimestral
                   </>
                 )}
@@ -565,54 +575,41 @@ const CoordinatorDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Rendimiento por Zona</CardTitle>
-              <CardDescription>Comparativo de métricas entre diferentes zonas</CardDescription>
+              <CardDescription>Comparativa de todas las zonas</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {zonePerformance.map((zone, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-semibold">{zone.zoneName}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Supervisor: {zone.supervisor}
-                        </p>
+              {zoneStats.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No hay datos de zonas disponibles
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {zoneStats.map((zone, index) => (
+                    <div key={index} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold">{zone.zone_name}</h3>
+                        </div>
+                        <Badge variant="default">{zone.total_groups} grupos</Badge>
                       </div>
-                      <Badge
-                        variant={
-                          zone.healthScore >= 8
-                            ? 'default'
-                            : zone.healthScore >= 7
-                              ? 'secondary'
-                              : 'outline'
-                        }
-                      >
-                        Salud: {zone.healthScore}/10
-                      </Badge>
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-4 text-sm mb-3">
-                      <div>
-                        <span className="text-muted-foreground">Grupos: </span>
-                        <span className="font-medium">{zone.totalGroups}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Miembros: </span>
-                        <span className="font-medium">{zone.totalMembers}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Crecimiento: </span>
-                        <span className="font-medium">{zone.growthRate}%</span>
-                      </div>
-                      <div>
-                        <Button size="sm" variant="outline">
-                          Ver Detalles
-                        </Button>
+                      <div className="grid gap-2 md:grid-cols-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Miembros: </span>
+                          <span className="font-medium">{zone.total_members}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Asistencia: </span>
+                          <span className="font-medium">{Math.round(zone.avg_attendance)}%</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Crecimiento: </span>
+                          <span className="font-medium">{zone.growth_rate || 0}%</span>
+                        </div>
                       </div>
                     </div>
-                    <Progress value={zone.healthScore * 10} className="h-2" />
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
