@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { CreateUserData } from '@/types/user.types';
+import { Session, User } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
 
 export interface AuthState {
   user: User | null;
@@ -47,7 +48,7 @@ export const useAuth = () => {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, userData?: any) => {
+  const signUp = async (email: string, password: string, userData?: CreateUserData) => {
     const redirectUrl = `${window.location.origin}/`;
 
     const { error } = await supabase.auth.signUp({

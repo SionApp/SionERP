@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -148,9 +149,18 @@ func (h *DiscipleshipReportsHandler) GetMetrics(c echo.Context) error {
 	argCount := 0
 
 	if groupID != "" {
+		// Validar que groupID sea un UUID válido
+		groupIDUUID, err := uuid.Parse(groupID)
+		if err != nil {
+			c.Logger().Error("Error parsing group_id as UUID:", err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Parámetro group_id inválido, debe ser un UUID válido",
+			})
+		}
+
 		argCount++
 		query += fmt.Sprintf(" AND m.group_id = $%d", argCount)
-		args = append(args, groupID)
+		args = append(args, groupIDUUID)
 	}
 	if dateFrom != "" {
 		argCount++
