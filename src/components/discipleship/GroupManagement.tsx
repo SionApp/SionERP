@@ -32,7 +32,7 @@ import { ApiService } from '@/services/api.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateGroupRequest, DiscipleshipGroup } from '@/types/discipleship.types';
 import { Calendar, Edit, Loader2, MapPin, Plus, Search, Trash2, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface User {
@@ -46,6 +46,17 @@ interface User {
 const DAYS_OF_WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 const ZONES = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste', 'Zona Centro'];
+
+// Helper para normalizar valores sql.NullString que vienen como {String, Valid}
+const normalizeNullString = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null && 'String' in value && 'Valid' in value) {
+    const nullString = value as { String: string; Valid: boolean };
+    return nullString.Valid ? nullString.String : null;
+  }
+  return String(value);
+};
 
 const GroupManagement = () => {
   const [groups, setGroups] = useState<DiscipleshipGroup[]>([]);
@@ -75,7 +86,7 @@ const GroupManagement = () => {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -85,12 +96,30 @@ const GroupManagement = () => {
         status: filterStatus !== 'all' ? filterStatus : undefined,
         search: searchTerm || undefined,
       });
-      setGroups(groupsResponse.data || []);
+
+      // Normalizar grupos para convertir sql.NullString a strings o null
+      const normalizedGroups = (groupsResponse.data || []).map(group => ({
+        ...group,
+        supervisor_id: normalizeNullString(group.supervisor_id),
+        zone_name: normalizeNullString(group.zone_name),
+        meeting_day: normalizeNullString(group.meeting_day),
+        meeting_time: normalizeNullString(group.meeting_time),
+        meeting_location: normalizeNullString(group.meeting_location),
+      }));
+
+      setGroups(normalizedGroups);
 
       // Car{gar usuarios para líderes y supervisores
       const { users } = await ApiService.get<{ users: User[] }>('/users');
       console.log('users', users);
-      const allUsers = users || [];
+      const allUsers = (users || []).map(user => ({
+        ...user,
+        id: String(normalizeNullString(user.id) || ''),
+        first_name: String(normalizeNullString(user.first_name) || ''),
+        last_name: String(normalizeNullString(user.last_name) || ''),
+        email: String(normalizeNullString(user.email) || ''),
+        role: String(normalizeNullString(user.role) || ''),
+      }));
 
       // Filtrar líderes potenciales (todos los usuarios activos)
       setLeaders(allUsers.filter(u => u.role !== 'pastor'));
@@ -99,13 +128,13 @@ const GroupManagement = () => {
       setSupervisors(
         allUsers.filter((u: User) => ['pastor', 'staff', 'supervisor'].includes(u.role))
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading data:', error);
       toast.error('Error al cargar los datos');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterZone, filterStatus, searchTerm]);
 
   // Aplicar filtros
   useEffect(() => {
@@ -113,19 +142,19 @@ const GroupManagement = () => {
       loadData();
     }, 300);
     return () => clearTimeout(delaySearch);
-  }, [searchTerm, filterZone, filterStatus]);
+  }, [searchTerm, filterZone, filterStatus, loadData]);
 
-  const handleOpenDialog = (group?: DiscipleshipGroup) => {
+  const handleOpenDialog = useCallback((group?: DiscipleshipGroup) => {
     if (group) {
       setEditingGroup(group);
       setFormData({
-        group_name: group.group_name,
-        leader_id: group.leader_id,
-        supervisor_id: group.supervisor_id || '',
-        zone_name: group.zone_name || '',
-        meeting_day: group.meeting_day || '',
-        meeting_time: group.meeting_time || '',
-        meeting_location: group.meeting_location || '',
+        group_name: String(group.group_name || ''),
+        leader_id: String(normalizeNullString(group.leader_id) || ''),
+        supervisor_id: String(normalizeNullString(group.supervisor_id) || ''),
+        zone_name: String(normalizeNullString(group.zone_name) || ''),
+        meeting_day: String(normalizeNullString(group.meeting_day) || ''),
+        meeting_time: String(normalizeNullString(group.meeting_time) || ''),
+        meeting_location: String(normalizeNullString(group.meeting_location) || ''),
       });
     } else {
       setEditingGroup(null);
@@ -140,7 +169,7 @@ const GroupManagement = () => {
       });
     }
     setIsDialogOpen(true);
-  };
+  }, []);
 
   const handleSubmit = async () => {
     if (!formData.group_name || !formData.leader_id) {
@@ -161,30 +190,33 @@ const GroupManagement = () => {
 
       setIsDialogOpen(false);
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving group:', error);
-      toast.error(error.message || 'Error al guardar el grupo');
+      toast.error(error instanceof Error ? error.message : 'Error al guardar el grupo');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (groupId: string) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este grupo?')) {
-      return;
-    }
+  const handleDelete = useCallback(
+    async (groupId: string) => {
+      if (!confirm('¿Estás seguro de que deseas eliminar este grupo?')) {
+        return;
+      }
 
-    try {
-      await DiscipleshipService.deleteGroup(groupId);
-      toast.success('Grupo eliminado exitosamente');
-      loadData();
-    } catch (error: any) {
-      console.error('Error deleting group:', error);
-      toast.error(error.message || 'Error al eliminar el grupo');
-    }
-  };
+      try {
+        await DiscipleshipService.deleteGroup(groupId);
+        toast.success('Grupo eliminado exitosamente');
+        loadData();
+      } catch (error: unknown) {
+        console.error('Error deleting group:', error);
+        toast.error(error instanceof Error ? error.message : 'Error al eliminar el grupo');
+      }
+    },
+    [loadData]
+  );
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = useCallback((status: string) => {
     switch (status) {
       case 'active':
         return <Badge variant="default">Activo</Badge>;
@@ -195,7 +227,7 @@ const GroupManagement = () => {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -258,7 +290,7 @@ const GroupManagement = () => {
                   <div className="space-y-2">
                     <Label htmlFor="zone_name">Zona</Label>
                     <Select
-                      value={formData.zone_name}
+                      value={String(normalizeNullString(formData.zone_name) || '')}
                       onValueChange={value => setFormData({ ...formData, zone_name: value })}
                     >
                       <SelectTrigger>
@@ -279,7 +311,7 @@ const GroupManagement = () => {
                   <div className="space-y-2">
                     <Label htmlFor="leader_id">Líder *</Label>
                     <Select
-                      value={formData.leader_id}
+                      value={String(normalizeNullString(formData.leader_id) || '')}
                       onValueChange={value => setFormData({ ...formData, leader_id: value })}
                     >
                       <SelectTrigger>
@@ -287,8 +319,8 @@ const GroupManagement = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {leaders.map(leader => (
-                          <SelectItem key={leader.id} value={leader.id}>
-                            {leader.first_name} {leader.last_name}
+                          <SelectItem key={String(leader.id)} value={String(leader.id)}>
+                            {String(leader.first_name || '')} {String(leader.last_name || '')}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -298,17 +330,20 @@ const GroupManagement = () => {
                   <div className="space-y-2">
                     <Label htmlFor="supervisor_id">Supervisor</Label>
                     <Select
-                      value={formData.supervisor_id}
-                      onValueChange={value => setFormData({ ...formData, supervisor_id: value })}
+                      value={formData.supervisor_id || 'none'}
+                      onValueChange={value =>
+                        setFormData({ ...formData, supervisor_id: value === 'none' ? '' : value })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar supervisor" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sin supervisor</SelectItem>
+                        <SelectItem value="none">Sin supervisor</SelectItem>
                         {supervisors.map(sup => (
-                          <SelectItem key={sup.id} value={sup.id}>
-                            {sup.first_name} {sup.last_name} ({sup.role})
+                          <SelectItem key={String(sup.id)} value={String(sup.id)}>
+                            {String(sup.first_name || '')} {String(sup.last_name || '')} (
+                            {String(sup.role || '')})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -320,7 +355,7 @@ const GroupManagement = () => {
                   <div className="space-y-2">
                     <Label htmlFor="meeting_day">Día de Reunión</Label>
                     <Select
-                      value={formData.meeting_day}
+                      value={String(normalizeNullString(formData.meeting_day) || '')}
                       onValueChange={value => setFormData({ ...formData, meeting_day: value })}
                     >
                       <SelectTrigger>
@@ -341,7 +376,7 @@ const GroupManagement = () => {
                     <Input
                       id="meeting_time"
                       type="time"
-                      value={formData.meeting_time}
+                      value={String(normalizeNullString(formData.meeting_time) || '')}
                       onChange={e => setFormData({ ...formData, meeting_time: e.target.value })}
                     />
                   </div>
@@ -350,7 +385,7 @@ const GroupManagement = () => {
                     <Label htmlFor="meeting_location">Ubicación</Label>
                     <Input
                       id="meeting_location"
-                      value={formData.meeting_location}
+                      value={String(normalizeNullString(formData.meeting_location) || '')}
                       onChange={e => setFormData({ ...formData, meeting_location: e.target.value })}
                       placeholder="Dirección o lugar"
                     />
@@ -447,13 +482,14 @@ const GroupManagement = () => {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-muted-foreground" />
-                        {group.zone_name || 'Sin zona'}
+                        {normalizeNullString(group.zone_name) || 'Sin zona'}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm">
                         <Calendar className="w-3 h-3 text-muted-foreground" />
-                        {group.meeting_day || 'No definido'} {group.meeting_time || ''}
+                        {normalizeNullString(group.meeting_day) || 'No definido'}{' '}
+                        {normalizeNullString(group.meeting_time) || ''}
                       </div>
                     </TableCell>
                     <TableCell>

@@ -1,45 +1,61 @@
-import { useState } from 'react';
+import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
+import GroupManagement from '@/components/discipleship/GroupManagement';
+import ZoneManagement from '@/components/discipleship/ZoneManagement';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Users,
-  TrendingUp,
-  Target,
-  AlertCircle,
-  MapPin,
-  Calendar,
-  BarChart3,
-  Settings,
-  Plus,
-} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import LeaderDashboard from './discipleship/LeaderDashboard';
+import { UserService } from '@/services/user.service';
+import { DiscipleshipHierarchy } from '@/types/discipleship.types';
+import { User as UserType } from '@/types/user.types';
+import { AlertCircle, BarChart3, MapPin, Plus, Target, TrendingUp, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import AuxiliarySupervisorDashboard from './discipleship/AuxiliarySupervisorDashboard';
-import GeneralSupervisorDashboard from './discipleship/GeneralSupervisorDashboard';
 import CoordinatorDashboard from './discipleship/CoordinatorDashboard';
+import GeneralSupervisorDashboard from './discipleship/GeneralSupervisorDashboard';
+import LeaderDashboard from './discipleship/LeaderDashboard';
 import PastoralDashboard from './discipleship/PastoralDashboard';
-import GroupManagement from '@/components/discipleship/GroupManagement';
-import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
-import ZoneManagement from '@/components/discipleship/ZoneManagement';
 
 const DiscipleshipPage = () => {
-  const { user } = useAuth();
+  const authUser = useAuth().user;
   const [activeTab, setActiveTab] = useState('overview');
+  const [user, setUser] = useState<UserType | null>(null);
+  console.log(authUser, 'authUser');
 
+  useEffect(() => {
+    const getUser = async () => {
+      if (!authUser?.id) {
+        toast.error('Error al cargar el usuario');
+        return;
+      }
+      try {
+        const userData = await UserService.getUserById(authUser?.id as string);
+        setUser({
+          ...userData,
+          role: userData.role as UserType['role'],
+        });
+      } catch (error) {
+        toast.error('Error al cargar el usuario');
+        console.error('Error al cargar el usuario:', error);
+      }
+    };
+    getUser();
+  }, [authUser]);
+
+  console.log(user?.role, 'user');
   // Determine user's discipleship role and level
   const getDiscipleshipLevel = () => {
-    if (!user) return 1;
+    if (!user || !user.role) return 1;
 
-    switch (user.role) {
+    switch (user?.role) {
       case 'pastor':
         return 5; // Pastoral level
       case 'staff':
         return 4; // General Supervisor level
       default:
         // Could be based on user's discipleship_level field
-        return (user as any).discipleship_level || 1;
+        return (user as unknown as DiscipleshipHierarchy).hierarchy_level || 1;
     }
   };
 
@@ -70,7 +86,7 @@ const DiscipleshipPage = () => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Ministerio de Discipuladoasda
+            Ministerio de Discipulado
           </h1>
           <p className="text-muted-foreground mt-1">
             Dashboard nivel {getDiscipleshipLevel()} -{' '}
