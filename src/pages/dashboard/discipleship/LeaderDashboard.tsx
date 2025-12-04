@@ -1,87 +1,142 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import {
-  AlertTriangle,
-  Users,
-  TrendingUp,
-  Heart,
-  Plus,
-  Send,
-  Calendar,
-  MapPin,
-} from 'lucide-react';
-import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
-import { WeeklyLeaderReport } from '@/types/discipleship.types';
-import { toast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/hooks/useAuth';
+import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import { Calendar, Heart, Loader2, MapPin, Send, TrendingUp, Users } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 const LeaderDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
-  const [weeklyReport, setWeeklyReport] = useState<Partial<WeeklyLeaderReport>>({
-    attendance: { members: 0, newVisitors: 0, returningVisitors: 0 },
-    spiritualHealth: {
-      testimonies: 0,
-      prayerRequests: [],
-      spiritualTemperature: 5,
-      groupMorale: 'good',
-    },
-    followUp: { visitorsContacted: 0, membersCared: [], upcomingEvents: [] },
-    concerns: [],
-    blessings: [],
+
+  // Estado del grupo
+  const [groupStats, setGroupStats] = useState({
+    groupId: '',
+    groupName: 'Mi Célula',
+    memberCount: 0,
+    activeMembers: 0,
+    avgAttendance: 0,
+    spiritualTemperature: 5,
+    meetingDay: '',
+    meetingTime: '',
+    meetingLocation: '',
   });
 
-  const handleSubmitWeeklyReport = async () => {
-    setIsSubmittingReport(true);
-    try {
-      const result = await DiscipleshipMockService.submitWeeklyReport({
-        ...weeklyReport,
-        groupId: 'group-001',
-        weekDate: new Date().toISOString().split('T')[0],
-      } as WeeklyLeaderReport);
+  // Estado del reporte semanal
+  const [weeklyReport, setWeeklyReport] = useState({
+    attendance: 0,
+    newVisitors: 0,
+    returningVisitors: 0,
+    conversions: 0,
+    baptisms: 0,
+    spiritualTemperature: 5,
+    testimoniesCount: 0,
+    prayerRequests: 0,
+    offeringAmount: 0,
+    leaderNotes: '',
+  });
 
-      if (result.success) {
-        toast({
-          title: 'Reporte Enviado',
-          description: 'Tu reporte semanal ha sido enviado exitosamente.',
-        });
-        // Reset form
-        setWeeklyReport({
-          attendance: { members: 0, newVisitors: 0, returningVisitors: 0 },
-          spiritualHealth: {
-            testimonies: 0,
-            prayerRequests: [],
-            spiritualTemperature: 5,
-            groupMorale: 'good',
-          },
-          followUp: { visitorsContacted: 0, membersCared: [], upcomingEvents: [] },
-          concerns: [],
-          blessings: [],
+  // Cargar datos iniciales
+  useEffect(() => {
+    loadLeaderData();
+  }, [user]);
+
+  const loadLeaderData = async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoading(true);
+      const stats = await DiscipleshipAnalyticsService.getLeaderGroupStats(user.id);
+
+      if (stats) {
+        setGroupStats({
+          groupId: stats.groupId,
+          groupName: stats.groupName,
+          memberCount: stats.memberCount,
+          activeMembers: stats.activeMembers,
+          avgAttendance: stats.avgAttendance,
+          spiritualTemperature: stats.spiritualTemperature,
+          meetingDay: stats.meetingDay,
+          meetingTime: stats.meetingTime,
+          meetingLocation: stats.meetingLocation,
         });
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'No se pudo enviar el reporte. Inténtalo de nuevo.',
-        variant: 'destructive',
+      console.error('Error loading leader data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitWeeklyReport = async () => {
+    if (!groupStats.groupId) {
+      toast.error('No tienes un grupo asignado');
+      return;
+    }
+
+    setIsSubmittingReport(true);
+    try {
+      await DiscipleshipService.createMetrics({
+        group_id: groupStats.groupId,
+        week_date: new Date().toISOString().split('T')[0],
+        spiritual_temperature: weeklyReport.spiritualTemperature,
+        ...weeklyReport,
       });
+
+      toast.success('Reporte semanal enviado exitosamente');
+
+      // Resetear formulario
+      setWeeklyReport({
+        attendance: 0,
+        newVisitors: 0,
+        returningVisitors: 0,
+        conversions: 0,
+        baptisms: 0,
+        spiritualTemperature: 5,
+        testimoniesCount: 0,
+        prayerRequests: 0,
+        offeringAmount: 0,
+        leaderNotes: '',
+      });
+
+      // Recargar datos
+      loadLeaderData();
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        toast.error(error.message);
+        console.error('Error submitting report:', error);
+      } else {
+        toast.error('Error al enviar el reporte');
+        console.error('Error submitting report:', error);
+      }
     } finally {
       setIsSubmittingReport(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-12 w-64" />
+        <div className="grid gap-4 md:grid-cols-4">
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -89,7 +144,7 @@ const LeaderDashboard: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard del Líder</h1>
-          <p className="text-muted-foreground">Célula Esperanza - Zona Norte</p>
+          <p className="text-muted-foreground">{groupStats.groupName}</p>
         </div>
         <Badge variant="secondary" className="text-lg px-4 py-2">
           Nivel 1 - Líder de Grupo
@@ -104,8 +159,8 @@ const LeaderDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
-            <p className="text-xs text-muted-foreground">+2 este mes</p>
+            <div className="text-2xl font-bold">{groupStats.activeMembers}</div>
+            <p className="text-xs text-muted-foreground">de {groupStats.memberCount} registrados</p>
           </CardContent>
         </Card>
 
@@ -115,8 +170,8 @@ const LeaderDashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">85%</div>
-            <p className="text-xs text-muted-foreground">+5% vs mes anterior</p>
+            <div className="text-2xl font-bold">{groupStats.avgAttendance}%</div>
+            <p className="text-xs text-muted-foreground">últimas 4 semanas</p>
           </CardContent>
         </Card>
 
@@ -126,19 +181,25 @@ const LeaderDashboard: React.FC = () => {
             <Heart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8.5/10</div>
-            <p className="text-xs text-muted-foreground">Excelente ambiente</p>
+            <div className="text-2xl font-bold">{groupStats.spiritualTemperature}/10</div>
+            <p className="text-xs text-muted-foreground">
+              {groupStats.spiritualTemperature >= 8
+                ? 'Excelente'
+                : groupStats.spiritualTemperature >= 6
+                  ? 'Bueno'
+                  : 'Necesita atención'}
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Visitantes del Mes</CardTitle>
-            <Plus className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Próxima Reunión</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
-            <p className="text-xs text-muted-foreground">3 regresaron</p>
+            <div className="text-xl font-bold">{groupStats.meetingDay}</div>
+            <p className="text-xs text-muted-foreground">{groupStats.meetingTime}</p>
           </CardContent>
         </Card>
       </div>
@@ -152,7 +213,6 @@ const LeaderDashboard: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          {/* Goals Progress */}
           <Card>
             <CardHeader>
               <CardTitle>Objetivos del Mes</CardTitle>
@@ -161,54 +221,44 @@ const LeaderDashboard: React.FC = () => {
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span>Asistencia Promedio (Meta: 90%)</span>
-                  <span>85%</span>
+                  <span>{groupStats.avgAttendance}%</span>
                 </div>
-                <Progress value={85} className="h-2" />
+                <Progress value={groupStats.avgAttendance} className="h-2" />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span>Nuevos Visitantes (Meta: 6)</span>
-                  <span>5</span>
+                  <span>Miembros Activos (Meta: {groupStats.memberCount})</span>
+                  <span>{groupStats.activeMembers}</span>
                 </div>
-                <Progress value={83} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Seguimiento a Visitantes (Meta: 100%)</span>
-                  <span>100%</span>
-                </div>
-                <Progress value={100} className="h-2" />
+                <Progress
+                  value={(groupStats.activeMembers / Math.max(groupStats.memberCount, 1)) * 100}
+                  className="h-2"
+                />
               </div>
             </CardContent>
           </Card>
 
-          {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle>Actividad Reciente</CardTitle>
+              <CardTitle>Información del Grupo</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Reporte semanal enviado</p>
-                    <p className="text-xs text-muted-foreground">Hace 2 días</p>
-                  </div>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-3 p-4 bg-muted rounded-lg">
+                <Calendar className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Reunión Semanal</p>
+                  <p className="text-sm text-muted-foreground">
+                    {groupStats.meetingDay} {groupStats.meetingTime}
+                  </p>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Nuevos visitantes: Ana y Pedro</p>
-                    <p className="text-xs text-muted-foreground">Hace 3 días</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Reunión con supervisor programada</p>
-                    <p className="text-xs text-muted-foreground">Hace 5 días</p>
-                  </div>
+              </div>
+              <div className="flex items-center space-x-3 p-4 bg-muted rounded-lg">
+                <MapPin className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Ubicación</p>
+                  <p className="text-sm text-muted-foreground">
+                    {groupStats.meetingLocation || 'No definida'}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -222,24 +272,21 @@ const LeaderDashboard: React.FC = () => {
               <CardDescription>Completa el reporte de la reunión de esta semana</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Attendance Section */}
+              {/* Asistencia */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Asistencia</h3>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
-                    <Label htmlFor="members">Miembros</Label>
+                    <Label htmlFor="attendance">Miembros Presentes</Label>
                     <Input
-                      id="members"
+                      id="attendance"
                       type="number"
-                      value={weeklyReport.attendance?.members || 0}
+                      value={weeklyReport.attendance}
                       onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          attendance: {
-                            ...prev.attendance!,
-                            members: parseInt(e.target.value) || 0,
-                          },
-                        }))
+                        setWeeklyReport({
+                          ...weeklyReport,
+                          attendance: parseInt(e.target.value) || 0,
+                        })
                       }
                     />
                   </div>
@@ -248,15 +295,12 @@ const LeaderDashboard: React.FC = () => {
                     <Input
                       id="newVisitors"
                       type="number"
-                      value={weeklyReport.attendance?.newVisitors || 0}
+                      value={weeklyReport.newVisitors}
                       onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          attendance: {
-                            ...prev.attendance!,
-                            newVisitors: parseInt(e.target.value) || 0,
-                          },
-                        }))
+                        setWeeklyReport({
+                          ...weeklyReport,
+                          newVisitors: parseInt(e.target.value) || 0,
+                        })
                       }
                     />
                   </div>
@@ -265,42 +309,22 @@ const LeaderDashboard: React.FC = () => {
                     <Input
                       id="returningVisitors"
                       type="number"
-                      value={weeklyReport.attendance?.returningVisitors || 0}
+                      value={weeklyReport.returningVisitors}
                       onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          attendance: {
-                            ...prev.attendance!,
-                            returningVisitors: parseInt(e.target.value) || 0,
-                          },
-                        }))
+                        setWeeklyReport({
+                          ...weeklyReport,
+                          returningVisitors: parseInt(e.target.value) || 0,
+                        })
                       }
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Spiritual Health */}
+              {/* Salud Espiritual */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Salud Espiritual</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label htmlFor="testimonies">Número de Testimonios</Label>
-                    <Input
-                      id="testimonies"
-                      type="number"
-                      value={weeklyReport.spiritualHealth?.testimonies || 0}
-                      onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          spiritualHealth: {
-                            ...prev.spiritualHealth!,
-                            testimonies: parseInt(e.target.value) || 0,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
+                <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <Label htmlFor="spiritualTemp">Temperatura Espiritual (1-10)</Label>
                     <Input
@@ -308,61 +332,64 @@ const LeaderDashboard: React.FC = () => {
                       type="number"
                       min="1"
                       max="10"
-                      value={weeklyReport.spiritualHealth?.spiritualTemperature || 5}
+                      value={weeklyReport.spiritualTemperature}
                       onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          spiritualHealth: {
-                            ...prev.spiritualHealth!,
-                            spiritualTemperature: parseInt(e.target.value) || 5,
-                          },
-                        }))
+                        setWeeklyReport({
+                          ...weeklyReport,
+                          spiritualTemperature: Math.min(
+                            10,
+                            Math.max(1, parseInt(e.target.value) || 5)
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="testimonies">Testimonios</Label>
+                    <Input
+                      id="testimonies"
+                      type="number"
+                      value={weeklyReport.testimoniesCount}
+                      onChange={e =>
+                        setWeeklyReport({
+                          ...weeklyReport,
+                          testimoniesCount: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="conversions">Conversiones</Label>
+                    <Input
+                      id="conversions"
+                      type="number"
+                      value={weeklyReport.conversions}
+                      onChange={e =>
+                        setWeeklyReport({
+                          ...weeklyReport,
+                          conversions: parseInt(e.target.value) || 0,
+                        })
                       }
                     />
                   </div>
                 </div>
-                <div className="mt-4">
-                  <Label htmlFor="groupMorale">Estado General del Grupo</Label>
-                  <Select
-                    value={weeklyReport.spiritualHealth?.groupMorale || 'good'}
-                    onValueChange={value =>
-                      setWeeklyReport(prev => ({
-                        ...prev,
-                        spiritualHealth: { ...prev.spiritualHealth!, groupMorale: value as any },
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="excellent">Excelente</SelectItem>
-                      <SelectItem value="good">Bueno</SelectItem>
-                      <SelectItem value="fair">Regular</SelectItem>
-                      <SelectItem value="needs_attention">Necesita Atención</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
-              {/* Concerns and Blessings */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="concerns">Preocupaciones</Label>
-                  <Textarea
-                    id="concerns"
-                    placeholder="Describe cualquier preocupación o desafío..."
-                    className="min-h-[100px]"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="blessings">Bendiciones</Label>
-                  <Textarea
-                    id="blessings"
-                    placeholder="Comparte las bendiciones y motivos de gratitud..."
-                    className="min-h-[100px]"
-                  />
-                </div>
+              {/* Notas */}
+              <div>
+                <Label htmlFor="notes">Notas del Líder</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Comparte observaciones, preocupaciones o bendiciones..."
+                  className="min-h-[100px]"
+                  value={weeklyReport.leaderNotes}
+                  onChange={e =>
+                    setWeeklyReport({
+                      ...weeklyReport,
+                      leaderNotes: e.target.value,
+                    })
+                  }
+                />
               </div>
 
               <Button
@@ -372,7 +399,10 @@ const LeaderDashboard: React.FC = () => {
                 size="lg"
               >
                 {isSubmittingReport ? (
-                  <>Enviando...</>
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
                 ) : (
                   <>
                     <Send className="mr-2 h-4 w-4" />
@@ -388,33 +418,14 @@ const LeaderDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Miembros de la Célula</CardTitle>
-              <CardDescription>Gestiona la información de los miembros de tu grupo</CardDescription>
+              <CardDescription>
+                Total: {groupStats.memberCount} | Activos: {groupStats.activeMembers}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  { name: 'María González', role: 'Miembro', status: 'Activo', attendance: '95%' },
-                  { name: 'Juan Pérez', role: 'Co-líder', status: 'Activo', attendance: '90%' },
-                  { name: 'Ana Silva', role: 'Miembro', status: 'Activo', attendance: '85%' },
-                  { name: 'Pedro López', role: 'Visitante', status: 'Nuevo', attendance: '100%' },
-                ].map((member, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium">{member.name}</p>
-                      <p className="text-sm text-muted-foreground">{member.role}</p>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <Badge variant={member.status === 'Activo' ? 'default' : 'secondary'}>
-                        {member.status}
-                      </Badge>
-                      <span className="text-sm">{member.attendance}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-muted-foreground text-center py-8">
+                La lista de miembros estará disponible próximamente
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -423,34 +434,24 @@ const LeaderDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Programación de Reuniones</CardTitle>
-              <CardDescription>Horarios y ubicación de las reuniones</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-3 p-4 bg-muted rounded-lg">
                 <Calendar className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium">Reunión Semanal</p>
-                  <p className="text-sm text-muted-foreground">Miércoles 7:00 PM</p>
+                  <p className="text-sm text-muted-foreground">
+                    {groupStats.meetingDay} {groupStats.meetingTime}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center space-x-3 p-4 bg-muted rounded-lg">
                 <MapPin className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium">Ubicación</p>
-                  <p className="text-sm text-muted-foreground">Casa de María - Colonia Centro</p>
-                </div>
-              </div>
-              <div className="pt-4">
-                <h4 className="font-medium mb-2">Próximos Eventos</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-3 border rounded">
-                    <span>Retiro Juvenil</span>
-                    <Badge variant="outline">Oct 15</Badge>
-                  </div>
-                  <div className="flex justify-between items-center p-3 border rounded">
-                    <span>Evangelismo Barrial</span>
-                    <Badge variant="outline">Oct 22</Badge>
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {groupStats.meetingLocation || 'No definida'}
+                  </p>
                 </div>
               </div>
             </CardContent>
