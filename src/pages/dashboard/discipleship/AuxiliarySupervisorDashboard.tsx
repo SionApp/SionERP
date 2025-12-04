@@ -1,121 +1,182 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import {
-  Users,
-  TrendingUp,
-  AlertTriangle,
-  UserCheck,
-  Send,
-  BarChart3,
-  Target,
-  Clock,
-} from 'lucide-react';
-import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
-import { BiweeklyAuxiliaryReport } from '@/types/discipleship.types';
-import { toast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/hooks/useAuth';
+import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import { AlertTriangle, Loader2, Send, TrendingUp, UserCheck, Users } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+
+interface DashboardStats {
+  groups_under_supervision: number;
+  total_members: number;
+  average_attendance: number;
+  active_leaders: number;
+  pending_alerts: number;
+  pending_reports: number;
+}
+
+interface GroupData {
+  id: string;
+  group_name: string;
+  leader_name: string;
+  member_count: number;
+  avg_attendance: number;
+  status: string;
+}
 
 const AuxiliarySupervisorDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
-  const [stats, setStats] = useState<any>({});
-  const [biweeklyReport, setBiweeklyReport] = useState<Partial<BiweeklyAuxiliaryReport>>({
-    groupsOverview: {
-      totalGroups: 0,
-      healthyGroups: 0,
-      groupsNeedingAttention: [],
-      newGroupsStarted: 0,
-    },
-    leaderDevelopment: { trainingSessions: 0, leadersNeedingSupport: [], potentialNewLeaders: [] },
-    zoneMetrics: { totalAttendance: 0, growthPercentage: 0, newConversions: 0 },
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    groups_under_supervision: 0,
+    total_members: 0,
+    average_attendance: 0,
+    active_leaders: 0,
+    pending_alerts: 0,
+    pending_reports: 0,
+  });
+  const [groups, setGroups] = useState<GroupData[]>([]);
+  const [biweeklyReport, setBiweeklyReport] = useState({
+    totalGroups: 0,
+    healthyGroups: 0,
+    groupsNeedingAttention: '',
+    trainingSessions: 0,
+    totalAttendance: 0,
+    leadersNeedingSupport: '',
+    potentialNewLeaders: '',
+    newConversions: 0,
+    highlights: '',
+    concerns: '',
   });
 
   useEffect(() => {
-    const loadData = async () => {
-      const dashboardStats = await DiscipleshipMockService.getDashboardStats(2, 'current-user-id');
-      setStats(dashboardStats);
-    };
     loadData();
-  }, []);
+  }, [user]);
+
+  const loadData = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      // Cargar estadísticas del dashboard
+      const dashboardStats = await DiscipleshipAnalyticsService.getDashboardStatsByLevel(2);
+      setStats(dashboardStats);
+
+      // Cargar grupos supervisados
+      const groupsResponse = await DiscipleshipService.getGroups({
+        supervisor_id: user.id,
+        status: 'active',
+      });
+
+      // Mapear grupos con estadísticas
+      const groupsWithStats =
+        groupsResponse.data?.map((g: any) => ({
+          id: g.id,
+          group_name: g.group_name,
+          leader_name: g.leader_name || 'Sin asignar',
+          member_count: g.member_count || 0,
+          avg_attendance: g.active_members || 0,
+          status: g.status,
+        })) || [];
+
+      setGroups(groupsWithStats);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast.error('Error al cargar los datos del dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmitBiweeklyReport = async () => {
+    if (!user) return;
+
     setIsSubmittingReport(true);
     try {
-      const result = await DiscipleshipMockService.submitBiweeklyReport({
-        ...biweeklyReport,
-        supervisorId: 'current-user-id',
-        periodStart: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        periodEnd: new Date().toISOString().split('T')[0],
-      } as BiweeklyAuxiliaryReport);
+      const today = new Date();
+      const twoWeeksAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-      if (result.success) {
-        toast({
-          title: 'Reporte Enviado',
-          description: 'Tu reporte quincenal ha sido enviado exitosamente.',
-        });
-        // Reset form
-        setBiweeklyReport({
+      await DiscipleshipService.createReport({
+        report_type: 'biweekly',
+        report_level: 2,
+        period_start: twoWeeksAgo.toISOString().split('T')[0],
+        period_end: today.toISOString().split('T')[0],
+        report_data: {
           groupsOverview: {
-            totalGroups: 0,
-            healthyGroups: 0,
-            groupsNeedingAttention: [],
-            newGroupsStarted: 0,
+            totalGroups: biweeklyReport.totalGroups,
+            healthyGroups: biweeklyReport.healthyGroups,
+            groupsNeedingAttention: biweeklyReport.groupsNeedingAttention
+              .split('\n')
+              .filter(Boolean),
           },
           leaderDevelopment: {
-            trainingSessions: 0,
-            leadersNeedingSupport: [],
-            potentialNewLeaders: [],
+            trainingSessions: biweeklyReport.trainingSessions,
+            leadersNeedingSupport: biweeklyReport.leadersNeedingSupport.split('\n').filter(Boolean),
+            potentialNewLeaders: biweeklyReport.potentialNewLeaders.split('\n').filter(Boolean),
           },
-          zoneMetrics: { totalAttendance: 0, growthPercentage: 0, newConversions: 0 },
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'No se pudo enviar el reporte. Inténtalo de nuevo.',
-        variant: 'destructive',
+          zoneMetrics: {
+            totalAttendance: biweeklyReport.totalAttendance,
+            newConversions: biweeklyReport.newConversions,
+          },
+          highlights: biweeklyReport.highlights,
+          concerns: biweeklyReport.concerns,
+        },
       });
+
+      toast.success('Reporte quincenal enviado exitosamente');
+
+      // Reset form
+      setBiweeklyReport({
+        totalGroups: 0,
+        healthyGroups: 0,
+        groupsNeedingAttention: '',
+        trainingSessions: 0,
+        totalAttendance: 0,
+        leadersNeedingSupport: '',
+        potentialNewLeaders: '',
+        newConversions: 0,
+        highlights: '',
+        concerns: '',
+      });
+    } catch (error: any) {
+      console.error('Error submitting report:', error);
+      toast.error(error.message || 'Error al enviar el reporte');
     } finally {
       setIsSubmittingReport(false);
     }
   };
 
-  const groupsData = [
-    {
-      name: 'Célula Esperanza',
-      leader: 'Roberto Silva',
-      members: 12,
-      attendance: 85,
-      status: 'Saludable',
-    },
-    {
-      name: 'Juventud Victoriosa',
-      leader: 'Carmen Torres',
-      members: 18,
-      attendance: 92,
-      status: 'Multiplicando',
-    },
-    {
-      name: 'Familia en Cristo',
-      leader: 'Miguel Herrera',
-      members: 8,
-      attendance: 78,
-      status: 'Saludable',
-    },
-    {
-      name: 'Guerreros de Fe',
-      leader: 'Ana Ruiz',
-      members: 10,
-      attendance: 65,
-      status: 'Necesita Atención',
-    },
-  ];
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge variant="default">Saludable</Badge>;
+      case 'multiplying':
+        return <Badge variant="secondary">Multiplicando</Badge>;
+      case 'inactive':
+        return <Badge variant="destructive">Inactivo</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Cargando dashboard...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -123,7 +184,9 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Supervisor Auxiliar</h1>
-          <p className="text-muted-foreground">Patricia Jiménez - Zona Norte, Sector A</p>
+          <p className="text-muted-foreground">
+            {user?.first_name} {user?.last_name} - {user?.zone_name || 'Zona no asignada'}
+          </p>
         </div>
         <Badge variant="secondary" className="text-lg px-4 py-2">
           Nivel 2 - Supervisor Auxiliar
@@ -138,8 +201,8 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.groupsUnderSupervision || 4}</div>
-            <p className="text-xs text-muted-foreground">+1 este mes</p>
+            <div className="text-2xl font-bold">{stats.groups_under_supervision}</div>
+            <p className="text-xs text-muted-foreground">Bajo tu supervisión</p>
           </CardContent>
         </Card>
 
@@ -149,8 +212,8 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalMembers || 48}</div>
-            <p className="text-xs text-muted-foreground">+6 últimos 15 días</p>
+            <div className="text-2xl font-bold">{stats.total_members}</div>
+            <p className="text-xs text-muted-foreground">En tus grupos</p>
           </CardContent>
         </Card>
 
@@ -160,19 +223,19 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.averageAttendance || 89}%</div>
-            <p className="text-xs text-muted-foreground">+3% vs período anterior</p>
+            <div className="text-2xl font-bold">{Math.round(stats.average_attendance)}%</div>
+            <p className="text-xs text-muted-foreground">Últimas 4 semanas</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Líderes con Apoyo</CardTitle>
+            <CardTitle className="text-sm font-medium">Alertas Pendientes</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.leadersSupportNeeded || 1}</div>
-            <p className="text-xs text-muted-foreground">Requiere seguimiento</p>
+            <div className="text-2xl font-bold">{stats.pending_alerts}</div>
+            <p className="text-xs text-muted-foreground">Requieren atención</p>
           </CardContent>
         </Card>
       </div>
@@ -195,23 +258,19 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span>Meta Asistencia Grupal (Meta: 90%)</span>
-                  <span>89%</span>
+                  <span>{Math.round(stats.average_attendance)}%</span>
                 </div>
-                <Progress value={89} className="h-2" />
+                <Progress value={stats.average_attendance} className="h-2" />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span>Líderes Capacitados (Meta: 4)</span>
-                  <span>3</span>
+                  <span>Líderes Activos (Meta: {stats.groups_under_supervision})</span>
+                  <span>{stats.active_leaders}</span>
                 </div>
-                <Progress value={75} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Visitantes Consolidados (Meta: 8)</span>
-                  <span>6</span>
-                </div>
-                <Progress value={75} className="h-2" />
+                <Progress
+                  value={(stats.active_leaders / Math.max(stats.groups_under_supervision, 1)) * 100}
+                  className="h-2"
+                />
               </div>
             </CardContent>
           </Card>
@@ -219,53 +278,29 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
           {/* Zone Health Overview */}
           <Card>
             <CardHeader>
-              <CardTitle>Salud de la Zona</CardTitle>
+              <CardTitle>Salud de los Grupos</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">3</div>
-                  <div className="text-sm text-green-700">Grupos Saludables</div>
-                </div>
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">1</div>
-                  <div className="text-sm text-blue-700">Grupo Multiplicando</div>
-                </div>
-                <div className="text-center p-4 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600">1</div>
-                  <div className="text-sm text-red-700">Necesita Atención</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent Activities */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Actividades Recientes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Capacitación de liderazgo completada</p>
-                    <p className="text-xs text-muted-foreground">Hace 1 día</p>
+                <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">
+                    {groups.filter(g => g.status === 'active').length}
+                  </div>
+                  <div className="text-sm text-green-700 dark:text-green-300">
+                    Grupos Saludables
                   </div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Grupo "Guerreros de Fe" necesita apoyo</p>
-                    <p className="text-xs text-muted-foreground">Hace 2 días</p>
+                <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {groups.filter(g => g.status === 'multiplying').length}
                   </div>
+                  <div className="text-sm text-blue-700 dark:text-blue-300">En Multiplicación</div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Reunión con supervisor general</p>
-                    <p className="text-xs text-muted-foreground">Hace 3 días</p>
+                <div className="text-center p-4 bg-red-50 dark:bg-red-950 rounded-lg">
+                  <div className="text-2xl font-bold text-red-600">
+                    {groups.filter(g => g.status === 'inactive').length}
                   </div>
+                  <div className="text-sm text-red-700 dark:text-red-300">Necesitan Atención</div>
                 </div>
               </div>
             </CardContent>
@@ -279,44 +314,42 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
               <CardDescription>Estado actual de los grupos asignados</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {groupsData.map((group, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-semibold">{group.name}</h3>
-                        <p className="text-sm text-muted-foreground">Líder: {group.leader}</p>
+              {groups.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  No tienes grupos asignados para supervisar
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {groups.map(group => (
+                    <div key={group.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold">{group.group_name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Líder: {group.leader_name}
+                          </p>
+                        </div>
+                        {getStatusBadge(group.status)}
                       </div>
-                      <Badge
-                        variant={
-                          group.status === 'Saludable'
-                            ? 'default'
-                            : group.status === 'Multiplicando'
-                              ? 'secondary'
-                              : 'destructive'
-                        }
-                      >
-                        {group.status}
-                      </Badge>
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-3 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Miembros: </span>
-                        <span className="font-medium">{group.members}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Asistencia: </span>
-                        <span className="font-medium">{group.attendance}%</span>
-                      </div>
-                      <div>
-                        <Button size="sm" variant="outline">
-                          Ver Detalles
-                        </Button>
+                      <div className="grid gap-2 md:grid-cols-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Miembros: </span>
+                          <span className="font-medium">{group.member_count}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Asistencia: </span>
+                          <span className="font-medium">{group.avg_attendance}%</span>
+                        </div>
+                        <div>
+                          <Button size="sm" variant="outline">
+                            Ver Detalles
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -337,14 +370,11 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                     <Input
                       id="totalGroups"
                       type="number"
-                      value={biweeklyReport.groupsOverview?.totalGroups || 0}
+                      value={biweeklyReport.totalGroups}
                       onChange={e =>
                         setBiweeklyReport(prev => ({
                           ...prev,
-                          groupsOverview: {
-                            ...prev.groupsOverview!,
-                            totalGroups: parseInt(e.target.value) || 0,
-                          },
+                          totalGroups: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -354,14 +384,11 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                     <Input
                       id="healthyGroups"
                       type="number"
-                      value={biweeklyReport.groupsOverview?.healthyGroups || 0}
+                      value={biweeklyReport.healthyGroups}
                       onChange={e =>
                         setBiweeklyReport(prev => ({
                           ...prev,
-                          groupsOverview: {
-                            ...prev.groupsOverview!,
-                            healthyGroups: parseInt(e.target.value) || 0,
-                          },
+                          healthyGroups: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -371,8 +398,15 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                   <Label htmlFor="needsAttention">Grupos que Necesitan Atención</Label>
                   <Textarea
                     id="needsAttention"
-                    placeholder="Lista los grupos que requieren atención especial y las razones..."
+                    placeholder="Lista los grupos que requieren atención especial (uno por línea)..."
                     className="min-h-[80px]"
+                    value={biweeklyReport.groupsNeedingAttention}
+                    onChange={e =>
+                      setBiweeklyReport(prev => ({
+                        ...prev,
+                        groupsNeedingAttention: e.target.value,
+                      }))
+                    }
                   />
                 </div>
               </div>
@@ -386,31 +420,25 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                     <Input
                       id="trainingSessions"
                       type="number"
-                      value={biweeklyReport.leaderDevelopment?.trainingSessions || 0}
+                      value={biweeklyReport.trainingSessions}
                       onChange={e =>
                         setBiweeklyReport(prev => ({
                           ...prev,
-                          leaderDevelopment: {
-                            ...prev.leaderDevelopment!,
-                            trainingSessions: parseInt(e.target.value) || 0,
-                          },
+                          trainingSessions: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
                   </div>
                   <div>
-                    <Label htmlFor="totalAttendance">Asistencia Total</Label>
+                    <Label htmlFor="totalAttendance">Asistencia Total del Período</Label>
                     <Input
                       id="totalAttendance"
                       type="number"
-                      value={biweeklyReport.zoneMetrics?.totalAttendance || 0}
+                      value={biweeklyReport.totalAttendance}
                       onChange={e =>
                         setBiweeklyReport(prev => ({
                           ...prev,
-                          zoneMetrics: {
-                            ...prev.zoneMetrics!,
-                            totalAttendance: parseInt(e.target.value) || 0,
-                          },
+                          totalAttendance: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
@@ -421,18 +449,66 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                     <Label htmlFor="leadersNeedingSupport">Líderes que Necesitan Apoyo</Label>
                     <Textarea
                       id="leadersNeedingSupport"
-                      placeholder="Lista los líderes que requieren apoyo adicional..."
+                      placeholder="Lista los líderes (uno por línea)..."
                       className="min-h-[80px]"
+                      value={biweeklyReport.leadersNeedingSupport}
+                      onChange={e =>
+                        setBiweeklyReport(prev => ({
+                          ...prev,
+                          leadersNeedingSupport: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                   <div>
                     <Label htmlFor="potentialLeaders">Potenciales Nuevos Líderes</Label>
                     <Textarea
                       id="potentialLeaders"
-                      placeholder="Identifica miembros con potencial de liderazgo..."
+                      placeholder="Identifica miembros con potencial (uno por línea)..."
                       className="min-h-[80px]"
+                      value={biweeklyReport.potentialNewLeaders}
+                      onChange={e =>
+                        setBiweeklyReport(prev => ({
+                          ...prev,
+                          potentialNewLeaders: e.target.value,
+                        }))
+                      }
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Highlights and Concerns */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="highlights">Logros y Bendiciones</Label>
+                  <Textarea
+                    id="highlights"
+                    placeholder="Describe los logros destacados del período..."
+                    className="min-h-[100px]"
+                    value={biweeklyReport.highlights}
+                    onChange={e =>
+                      setBiweeklyReport(prev => ({
+                        ...prev,
+                        highlights: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="concerns">Preocupaciones y Desafíos</Label>
+                  <Textarea
+                    id="concerns"
+                    placeholder="Describe las preocupaciones o desafíos..."
+                    className="min-h-[100px]"
+                    value={biweeklyReport.concerns}
+                    onChange={e =>
+                      setBiweeklyReport(prev => ({
+                        ...prev,
+                        concerns: e.target.value,
+                      }))
+                    }
+                  />
                 </div>
               </div>
 
@@ -443,10 +519,13 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
                 size="lg"
               >
                 {isSubmittingReport ? (
-                  <>Enviando...</>
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Enviando...
+                  </>
                 ) : (
                   <>
-                    <Send className="mr-2 h-4 w-4" />
+                    <Send className="w-4 h-4 mr-2" />
                     Enviar Reporte Quincenal
                   </>
                 )}
@@ -463,64 +542,24 @@ const AuxiliarySupervisorDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  {
-                    name: 'Roberto Silva',
-                    group: 'Célula Esperanza',
-                    level: 'Avanzado',
-                    lastTraining: '15 Sep 2024',
-                    status: 'Activo',
-                  },
-                  {
-                    name: 'Carmen Torres',
-                    group: 'Juventud Victoriosa',
-                    level: 'Experto',
-                    lastTraining: '10 Sep 2024',
-                    status: 'Listo para Multiplicar',
-                  },
-                  {
-                    name: 'Miguel Herrera',
-                    group: 'Familia en Cristo',
-                    level: 'Intermedio',
-                    lastTraining: '12 Sep 2024',
-                    status: 'En Desarrollo',
-                  },
-                  {
-                    name: 'Ana Ruiz',
-                    group: 'Guerreros de Fe',
-                    level: 'Básico',
-                    lastTraining: '05 Sep 2024',
-                    status: 'Necesita Apoyo',
-                  },
-                ].map((leader, index) => (
+                {groups.map(group => (
                   <div
-                    key={index}
+                    key={group.id}
                     className="flex items-center justify-between p-4 border rounded-lg"
                   >
                     <div>
-                      <p className="font-medium">{leader.name}</p>
-                      <p className="text-sm text-muted-foreground">{leader.group}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Último entrenamiento: {leader.lastTraining}
-                      </p>
+                      <h4 className="font-medium">{group.leader_name}</h4>
+                      <p className="text-sm text-muted-foreground">{group.group_name}</p>
                     </div>
-                    <div className="flex items-center space-x-4">
-                      <Badge variant="outline">{leader.level}</Badge>
-                      <Badge
-                        variant={
-                          leader.status === 'Activo'
-                            ? 'default'
-                            : leader.status === 'Listo para Multiplicar'
-                              ? 'secondary'
-                              : leader.status === 'En Desarrollo'
-                                ? 'outline'
-                                : 'destructive'
-                        }
-                      >
-                        {leader.status}
-                      </Badge>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{group.member_count} miembros</p>
+                        <p className="text-xs text-muted-foreground">
+                          {group.avg_attendance}% asist.
+                        </p>
+                      </div>
                       <Button size="sm" variant="outline">
-                        Capacitar
+                        Agendar Reunión
                       </Button>
                     </div>
                   </div>
