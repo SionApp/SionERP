@@ -1,253 +1,243 @@
-// Discipleship hierarchy and organization types
-export interface DiscipleshipHierarchy {
-  id: string;
-  user_id: string;
-  hierarchy_level: 1 | 2 | 3 | 4 | 5;
-  supervisor_id?: string;
-  zone_name?: string;
-  territory?: string;
-  active_groups_assigned: number;
-  created_at: string;
-  updated_at: string;
-}
+// =====================================================
+// GRUPOS
+// =====================================================
 
 export interface DiscipleshipGroup {
   id: string;
   group_name: string;
   leader_id: string;
-  supervisor_id?: string;
-  meeting_location?: string;
-  meeting_address?: string;
-  latitude?: number;
-  longitude?: number;
-  meeting_day?: string;
-  meeting_time?: string;
+  supervisor_id: string | null;
+  zone_name: string | null;
+  meeting_day: string | null;
+  meeting_time: string | null;
+  meeting_location: string | null;
   member_count: number;
   active_members: number;
-  status: 'active' | 'inactive' | 'multiplying' | 'planned';
+  status: 'active' | 'inactive' | 'multiplying';
+  created_at: string;
+  updated_at: string;
+  // Campos adicionales del JOIN
+  leader_name?: string;
+  supervisor_name?: string;
+}
+
+export interface CreateGroupRequest {
+  group_name: string;
+  leader_id: string;
+  supervisor_id?: string;
   zone_name?: string;
-  created_at: string;
-  updated_at: string;
+  meeting_day?: string;
+  meeting_time?: string;
+  meeting_location?: string;
 }
 
-export interface Zone {
-  id: string;
-  name: string;
-  description?: string;
-  color: string;
+export interface UpdateGroupRequest {
+  group_name?: string;
+  leader_id?: string;
   supervisor_id?: string;
-  boundaries?: {
-    north: number;
-    south: number;
-    east: number;
-    west: number;
-  };
-  created_at: string;
-  updated_at: string;
+  zone_name?: string;
+  meeting_day?: string;
+  meeting_time?: string;
+  meeting_location?: string;
+  member_count?: number;
+  active_members?: number;
+  status?: string;
 }
 
-export interface DiscipleshipReport {
+// =====================================================
+// JERARQUÍA
+// =====================================================
+
+export interface DiscipleshipHierarchy {
   id: string;
-  reporter_id: string;
-  supervisor_id?: string;
-  report_level: 1 | 2 | 3 | 4 | 5;
-  report_type: string;
-  period_start: string;
-  period_end: string;
-  report_data: any;
-  status: 'draft' | 'submitted' | 'approved' | 'needs_attention';
-  submitted_at?: string;
-  approved_at?: string;
+  user_id: string;
+  hierarchy_level: number; // 1=Líder, 2=Sup.Aux, 3=Sup.Gral, 4=Coord, 5=Pastor
+  supervisor_id: string | null;
+  zone_name: string | null;
+  territory: string | null;
+  active_groups_assigned: number;
   created_at: string;
   updated_at: string;
+  // Campos adicionales
+  user_name?: string;
+  user_email?: string;
+  supervisor_name?: string;
 }
+
+export interface AssignHierarchyRequest {
+  user_id: string;
+  hierarchy_level: number;
+  supervisor_id?: string;
+  zone_name?: string;
+  territory?: string;
+}
+
+// =====================================================
+// MÉTRICAS
+// =====================================================
 
 export interface DiscipleshipMetrics {
   id: string;
   group_id: string;
   week_date: string;
+  week_number?: number;
   attendance: number;
   new_visitors: number;
   returning_visitors: number;
+  conversions: number;
+  baptisms: number;
+  spiritual_temperature: number;
   testimonies_count: number;
   prayer_requests: number;
-  spiritual_temperature: number; // 1-10
-  leader_notes?: string;
+  offering_amount: number;
+  leader_notes: string | null;
   created_at: string;
   updated_at: string;
+  // Adicional
+  group_name?: string;
 }
 
-// Specific report types by level
-export interface WeeklyLeaderReport {
-  groupId: string;
-  weekDate: string;
-  attendance: {
-    members: number;
-    newVisitors: number;
-    returningVisitors: number;
-  };
-  spiritualHealth: {
-    testimonies: number;
-    prayerRequests: string[];
-    spiritualTemperature: number; // 1-10
-    groupMorale: 'excellent' | 'good' | 'fair' | 'needs_attention';
-  };
-  followUp: {
-    visitorsContacted: number;
-    membersCared: string[];
-    upcomingEvents: string[];
-  };
-  concerns: string[];
-  blessings: string[];
-}
-
-export interface BiweeklyAuxiliaryReport {
-  supervisorId: string;
-  periodStart: string;
-  periodEnd: string;
-  groupsOverview: {
-    totalGroups: number;
-    healthyGroups: number;
-    groupsNeedingAttention: string[];
-    newGroupsStarted: number;
-  };
-  leaderDevelopment: {
-    trainingSessions: number;
-    leadersNeedingSupport: string[];
-    potentialNewLeaders: string[];
-  };
-  zoneMetrics: {
-    totalAttendance: number;
-    growthPercentage: number;
-    newConversions: number;
-  };
-}
-
-export interface MonthlyGeneralReport {
-  supervisorId: string;
-  zoneName: string;
-  month: string;
-  zoneStatistics: {
-    totalGroups: number;
-    totalMembers: number;
-    monthlyGrowth: number;
-    multiplicationPlans: string[];
-  };
-  leadershipPipeline: {
-    auxiliarySupervisors: number;
-    trainingSupervisors: number;
-    leadershipGaps: string[];
-  };
-  strategicInitiatives: {
-    newGroupLocations: string[];
-    communityOutreach: string[];
-    specialEvents: string[];
-  };
-}
-
-export interface QuarterlyCoordinatorReport {
-  coordinatorId: string;
-  quarter: number;
-  year: number;
-  ministryOverview: {
-    totalZones: number;
-    totalGroups: number;
-    totalMembers: number;
-    quarterlyGrowth: number;
-  };
-  strategicGoals: {
-    annualTargets: Goal[];
-    quarterProgress: number;
-    adjustmentNeeded: boolean;
-  };
-  systemHealth: {
-    leadershipStrength: number; // 1-10
-    systemEfficiency: number; // 1-10
-    memberSatisfaction: number; // 1-10
-  };
-}
-
-export interface PastoralDashboard {
-  timeframe: 'week' | 'month' | 'quarter' | 'year';
-  keyMetrics: {
-    totalGroups: number;
-    totalMembers: number;
-    growthRate: number;
-    healthIndex: number; // 1-10
-  };
-  alerts: Alert[];
-  approvalQueue: ApprovalItem[];
-  strategicDecisions: Decision[];
-}
-
-export interface Goal {
-  id: string;
-  description: string;
-  target: number;
-  current: number;
-  deadline: string;
-  status: 'on_track' | 'behind' | 'completed' | 'critical';
-}
-
-export interface Alert {
-  id: string;
-  type: 'critical' | 'warning' | 'info';
-  message: string;
-  actionRequired: boolean;
-  relatedGroup?: string;
-  relatedLeader?: string;
-  created_at: string;
-}
-
-export interface ApprovalItem {
-  id: string;
-  type: 'new_group' | 'leader_promotion' | 'budget_request' | 'strategic_initiative';
-  title: string;
-  requestedBy: string;
-  priority: 'high' | 'medium' | 'low';
-  deadline?: string;
-  created_at: string;
-}
-
-export interface Decision {
-  id: string;
-  title: string;
-  description: string;
-  options: string[];
-  recommendation?: string;
-  impact: 'high' | 'medium' | 'low';
-  urgency: 'immediate' | 'this_week' | 'this_month';
-}
-
-// Chart and dashboard data types
-export interface ChartData {
-  name: string;
-  value: number;
-  color?: string;
-}
-
-export interface TimeSeriesData {
-  date: string;
-  value: number;
-  comparison?: number;
-}
-
-export interface ZonePerformance {
-  zoneName: string;
-  totalGroups: number;
-  totalMembers: number;
-  growthRate: number;
-  healthScore: number;
-  supervisor: string;
-}
-
-export interface LeaderPerformance {
-  leaderId: string;
-  leaderName: string;
-  groupName: string;
+export interface CreateMetricsRequest {
+  group_id: string;
+  week_date: string;
   attendance: number;
-  retention: number;
-  growth: number;
-  spiritualHealth: number;
-  consistencyScore: number;
+  new_visitors?: number;
+  returning_visitors?: number;
+  conversions?: number;
+  baptisms?: number;
+  spiritual_temperature: number;
+  testimonies_count?: number;
+  prayer_requests?: number;
+  offering_amount?: number;
+  leader_notes?: string;
 }
+
+// =====================================================
+// REPORTES
+// =====================================================
+
+export interface DiscipleshipReport {
+  id: string;
+  reporter_id: string;
+  supervisor_id: string | null;
+  report_type: string;
+  report_level: number;
+  period_start: string;
+  period_end: string;
+  status: 'draft' | 'submitted' | 'approved' | 'revision_required';
+  report_data: Record<string, unknown>;
+  submitted_at: string | null;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Adicional
+  reporter_name?: string;
+}
+
+export interface CreateReportRequest {
+  report_type: string;
+  report_level: number;
+  period_start: string;
+  period_end: string;
+  report_data: Record<string, unknown>;
+}
+
+// =====================================================
+// ALERTAS
+// =====================================================
+
+export interface DiscipleshipAlert {
+  id: string;
+  alert_type:
+    | 'no_reports'
+    | 'low_attendance'
+    | 'multiplication_ready'
+    | 'needs_attention'
+    | 'custom';
+  title: string;
+  message: string;
+  priority: number;
+  related_group_id: string | null;
+  related_user_id: string | null;
+  zone_name: string | null;
+  action_required: boolean;
+  resolved: boolean;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Adicional
+  group_name?: string;
+  user_name?: string;
+}
+
+// =====================================================
+// ANALYTICS
+// =====================================================
+
+export interface DiscipleshipAnalytics {
+  total_groups: number;
+  total_members: number;
+  average_attendance: number;
+  growth_rate: number;
+  active_leaders: number;
+  multiplications: number;
+  spiritual_health: number;
+  pending_alerts: number;
+}
+
+export interface ZoneStats {
+  zone_name: string;
+  total_groups: number;
+  total_members: number;
+  avg_attendance: number;
+  growth_rate: number;
+}
+
+export interface GroupPerformance {
+  group_id: string;
+  group_name: string;
+  leader_name: string;
+  avg_attendance: number;
+  growth_rate: number;
+  spiritual_temp: number;
+  status: string;
+  last_report_date: string;
+}
+
+// =====================================================
+// FILTROS Y PAGINACIÓN
+// =====================================================
+
+export interface GroupFilters {
+  zone_name?: string;
+  status?: string;
+  leader_id?: string;
+  supervisor_id?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T;
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// =====================================================
+// NIVELES DE JERARQUÍA
+// =====================================================
+
+export const HIERARCHY_LEVELS = {
+  1: { name: 'Líder', color: 'blue' },
+  2: { name: 'Supervisor Auxiliar', color: 'green' },
+  3: { name: 'Supervisor General', color: 'purple' },
+  4: { name: 'Coordinador', color: 'orange' },
+  5: { name: 'Pastoral', color: 'red' },
+} as const;
+
+export type HierarchyLevel = keyof typeof HIERARCHY_LEVELS;
