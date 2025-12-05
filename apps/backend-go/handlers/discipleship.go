@@ -287,12 +287,124 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 		})
 	}
 
-	// Actualizar contador de grupos del usuario en la jerarquía
-	db.DB.Exec(`
-		UPDATE discipleship_hierarchy 
-		SET active_groups_assigned = active_groups_assigned + 1
-		WHERE user_id = $1
-	`, req.LeaderID)
+	// =====================================================
+	// ASIGNAR JERARQUÍAS AUTOMÁTICAMENTE AL CREAR GRUPO
+	// =====================================================
+
+	// 1. Asignar jerarquía al LÍDER (nivel 1) si no tiene una mayor
+	if req.LeaderID != "" {
+		var existingLevel sql.NullInt64
+		err = db.DB.QueryRow(`
+			SELECT hierarchy_level 
+			FROM discipleship_hierarchy 
+			WHERE user_id = $1
+		`, req.LeaderID).Scan(&existingLevel)
+
+		if err == sql.ErrNoRows {
+			// No tiene jerarquía, crear con nivel 1 (Líder)
+			var supervisorIDForLeader interface{}
+			if req.SupervisorID != "" {
+				supervisorIDForLeader = req.SupervisorID
+			} else {
+				supervisorIDForLeader = nil
+			}
+
+			_, err = db.DB.Exec(`
+				INSERT INTO discipleship_hierarchy (
+					user_id, hierarchy_level, supervisor_id, zone_name, active_groups_assigned
+				) VALUES ($1, 1, $2, $3, 1)
+			`, req.LeaderID, supervisorIDForLeader, nullIfEmpty(req.ZoneName))
+			if err != nil {
+				c.Logger().Error("Error assigning hierarchy to leader:", err)
+			}
+
+			// Actualizar también en users
+			_, _ = db.DB.Exec(`
+				UPDATE users SET 
+					discipleship_level = 1,
+					zone_name = $1,
+					updated_at = NOW()
+				WHERE id = $2
+			`, nullIfEmpty(req.ZoneName), req.LeaderID)
+		} else if err == nil && existingLevel.Valid {
+			// Ya tiene jerarquía, solo actualizar si es menor a 1 o actualizar contador
+			if existingLevel.Int64 < 1 {
+				_, _ = db.DB.Exec(`
+					UPDATE discipleship_hierarchy SET
+						hierarchy_level = 1,
+						supervisor_id = COALESCE($1, supervisor_id),
+						zone_name = COALESCE($2, zone_name),
+						active_groups_assigned = active_groups_assigned + 1,
+						updated_at = NOW()
+					WHERE user_id = $3
+				`, nullIfEmpty(req.SupervisorID), nullIfEmpty(req.ZoneName), req.LeaderID)
+			} else {
+				// Solo actualizar contador
+				_, _ = db.DB.Exec(`
+					UPDATE discipleship_hierarchy 
+					SET active_groups_assigned = active_groups_assigned + 1
+					WHERE user_id = $1
+				`, req.LeaderID)
+			}
+		} else {
+			// Solo actualizar contador si ya existe
+			_, _ = db.DB.Exec(`
+				UPDATE discipleship_hierarchy 
+				SET active_groups_assigned = active_groups_assigned + 1
+				WHERE user_id = $1
+			`, req.LeaderID)
+		}
+	}
+
+	// 2. Asignar jerarquía al SUPERVISOR (nivel 2) si no tiene una mayor
+	if req.SupervisorID != "" {
+		var existingLevel sql.NullInt64
+		err = db.DB.QueryRow(`
+			SELECT hierarchy_level 
+			FROM discipleship_hierarchy 
+			WHERE user_id = $1
+		`, req.SupervisorID).Scan(&existingLevel)
+
+		if err == sql.ErrNoRows {
+			// No tiene jerarquía, crear con nivel 2 (Supervisor Auxiliar)
+			_, err = db.DB.Exec(`
+				INSERT INTO discipleship_hierarchy (
+					user_id, hierarchy_level, zone_name, active_groups_assigned
+				) VALUES ($1, 2, $2, 1)
+			`, req.SupervisorID, nullIfEmpty(req.ZoneName))
+			if err != nil {
+				c.Logger().Error("Error assigning hierarchy to supervisor:", err)
+			}
+
+			// Actualizar también en users
+			_, _ = db.DB.Exec(`
+				UPDATE users SET 
+					discipleship_level = 2,
+					zone_name = $1,
+					updated_at = NOW()
+				WHERE id = $2
+			`, nullIfEmpty(req.ZoneName), req.SupervisorID)
+		} else if err == nil && existingLevel.Valid {
+			// Ya tiene jerarquía, actualizar solo si es menor a 2
+			if existingLevel.Int64 < 2 {
+				_, _ = db.DB.Exec(`
+					UPDATE discipleship_hierarchy SET
+						hierarchy_level = 2,
+						zone_name = COALESCE($1, zone_name),
+						active_groups_assigned = active_groups_assigned + 1,
+						updated_at = NOW()
+					WHERE user_id = $2
+				`, nullIfEmpty(req.ZoneName), req.SupervisorID)
+			} else {
+				// Solo actualizar contador
+				_, _ = db.DB.Exec(`
+					UPDATE discipleship_hierarchy 
+					SET active_groups_assigned = active_groups_assigned + 1
+					WHERE user_id = $1
+				`, req.SupervisorID)
+			}
+		}
+	}
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"message":  "Grupo creado exitosamente",
@@ -383,6 +495,157 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		})
 	}
 
+	// =====================================================
+	// ACTUALIZAR JERARQUÍAS SI SE CAMBIARON leader_id o supervisor_id
+	// =====================================================
+
+	// Obtener el grupo actualizado para saber los nuevos valores
+	var currentGroup struct {
+		LeaderID     string
+		SupervisorID sql.NullString
+		ZoneName     sql.NullString
+	}
+	err = db.DB.QueryRow(`
+		SELECT leader_id, supervisor_id, zone_name 
+		FROM discipleship_groups 
+		WHERE id = $1
+	`, groupID).Scan(&currentGroup.LeaderID, &currentGroup.SupervisorID, &currentGroup.ZoneName)
+
+	if err == nil {
+		// 1. Asignar jerarquía al nuevo LÍDER si se cambió
+		if req.LeaderID != nil {
+			var existingLevel sql.NullInt64
+			err = db.DB.QueryRow(`
+				SELECT hierarchy_level 
+				FROM discipleship_hierarchy 
+				WHERE user_id = $1
+			`, *req.LeaderID).Scan(&existingLevel)
+
+			if err == sql.ErrNoRows {
+				// No tiene jerarquía, crear con nivel 1 (Líder)
+				var supervisorIDForLeader interface{}
+				if req.SupervisorID != nil && *req.SupervisorID != "" {
+					supervisorIDForLeader = *req.SupervisorID
+				} else if currentGroup.SupervisorID.Valid {
+					supervisorIDForLeader = currentGroup.SupervisorID.String
+				} else {
+					supervisorIDForLeader = nil
+				}
+
+				zoneName := ""
+				if req.ZoneName != nil {
+					zoneName = *req.ZoneName
+				} else if currentGroup.ZoneName.Valid {
+					zoneName = currentGroup.ZoneName.String
+				}
+
+				_, err = db.DB.Exec(`
+					INSERT INTO discipleship_hierarchy (
+						user_id, hierarchy_level, supervisor_id, zone_name, active_groups_assigned
+					) VALUES ($1, 1, $2, $3, 1)
+				`, *req.LeaderID, supervisorIDForLeader, nullIfEmpty(zoneName))
+				if err != nil {
+					c.Logger().Error("Error assigning hierarchy to new leader:", err)
+				}
+
+				// Actualizar también en users
+				_, _ = db.DB.Exec(`
+					UPDATE users SET 
+						discipleship_level = 1,
+						zone_name = $1,
+						updated_at = NOW()
+					WHERE id = $2
+				`, nullIfEmpty(zoneName), *req.LeaderID)
+			} else if err == nil && existingLevel.Valid {
+				// Ya tiene jerarquía, actualizar si es menor a 1
+				if existingLevel.Int64 < 1 {
+					var supervisorIDForLeader interface{}
+					if req.SupervisorID != nil && *req.SupervisorID != "" {
+						supervisorIDForLeader = *req.SupervisorID
+					} else if currentGroup.SupervisorID.Valid {
+						supervisorIDForLeader = currentGroup.SupervisorID.String
+					} else {
+						supervisorIDForLeader = nil
+					}
+
+					zoneName := ""
+					if req.ZoneName != nil {
+						zoneName = *req.ZoneName
+					} else if currentGroup.ZoneName.Valid {
+						zoneName = currentGroup.ZoneName.String
+					}
+
+					_, _ = db.DB.Exec(`
+						UPDATE discipleship_hierarchy SET
+							hierarchy_level = 1,
+							supervisor_id = COALESCE($1, supervisor_id),
+							zone_name = COALESCE($2, zone_name),
+							active_groups_assigned = active_groups_assigned + 1,
+							updated_at = NOW()
+						WHERE user_id = $3
+					`, supervisorIDForLeader, nullIfEmpty(zoneName), *req.LeaderID)
+				}
+			}
+		}
+
+		// 2. Asignar jerarquía al nuevo SUPERVISOR si se cambió
+		if req.SupervisorID != nil {
+			var existingLevel sql.NullInt64
+			err = db.DB.QueryRow(`
+				SELECT hierarchy_level 
+				FROM discipleship_hierarchy 
+				WHERE user_id = $1
+			`, *req.SupervisorID).Scan(&existingLevel)
+
+			if err == sql.ErrNoRows {
+				// No tiene jerarquía, crear con nivel 2 (Supervisor Auxiliar)
+				zoneName := ""
+				if req.ZoneName != nil {
+					zoneName = *req.ZoneName
+				} else if currentGroup.ZoneName.Valid {
+					zoneName = currentGroup.ZoneName.String
+				}
+
+				_, err = db.DB.Exec(`
+					INSERT INTO discipleship_hierarchy (
+						user_id, hierarchy_level, zone_name, active_groups_assigned
+					) VALUES ($1, 2, $2, 1)
+				`, *req.SupervisorID, nullIfEmpty(zoneName))
+				if err != nil {
+					c.Logger().Error("Error assigning hierarchy to new supervisor:", err)
+				}
+
+				// Actualizar también en users
+				_, _ = db.DB.Exec(`
+					UPDATE users SET 
+						discipleship_level = 2,
+						zone_name = $1,
+						updated_at = NOW()
+					WHERE id = $2
+				`, nullIfEmpty(zoneName), *req.SupervisorID)
+			} else if err == nil && existingLevel.Valid {
+				// Ya tiene jerarquía, actualizar solo si es menor a 2
+				if existingLevel.Int64 < 2 {
+					zoneName := ""
+					if req.ZoneName != nil {
+						zoneName = *req.ZoneName
+					} else if currentGroup.ZoneName.Valid {
+						zoneName = currentGroup.ZoneName.String
+					}
+
+					_, _ = db.DB.Exec(`
+						UPDATE discipleship_hierarchy SET
+							hierarchy_level = 2,
+							zone_name = COALESCE($1, zone_name),
+							active_groups_assigned = active_groups_assigned + 1,
+							updated_at = NOW()
+						WHERE user_id = $2
+					`, nullIfEmpty(zoneName), *req.SupervisorID)
+				}
+			}
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Grupo actualizado exitosamente",
 	})
@@ -393,6 +656,28 @@ func (h *DiscipleshipHandler) DeleteGroup(c echo.Context) error {
 	groupID := c.Param("id")
 	db := config.GetDB()
 
+	// Obtener leader_id y supervisor_id antes de eliminar
+	var leaderID string
+	var supervisorID sql.NullString
+	err := db.DB.QueryRow(`
+		SELECT leader_id, supervisor_id 
+		FROM discipleship_groups 
+		WHERE id = $1
+	`, groupID).Scan(&leaderID, &supervisorID)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": "Grupo no encontrado",
+			})
+		}
+		c.Logger().Error("Error fetching group before delete:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al obtener información del grupo",
+		})
+	}
+
+	// Soft delete del grupo
 	result, err := db.DB.Exec(`
 		UPDATE discipleship_groups 
 		SET status = 'inactive', updated_at = NOW() 
@@ -411,6 +696,23 @@ func (h *DiscipleshipHandler) DeleteGroup(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{
 			"error": "Grupo no encontrado",
 		})
+	}
+
+	// Actualizar contador de grupos en la jerarquía (reducir en 1)
+	if leaderID != "" {
+		_, _ = db.DB.Exec(`
+			UPDATE discipleship_hierarchy 
+			SET active_groups_assigned = GREATEST(0, active_groups_assigned - 1)
+			WHERE user_id = $1
+		`, leaderID)
+	}
+
+	if supervisorID.Valid && supervisorID.String != "" {
+		_, _ = db.DB.Exec(`
+			UPDATE discipleship_hierarchy 
+			SET active_groups_assigned = GREATEST(0, active_groups_assigned - 1)
+			WHERE user_id = $1
+		`, supervisorID.String)
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{
