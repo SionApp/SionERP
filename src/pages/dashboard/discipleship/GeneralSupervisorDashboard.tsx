@@ -1,15 +1,40 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
-import { useDiscipleshipData } from '@/hooks/useDiscipleshipData';
+import { useGeneralSupervisorData } from '@/hooks/useGeneralSupervisorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
-import { Building, Loader2, Map, Send, Target, TrendingUp, UserPlus, Users } from 'lucide-react';
+import type { CreateReportRequest } from '@/types/discipleship.types';
+import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+import { es } from 'date-fns/locale';
+import {
+  Building,
+  CheckCircle,
+  Clock,
+  FileText,
+  Loader2,
+  Map,
+  Plus,
+  RefreshCw,
+  Send,
+  Target,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import React, { useState } from 'react';
 import {
   Area,
@@ -47,9 +72,32 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
-  // Usar hook compartido para evitar consultas duplicadas
-  const { loading, stats, weeklyTrends, subordinates } = useDiscipleshipData({ level: 4 });
+  // Usar hook específico del supervisor general
+  const {
+    loading,
+    stats,
+    weeklyTrends,
+    subordinates,
+    zoneStats,
+    myReports,
+    error,
+    refetch,
+    refetchReports,
+  } = useGeneralSupervisorData();
+
+  // Calcular período mensual (mes anterior)
+  const today = new Date();
+  const lastMonth = subMonths(today, 1);
+  const periodStart = startOfMonth(lastMonth);
+  const periodEnd = endOfMonth(lastMonth);
+
+  // Validar si ya existe reporte para este período
+  const hasCurrentPeriodReport = myReports.some(report => {
+    const reportStart = new Date(report.period_start);
+    return reportStart >= periodStart && reportStart <= periodEnd;
+  });
 
   const [monthlyReport, setMonthlyReport] = useState({
     totalGroups: 0,
@@ -69,14 +117,11 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
 
     setIsSubmittingReport(true);
     try {
-      const today = new Date();
-      const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-
-      await DiscipleshipService.createReport({
+      const createData: CreateReportRequest = {
         report_type: 'monthly',
         report_level: 3,
-        period_start: monthAgo.toISOString().split('T')[0],
-        period_end: today.toISOString().split('T')[0],
+        period_start: format(periodStart, 'yyyy-MM-dd'),
+        period_end: format(periodEnd, 'yyyy-MM-dd'),
         report_data: {
           zoneStatistics: {
             totalGroups: monthlyReport.totalGroups,
@@ -95,9 +140,12 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
             specialEvents: monthlyReport.specialEvents.split('\n').filter(Boolean),
           },
         },
-      });
+      };
+
+      await DiscipleshipService.createReport(createData);
 
       toast.success('Reporte mensual enviado exitosamente');
+      setShowReportModal(false);
 
       // Reset form
       setMonthlyReport({
@@ -112,8 +160,15 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
         specialEvents: '',
         multiplicationPlans: '',
       });
-    } catch (error: any) {
-      toast.error(error.message || 'Error al enviar el reporte');
+
+      await refetchReports();
+    } catch (error: unknown) {
+      console.error('Error submitting report:', error);
+      if (error instanceof Error) {
+        toast.error(error.message || 'Error al enviar el reporte');
+      } else {
+        toast.error('Error al enviar el reporte');
+      }
     } finally {
       setIsSubmittingReport(false);
     }
@@ -140,11 +195,222 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
             {user?.first_name} {user?.last_name} - {user?.zone_name || 'Zona no asignada'}
           </p>
         </div>
-        <Badge variant="secondary" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
-          <span className="hidden sm:inline">Nivel 3 - Supervisor General</span>
-          <span className="sm:hidden">N3</span>
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setShowReportModal(true)}
+            disabled={hasCurrentPeriodReport}
+            variant={hasCurrentPeriodReport ? 'outline' : 'default'}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            {hasCurrentPeriodReport ? 'Reporte enviado' : 'Nuevo Reporte'}
+          </Button>
+          <Badge variant="secondary" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
+            <span className="hidden sm:inline">Nivel 3 - Supervisor General</span>
+            <span className="sm:hidden">N3</span>
+          </Badge>
+        </div>
       </div>
+
+      {/* Dialog para crear reporte - Fuera de los tabs para que funcione desde el header */}
+      <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reporte Mensual</DialogTitle>
+            <DialogDescription>
+              Período: {format(periodStart, 'MMMM yyyy', { locale: es })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Zone Statistics */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Estadísticas de Zona</h3>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Label htmlFor="totalGroups">Total de Grupos</Label>
+                  <Input
+                    id="totalGroups"
+                    type="number"
+                    value={monthlyReport.totalGroups}
+                    onChange={e =>
+                      setMonthlyReport(prev => ({
+                        ...prev,
+                        totalGroups: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="totalMembers">Total de Miembros</Label>
+                  <Input
+                    id="totalMembers"
+                    type="number"
+                    value={monthlyReport.totalMembers}
+                    onChange={e =>
+                      setMonthlyReport(prev => ({
+                        ...prev,
+                        totalMembers: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="monthlyGrowth">Crecimiento Mensual (%)</Label>
+                  <Input
+                    id="monthlyGrowth"
+                    type="number"
+                    value={monthlyReport.monthlyGrowth}
+                    onChange={e =>
+                      setMonthlyReport(prev => ({
+                        ...prev,
+                        monthlyGrowth: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Leadership Pipeline */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Pipeline de Liderazgo</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="auxiliarySupervisors">
+                    Supervisores Auxiliares Activos
+                  </Label>
+                  <Input
+                    id="auxiliarySupervisors"
+                    type="number"
+                    value={monthlyReport.auxiliarySupervisors}
+                    onChange={e =>
+                      setMonthlyReport(prev => ({
+                        ...prev,
+                        auxiliarySupervisors: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="trainingSupervisors">
+                    Supervisores en Entrenamiento
+                  </Label>
+                  <Input
+                    id="trainingSupervisors"
+                    type="number"
+                    value={monthlyReport.trainingSupervisors}
+                    onChange={e =>
+                      setMonthlyReport(prev => ({
+                        ...prev,
+                        trainingSupervisors: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="mt-4">
+                <Label htmlFor="leadershipGaps">Brechas de Liderazgo</Label>
+                <Textarea
+                  id="leadershipGaps"
+                  placeholder="Describe las brechas o necesidades de liderazgo..."
+                  className="min-h-[80px]"
+                  value={monthlyReport.leadershipGaps}
+                  onChange={e =>
+                    setMonthlyReport(prev => ({
+                      ...prev,
+                      leadershipGaps: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="mt-4">
+                <Label htmlFor="multiplicationPlans">Planes de Multiplicación</Label>
+                <Textarea
+                  id="multiplicationPlans"
+                  placeholder="Lista los planes de multiplicación (uno por línea)..."
+                  className="min-h-[80px]"
+                  value={monthlyReport.multiplicationPlans}
+                  onChange={e =>
+                    setMonthlyReport(prev => ({
+                      ...prev,
+                      multiplicationPlans: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Strategic Initiatives */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Iniciativas Estratégicas</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="newGroupLocations">Nuevas Ubicaciones de Grupos</Label>
+                  <Textarea
+                    id="newGroupLocations"
+                    placeholder="Lista las nuevas ubicaciones..."
+                    className="min-h-[80px]"
+                    value={monthlyReport.newGroupLocations}
+                    onChange={e =>
+                      setMonthlyReport(prev => ({
+                        ...prev,
+                        newGroupLocations: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="communityOutreach">Alcance Comunitario</Label>
+                  <Textarea
+                    id="communityOutreach"
+                    placeholder="Actividades de alcance realizadas..."
+                    className="min-h-[80px]"
+                    value={monthlyReport.communityOutreach}
+                    onChange={e =>
+                      setMonthlyReport(prev => ({
+                        ...prev,
+                        communityOutreach: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="mt-4">
+                <Label htmlFor="specialEvents">Eventos Especiales</Label>
+                <Textarea
+                  id="specialEvents"
+                  placeholder="Lista los eventos especiales realizados..."
+                  className="min-h-[80px]"
+                  value={monthlyReport.specialEvents}
+                  onChange={e =>
+                    setMonthlyReport(prev => ({
+                      ...prev,
+                      specialEvents: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReportModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSubmitMonthlyReport} disabled={isSubmittingReport}>
+              {isSubmittingReport ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Enviar Reporte
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Quick Stats */}
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -183,12 +449,25 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Índice de Salud</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Estado Reporte</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(stats.spiritual_health || 0).toFixed(1)}/10</div>
-            <p className="text-xs text-muted-foreground">Promedio de la zona</p>
+            {hasCurrentPeriodReport ? (
+              <>
+                <div className="text-2xl font-bold text-green-600">
+                  <CheckCircle className="h-6 w-6 inline" />
+                </div>
+                <p className="text-xs text-muted-foreground">Reporte mensual enviado</p>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-amber-600">
+                  <Clock className="h-6 w-6 inline" />
+                </div>
+                <p className="text-xs text-muted-foreground">Pendiente de enviar</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -356,166 +635,93 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
         </TabsContent>
 
         <TabsContent value="monthly-report" className="space-y-4">
+          {/* Recent Reports Section */}
+          {myReports.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Mis Reportes Recientes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {myReports.slice(0, 5).map(report => {
+                    const reportData = report.report_data as {
+                      zoneStatistics?: { totalGroups?: number; monthlyGrowth?: number };
+                    };
+                    return (
+                      <div
+                        key={report.id}
+                        className="flex items-center justify-between p-3 border rounded-lg"
+                      >
+                        <div>
+                          <p className="font-medium">
+                            {format(new Date(report.period_start), 'MMMM yyyy', { locale: es })}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Grupos: {reportData?.zoneStatistics?.totalGroups || 0} • Crecimiento:{' '}
+                            {reportData?.zoneStatistics?.monthlyGrowth || 0}%
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            report.status === 'approved'
+                              ? 'default'
+                              : report.status === 'submitted'
+                                ? 'secondary'
+                                : report.status === 'revision_required'
+                                  ? 'destructive'
+                                  : 'outline'
+                          }
+                        >
+                          {report.status === 'approved'
+                            ? 'Aprobado'
+                            : report.status === 'submitted'
+                              ? 'Pendiente'
+                              : report.status === 'revision_required'
+                                ? 'Revisar'
+                                : 'Borrador'}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
-              <CardTitle>Reporte Mensual</CardTitle>
-              <CardDescription>Análisis completo del territorio</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Reporte Mensual</CardTitle>
+                  <CardDescription>
+                    Período: {format(periodStart, 'MMMM yyyy', { locale: es })}
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => setShowReportModal(true)}
+                  disabled={hasCurrentPeriodReport}
+                  variant={hasCurrentPeriodReport ? 'outline' : 'default'}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {hasCurrentPeriodReport ? 'Reporte enviado' : 'Nuevo Reporte'}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Zone Statistics */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Estadísticas de Zona</h3>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div>
-                    <Label htmlFor="totalGroups">Total de Grupos</Label>
-                    <Input
-                      id="totalGroups"
-                      type="number"
-                      value={monthlyReport.totalGroups}
-                      onChange={e =>
-                        setMonthlyReport(prev => ({
-                          ...prev,
-                          totalGroups: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="totalMembers">Total de Miembros</Label>
-                    <Input
-                      id="totalMembers"
-                      type="number"
-                      value={monthlyReport.totalMembers}
-                      onChange={e =>
-                        setMonthlyReport(prev => ({
-                          ...prev,
-                          totalMembers: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="monthlyGrowth">Crecimiento Mensual (%)</Label>
-                    <Input
-                      id="monthlyGrowth"
-                      type="number"
-                      value={monthlyReport.monthlyGrowth}
-                      onChange={e =>
-                        setMonthlyReport(prev => ({
-                          ...prev,
-                          monthlyGrowth: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </div>
+            <CardContent>
+              {hasCurrentPeriodReport ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-600" />
+                  <p>Ya has enviado el reporte mensual para este período</p>
                 </div>
-              </div>
-
-              {/* Leadership Pipeline */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Pipeline de Liderazgo</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label htmlFor="auxiliarySupervisors">Supervisores Auxiliares Activos</Label>
-                    <Input
-                      id="auxiliarySupervisors"
-                      type="number"
-                      value={monthlyReport.auxiliarySupervisors}
-                      onChange={e =>
-                        setMonthlyReport(prev => ({
-                          ...prev,
-                          auxiliarySupervisors: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="trainingSupervisors">Supervisores en Entrenamiento</Label>
-                    <Input
-                      id="trainingSupervisors"
-                      type="number"
-                      value={monthlyReport.trainingSupervisors}
-                      onChange={e =>
-                        setMonthlyReport(prev => ({
-                          ...prev,
-                          trainingSupervisors: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Haz clic en "Nuevo Reporte" para crear un reporte mensual</p>
                 </div>
-                <div className="mt-4">
-                  <Label htmlFor="leadershipGaps">Brechas de Liderazgo</Label>
-                  <Textarea
-                    id="leadershipGaps"
-                    placeholder="Describe las brechas o necesidades de liderazgo..."
-                    className="min-h-[80px]"
-                    value={monthlyReport.leadershipGaps}
-                    onChange={e =>
-                      setMonthlyReport(prev => ({
-                        ...prev,
-                        leadershipGaps: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Strategic Initiatives */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Iniciativas Estratégicas</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label htmlFor="newGroupLocations">Nuevas Ubicaciones de Grupos</Label>
-                    <Textarea
-                      id="newGroupLocations"
-                      placeholder="Lista las nuevas ubicaciones..."
-                      className="min-h-[80px]"
-                      value={monthlyReport.newGroupLocations}
-                      onChange={e =>
-                        setMonthlyReport(prev => ({
-                          ...prev,
-                          newGroupLocations: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="communityOutreach">Alcance Comunitario</Label>
-                    <Textarea
-                      id="communityOutreach"
-                      placeholder="Actividades de alcance realizadas..."
-                      className="min-h-[80px]"
-                      value={monthlyReport.communityOutreach}
-                      onChange={e =>
-                        setMonthlyReport(prev => ({
-                          ...prev,
-                          communityOutreach: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                onClick={handleSubmitMonthlyReport}
-                disabled={isSubmittingReport}
-                className="w-full"
-                size="lg"
-              >
-                {isSubmittingReport ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-2" />
-                    Enviar Reporte Mensual
-                  </>
-                )}
-              </Button>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
