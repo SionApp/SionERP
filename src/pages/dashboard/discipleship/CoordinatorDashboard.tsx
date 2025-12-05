@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
-import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import { useDiscipleshipData } from '@/hooks/useDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { Award, Building2, Loader2, Send, TrendingUp, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
@@ -45,24 +45,20 @@ interface Goal {
   deadline: string;
 }
 
-const CoordinatorDashboard: React.FC = () => {
+const CoordinatorDashboard: React.FC = React.memo(() => {
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats>({
-    total_groups: 0,
-    total_members: 0,
-    active_leaders: 0,
-    multiplications: 0,
-    average_attendance: 0,
-    spiritual_health: 0,
-    pending_alerts: 0,
-    pending_reports: 0,
-  });
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [zoneStats, setZoneStats] = useState<any[]>([]);
-  const [weeklyTrends, setWeeklyTrends] = useState<any[]>([]);
+  
+  // Usar hook compartido para evitar consultas duplicadas
+  const {
+    loading,
+    stats,
+    goals,
+    zoneStats,
+    weeklyTrends,
+  } = useDiscipleshipData({ level: 3 });
+  
   const [quarterlyReport, setQuarterlyReport] = useState({
     totalZones: 0,
     totalGroups: 0,
@@ -75,44 +71,6 @@ const CoordinatorDashboard: React.FC = () => {
     challengesAndRisks: '',
     nextQuarterPriorities: '',
   });
-
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-
-      // Cargar estadísticas
-      const dashboardStats = await DiscipleshipAnalyticsService.getDashboardStatsByLevel(4);
-      setStats(dashboardStats);
-
-      // Cargar objetivos
-      const goalsData = await DiscipleshipAnalyticsService.getGoals();
-      setGoals(goalsData);
-
-      // Cargar estadísticas por zona
-      const zones = await DiscipleshipAnalyticsService.getZoneStats();
-      setZoneStats(zones);
-
-      // Cargar tendencias
-      const trends = await DiscipleshipAnalyticsService.getWeeklyTrends(12);
-      setWeeklyTrends(
-        trends.map((t: any) => ({
-          name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
-          asistencia: t.total_attendance,
-          conversiones: t.total_conversions,
-          grupos: t.groups_reporting,
-        }))
-      );
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Error al cargar los datos');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmitQuarterlyReport = async () => {
     setIsSubmittingReport(true);
@@ -165,29 +123,30 @@ const CoordinatorDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 md:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard del Coordinador</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard del Coordinador</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             {user?.first_name} {user?.last_name} - Vista Ejecutiva
           </p>
         </div>
-        <Badge variant="secondary" className="text-lg px-4 py-2">
-          Nivel 4 - Coordinador
+        <Badge variant="secondary" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
+          <span className="hidden sm:inline">Nivel 4 - Coordinador</span>
+          <span className="sm:hidden">N4</span>
         </Badge>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Grupos</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_groups}</div>
+            <div className="text-2xl font-bold">{stats.total_groups || 0}</div>
             <p className="text-xs text-muted-foreground">En todo el sistema</p>
           </CardContent>
         </Card>
@@ -198,7 +157,7 @@ const CoordinatorDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_members}</div>
+            <div className="text-2xl font-bold">{stats.total_members || 0}</div>
             <p className="text-xs text-muted-foreground">Activos</p>
           </CardContent>
         </Card>
@@ -209,7 +168,7 @@ const CoordinatorDashboard: React.FC = () => {
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.active_leaders}</div>
+            <div className="text-2xl font-bold">{stats.active_leaders || 0}</div>
             <p className="text-xs text-muted-foreground">En todos los niveles</p>
           </CardContent>
         </Card>
@@ -220,18 +179,18 @@ const CoordinatorDashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.multiplications}</div>
+            <div className="text-2xl font-bold">{stats.multiplications || 0}</div>
             <p className="text-xs text-muted-foreground">Este año</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Resumen Ejecutivo</TabsTrigger>
-          <TabsTrigger value="strategic-goals">Objetivos Estratégicos</TabsTrigger>
-          <TabsTrigger value="quarterly-report">Reporte Trimestral</TabsTrigger>
-          <TabsTrigger value="zone-performance">Rendimiento por Zona</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 md:gap-0">
+          <TabsTrigger value="overview" className="text-xs md:text-sm">Resumen</TabsTrigger>
+          <TabsTrigger value="strategic-goals" className="text-xs md:text-sm">Objetivos</TabsTrigger>
+          <TabsTrigger value="quarterly-report" className="text-xs md:text-sm">Reporte</TabsTrigger>
+          <TabsTrigger value="zone-performance" className="text-xs md:text-sm">Zonas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -306,11 +265,11 @@ const CoordinatorDashboard: React.FC = () => {
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Asistencia Promedio</span>
-                  <span className="font-bold">{Math.round(stats.average_attendance)}%</span>
+                  <span className="font-bold">{Math.round(stats.average_attendance || 0)}%</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Salud Espiritual</span>
-                  <span className="font-bold">{stats.spiritual_health.toFixed(1)}/10</span>
+                  <span className="font-bold">{(stats.spiritual_health || 0).toFixed(1)}/10</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Alertas Pendientes</span>
@@ -616,6 +575,8 @@ const CoordinatorDashboard: React.FC = () => {
       </Tabs>
     </div>
   );
-};
+});
+
+CoordinatorDashboard.displayName = 'CoordinatorDashboard';
 
 export default CoordinatorDashboard;

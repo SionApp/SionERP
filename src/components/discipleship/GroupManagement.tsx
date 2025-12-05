@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Column, DataTable } from '@/components/ui/DataTable';
 import {
   Dialog,
   DialogContent,
@@ -20,14 +21,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { ApiService } from '@/services/api.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateGroupRequest, DiscipleshipGroup } from '@/types/discipleship.types';
@@ -60,6 +53,7 @@ const normalizeNullString = (value: unknown): string | null => {
 
 const GroupManagement = () => {
   const [groups, setGroups] = useState<DiscipleshipGroup[]>([]);
+  const [allGroups, setAllGroups] = useState<DiscipleshipGroup[]>([]); // Todos los grupos sin filtrar
   const [leaders, setLeaders] = useState<User[]>([]);
   const [supervisors, setSupervisors] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +63,7 @@ const GroupManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterZone, setFilterZone] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [isFiltering, setIsFiltering] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<CreateGroupRequest>({
@@ -81,37 +76,10 @@ const GroupManagement = () => {
     meeting_location: '',
   });
 
-  // Cargar datos iniciales
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = useCallback(async () => {
+  // Cargar usuarios (solo una vez)
+  const loadUsers = useCallback(async () => {
     try {
-      setLoading(true);
-
-      // Cargar grupos
-      const groupsResponse = await DiscipleshipService.getGroups({
-        zone_name: filterZone !== 'all' ? filterZone : undefined,
-        status: filterStatus !== 'all' ? filterStatus : undefined,
-        search: searchTerm || undefined,
-      });
-
-      // Normalizar grupos para convertir sql.NullString a strings o null
-      const normalizedGroups = (groupsResponse.data || []).map(group => ({
-        ...group,
-        supervisor_id: normalizeNullString(group.supervisor_id),
-        zone_name: normalizeNullString(group.zone_name),
-        meeting_day: normalizeNullString(group.meeting_day),
-        meeting_time: normalizeNullString(group.meeting_time),
-        meeting_location: normalizeNullString(group.meeting_location),
-      }));
-
-      setGroups(normalizedGroups);
-
-      // Car{gar usuarios para líderes y supervisores
       const { users } = await ApiService.get<{ users: User[] }>('/users');
-      console.log('users', users);
       const allUsers = (users || []).map(user => ({
         ...user,
         id: String(normalizeNullString(user.id) || ''),
@@ -121,28 +89,82 @@ const GroupManagement = () => {
         role: String(normalizeNullString(user.role) || ''),
       }));
 
-      // Filtrar líderes potenciales (todos los usuarios activos)
       setLeaders(allUsers.filter(u => u.role !== 'pastor'));
-
-      // Filtrar supervisores (staff y supervisors)
       setSupervisors(
         allUsers.filter((u: User) => ['pastor', 'staff', 'supervisor'].includes(u.role))
       );
     } catch (error: unknown) {
-      console.error('Error loading data:', error);
-      toast.error('Error al cargar los datos');
+      console.error('Error loading users:', error);
+    }
+  }, []);
+
+  // Cargar grupos iniciales (solo una vez)
+  const loadInitialGroups = useCallback(async () => {
+    try {
+      setLoading(true);
+      const groupsResponse = await DiscipleshipService.getGroups({});
+
+      const normalizedGroups = (groupsResponse.data || []).map(group => ({
+        ...group,
+        supervisor_id: normalizeNullString(group.supervisor_id),
+        zone_name: normalizeNullString(group.zone_name),
+        meeting_day: normalizeNullString(group.meeting_day),
+        meeting_time: normalizeNullString(group.meeting_time),
+        meeting_location: normalizeNullString(group.meeting_location),
+      }));
+
+      setAllGroups(normalizedGroups);
+      setGroups(normalizedGroups);
+    } catch (error: unknown) {
+      console.error('Error loading groups:', error);
+      toast.error('Error al cargar los grupos');
     } finally {
       setLoading(false);
     }
-  }, [filterZone, filterStatus, searchTerm]);
+  }, []);
 
-  // Aplicar filtros
+  // Cargar datos iniciales (solo una vez al montar)
   useEffect(() => {
-    const delaySearch = setTimeout(() => {
-      loadData();
+    loadInitialGroups();
+    loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Filtrar grupos localmente (sin recargar)
+  useEffect(() => {
+    setIsFiltering(true);
+    const delayFilter = setTimeout(() => {
+      let filtered = [...allGroups];
+
+      // Filtro por zona
+      if (filterZone !== 'all') {
+        filtered = filtered.filter(group => normalizeNullString(group.zone_name) === filterZone);
+      }
+
+      // Filtro por estado
+      if (filterStatus !== 'all') {
+        filtered = filtered.filter(group => group.status === filterStatus);
+      }
+
+      // Filtro por búsqueda
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase();
+        filtered = filtered.filter(
+          group =>
+            group.group_name.toLowerCase().includes(searchLower) ||
+            (group.leader_name && group.leader_name.toLowerCase().includes(searchLower))
+        );
+      }
+
+      setGroups(filtered);
+      setIsFiltering(false);
     }, 300);
-    return () => clearTimeout(delaySearch);
-  }, [searchTerm, filterZone, filterStatus, loadData]);
+
+    return () => {
+      clearTimeout(delayFilter);
+      setIsFiltering(false);
+    };
+  }, [searchTerm, filterZone, filterStatus, allGroups]);
 
   const handleOpenDialog = useCallback((group?: DiscipleshipGroup) => {
     if (group) {
@@ -189,7 +211,7 @@ const GroupManagement = () => {
       }
 
       setIsDialogOpen(false);
-      loadData();
+      loadInitialGroups();
     } catch (error: unknown) {
       console.error('Error saving group:', error);
       toast.error(error instanceof Error ? error.message : 'Error al guardar el grupo');
@@ -207,13 +229,13 @@ const GroupManagement = () => {
       try {
         await DiscipleshipService.deleteGroup(groupId);
         toast.success('Grupo eliminado exitosamente');
-        loadData();
+        loadInitialGroups();
       } catch (error: unknown) {
         console.error('Error deleting group:', error);
         toast.error(error instanceof Error ? error.message : 'Error al eliminar el grupo');
       }
     },
-    [loadData]
+    [loadInitialGroups]
   );
 
   const getStatusBadge = useCallback((status: string) => {
@@ -228,6 +250,202 @@ const GroupManagement = () => {
         return <Badge variant="outline">{status}</Badge>;
     }
   }, []);
+
+  // Definir columnas para DataTable
+  const columns: Column<DiscipleshipGroup>[] = [
+    {
+      key: 'group_name',
+      label: 'Grupo',
+      render: group => <div className="font-medium whitespace-nowrap">{group.group_name}</div>,
+      responsive: 'always',
+      sortable: true,
+    },
+    {
+      key: 'leader_name',
+      label: 'Líder',
+      render: group => (
+        <div className="whitespace-nowrap">{group.leader_name || 'Sin asignar'}</div>
+      ),
+      responsive: 'always',
+      sortable: true,
+    },
+    {
+      key: 'zone_name',
+      label: 'Zona',
+      render: group => (
+        <div className="flex items-center gap-1">
+          <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+          <span className="whitespace-nowrap">
+            {normalizeNullString(group.zone_name) || 'Sin zona'}
+          </span>
+        </div>
+      ),
+      responsive: 'md',
+      sortable: true,
+    },
+    {
+      key: 'meeting_day',
+      label: 'Reunión',
+      render: group => {
+        const day = normalizeNullString(group.meeting_day);
+        const time = normalizeNullString(group.meeting_time);
+
+        // Formatear tiempo si es un timestamp ISO
+        let formattedTime = '';
+        if (time) {
+          try {
+            // Si es un timestamp ISO, extraer solo la hora
+            if (time.includes('T')) {
+              const date = new Date(time);
+              if (!isNaN(date.getTime())) {
+                formattedTime = date.toLocaleTimeString('es-ES', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                });
+              } else {
+                formattedTime = time;
+              }
+            } else {
+              formattedTime = time;
+            }
+          } catch {
+            formattedTime = time;
+          }
+        }
+
+        return (
+          <div className="flex items-center gap-1 text-sm">
+            <Calendar className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+            <span className="whitespace-nowrap">
+              {day || 'No definido'}
+              {formattedTime && ` ${formattedTime}`}
+            </span>
+          </div>
+        );
+      },
+      responsive: 'lg',
+      sortable: true,
+    },
+    {
+      key: 'active_members',
+      label: 'Miembros',
+      render: group => (
+        <div className="flex items-center gap-1">
+          <Users className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+          <span className="whitespace-nowrap">
+            {group.active_members || 0}/{group.member_count || 0}
+          </span>
+        </div>
+      ),
+      responsive: 'md',
+      sortable: true,
+    },
+    {
+      key: 'status',
+      label: 'Estado',
+      render: group => getStatusBadge(group.status),
+      responsive: 'sm',
+      sortable: true,
+    },
+  ];
+
+  // Acciones para cada grupo
+  const groupActions = (group: DiscipleshipGroup) => (
+    <div className="flex justify-end gap-2">
+      <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(group)}>
+        <Edit className="w-4 h-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => handleDelete(group.id)}
+        className="text-destructive hover:text-destructive"
+      >
+        <Trash2 className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+
+  // Render para móvil
+  const mobileCardRender = (group: DiscipleshipGroup, actions?: React.ReactNode) => (
+    <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors space-y-3">
+      <div className="flex justify-between items-start">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-base truncate">{group.group_name}</h3>
+          <p className="text-sm text-muted-foreground">
+            Líder: {group.leader_name || 'Sin asignar'}
+          </p>
+        </div>
+        <div className="flex flex-col gap-1 ml-2">{getStatusBadge(group.status)}</div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <span className="text-muted-foreground">Zona:</span>
+          <p className="font-medium flex items-center gap-1">
+            <MapPin className="w-3 h-3" />
+            {normalizeNullString(group.zone_name) || 'Sin zona'}
+          </p>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Miembros:</span>
+          <p className="font-medium flex items-center gap-1">
+            <Users className="w-3 h-3" />
+            {group.active_members || 0}/{group.member_count || 0}
+          </p>
+        </div>
+      </div>
+
+      {normalizeNullString(group.meeting_day) &&
+        (() => {
+          const time = normalizeNullString(group.meeting_time);
+          let formattedTime = '';
+          if (time) {
+            try {
+              if (time.includes('T')) {
+                const date = new Date(time);
+                if (!isNaN(date.getTime())) {
+                  formattedTime = date.toLocaleTimeString('es-ES', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  });
+                } else {
+                  formattedTime = time;
+                }
+              } else {
+                formattedTime = time;
+              }
+            } catch {
+              formattedTime = time;
+            }
+          }
+          return (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Reunión: </span>
+              <span className="font-medium flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                {normalizeNullString(group.meeting_day)}
+                {formattedTime && ` - ${formattedTime}`}
+              </span>
+            </div>
+          );
+        })()}
+
+      {normalizeNullString(group.meeting_location) && (
+        <div className="text-sm">
+          <span className="text-muted-foreground">Ubicación: </span>
+          <span className="font-medium flex items-center gap-1">
+            <MapPin className="w-3 h-3" />
+            {normalizeNullString(group.meeting_location)}
+          </span>
+        </div>
+      )}
+
+      <div className="flex justify-end items-center pt-2 border-t">{actions}</div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -454,75 +672,17 @@ const GroupManagement = () => {
         </div>
 
         {/* Tabla de grupos */}
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Grupo</TableHead>
-                <TableHead>Líder</TableHead>
-                <TableHead>Zona</TableHead>
-                <TableHead>Reunión</TableHead>
-                <TableHead>Miembros</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    No se encontraron grupos
-                  </TableCell>
-                </TableRow>
-              ) : (
-                groups.map(group => (
-                  <TableRow key={group.id}>
-                    <TableCell className="font-medium">{group.group_name}</TableCell>
-                    <TableCell>{group.leader_name || 'Sin asignar'}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-muted-foreground" />
-                        {normalizeNullString(group.zone_name) || 'Sin zona'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Calendar className="w-3 h-3 text-muted-foreground" />
-                        {normalizeNullString(group.meeting_day) || 'No definido'}{' '}
-                        {normalizeNullString(group.meeting_time) || ''}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Users className="w-3 h-3 text-muted-foreground" />
-                        {group.active_members || 0}/{group.member_count || 0}
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(group.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(group)}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(group.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Contador */}
-        <div className="mt-4 text-sm text-muted-foreground">Mostrando {groups.length} grupos</div>
+        <DataTable
+          data={groups}
+          columns={columns}
+          actions={groupActions}
+          loading={loading}
+          emptyMessage="No se encontraron grupos"
+          pagination={true}
+          itemsPerPage={10}
+          searchable={false}
+          mobileCardRender={mobileCardRender}
+        />
       </CardContent>
     </Card>
   );

@@ -7,10 +7,10 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
-import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import { useDiscipleshipData } from '@/hooks/useDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { Building, Loader2, Map, Send, Target, TrendingUp, UserPlus, Users } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -43,21 +43,14 @@ interface Subordinate {
   performance_score: number;
 }
 
-const GeneralSupervisorDashboard: React.FC = () => {
+const GeneralSupervisorDashboard: React.FC = React.memo(() => {
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats>({
-    total_groups: 0,
-    total_members: 0,
-    subordinates_count: 0,
-    average_attendance: 0,
-    spiritual_health: 0,
-    pending_alerts: 0,
-  });
-  const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
-  const [weeklyTrends, setWeeklyTrends] = useState<any[]>([]);
+
+  // Usar hook compartido para evitar consultas duplicadas
+  const { loading, stats, weeklyTrends, subordinates } = useDiscipleshipData({ level: 4 });
+
   const [monthlyReport, setMonthlyReport] = useState({
     totalGroups: 0,
     totalMembers: 0,
@@ -70,42 +63,6 @@ const GeneralSupervisorDashboard: React.FC = () => {
     specialEvents: '',
     multiplicationPlans: '',
   });
-
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
-  const loadData = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-
-      // Cargar estadísticas
-      const dashboardStats = await DiscipleshipAnalyticsService.getDashboardStatsByLevel(3);
-      setStats(dashboardStats);
-
-      // Cargar subordinados
-      const subs = await DiscipleshipAnalyticsService.getSupervisorSubordinates(user.id);
-      setSubordinates(subs);
-
-      // Cargar tendencias semanales
-      const trends = await DiscipleshipAnalyticsService.getWeeklyTrends(12);
-      setWeeklyTrends(
-        trends.map((t: any) => ({
-          name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
-          asistencia: t.total_attendance,
-          visitantes: t.total_visitors,
-          grupos: t.groups_reporting,
-        }))
-      );
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Error al cargar los datos');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmitMonthlyReport = async () => {
     if (!user) return;
@@ -172,29 +129,32 @@ const GeneralSupervisorDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 md:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard Supervisor General</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+            Dashboard Supervisor General
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             {user?.first_name} {user?.last_name} - {user?.zone_name || 'Zona no asignada'}
           </p>
         </div>
-        <Badge variant="secondary" className="text-lg px-4 py-2">
-          Nivel 3 - Supervisor General
+        <Badge variant="secondary" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
+          <span className="hidden sm:inline">Nivel 3 - Supervisor General</span>
+          <span className="sm:hidden">N3</span>
         </Badge>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Grupos</CardTitle>
             <Building className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_groups}</div>
+            <div className="text-2xl font-bold">{stats.total_groups || 0}</div>
             <p className="text-xs text-muted-foreground">En tu zona</p>
           </CardContent>
         </Card>
@@ -205,7 +165,7 @@ const GeneralSupervisorDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_members}</div>
+            <div className="text-2xl font-bold">{stats.total_members || 0}</div>
             <p className="text-xs text-muted-foreground">Activos</p>
           </CardContent>
         </Card>
@@ -216,7 +176,7 @@ const GeneralSupervisorDashboard: React.FC = () => {
             <UserPlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.subordinates_count}</div>
+            <div className="text-2xl font-bold">{stats.subordinates_count || 0}</div>
             <p className="text-xs text-muted-foreground">Bajo tu liderazgo</p>
           </CardContent>
         </Card>
@@ -227,18 +187,26 @@ const GeneralSupervisorDashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.spiritual_health.toFixed(1)}/10</div>
+            <div className="text-2xl font-bold">{(stats.spiritual_health || 0).toFixed(1)}/10</div>
             <p className="text-xs text-muted-foreground">Promedio de la zona</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Resumen</TabsTrigger>
-          <TabsTrigger value="zone-analysis">Análisis Zonal</TabsTrigger>
-          <TabsTrigger value="monthly-report">Reporte Mensual</TabsTrigger>
-          <TabsTrigger value="multiplication">Multiplicación</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 md:gap-0">
+          <TabsTrigger value="overview" className="text-xs md:text-sm">
+            Resumen
+          </TabsTrigger>
+          <TabsTrigger value="zone-analysis" className="text-xs md:text-sm">
+            Análisis Zonal
+          </TabsTrigger>
+          <TabsTrigger value="monthly-report" className="text-xs md:text-sm">
+            Reporte Mensual
+          </TabsTrigger>
+          <TabsTrigger value="multiplication" className="text-xs md:text-sm">
+            Multiplicación
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -294,14 +262,14 @@ const GeneralSupervisorDashboard: React.FC = () => {
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span>Asistencia Promedio (Meta: 85%)</span>
-                    <span>{Math.round(stats.average_attendance)}%</span>
+                    <span>{Math.round(stats.average_attendance || 0)}%</span>
                   </div>
-                  <Progress value={stats.average_attendance} className="h-2" />
+                  <Progress value={stats.average_attendance || 0} className="h-2" />
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span>Salud Espiritual (Meta: 8/10)</span>
-                    <span>{stats.spiritual_health.toFixed(1)}</span>
+                    <span>{(stats.spiritual_health || 0).toFixed(1)}</span>
                   </div>
                   <Progress value={(stats.spiritual_health / 10) * 100} className="h-2" />
                 </div>
@@ -568,6 +536,8 @@ const GeneralSupervisorDashboard: React.FC = () => {
       </Tabs>
     </div>
   );
-};
+});
+
+GeneralSupervisorDashboard.displayName = 'GeneralSupervisorDashboard';
 
 export default GeneralSupervisorDashboard;

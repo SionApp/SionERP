@@ -139,7 +139,6 @@ export class UserService {
   static async getUserById(userId: string): Promise<User> {
     try {
       const data = await ApiService.get<User>(`/users/${userId}`);
-      console.log(data, 'data');
       return {
         ...data,
       };

@@ -106,7 +106,7 @@ export function DataTable<T extends object>({
   const getResponsiveClass = (responsive: Column<T>['responsive']) => {
     switch (responsive) {
       case 'always':
-        return 'block';
+        return 'table-cell';
       case 'sm':
         return 'hidden sm:table-cell';
       case 'md':
@@ -171,7 +171,7 @@ export function DataTable<T extends object>({
 
       {/* Desktop Table */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse" style={{ tableLayout: 'auto' }}>
           <thead>
             <tr className="border-b">
               {columns.map(column => (
@@ -183,7 +183,7 @@ export function DataTable<T extends object>({
                     column.className,
                     getResponsiveClass(column.responsive)
                   )}
-                  style={{ width: column.width }}
+                  style={column.width ? { width: column.width, minWidth: column.width } : {}}
                   onClick={() => column.sortable && handleSort(column.key)}
                 >
                   <div className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export function DataTable<T extends object>({
                 </th>
               ))}
               {actions && (
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground w-32 min-w-[8rem]">
                   Acciones
                 </th>
               )}
@@ -220,11 +220,16 @@ export function DataTable<T extends object>({
                         column.className,
                         getResponsiveClass(column.responsive)
                       )}
+                      style={column.width ? { width: column.width, minWidth: column.width } : {}}
                     >
                       {column.render ? column.render(item) : (item[column.key] as React.ReactNode)}
                     </td>
                   ))}
-                  {actions && <td className="px-4 py-3">{actions(item)}</td>}
+                  {actions && (
+                    <td className="px-4 py-3 text-right w-32 min-w-[8rem]">
+                      {actions(item)}
+                    </td>
+                  )}
                 </tr>
               ))
             )}
