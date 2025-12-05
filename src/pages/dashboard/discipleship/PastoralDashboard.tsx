@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import { useDiscipleshipData } from '@/hooks/useDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import {
   AlertTriangle,
@@ -17,7 +17,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -70,77 +70,19 @@ interface PendingReport {
   submitted_at: string;
 }
 
-const PastoralDashboard: React.FC = () => {
+const PastoralDashboard: React.FC = React.memo(() => {
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('overview');
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats>({
-    total_groups: 0,
-    total_members: 0,
-    active_leaders: 0,
-    multiplications: 0,
-    average_attendance: 0,
-    spiritual_health: 0,
-    pending_alerts: 0,
-    pending_reports: 0,
-  });
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [pendingReports, setPendingReports] = useState<PendingReport[]>([]);
-  const [zoneStats, setZoneStats] = useState<any[]>([]);
-  const [weeklyTrends, setWeeklyTrends] = useState<any[]>([]);
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-
-      // Cargar estadísticas generales
-      const dashboardStats = await DiscipleshipAnalyticsService.getDashboardStatsByLevel(5);
-      setStats(dashboardStats);
-
-      // Cargar objetivos
-      const goalsData = await DiscipleshipAnalyticsService.getGoals();
-      setGoals(goalsData);
-
-      // Cargar alertas pendientes
-      const alertsData = await DiscipleshipService.getAlerts({ resolved: false });
-      setAlerts(alertsData.slice(0, 10));
-
-      // Cargar reportes pendientes de aprobación
-      const reportsData = await DiscipleshipService.getReports({ status: 'submitted' });
-      setPendingReports(reportsData.slice(0, 10));
-
-      // Cargar estadísticas por zona
-      const zones = await DiscipleshipAnalyticsService.getZoneStats();
-      setZoneStats(zones);
-
-      // Cargar tendencias
-      const trends = await DiscipleshipAnalyticsService.getWeeklyTrends(24);
-      setWeeklyTrends(
-        trends.map((t: any) => ({
-          name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
-          miembros: t.total_attendance,
-          conversiones: t.total_conversions,
-          grupos: t.groups_reporting,
-        }))
-      );
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Error al cargar los datos');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Usar hook compartido para evitar consultas duplicadas
+  const { loading, stats, zoneStats, weeklyTrends, goals, alerts, pendingReports, refetch } =
+    useDiscipleshipData({ level: 5 });
 
   const handleApproveReport = async (reportId: string) => {
     try {
       await DiscipleshipService.approveReport(reportId);
       toast.success('Reporte aprobado');
-      loadData();
+      refetch();
     } catch (error: any) {
       toast.error(error.message || 'Error al aprobar el reporte');
     }
@@ -150,7 +92,7 @@ const PastoralDashboard: React.FC = () => {
     try {
       await DiscipleshipService.resolveAlert(alertId);
       toast.success('Alerta resuelta');
-      loadData();
+      refetch();
     } catch (error: any) {
       toast.error(error.message || 'Error al resolver la alerta');
     }
@@ -179,32 +121,33 @@ const PastoralDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 md:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard Pastoral</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard Pastoral</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             {user?.first_name} {user?.last_name} - Vista Ejecutiva General
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Badge variant="default" className="text-lg px-4 py-2">
-            <Crown className="mr-2 h-4 w-4" />
-            Nivel 5 - Pastor
+          <Badge variant="default" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
+            <Crown className="mr-2 h-3 w-3 md:h-4 md:w-4" />
+            <span className="hidden sm:inline">Nivel 5 - Pastor</span>
+            <span className="sm:hidden">N5</span>
           </Badge>
         </div>
       </div>
 
       {/* Executive Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Grupos</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_groups}</div>
+            <div className="text-2xl font-bold">{stats.total_groups || 0}</div>
             <p className="text-xs text-muted-foreground">En todo el ministerio</p>
           </CardContent>
         </Card>
@@ -215,7 +158,7 @@ const PastoralDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_members}</div>
+            <div className="text-2xl font-bold">{stats.total_members || 0}</div>
             <p className="text-xs text-muted-foreground">Activos en células</p>
           </CardContent>
         </Card>
@@ -226,7 +169,7 @@ const PastoralDashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.multiplications}</div>
+            <div className="text-2xl font-bold">{stats.multiplications || 0}</div>
             <p className="text-xs text-muted-foreground">Este año</p>
           </CardContent>
         </Card>
@@ -237,105 +180,145 @@ const PastoralDashboard: React.FC = () => {
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.spiritual_health.toFixed(1)}/10</div>
+            <div className="text-2xl font-bold">{(stats.spiritual_health || 0).toFixed(1)}/10</div>
             <p className="text-xs text-muted-foreground">Promedio general</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Vista General</TabsTrigger>
-          <TabsTrigger value="strategic">Estratégico</TabsTrigger>
-          <TabsTrigger value="approvals">
-            Aprobaciones
-            {stats.pending_reports > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {stats.pending_reports}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="alerts">
-            Alertas
-            {stats.pending_alerts > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {stats.pending_alerts}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="health">Salud del Sistema</TabsTrigger>
-        </TabsList>
+        {/* Mobile: Scroll horizontal, Desktop: Grid */}
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <TabsList className="inline-flex w-full md:grid md:grid-cols-5 h-auto min-w-max md:min-w-0 gap-1 md:gap-0">
+            <TabsTrigger
+              value="overview"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Vista General
+            </TabsTrigger>
+            <TabsTrigger
+              value="strategic"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Estratégico
+            </TabsTrigger>
+            <TabsTrigger
+              value="approvals"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              <span className="hidden sm:inline">Aprobaciones</span>
+              <span className="sm:hidden">Aprob.</span>
+              {stats.pending_reports && stats.pending_reports > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5"
+                >
+                  {stats.pending_reports}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="alerts"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Alertas
+              {stats.pending_alerts && stats.pending_alerts > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5"
+                >
+                  {stats.pending_alerts}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="health"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              <span className="hidden md:inline">Salud del Sistema</span>
+              <span className="md:hidden">Salud</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-4">
           {/* Comprehensive Growth Analysis */}
           <Card>
             <CardHeader>
-              <CardTitle>Análisis Integral de Crecimiento</CardTitle>
-              <CardDescription>Tendencias de las últimas 24 semanas</CardDescription>
+              <CardTitle className="text-lg md:text-xl">Análisis Integral de Crecimiento</CardTitle>
+              <CardDescription className="text-xs md:text-sm">
+                Tendencias de las últimas 24 semanas
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {weeklyTrends.length > 0 ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={weeklyTrends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <Tooltip />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="miembros"
-                      stroke="#3b82f6"
-                      strokeWidth={3}
-                      name="Asistencia"
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="grupos"
-                      stroke="#22c55e"
-                      strokeWidth={2}
-                      name="Grupos Activos"
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="conversiones"
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      name="Conversiones"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="w-full overflow-x-auto">
+                  <ResponsiveContainer width="100%" height={300} minHeight={250}>
+                    <LineChart data={weeklyTrends}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis yAxisId="left" />
+                      <YAxis yAxisId="right" orientation="right" />
+                      <Tooltip />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="miembros"
+                        stroke="#3b82f6"
+                        strokeWidth={3}
+                        name="Asistencia"
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="grupos"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        name="Grupos Activos"
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="conversiones"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        name="Conversiones"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               ) : (
-                <p className="text-center text-muted-foreground py-12">
+                <p className="text-center text-muted-foreground py-8 md:py-12 text-sm">
                   No hay datos de tendencias disponibles
                 </p>
               )}
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             {/* Zone Health Distribution */}
             <Card>
               <CardHeader>
-                <CardTitle>Distribución por Zonas</CardTitle>
+                <CardTitle className="text-base md:text-lg">Distribución por Zonas</CardTitle>
               </CardHeader>
               <CardContent>
                 {zoneStats.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={zoneStats}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="zone_name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="total_groups" fill="#3b82f6" name="Grupos" />
-                      <Bar dataKey="total_members" fill="#22c55e" name="Miembros" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="w-full overflow-x-auto">
+                    <ResponsiveContainer width="100%" height={250} minHeight={200}>
+                      <BarChart data={zoneStats}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="zone_name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="total_groups" fill="#3b82f6" name="Grupos" />
+                        <Bar dataKey="total_members" fill="#22c55e" name="Miembros" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No hay datos de zonas</p>
+                  <p className="text-center text-muted-foreground py-8 text-sm">
+                    No hay datos de zonas
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -343,23 +326,25 @@ const PastoralDashboard: React.FC = () => {
             {/* Key Performance Indicators */}
             <Card>
               <CardHeader>
-                <CardTitle>Indicadores Clave</CardTitle>
+                <CardTitle className="text-base md:text-lg">Indicadores Clave</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 grid-cols-2">
+                <div className="grid gap-3 md:gap-4 grid-cols-2">
                   <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
                     <div className="text-2xl font-bold text-green-600">
-                      {Math.round(stats.average_attendance)}%
+                      {Math.round(stats.average_attendance || 0)}%
                     </div>
                     <div className="text-sm text-green-700 dark:text-green-300">Asistencia</div>
                   </div>
                   <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{stats.active_leaders}</div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {stats.active_leaders || 0}
+                    </div>
                     <div className="text-sm text-blue-700 dark:text-blue-300">Líderes Activos</div>
                   </div>
                   <div className="text-center p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600">
-                      {stats.multiplications}
+                      {stats.multiplications || 0}
                     </div>
                     <div className="text-sm text-purple-700 dark:text-purple-300">
                       Multiplicaciones
@@ -567,19 +552,19 @@ const PastoralDashboard: React.FC = () => {
                     <div>
                       <div className="flex justify-between text-sm mb-2">
                         <span>Asistencia Promedio</span>
-                        <span>{Math.round(stats.average_attendance)}%</span>
+                        <span>{Math.round(stats.average_attendance || 0)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                           className="h-2 rounded-full bg-blue-500"
-                          style={{ width: `${stats.average_attendance}%` }}
+                          style={{ width: `${stats.average_attendance || 0}%` }}
                         ></div>
                       </div>
                     </div>
                     <div>
                       <div className="flex justify-between text-sm mb-2">
                         <span>Salud Espiritual</span>
-                        <span>{stats.spiritual_health.toFixed(1)}/10</span>
+                        <span>{(stats.spiritual_health || 0).toFixed(1)}/10</span>
                       </div>
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
@@ -592,8 +577,10 @@ const PastoralDashboard: React.FC = () => {
                       <div className="flex justify-between text-sm mb-2">
                         <span>Cobertura de Liderazgo</span>
                         <span>
-                          {stats.total_groups > 0
-                            ? Math.round((stats.active_leaders / stats.total_groups) * 100)
+                          {(stats.total_groups || 0) > 0
+                            ? Math.round(
+                                ((stats.active_leaders || 0) / (stats.total_groups || 1)) * 100
+                              )
                             : 0}
                           %
                         </span>
@@ -603,8 +590,11 @@ const PastoralDashboard: React.FC = () => {
                           className="h-2 rounded-full bg-purple-500"
                           style={{
                             width: `${
-                              stats.total_groups > 0
-                                ? Math.min(100, (stats.active_leaders / stats.total_groups) * 100)
+                              (stats.total_groups || 0) > 0
+                                ? Math.min(
+                                    100,
+                                    ((stats.active_leaders || 0) / (stats.total_groups || 1)) * 100
+                                  )
                                 : 0
                             }%`,
                           }}
@@ -627,11 +617,11 @@ const PastoralDashboard: React.FC = () => {
                     </div>
                     <div className="flex justify-between p-3 bg-muted rounded-lg">
                       <span>Líderes en el Sistema</span>
-                      <span className="font-bold">{stats.active_leaders}</span>
+                      <span className="font-bold">{stats.active_leaders || 0}</span>
                     </div>
                     <div className="flex justify-between p-3 bg-muted rounded-lg">
                       <span>Multiplicaciones este Año</span>
-                      <span className="font-bold">{stats.multiplications}</span>
+                      <span className="font-bold">{stats.multiplications || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -642,6 +632,8 @@ const PastoralDashboard: React.FC = () => {
       </Tabs>
     </div>
   );
-};
+});
+
+PastoralDashboard.displayName = 'PastoralDashboard';
 
 export default PastoralDashboard;
