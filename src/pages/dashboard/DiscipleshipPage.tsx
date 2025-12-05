@@ -1,5 +1,6 @@
 import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
 import GroupManagement from '@/components/discipleship/GroupManagement';
+import HierarchyManagement from '@/components/discipleship/HierarchyManagement';
 import ZoneManagement from '@/components/discipleship/ZoneManagement';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -198,7 +199,7 @@ const DiscipleshipPage = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
         {/* Mobile: Scroll horizontal, Desktop: Grid */}
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <TabsList className="inline-flex w-full md:grid md:grid-cols-5 h-auto min-w-max md:min-w-0 gap-1 md:gap-0">
+          <TabsList className="inline-flex w-full md:grid md:grid-cols-6 h-auto min-w-max md:min-w-0 gap-1 md:gap-0">
             <TabsTrigger
               value="overview"
               className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
@@ -216,6 +217,12 @@ const DiscipleshipPage = () => {
               className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
             >
               Gestión
+            </TabsTrigger>
+            <TabsTrigger
+              value="hierarchy"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Jerarquías
             </TabsTrigger>
             <TabsTrigger
               value="zones"
@@ -359,6 +366,11 @@ const DiscipleshipPage = () => {
         {/* Group Management Tab */}
         <TabsContent value="manage">
           <GroupManagement />
+        </TabsContent>
+
+        {/* Hierarchy Management Tab */}
+        <TabsContent value="hierarchy">
+          <HierarchyManagement />
         </TabsContent>
 
         {/* Zones Tab */}
