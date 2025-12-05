@@ -21,14 +21,56 @@ func NewDiscipleshipHandler() *DiscipleshipHandler {
 // GRUPOS
 // =====================================================
 
+// Helper para obtener información de acceso a discipulado
+func getDiscipleshipAccessInfo(c echo.Context, db *config.Database) (userID string, hierarchyLevel *int, zoneName *string, canSeeAll bool) {
+	userID, _ = c.Get("user_id").(string)
+	userRole, _ := c.Get("db_role").(string)
+	
+	// Pastor y Staff tienen acceso completo
+	if userRole == "pastor" || userRole == "staff" {
+		return userID, nil, nil, true
+	}
+	
+	// Otros roles necesitan hierarchy_level
+	var level int
+	var zone sql.NullString
+	err := db.DB.QueryRow(`
+		SELECT hierarchy_level, zone_name 
+		FROM discipleship_hierarchy 
+		WHERE user_id = $1
+	`, userID).Scan(&level, &zone)
+	
+	if err == nil {
+		hierarchyLevel = &level
+		if zone.Valid {
+			zoneNameStr := zone.String
+			zoneName = &zoneNameStr
+		}
+		return userID, hierarchyLevel, zoneName, false
+	}
+	
+	// Sin jerarquía asignada
+	return userID, nil, nil, false
+}
+
 // GetGroups obtiene lista de grupos con filtros
 func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 	db := config.GetDB()
 
-	// Parámetros de filtro
+	// Obtener información de acceso del usuario
+	userID, hierarchyLevel, userZone, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	
+	// Si no tiene acceso, retornar error o lista vacía
+	if !canSeeAll && hierarchyLevel == nil {
+		return c.JSON(http.StatusForbidden, map[string]string{
+			"error": "No tienes acceso al módulo de discipulado. Contacta a un administrador para asignarte un nivel jerárquico.",
+		})
+	}
+
+	// Parámetros de filtro del query
 	zoneName := c.QueryParam("zone_name")
 	status := c.QueryParam("status")
-	leaderID := c.QueryParam("leader_id")
+	leaderIDParam := c.QueryParam("leader_id")
 	search := c.QueryParam("search")
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
@@ -59,6 +101,29 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 	args := []interface{}{}
 	argCount := 0
 
+	// Aplicar filtros según hierarchy_level (solo si no es acceso completo)
+	if !canSeeAll && hierarchyLevel != nil {
+		switch *hierarchyLevel {
+		case 1: // Líder - solo su grupo
+			argCount++
+			query += fmt.Sprintf(" AND g.leader_id = $%d", argCount)
+			args = append(args, userID)
+		case 2: // Supervisor Auxiliar - grupos que supervisa
+			argCount++
+			query += fmt.Sprintf(" AND g.supervisor_id = $%d", argCount)
+			args = append(args, userID)
+		case 3: // Coordinador - su zona
+			if userZone != nil && *userZone != "" {
+				argCount++
+				query += fmt.Sprintf(" AND g.zone_name = $%d", argCount)
+				args = append(args, *userZone)
+			}
+		// case 4 y 5 pueden ver más, según necesidad
+		// Por ahora, si no hay filtro específico, no se aplica restricción adicional
+		}
+	}
+
+	// Filtros del query parameter (aplicados después de los filtros de acceso)
 	if zoneName != "" {
 		argCount++
 		query += fmt.Sprintf(" AND g.zone_name = $%d", argCount)
@@ -71,10 +136,10 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 		args = append(args, status)
 	}
 
-	if leaderID != "" {
+	if leaderIDParam != "" {
 		argCount++
 		query += fmt.Sprintf(" AND g.leader_id = $%d", argCount)
-		args = append(args, leaderID)
+		args = append(args, leaderIDParam)
 	}
 
 	if search != "" {
