@@ -139,20 +139,21 @@ const LeaderDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 md:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard del Líder</h1>
-          <p className="text-muted-foreground">{groupStats.groupName}</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard del Líder</h1>
+          <p className="text-sm md:text-base text-muted-foreground">{groupStats.groupName}</p>
         </div>
-        <Badge variant="secondary" className="text-lg px-4 py-2">
-          Nivel 1 - Líder de Grupo
+        <Badge variant="secondary" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
+          <span className="hidden sm:inline">Nivel 1 - Líder de Grupo</span>
+          <span className="sm:hidden">N1</span>
         </Badge>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Miembros Activos</CardTitle>
