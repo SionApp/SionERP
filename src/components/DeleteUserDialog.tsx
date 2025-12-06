@@ -19,12 +19,12 @@ interface DeleteUserDialogProps {
   isDeleting?: boolean;
 }
 
-export const DeleteUserDialog = ({ 
-  user, 
-  isOpen, 
-  onClose, 
+export const DeleteUserDialog = ({
+  user,
+  isOpen,
+  onClose,
   onConfirm,
-  isDeleting = false 
+  isDeleting = false,
 }: DeleteUserDialogProps) => {
   if (!user) return null;
 
@@ -36,14 +36,10 @@ export const DeleteUserDialog = ({
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
               <AlertTriangle className="h-5 w-5 text-destructive" />
             </div>
-            <AlertDialogTitle className="text-left">
-              ¿Eliminar usuario?
-            </AlertDialogTitle>
+            <AlertDialogTitle className="text-left">¿Eliminar usuario?</AlertDialogTitle>
           </div>
           <AlertDialogDescription className="text-left space-y-2">
-            <span>
-              Estás a punto de eliminar al usuario:
-            </span>
+            <span>Estás a punto de eliminar al usuario:</span>
             <div className="bg-muted p-3 rounded-md space-y-1">
               <p className="font-semibold text-foreground">
                 {user.first_name} {user.last_name}
@@ -51,12 +47,14 @@ export const DeleteUserDialog = ({
               <p className="text-sm">{user.email}</p>
               <p className="text-sm">Cédula: {user.id_number}</p>
             </div>
-            <p className="text-destructive font-medium pt-2">
-              ⚠️ Esta acción no se puede deshacer.
-            </p>
-            <p className="text-sm">
-              Se eliminarán todos los datos asociados a este usuario, incluyendo:
-            </p>
+            <div>
+              <p className="text-destructive font-medium pt-2">
+                ⚠️ Esta acción no se puede deshacer.
+              </p>
+              <p className="text-sm">
+                Se eliminarán todos los datos asociados a este usuario, incluyendo:
+              </p>
+            </div>
             <ul className="text-sm list-disc list-inside space-y-1 pl-2">
               <li>Información personal y de contacto</li>
               <li>Historial de asistencia</li>
@@ -66,11 +64,9 @@ export const DeleteUserDialog = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>
-            Cancelar
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            onClick={(e) => {
+            onClick={e => {
               e.preventDefault();
               onConfirm();
             }}

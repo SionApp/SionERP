@@ -1,39 +1,27 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Users,
-  UserPlus,
-  Shield,
-  Activity,
-  TrendingUp,
-  Calendar,
-  Clock,
-  Target,
-} from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { AuditLogModal } from '@/components/AuditLogModal';
 import { DiscipleshipAnalyticsSection } from '@/components/dashboard/DiscipleshipAnalyticsSection';
-import { AuditLog } from '@/types/audit.types';
-import { RecentActivity } from '@/services/dashboard.service';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { RecentActivity } from '@/services/dashboard.service';
+import { AuditLog } from '@/types/audit.types';
+import {
+  Activity,
+  Calendar,
+  Shield,
+  Target,
+  UserPlus,
+  Users
+} from 'lucide-react';
+import { useState } from 'react';
+import {
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer
+} from 'recharts';
 
 const DashboardHome = () => {
   const { user } = useAuth(); // Obtener usuario del contexto
@@ -171,10 +159,6 @@ const DashboardHome = () => {
                   admin: { label: 'Admin', color: 'hsl(var(--primary))' },
                   moderador: { label: 'Moderador', color: 'hsl(266 85% 68%)' },
                   usuario: { label: 'Usuario', color: 'hsl(295 85% 58%)' },
-                  invitado: {
-                    label: 'Invitado',
-                    color: 'hsl(217 32.6% 17.5%)',
-                  },
                 }}
                 className="h-[250px]"
               >

@@ -48,10 +48,17 @@ func SupabaseAuth() echo.MiddlewareFunc {
 			}
 			var dbRole string
 
-			err = config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", claims.Sub).Scan(&dbRole)
-			if err != nil {
+			// Obtener la conexión a la base de datos de forma segura
+			db := config.GetDB()
+			if db != nil && db.DB != nil {
+				err = db.DB.QueryRow("SELECT role FROM users WHERE id = $1", claims.Sub).Scan(&dbRole)
+				if err != nil {
 					fmt.Printf("Could not fetch user role for %s: %v\n", claims.Sub, err)
 					dbRole = "guest" // valor por defecto si falla
+				}
+			} else {
+				fmt.Printf("⚠️  Database connection not available, using default role\n")
+				dbRole = "guest"
 			}
 
 			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", claims.Sub, claims.Email, claims.Role)

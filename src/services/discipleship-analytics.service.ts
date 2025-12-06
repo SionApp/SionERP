@@ -1,4 +1,9 @@
-import { supabase } from '@/integrations/supabase/client';
+import { ApiService } from './api.service';
+import { DiscipleshipService } from './discipleship.service';
+
+// =====================================================
+// TIPOS
+// =====================================================
 
 export interface DiscipleshipAnalytics {
   totalGroups: number;
@@ -8,31 +13,27 @@ export interface DiscipleshipAnalytics {
   activeLeaders: number;
   multiplications: number;
   spiritualHealth: number;
-  dateRange: {
-    from: string;
-    to: string;
-  };
+  dateRange: { from: string; to: string };
 }
 
 export interface ZoneStats {
   zoneName: string;
-  groups: number;
-  members: number;
-  attendance: number;
+  totalGroups: number;
+  totalMembers: number;
+  avgAttendance: number;
   growthRate: number;
-  spiritualHealth: number;
-  multiplications: number;
+  healthIndex: number;
 }
 
 export interface GroupPerformance {
   groupId: string;
   groupName: string;
   leaderName: string;
-  attendance: number;
-  growth: number;
-  spiritualHealth: number;
-  consistency: number;
-  lastActivity: string;
+  avgAttendance: number;
+  growthRate: number;
+  spiritualTemp: number;
+  status: string;
+  lastReportDate: string;
 }
 
 export interface DiscipleshipAlert {
@@ -40,20 +41,23 @@ export interface DiscipleshipAlert {
   type: 'critical' | 'warning' | 'info' | 'success';
   title: string;
   message: string;
-  actionRequired: boolean;
-  priority: number;
-  createdAt: string;
   groupName?: string;
-  leaderName?: string;
+  userName?: string;
+  createdAt: string;
+  priority: number;
+  actionRequired: boolean;
+  resolved: boolean;
 }
 
 export interface MultiplicationTracker {
-  parentGroup: string;
-  newGroup?: string;
-  date: string;
-  status: 'planned' | 'successful' | 'struggling' | 'failed';
+  id: string;
+  parentGroupName: string;
+  newGroupName: string | null;
+  parentLeaderName: string;
+  newLeaderName: string | null;
+  multiplicationDate: string;
+  status: 'planned' | 'in_progress' | 'successful' | 'failed';
   initialMembers: number;
-  notes?: string;
 }
 
 export interface WeeklyTrend {
@@ -61,360 +65,259 @@ export interface WeeklyTrend {
   attendance: number;
   visitors: number;
   conversions: number;
-  spiritualHealth: number;
+  spiritualTemp: number;
 }
 
+export interface LeaderStats {
+  groupId: string;
+  groupName: string;
+  memberCount: number;
+  activeMembers: number;
+  avgAttendance: number;
+  spiritualTemperature: number;
+  lastReportDate: string;
+  meetingDay: string;
+  meetingTime: string;
+  meetingLocation: string;
+}
+
+export interface DashboardStats {
+  totalGroups?: number;
+  totalMembers?: number;
+  averageAttendance?: number;
+  growthRate?: number;
+  healthIndex?: number;
+  groupsUnderSupervision?: number;
+  auxiliarySupervisors?: number;
+  leadersSupportNeeded?: number;
+  territoryHealthIndex?: number;
+  totalSupervisors?: number;
+  zoneGrowthRate?: number;
+}
+
+// =====================================================
+// SERVICIO
+// =====================================================
+
 export class DiscipleshipAnalyticsService {
-  static async getDiscipleshipAnalytics(
-    zoneFilter?: string,
-    dateFrom?: string,
-    dateTo?: string
-  ): Promise<DiscipleshipAnalytics> {
-    try {
-      const { data, error } = await supabase.rpc('calculate_discipleship_stats', {
-        zone_filter: zoneFilter || null,
-        date_from: dateFrom || null,
-        date_to: dateTo || null,
-      });
+  private static baseUrl = '/discipleship';
 
-      if (error) throw error;
+  // Obtener analytics generales
+  static async getAnalytics(zoneName?: string): Promise<DiscipleshipAnalytics> {
+    const url = zoneName
+      ? `${this.baseUrl}/analytics?zone_name=${zoneName}`
+      : `${this.baseUrl}/analytics`;
 
-      // Casting seguro de la respuesta JSON
-      return data as unknown as DiscipleshipAnalytics;
-    } catch (error) {
-      console.error('Error fetching discipleship analytics:', error);
-      return {
-        totalGroups: 0,
-        totalMembers: 0,
-        averageAttendance: 0,
-        growthRate: 0,
-        activeLeaders: 0,
-        multiplications: 0,
-        spiritualHealth: 0,
-        dateRange: { from: '', to: '' },
-      };
-    }
+    const data = await ApiService.get(url);
+
+    return {
+      totalGroups: data.total_groups || 0,
+      totalMembers: data.total_members || 0,
+      averageAttendance: data.average_attendance || 0,
+      growthRate: data.growth_rate || 0,
+      activeLeaders: data.active_leaders || 0,
+      multiplications: data.multiplications || 0,
+      spiritualHealth: data.spiritual_health || 0,
+      dateRange: { from: '', to: '' },
+    };
   }
 
+  // Obtener estadísticas por zona
   static async getZoneStats(): Promise<ZoneStats[]> {
-    try {
-      const { data: groups, error: groupsError } = await supabase
-        .from('discipleship_groups')
-        .select(
-          `
-          zone_name,
-          member_count,
-          status
-        `
-        )
-        .eq('status', 'active');
+    const data = await ApiService.get(`${this.baseUrl}/analytics/zones`);
 
-      if (groupsError) throw groupsError;
-
-      const { data: metrics, error: metricsError } = await supabase
-        .from('discipleship_metrics')
-        .select(
-          `
-          attendance,
-          spiritual_temperature,
-          week_date,
-          discipleship_groups!inner(zone_name)
-        `
-        )
-        .gte(
-          'week_date',
-          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        );
-
-      if (metricsError) throw metricsError;
-
-      const { data: multiplications, error: multiError } = await supabase
-        .from('cell_multiplication_tracking')
-        .select(
-          `
-          multiplication_date,
-          success_status,
-          discipleship_groups!inner(zone_name)
-        `
-        )
-        .gte(
-          'multiplication_date',
-          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        );
-
-      if (multiError) throw multiError;
-
-      const zoneMap = new Map<string, ZoneStats>();
-
-      // Procesar grupos por zona
-      groups?.forEach(group => {
-        if (!group.zone_name) return;
-
-        const existing = zoneMap.get(group.zone_name) || {
-          zoneName: group.zone_name,
-          groups: 0,
-          members: 0,
-          attendance: 0,
-          growthRate: 0,
-          spiritualHealth: 0,
-          multiplications: 0,
-        };
-
-        existing.groups++;
-        existing.members += group.member_count || 0;
-
-        zoneMap.set(group.zone_name, existing);
-      });
-
-      // Procesar métricas por zona
-      metrics?.forEach(metric => {
-        const zoneName = (metric.discipleship_groups as any)?.zone_name;
-        if (!zoneName) return;
-
-        const existing = zoneMap.get(zoneName);
-        if (existing) {
-          existing.attendance += metric.attendance || 0;
-          existing.spiritualHealth += metric.spiritual_temperature || 0;
-        }
-      });
-
-      // Procesar multiplicaciones por zona
-      multiplications?.forEach(mult => {
-        const zoneName = (mult.discipleship_groups as any)?.zone_name;
-        if (!zoneName) return;
-
-        const existing = zoneMap.get(zoneName);
-        if (existing && mult.success_status === 'successful') {
-          existing.multiplications++;
-        }
-      });
-
-      // Normalizar valores y calcular promedios
-      return Array.from(zoneMap.values()).map(zone => {
-        const groupCount = zone.groups || 1;
-        return {
-          ...zone,
-          attendance: Math.round(zone.attendance / groupCount),
-          spiritualHealth: Math.round((zone.spiritualHealth / groupCount) * 10) / 10,
-          growthRate: Math.round(Math.random() * 20 - 5), // TODO: Calcular crecimiento real
-        };
-      });
-    } catch (error) {
-      console.error('Error fetching zone stats:', error);
-      return [];
-    }
+    return (data || []).map((zone: any) => ({
+      zoneName: zone.zone_name || 'Sin zona',
+      totalGroups: zone.total_groups || 0,
+      totalMembers: zone.total_members || 0,
+      avgAttendance: zone.avg_attendance || 0,
+      growthRate: zone.growth_rate || 0,
+      healthIndex: zone.health_index || 0,
+    }));
   }
 
+  // Obtener rendimiento de grupos
   static async getGroupPerformance(): Promise<GroupPerformance[]> {
-    try {
-      const { data, error } = await supabase
-        .from('discipleship_groups')
-        .select(
-          `
-          id,
-          group_name,
-          leader_id,
-          status,
-          updated_at,
-          users!inner(first_name, last_name),
-          discipleship_metrics(
-            attendance,
-            spiritual_temperature,
-            week_date
-          )
-        `
-        )
-        .eq('status', 'active')
-        .order('updated_at', { ascending: false });
+    const data = await ApiService.get(`${this.baseUrl}/analytics/performance`);
 
-      if (error) throw error;
-
-      return (
-        data?.map(group => {
-          const metrics = Array.isArray(group.discipleship_metrics)
-            ? group.discipleship_metrics
-            : [];
-          const recentMetrics = metrics.slice(0, 4); // Últimas 4 semanas
-
-          const avgAttendance =
-            recentMetrics.length > 0
-              ? (recentMetrics as any[]).reduce(
-                  (sum: number, m: any) => sum + (m.attendance || 0),
-                  0
-                ) / recentMetrics.length
-              : 0;
-          const avgSpiritualHealth =
-            recentMetrics.length > 0
-              ? (recentMetrics as any[]).reduce(
-                  (sum: number, m: any) => sum + (m.spiritual_temperature || 0),
-                  0
-                ) / recentMetrics.length
-              : 0;
-
-          return {
-            groupId: group.id,
-            groupName: group.group_name,
-            leaderName:
-              `${(group.users as any)?.first_name || ''} ${(group.users as any)?.last_name || ''}`.trim(),
-            attendance: Math.round(avgAttendance),
-            growth: Math.round(Math.random() * 30 - 10), // TODO: Calcular crecimiento real
-            spiritualHealth: Math.round(avgSpiritualHealth * 10) / 10,
-            consistency: recentMetrics.length * 25, // % basado en reportes enviados
-            lastActivity: group.updated_at,
-          };
-        }) || []
-      );
-    } catch (error) {
-      console.error('Error fetching group performance:', error);
-      return [];
-    }
+    return (data || []).map((group: any) => ({
+      groupId: group.group_id || '',
+      groupName: group.group_name || 'Sin nombre',
+      leaderName: group.leader_name || 'Sin líder',
+      avgAttendance: group.avg_attendance || 0,
+      growthRate: group.growth_rate || 0,
+      spiritualTemp: group.spiritual_temp || 0,
+      status: group.status || 'active',
+      lastReportDate: group.last_report_date || '',
+    }));
   }
 
-  static async getDiscipleshipAlerts(): Promise<DiscipleshipAlert[]> {
-    try {
-      const { data, error } = await supabase
-        .from('discipleship_alerts')
-        .select(
-          `
-          id,
-          alert_type,
-          title,
-          message,
-          action_required,
-          priority,
-          created_at,
-          resolved,
-          discipleship_groups(group_name),
-          users(first_name, last_name)
-        `
-        )
-        .eq('resolved', false)
-        .order('priority', { ascending: true })
-        .order('created_at', { ascending: false })
-        .limit(20);
+  // Obtener alertas
+  static async getAlerts(resolved = false): Promise<DiscipleshipAlert[]> {
+    const data = await ApiService.get(`${this.baseUrl}/alerts?resolved=${resolved}`);
 
-      if (error) throw error;
-
-      return (
-        data?.map(alert => ({
-          id: alert.id,
-          type: alert.alert_type as 'critical' | 'warning' | 'info' | 'success',
-          title: alert.title,
-          message: alert.message,
-          actionRequired: alert.action_required,
-          priority: alert.priority,
-          createdAt: alert.created_at,
-          groupName: (alert.discipleship_groups as any)?.group_name,
-          leaderName: (alert.users as any)
-            ? `${(alert.users as any).first_name} ${(alert.users as any).last_name}`.trim()
-            : undefined,
-        })) || []
-      );
-    } catch (error) {
-      console.error('Error fetching discipleship alerts:', error);
-      return [];
-    }
+    return (data || []).map((alert: any) => ({
+      id: alert.id || '',
+      type: this.mapAlertPriorityToType(alert.priority),
+      title: alert.title || '',
+      message: alert.message || '',
+      groupName: alert.group_name,
+      userName: alert.user_name,
+      createdAt: alert.created_at || '',
+      priority: alert.priority || 3,
+      actionRequired: alert.action_required || false,
+      resolved: alert.resolved || false,
+    }));
   }
 
-  static async getMultiplicationTracking(): Promise<MultiplicationTracker[]> {
-    try {
-      const { data, error } = await supabase
-        .from('cell_multiplication_tracking')
-        .select(
-          `
-          multiplication_date,
-          initial_members,
-          success_status,
-          notes,
-          parent_group:discipleship_groups!parent_group_id(group_name),
-          new_group:discipleship_groups!new_group_id(group_name)
-        `
-        )
-        .order('multiplication_date', { ascending: false })
-        .limit(10);
+  // Obtener multiplicaciones
+  static async getMultiplications(): Promise<MultiplicationTracker[]> {
+    const data = await ApiService.get(`${this.baseUrl}/multiplications`);
 
-      if (error) throw error;
-
-      return (
-        data?.map(track => ({
-          parentGroup: (track.parent_group as any)?.group_name || 'Grupo no encontrado',
-          newGroup: (track.new_group as any)?.group_name,
-          date: track.multiplication_date,
-          status: track.success_status as 'planned' | 'successful' | 'struggling' | 'failed',
-          initialMembers: track.initial_members || 0,
-          notes: track.notes,
-        })) || []
-      );
-    } catch (error) {
-      console.error('Error fetching multiplication tracking:', error);
-      return [];
-    }
+    return (data || []).map((mult: any) => ({
+      id: mult.id || '',
+      parentGroupName: mult.parent_group_name || '',
+      newGroupName: mult.new_group_name,
+      parentLeaderName: mult.parent_leader_name || '',
+      newLeaderName: mult.new_leader_name,
+      multiplicationDate: mult.multiplication_date || '',
+      status: mult.success_status || 'planned',
+      initialMembers: mult.initial_members || 0,
+    }));
   }
 
-  static async getWeeklyTrends(weeks = 12): Promise<WeeklyTrend[]> {
-    try {
-      const { data, error } = await supabase
-        .from('discipleship_metrics')
-        .select(
-          `
-          week_date,
-          attendance,
-          new_visitors,
-          returning_visitors,
-          conversions,
-          spiritual_temperature
-        `
-        )
-        .gte(
-          'week_date',
-          new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        )
-        .order('week_date', { ascending: true });
+  // Obtener tendencias semanales agregadas (para dashboards)
+  // Si necesitas métricas individuales de un grupo, usa DiscipleshipService.getMetrics()
+  static async getWeeklyTrends(weeks: number = 12, groupId?: string): Promise<WeeklyTrend[]> {
+    // Si se especifica un group_id, usar el endpoint de metrics y procesar
+    if (groupId) {
+      const metrics = await DiscipleshipService.getMetrics({ group_id: groupId });
 
-      if (error) throw error;
+      // Agrupar métricas por semana
+      const weeklyMap = new Map<string, any>();
 
-      // Agrupar por semana
-      const weeklyData = new Map<string, WeeklyTrend>();
+      metrics.forEach((metric: any) => {
+        const weekStart = new Date(metric.week_date);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Lunes de esa semana
+        const weekKey = weekStart.toISOString().split('T')[0];
 
-      data?.forEach(metric => {
-        const weekKey = metric.week_date;
-        const existing = weeklyData.get(weekKey) || {
-          week: weekKey,
-          attendance: 0,
-          visitors: 0,
-          conversions: 0,
-          spiritualHealth: 0,
-        };
+        if (!weeklyMap.has(weekKey)) {
+          weeklyMap.set(weekKey, {
+            week_start: weekKey,
+            total_attendance: 0,
+            total_visitors: 0,
+            total_conversions: 0,
+            avg_spiritual_temp: 0,
+            groups_reporting: 1,
+            count: 0,
+          });
+        }
 
-        existing.attendance += metric.attendance || 0;
-        existing.visitors += (metric.new_visitors || 0) + (metric.returning_visitors || 0);
-        existing.conversions += metric.conversions || 0;
-        existing.spiritualHealth += metric.spiritual_temperature || 0;
-
-        weeklyData.set(weekKey, existing);
+        const week = weeklyMap.get(weekKey);
+        week.total_attendance += metric.attendance || 0;
+        week.total_visitors += (metric.new_visitors || 0) + (metric.returning_visitors || 0);
+        week.total_conversions += metric.conversions || 0;
+        week.avg_spiritual_temp += metric.spiritual_temperature || 0;
+        week.count += 1;
       });
 
-      return Array.from(weeklyData.values())
-        .slice(-weeks)
+      // Calcular promedios y convertir a array
+      return Array.from(weeklyMap.values())
         .map(week => ({
-          ...week,
-          spiritualHealth: Math.round(week.spiritualHealth * 10) / 10,
-        }));
+          week: week.week_start,
+          week_start: week.week_start,
+          attendance: week.total_attendance,
+          total_attendance: week.total_attendance,
+          visitors: week.total_visitors,
+          total_visitors: week.total_visitors,
+          conversions: week.total_conversions,
+          total_conversions: week.total_conversions,
+          spiritualTemp: week.count > 0 ? week.avg_spiritual_temp / week.count : 5,
+          groups_reporting: week.groups_reporting,
+        }))
+        .sort((a, b) => a.week_start.localeCompare(b.week_start))
+        .slice(-weeks); // Últimas N semanas
+    }
+
+    // Para tendencias generales, usar el endpoint específico de weekly-trends
+    const url = `${this.baseUrl}/weekly-trends?weeks=${weeks}`;
+    const data = await ApiService.get(url);
+
+    return (data || []).map((trend: any) => ({
+      week: trend.week_start || '',
+      week_start: trend.week_start || '',
+      attendance: trend.total_attendance || 0,
+      total_attendance: trend.total_attendance || 0,
+      visitors: trend.total_visitors || 0,
+      total_visitors: trend.total_visitors || 0,
+      conversions: trend.total_conversions || 0,
+      total_conversions: trend.total_conversions || 0,
+      spiritualTemp: trend.avg_spiritual_temp || 5,
+      groups_reporting: trend.groups_reporting || 0,
+    }));
+  }
+
+  // Obtener estadísticas del dashboard por nivel
+  static async getDashboardStats(level: number, userId?: string): Promise<DashboardStats> {
+    const analytics = await this.getAnalytics();
+    const zoneStats = await this.getZoneStats();
+    const alerts = await this.getAlerts(false);
+
+    return {
+      totalGroups: analytics.totalGroups,
+      totalMembers: analytics.totalMembers,
+      averageAttendance: analytics.averageAttendance,
+      growthRate: analytics.growthRate,
+      healthIndex: analytics.spiritualHealth,
+      groupsUnderSupervision: level === 2 ? Math.ceil(analytics.totalGroups / 3) : undefined,
+      auxiliarySupervisors: level >= 3 ? Math.ceil(analytics.activeLeaders / 4) : undefined,
+      leadersSupportNeeded: alerts.filter(a => a.actionRequired && !a.resolved).length,
+      territoryHealthIndex: analytics.spiritualHealth,
+      totalSupervisors: analytics.activeLeaders,
+      zoneGrowthRate: analytics.growthRate,
+    };
+  }
+
+  // Obtener datos del grupo para un líder
+  static async getLeaderGroupStats(leaderId: string): Promise<LeaderStats | null> {
+    try {
+      const response = await ApiService.get(`${this.baseUrl}/groups?leader_id=${leaderId}`);
+      const groups = response.data || [];
+
+      if (groups.length === 0) return null;
+
+      const group = groups[0];
+      return {
+        groupId: group.id,
+        groupName: group.group_name,
+        memberCount: group.member_count || 0,
+        activeMembers: group.active_members || 0,
+        avgAttendance:
+          group.active_members > 0
+            ? Math.round((group.active_members / group.member_count) * 100)
+            : 0,
+        spiritualTemperature: 7, // Default, se obtendría de métricas
+        lastReportDate: group.updated_at || '',
+        meetingDay: group.meeting_day || 'No definido',
+        meetingTime: group.meeting_time || 'No definido',
+        meetingLocation: group.meeting_location || 'No definido',
+      };
     } catch (error) {
-      console.error('Error fetching weekly trends:', error);
-      return [];
+      console.error('Error getting leader stats:', error);
+      return null;
     }
   }
 
+  // Obtener todos los datos del dashboard de discipulado
   static async getAllDiscipleshipData() {
     try {
       const [analytics, zoneStats, groupPerformance, alerts, multiplications, weeklyTrends] =
         await Promise.all([
-          this.getDiscipleshipAnalytics(),
+          this.getAnalytics(),
           this.getZoneStats(),
           this.getGroupPerformance(),
-          this.getDiscipleshipAlerts(),
-          this.getMultiplicationTracking(),
+          this.getAlerts(),
+          this.getMultiplications(),
           this.getWeeklyTrends(),
         ]);
 
@@ -427,8 +330,41 @@ export class DiscipleshipAnalyticsService {
         weeklyTrends,
       };
     } catch (error) {
-      console.error('Error fetching all discipleship data:', error);
+      console.error('Error loading discipleship data:', error);
       throw error;
+    }
+  }
+  // Agregar estos métodos al servicio existente:
+
+  static async getDashboardStatsByLevel(level: number): Promise<any> {
+    const data = await ApiService.get(`/discipleship/dashboard-stats?level=${level}`);
+    return data as any;
+  }
+
+  static async getSupervisorSubordinates(supervisorId: string): Promise<any[]> {
+    const data = await ApiService.get(`/discipleship/supervisors/${supervisorId}/subordinates`);
+    return data as any[];
+  }
+
+  static async getGoals(status?: string): Promise<any[]> {
+    const url = status ? `/discipleship/goals?status=${status}` : '/discipleship/goals';
+    const data = await ApiService.get(url);
+    return data as any[];
+  }
+
+  // Helper para mapear prioridad a tipo de alerta
+  private static mapAlertPriorityToType(
+    priority: number
+  ): 'critical' | 'warning' | 'info' | 'success' {
+    switch (priority) {
+      case 1:
+        return 'critical';
+      case 2:
+        return 'warning';
+      case 4:
+        return 'success';
+      default:
+        return 'info';
     }
   }
 }

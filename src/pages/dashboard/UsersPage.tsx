@@ -1,34 +1,48 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
-import EditUserModal from '@/components/EditUserModal';
+import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { DynamicFilter, FilterField, FilterValues } from '@/components/DynamicFilter';
-import { User } from '@/types/user.types';
+import UserDetailSheet from '@/components/UserDetailSheet';
+import { InviteUserModal } from '@/components/dashboard/InviteUserModal';
+import { Column, DataTable } from '@/components/ui/DataTable';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserService } from '@/services/user.service';
+import { Invitation } from '@/types/invitation.types';
+import { User } from '@/types/user.types';
+import { Calendar, Edit, Eye, Mail, Plus, SendHorizontal, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<FilterValues>({});
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
+  const [showInviteModalUser, setShowInviteModalUser] = useState<User | null>(null);
   const navigate = useNavigate();
 
   const filterFields: FilterField[] = [
-    { key: 'search', label: 'Búsqueda general', type: 'text', placeholder: 'Nombre, email o cédula...' },
-    { 
-      key: 'role', 
-      label: 'Rol', 
+    {
+      key: 'search',
+      label: 'Búsqueda general',
+      type: 'text',
+      placeholder: 'Nombre, email o cédula...',
+    },
+    {
+      key: 'role',
+      label: 'Rol',
       type: 'select',
       options: [
         { value: 'pastor', label: 'Pastor' },
         { value: 'staff', label: 'Staff' },
         { value: 'supervisor', label: 'Supervisor' },
         { value: 'server', label: 'Servidor' },
-      ]
+      ],
     },
     { key: 'baptized', label: 'Solo bautizados', type: 'boolean' },
     { key: 'whatsapp', label: 'Con WhatsApp', type: 'boolean' },
@@ -52,39 +66,34 @@ const UsersPage = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    // Búsqueda general
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         user.first_name.toLowerCase().includes(searchLower) ||
         user.last_name.toLowerCase().includes(searchLower) ||
         user.email.toLowerCase().includes(searchLower) ||
         user.id_number.includes(filters.search);
-      
+
       if (!matchesSearch) return false;
     }
 
-    // Filtro por rol
     if (filters.role && user.role !== filters.role) {
       return false;
     }
 
-    // Filtro por bautizado
     if (filters.baptized && !user.baptized) {
       return false;
     }
 
-    // Filtro por WhatsApp
     if (filters.whatsapp && !user.whatsapp) {
       return false;
     }
 
-    // Filtro por rango de fechas
     if (filters.created_at?.from) {
       const userDate = new Date(user.created_at);
       const fromDate = new Date(filters.created_at.from);
       if (userDate < fromDate) return false;
-      
+
       if (filters.created_at.to) {
         const toDate = new Date(filters.created_at.to);
         if (userDate > toDate) return false;
@@ -97,13 +106,13 @@ const UsersPage = () => {
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case 'pastor':
-        return 'destructive';
+        return 'red';
       case 'staff':
-        return 'default';
+        return 'yellow';
       case 'supervisor':
-        return 'secondary';
+        return 'green';
       case 'server':
-        return 'outline';
+        return 'purple';
       default:
         return 'default';
     }
@@ -123,6 +132,33 @@ const UsersPage = () => {
         return role;
     }
   };
+  const loadInvitations = async () => {
+    try {
+      setLoadingInvitations(true);
+      const invitations = await UserService.loadInvitations();
+      setInvitations(invitations || []);
+    } catch (error) {
+      console.error('Error loading invitations:', error);
+      toast.error('Error al cargar las invitaciones');
+    } finally {
+      setLoadingInvitations(false);
+    }
+  };
+
+  const handleResendInvitation = async (invitationId: string) => {
+    try {
+      await UserService.resendInvitation(invitationId);
+      toast.success('Invitación reenviada correctamente');
+      loadInvitations();
+    } catch (error) {
+      console.error('Error resending invitation:', error);
+      toast.error('Error al reenviar la invitación');
+    }
+  };
+
+  useEffect(() => {
+    loadInvitations();
+  }, []);
 
   const handleDetailUser = (user: User) => {
     setSelectedUserId(user.id);
@@ -155,9 +191,9 @@ const UsersPage = () => {
     }
   };
 
-  const columns: Column<User>[] = [
+  const columns: Column<User & { invitation_status: string }>[] = [
     {
-      key: 'full_name',
+      key: 'first_name',
       label: 'Nombre Completo',
       render: user => (
         <div>
@@ -190,18 +226,6 @@ const UsersPage = () => {
       render: user => (
         <div className="space-y-1">
           <Badge variant={getRoleBadgeVariant(user.role)}>{getRoleDisplayName(user.role)}</Badge>
-          <div className="flex gap-1">
-            {user.baptized && (
-              <Badge variant="outline" className="text-xs">
-                Bautizado
-              </Badge>
-            )}
-            {user.whatsapp && (
-              <Badge variant="outline" className="text-xs">
-                WhatsApp
-              </Badge>
-            )}
-          </div>
         </div>
       ),
       responsive: 'md',
@@ -234,6 +258,56 @@ const UsersPage = () => {
       sortable: true,
       width: '120px',
     },
+    {
+      key: 'invitation_status',
+      label: 'Estado',
+      render: user => {
+        const invitation = invitations.find(inv => inv.email === user.email);
+
+        if (!invitation) {
+          return <Badge variant="outline">No invitado</Badge>;
+        }
+
+        const isExpired = new Date(invitation.expires_at) < new Date();
+
+        return (
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                invitation.status === 'resent'
+                  ? 'outline'
+                  : invitation.status === 'accepted'
+                    ? 'green'
+                    : invitation.status === 'pending' && !isExpired
+                      ? 'yellow'
+                      : 'red'
+              }
+            >
+              {invitation.status === 'resent'
+                ? 'Invitación reenviada'
+                : invitation.status === 'pending' && !isExpired
+                  ? 'Invitación pendiente'
+                  : invitation.status === 'accepted'
+                    ? 'Aceptada'
+                    : 'Expirada'}
+            </Badge>
+
+            {invitation.status === 'pending' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleResendInvitation(invitation.id)}
+                className="h-6 w-6 p-0"
+                title="Reenviar invitación"
+              >
+                <SendHorizontal className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        );
+      },
+      responsive: 'md',
+    },
   ];
 
   const userActions = (user: User) => (
@@ -265,6 +339,17 @@ const UsersPage = () => {
       >
         <Trash2 className="h-3 w-3" />
       </Button>
+      {user.invitation_status !== 'accepted' && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowInviteModalUser(user)}
+          title="Invitar usuario"
+          className="h-8 w-8 p-0"
+        >
+          <Mail className="h-3 w-3" />
+        </Button>
+      )}
     </div>
   );
 
@@ -281,11 +366,6 @@ const UsersPage = () => {
           <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
             {getRoleDisplayName(user.role)}
           </Badge>
-          {user.baptized && (
-            <Badge variant="outline" className="text-xs">
-              Bautizado
-            </Badge>
-          )}
         </div>
       </div>
 
@@ -334,7 +414,6 @@ const UsersPage = () => {
         </Button>
       </div>
 
-      {/* Dynamic Filters */}
       <DynamicFilter
         fields={filterFields}
         onFilterChange={setFilters}
@@ -348,7 +427,14 @@ const UsersPage = () => {
         </CardHeader>
         <CardContent>
           <DataTable
-            data={filteredUsers}
+            data={filteredUsers.map(
+              user =>
+                ({
+                  ...user,
+                  invitation_status:
+                    invitations.find(inv => inv.email === user.email)?.status || 'pending',
+                }) as User & { invitation_status: 'pending' | 'accepted' | 'expired' }
+            )}
             columns={columns}
             actions={userActions}
             loading={loading}
@@ -373,6 +459,13 @@ const UsersPage = () => {
         isDeleting={isDeleting}
         onClose={() => setDeletingUser(null)}
         onConfirm={confirmDeleteUser}
+      />
+
+      <InviteUserModal
+        user={showInviteModalUser}
+        isOpen={!!showInviteModalUser}
+        onClose={() => setShowInviteModalUser(null)}
+        onInviteSent={() => loadInvitations()}
       />
     </div>
   );

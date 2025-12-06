@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from 'lucide-react';
-import { Button } from './button';
 import { cn } from '@/lib/utils';
+import { ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button } from './button';
 
 export interface Column<T> {
   key: keyof T;
@@ -29,7 +29,7 @@ export interface DataTableProps<T> {
 
 type SortDirection = 'asc' | 'desc' | null;
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends object>({
   data,
   columns,
   actions,
@@ -59,7 +59,10 @@ export function DataTable<T extends Record<string, any>>({
     );
   }, [data, searchTerm, columns]);
 
-  // Sort data
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [data.length, searchTerm]);
+
   const sortedData = useMemo(() => {
     if (!sortColumn || !sortDirection) return filteredData;
 
@@ -103,7 +106,7 @@ export function DataTable<T extends Record<string, any>>({
   const getResponsiveClass = (responsive: Column<T>['responsive']) => {
     switch (responsive) {
       case 'always':
-        return 'block';
+        return 'table-cell';
       case 'sm':
         return 'hidden sm:table-cell';
       case 'md':
@@ -168,7 +171,7 @@ export function DataTable<T extends Record<string, any>>({
 
       {/* Desktop Table */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse" style={{ tableLayout: 'auto' }}>
           <thead>
             <tr className="border-b">
               {columns.map(column => (
@@ -180,7 +183,7 @@ export function DataTable<T extends Record<string, any>>({
                     column.className,
                     getResponsiveClass(column.responsive)
                   )}
-                  style={{ width: column.width }}
+                  style={column.width ? { width: column.width, minWidth: column.width } : {}}
                   onClick={() => column.sortable && handleSort(column.key)}
                 >
                   <div className="flex items-center gap-2">
@@ -190,7 +193,7 @@ export function DataTable<T extends Record<string, any>>({
                 </th>
               ))}
               {actions && (
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground w-32 min-w-[8rem]">
                   Acciones
                 </th>
               )}
@@ -217,11 +220,16 @@ export function DataTable<T extends Record<string, any>>({
                         column.className,
                         getResponsiveClass(column.responsive)
                       )}
+                      style={column.width ? { width: column.width, minWidth: column.width } : {}}
                     >
-                      {column.render ? column.render(item) : item[column.key]}
+                      {column.render ? column.render(item) : (item[column.key] as React.ReactNode)}
                     </td>
                   ))}
-                  {actions && <td className="px-4 py-3">{actions(item)}</td>}
+                  {actions && (
+                    <td className="px-4 py-3 text-right w-32 min-w-[8rem]">
+                      {actions(item)}
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -253,7 +261,9 @@ export function DataTable<T extends Record<string, any>>({
                           {column.label}:
                         </span>
                         <span className="text-sm text-right">
-                          {column.render ? column.render(item) : item[column.key]}
+                          {column.render
+                            ? column.render(item)
+                            : (item[column.key] as React.ReactNode)}
                         </span>
                       </div>
                     ))}
