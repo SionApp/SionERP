@@ -1,29 +1,29 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import DashboardLayout from "./layouts/DashboardLayout";
-import DashboardHome from "./pages/dashboard/DashboardHome";
-import UsersPage from "./pages/dashboard/UsersPage";
-import RegisterUserPage from "./pages/dashboard/RegisterUserPage";
-import ReportsPage from "./pages/dashboard/ReportsPage";
-import SettingsPage from "./pages/dashboard/SettingsPage";
-import EventsPage from "./pages/dashboard/EventsPage";
-import RoleManagementPage from "./pages/dashboard/RoleManagementPage";
-import RolesPage from "./pages/dashboard/RolesPage";
-import ProfilePage from "./pages/dashboard/ProfilePage";
-import DiscipleshipPage from "./pages/dashboard/DiscipleshipPage";
-import ProtectedRoute from "./components/ProtectedRoute";
-import { AuthProvider } from "./contexts/AuthContext";
-import { LoadingProvider, useLoadingContext } from "./contexts/LoadingContext";
-import { LoadingOverlay } from "./components/LoadingOverlay";
-import { setLoadingCallbacks } from "./services/api.service";
-import { setDashboardLoadingCallbacks } from "./services/dashboard.service";
-import { useEffect } from "react";
+import { ThemeProvider } from '@/components/ThemeProvider';
+import { Toaster as Sonner } from '@/components/ui/sonner';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { LoadingOverlay } from './components/LoadingOverlay';
+import ProtectedRoute from './components/ProtectedRoute';
+import { AuthProvider } from './contexts/AuthContext';
+import { LoadingProvider, useLoadingContext } from './contexts/LoadingContext';
+import DashboardLayout from './layouts/DashboardLayout';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import DashboardHome from './pages/dashboard/DashboardHome';
+import DiscipleshipPage from './pages/dashboard/DiscipleshipPage';
+import EventsPage from './pages/dashboard/EventsPage';
+import ProfilePage from './pages/dashboard/ProfilePage';
+import RegisterUserPage from './pages/dashboard/RegisterUserPage';
+import ReportsPage from './pages/dashboard/ReportsPage';
+import RoleManagementPage from './pages/dashboard/RoleManagementPage';
+import RolesPage from './pages/dashboard/RolesPage';
+import SettingsPage from './pages/dashboard/SettingsPage';
+import UsersPage from './pages/dashboard/UsersPage';
+import { setLoadingCallbacks } from './services/api.service';
+import { setDashboardLoadingCallbacks } from './services/dashboard.service';
 
 const queryClient = new QueryClient();
 
@@ -47,13 +47,13 @@ const AppContent = () => {
           <Route path="/" element={<Login />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route 
-            path="/dashboard" 
+          <Route
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <DashboardLayout />
               </ProtectedRoute>
-            } 
+            }
           >
             <Route index element={<DashboardHome />} />
             <Route path="users" element={<UsersPage />} />
@@ -72,18 +72,29 @@ const AppContent = () => {
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-      <TooltipProvider>
-        <LoadingProvider>
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
-        </LoadingProvider>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  // Asegurar que el defaultTheme sea válido y no tenga espacios
+  const safeDefaultTheme = 'dark'; // Valor fijo y seguro
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme={safeDefaultTheme}
+        enableSystem
+        disableTransitionOnChange
+        storageKey="sion-theme"
+      >
+        <TooltipProvider>
+          <LoadingProvider>
+            <AuthProvider>
+              <AppContent />
+            </AuthProvider>
+          </LoadingProvider>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

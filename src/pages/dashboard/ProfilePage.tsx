@@ -1,38 +1,46 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import {
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  Bell,
-  Lock,
-  Settings,
-  Heart,
-  Users,
-  Edit,
-  Camera,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePreferences } from '@/hooks/usePreferences';
+import { ProfileUpdateFormData, profileUpdateSchema } from '@/schemas/user.schemas';
 import { UserService } from '@/services/user.service';
-import { profileUpdateSchema, ProfileUpdateFormData } from '@/schemas/user.schemas';
 import { User as UserType } from '@/types/user.types';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format, parseISO } from 'date-fns';
+import {
+  Bell,
+  Calendar,
+  Camera,
+  Edit,
+  Heart,
+  Loader2,
+  Lock,
+  MapPin,
+  Phone,
+  Settings,
+  User,
+  Users,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 
 const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
-
+  const { preferences, loading: preferencesLoading, updatePreference } = usePreferences();
   const {
     register,
     handleSubmit,
@@ -56,8 +64,8 @@ const ProfilePage = () => {
   }, []);
 
   const initialWordName = () => {
-    if (!userData || !userData.full_name) return '';
-    const names = userData.full_name.trim().split(' ');
+    if (!userData || !userData.first_name || !userData.last_name) return '';
+    const names = `${userData.first_name} ${userData.last_name}`.trim().split(' ');
     if (names.length === 1) {
       return names[0][0].toUpperCase();
     }
@@ -67,22 +75,39 @@ const ProfilePage = () => {
     );
   };
 
+  const formatDateForInput = (dateString: string) => {
+    const date = dateString ? format(parseISO(dateString), 'yyyy-MM-dd') : '';
+    return date;
+  };
+
   const loadUserData = async () => {
     try {
       const userData = await UserService.getCurrentUser();
       reset({
-        full_name: userData.full_name || '',
+        first_name: userData.first_name || '',
+        last_name: userData.last_name || '',
+        id_number: userData.id_number || '',
         email: userData.email || '',
         phone: userData.phone || '',
-        birth_date: userData.birth_date || '',
+        marital_status: userData.marital_status || '',
+        occupation: userData.occupation || '',
+        education_level: userData.education_level || '',
+        how_found_church: userData.how_found_church || '',
+        ministry_interest: userData.ministry_interest || '',
+        first_visit_date: formatDateForInput(userData.first_visit_date) || '',
+        baptism_date: formatDateForInput(userData.baptism_date) || '',
+        is_active_member: userData.is_active_member || false,
+        membership_date: formatDateForInput(userData.membership_date) || '',
+        cell_group: userData.cell_group || '',
+        pastoral_notes: userData.pastoral_notes || '',
+        whatsapp: userData.whatsapp || false,
+        birth_date: formatDateForInput(userData.birth_date) || '',
         address: userData.address || '',
         emergency_contact_name: userData.emergency_contact_name || '',
         emergency_contact_phone: userData.emergency_contact_phone || '',
-        whatsapp: userData.whatsapp || false,
       });
       setUserData(userData);
     } catch (error) {
-      console.error('Error loading user data:', error);
       toast.error('Error al cargar los datos del usuario');
     }
   };
@@ -93,7 +118,6 @@ const ProfilePage = () => {
       await UserService.updateProfile(data);
       toast.success('Perfil actualizado exitosamente');
     } catch (error) {
-      console.error('Error updating profile:', error);
       toast.error('Error al actualizar el perfil');
     } finally {
       setLoading(false);
@@ -116,20 +140,28 @@ const ProfilePage = () => {
         {/* Profile Quick Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:min-w-[400px]">
           <Card className="text-center p-4">
-            <div className="text-lg font-bold text-primary">Pastor</div>
+            <div className="text-lg font-bold text-primary">
+              {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
+            </div>
             <div className="text-xs text-muted-foreground">Rol Actual</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-lg font-bold text-green-600">Activo</div>
+            <div className="text-lg font-bold text-green-600">
+              {userData?.is_active ? 'Activo' : 'Inactivo'}
+            </div>
             <div className="text-xs text-muted-foreground">Estado</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-lg font-bold text-blue-600">2 años</div>
-            <div className="text-xs text-muted-foreground">Miembro</div>
+            <div className="text-lg font-bold text-blue-600">
+              {userData?.membership_date ? format(parseISO(userData.membership_date), 'yyyy') : ''}
+            </div>
+            <div className="text-xs text-muted-foreground">Miembro desde</div>
           </Card>
           <Card className="text-center p-4">
-            <div className="text-lg font-bold text-purple-600">100%</div>
-            <div className="text-xs text-muted-foreground">Perfil</div>
+            <div className="text-lg font-bold text-purple-600">
+              {userData?.discipleship_level || 0}
+            </div>
+            <div className="text-xs text-muted-foreground">Nivel de Discipulado</div>
           </Card>
         </div>
       </div>
@@ -175,11 +207,20 @@ const ProfilePage = () => {
                   </Button>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-2xl font-bold">{userData?.full_name}</h3>
+                  <h3 className="text-2xl font-bold">
+                    {userData?.first_name} {userData?.last_name}
+                  </h3>
                   <p className="text-muted-foreground">{userData?.email}</p>
                   <div className="flex items-center gap-4 mt-2">
-                    <Badge variant="default">Pastor Principal</Badge>
-                    <Badge variant="outline">Miembro desde 2022</Badge>
+                    <Badge variant="default">
+                      {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
+                    </Badge>
+                    <Badge variant="outline">
+                      Miembro desde{' '}
+                      {userData?.membership_date
+                        ? format(parseISO(userData.membership_date), 'MMMM yyyy')
+                        : ''}
+                    </Badge>
                   </div>
                 </div>
                 <Button variant="outline">
@@ -203,34 +244,33 @@ const ProfilePage = () => {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="full_name" className="flex items-center gap-2">
+                    <Label htmlFor="first_name" className="flex items-center gap-2">
                       <User className="w-4 h-4" />
-                      Nombre Completo
+                      Nombres
                     </Label>
                     <Input
-                      id="full_name"
-                      {...register('full_name')}
-                      className={errors.full_name ? 'border-red-500' : ''}
+                      id="first_name"
+                      {...register('first_name')}
+                      className={errors.first_name ? 'border-red-500' : ''}
                     />
-                    {errors.full_name && (
-                      <p className="text-sm text-red-500">{errors.full_name.message}</p>
+                    {errors.first_name && (
+                      <p className="text-sm text-red-500">{errors.first_name.message}</p>
                     )}
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      Email
+                    <Label htmlFor="last_name" className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Apellidos
                     </Label>
                     <Input
-                      id="email"
-                      type="email"
-                      {...register('email')}
-                      className={errors.email ? 'border-red-500' : ''}
+                      id="last_name"
+                      {...register('last_name')}
+                      className={errors.last_name ? 'border-red-500' : ''}
                     />
-                    {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+                    {errors.last_name && (
+                      <p className="text-sm text-red-500">{errors.last_name.message}</p>
+                    )}
                   </div>
-
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="flex items-center gap-2">
                       <Phone className="w-4 h-4" />
@@ -306,54 +346,69 @@ const ProfilePage = () => {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Bautizado</h4>
-                      <p className="text-sm text-muted-foreground">15 de Mayo, 2020</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.baptism_date
+                          ? format(parseISO(userData.baptism_date), 'MMMM yyyy')
+                          : ''}
+                      </p>
                     </div>
                     <Badge variant="default">Sí</Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Miembro Activo</h4>
-                      <p className="text-sm text-muted-foreground">Desde Enero 2022</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.membership_date
+                          ? format(parseISO(userData.membership_date), 'MMMM yyyy')
+                          : ''}
+                      </p>
                     </div>
                     <Badge variant="default">Activo</Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Grupo Celular</h4>
-                      <p className="text-sm text-muted-foreground">Líderes Unidos</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.cell_group || 'Sin asignar'}
+                      </p>
                     </div>
                     <Badge variant="outline">Líder</Badge>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Ministerio</h4>
-                      <p className="text-sm text-muted-foreground">Pastoral Principal</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
+                      </p>
                     </div>
-                    <Badge variant="default">Pastor</Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Primera Visita</h4>
-                      <p className="text-sm text-muted-foreground">12 de Marzo, 2020</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.first_visit_date
+                          ? format(parseISO(userData.first_visit_date), 'MMMM yyyy')
+                          : ''}
+                      </p>
                     </div>
-                    <Badge variant="outline">4 años</Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
-                      <h4 className="font-medium">Servicios Asistidos</h4>
-                      <p className="text-sm text-muted-foreground">Este mes</p>
+                      <h4 className="font-medium">Nivel de Discipulado</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {userData?.discipleship_level || 'Sin asignar'}
+                      </p>
                     </div>
-                    <Badge variant="default">12/12</Badge>
                   </div>
                 </div>
               </div>
@@ -422,61 +477,155 @@ const ProfilePage = () => {
               <CardDescription>Configura cómo y cuándo recibir notificaciones</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Notificaciones WhatsApp</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Recibe actualizaciones importantes
-                    </p>
+              {preferencesLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : preferences ? (
+                <div className="space-y-4">
+                  {/* Tema */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Tema</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Apariencia visual de la aplicación
+                      </p>
+                    </div>
+                    <Select
+                      value={preferences.theme}
+                      onValueChange={(value: 'light' | 'dark' | 'auto') =>
+                        updatePreference('theme', value)
+                      }
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="light">Claro</SelectItem>
+                        <SelectItem value="dark">Oscuro</SelectItem>
+                        <SelectItem value="auto">Auto</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="whatsapp"
-                      checked={Boolean(whatsapp)}
-                      onCheckedChange={checked => setValue('whatsapp', Boolean(checked))}
+
+                  {/* WhatsApp */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Notificaciones WhatsApp</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Recibe actualizaciones importantes
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.whatsapp_notifications}
+                      onCheckedChange={checked =>
+                        updatePreference('whatsapp_notifications', checked)
+                      }
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Emails de Eventos</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Información sobre eventos y servicios
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.email_notifications}
+                      onCheckedChange={checked => updatePreference('email_notifications', checked)}
+                    />
+                  </div>
+
+                  {/* Recordatorios */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Recordatorios de Servicios</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Notificaciones antes de los servicios
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.event_reminders}
+                      onCheckedChange={checked => updatePreference('event_reminders', checked)}
+                    />
+                  </div>
+
+                  {/* Boletín */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Boletín Semanal</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Recibe el boletín de noticias semanal
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.weekly_newsletter}
+                      onCheckedChange={checked => updatePreference('weekly_newsletter', checked)}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  {/* Privacidad */}
+                  <h4 className="font-medium pt-2">Privacidad</h4>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Visibilidad del Perfil</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Quién puede ver tu información
+                      </p>
+                    </div>
+                    <Select
+                      value={preferences.profile_visibility}
+                      onValueChange={(value: 'public' | 'members' | 'private') =>
+                        updatePreference('profile_visibility', value)
+                      }
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="public">Público</SelectItem>
+                        <SelectItem value="members">Miembros</SelectItem>
+                        <SelectItem value="private">Privado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Mostrar Email</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Permitir que otros vean tu email
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.show_email}
+                      onCheckedChange={checked => updatePreference('show_email', checked)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Mostrar Teléfono</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Permitir que otros vean tu teléfono
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences.show_phone}
+                      onCheckedChange={checked => updatePreference('show_phone', checked)}
                     />
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Emails de Eventos</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Información sobre eventos y servicios
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Recordatorios de Servicios</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Notificaciones antes de los servicios
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Boletín Semanal</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Recibe el boletín de noticias semanal
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Modo Oscuro</h4>
-                    <p className="text-sm text-muted-foreground">Tema visual de la aplicación</p>
-                  </div>
-                  <Switch />
-                </div>
-              </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  No se pudieron cargar las preferencias
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

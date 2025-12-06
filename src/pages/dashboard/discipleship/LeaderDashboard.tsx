@@ -1,464 +1,489 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Slider } from '@/components/ui/slider';
+import { Textarea } from '@/components/ui/textarea';
+import { useLeaderDiscipleshipData } from '@/hooks/useLeaderDiscipleshipData';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import type { CreateReportRequest } from '@/types/discipleship.types';
+import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
+import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
-  Users,
-  TrendingUp,
-  Heart,
-  Plus,
-  Send,
   Calendar,
-  MapPin,
+  CheckCircle,
+  Clock,
+  FileText,
+  Plus,
+  RefreshCw,
+  Send,
+  Target,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
-import { DiscipleshipMockService } from '@/mocks/discipleship/services.mock';
-import { WeeklyLeaderReport } from '@/types/discipleship.types';
-import { toast } from '@/hooks/use-toast';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
-const LeaderDashboard: React.FC = () => {
-  const [selectedTab, setSelectedTab] = useState('overview');
-  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
-  const [weeklyReport, setWeeklyReport] = useState<Partial<WeeklyLeaderReport>>({
-    attendance: { members: 0, newVisitors: 0, returningVisitors: 0 },
-    spiritualHealth: {
-      testimonies: 0,
-      prayerRequests: [],
-      spiritualTemperature: 5,
-      groupMorale: 'good',
-    },
-    followUp: { visitorsContacted: 0, membersCared: [], upcomingEvents: [] },
-    concerns: [],
-    blessings: [],
+export default function LeaderDashboard() {
+  const { stats, myReports, goals, groups, loading, error, refetch, refetchReports } =
+    useLeaderDiscipleshipData();
+
+  // Report form state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reportData, setReportData] = useState({
+    attendance: 0,
+    new_visitors: 0,
+    conversions: 0,
+    spiritual_temperature: 7,
+    offering_amount: 0,
+    testimonies: '',
+    prayer_requests: '',
+    notes: '',
   });
 
-  const handleSubmitWeeklyReport = async () => {
-    setIsSubmittingReport(true);
-    try {
-      const result = await DiscipleshipMockService.submitWeeklyReport({
-        ...weeklyReport,
-        groupId: 'group-001',
-        weekDate: new Date().toISOString().split('T')[0],
-      } as WeeklyLeaderReport);
+  // Get current week dates
+  const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+  const currentWeekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
+  const lastWeekStart = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 0 });
+  const lastWeekEnd = endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 0 });
 
-      if (result.success) {
-        toast({
-          title: 'Reporte Enviado',
-          description: 'Tu reporte semanal ha sido enviado exitosamente.',
-        });
-        // Reset form
-        setWeeklyReport({
-          attendance: { members: 0, newVisitors: 0, returningVisitors: 0 },
-          spiritualHealth: {
-            testimonies: 0,
-            prayerRequests: [],
-            spiritualTemperature: 5,
-            groupMorale: 'good',
-          },
-          followUp: { visitorsContacted: 0, membersCared: [], upcomingEvents: [] },
-          concerns: [],
-          blessings: [],
-        });
+  // Check if report for this week already exists
+  const hasCurrentWeekReport = myReports.some(report => {
+    const reportStart = new Date(report.period_start);
+    return reportStart >= lastWeekStart && reportStart <= currentWeekEnd;
+  });
+
+  const handleSubmitReport = async () => {
+    if (!groups[0]?.id) {
+      toast.error('No tienes un grupo asignado');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const createData: CreateReportRequest = {
+        report_type: 'weekly',
+        report_level: 1,
+        period_start: format(lastWeekStart, 'yyyy-MM-dd'),
+        period_end: format(lastWeekEnd, 'yyyy-MM-dd'),
+        report_data: {
+          attendance: reportData.attendance,
+          new_visitors: reportData.new_visitors,
+          conversions: reportData.conversions,
+          spiritual_temperature: reportData.spiritual_temperature,
+          offering_amount: reportData.offering_amount,
+          testimonies: reportData.testimonies.split('\n').filter(t => t.trim()),
+          prayer_requests: reportData.prayer_requests.split('\n').filter(p => p.trim()),
+          notes: reportData.notes,
+          group_id: groups[0].id, // Incluir group_id en report_data para referencia
+        },
+      };
+
+      // Crear el reporte (el backend lo crea con status 'submitted' automáticamente)
+      const result = await DiscipleshipService.createReport(createData);
+
+      toast.success('Reporte semanal enviado exitosamente');
+      setShowReportModal(false);
+      resetForm();
+      await refetchReports();
+    } catch (error: unknown) {
+      console.error('Error submitting report:', error);
+      if (error instanceof Error) {
+        toast.error(error.message || 'Error al enviar el reporte');
+      } else {
+        toast.error('Error al enviar el reporte');
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'No se pudo enviar el reporte. Inténtalo de nuevo.',
-        variant: 'destructive',
-      });
     } finally {
-      setIsSubmittingReport(false);
+      setIsSubmitting(false);
     }
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard del Líder</h1>
-          <p className="text-muted-foreground">Célula Esperanza - Zona Norte</p>
+  const resetForm = () => {
+    setReportData({
+      attendance: 0,
+      new_visitors: 0,
+      conversions: 0,
+      spiritual_temperature: 7,
+      offering_amount: 0,
+      testimonies: '',
+      prayer_requests: '',
+      notes: '',
+    });
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="space-y-6 p-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
         </div>
-        <Badge variant="secondary" className="text-lg px-4 py-2">
-          Nivel 1 - Líder de Grupo
-        </Badge>
       </div>
+    );
+  }
 
-      {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Miembros Activos</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">12</div>
-            <p className="text-xs text-muted-foreground">+2 este mes</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Asistencia Promedio</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">85%</div>
-            <p className="text-xs text-muted-foreground">+5% vs mes anterior</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Temperatura Espiritual</CardTitle>
-            <Heart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">8.5/10</div>
-            <p className="text-xs text-muted-foreground">Excelente ambiente</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Visitantes del Mes</CardTitle>
-            <Plus className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">5</div>
-            <p className="text-xs text-muted-foreground">3 regresaron</p>
-          </CardContent>
-        </Card>
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Error al cargar datos</h3>
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Button onClick={refetch} variant="outline">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Reintentar
+        </Button>
       </div>
+    );
+  }
 
-      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Resumen</TabsTrigger>
-          <TabsTrigger value="weekly-report">Reporte Semanal</TabsTrigger>
-          <TabsTrigger value="members">Miembros</TabsTrigger>
-          <TabsTrigger value="schedule">Programación</TabsTrigger>
-        </TabsList>
+  const myGroup = groups[0]; // El líder generalmente tiene un grupo asignado
 
-        <TabsContent value="overview" className="space-y-4">
-          {/* Goals Progress */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Objetivos del Mes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Asistencia Promedio (Meta: 90%)</span>
-                  <span>85%</span>
-                </div>
-                <Progress value={85} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Nuevos Visitantes (Meta: 6)</span>
-                  <span>5</span>
-                </div>
-                <Progress value={83} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Seguimiento a Visitantes (Meta: 100%)</span>
-                  <span>100%</span>
-                </div>
-                <Progress value={100} className="h-2" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Actividad Reciente</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Reporte semanal enviado</p>
-                    <p className="text-xs text-muted-foreground">Hace 2 días</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Nuevos visitantes: Ana y Pedro</p>
-                    <p className="text-xs text-muted-foreground">Hace 3 días</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <div>
-                    <p className="text-sm font-medium">Reunión con supervisor programada</p>
-                    <p className="text-xs text-muted-foreground">Hace 5 días</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="weekly-report" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Reporte Semanal</CardTitle>
-              <CardDescription>Completa el reporte de la reunión de esta semana</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Attendance Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Asistencia</h3>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div>
-                    <Label htmlFor="members">Miembros</Label>
-                    <Input
-                      id="members"
-                      type="number"
-                      value={weeklyReport.attendance?.members || 0}
-                      onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          attendance: {
-                            ...prev.attendance!,
-                            members: parseInt(e.target.value) || 0,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="newVisitors">Visitantes Nuevos</Label>
-                    <Input
-                      id="newVisitors"
-                      type="number"
-                      value={weeklyReport.attendance?.newVisitors || 0}
-                      onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          attendance: {
-                            ...prev.attendance!,
-                            newVisitors: parseInt(e.target.value) || 0,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="returningVisitors">Visitantes que Regresan</Label>
-                    <Input
-                      id="returningVisitors"
-                      type="number"
-                      value={weeklyReport.attendance?.returningVisitors || 0}
-                      onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          attendance: {
-                            ...prev.attendance!,
-                            returningVisitors: parseInt(e.target.value) || 0,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Spiritual Health */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Salud Espiritual</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label htmlFor="testimonies">Número de Testimonios</Label>
-                    <Input
-                      id="testimonies"
-                      type="number"
-                      value={weeklyReport.spiritualHealth?.testimonies || 0}
-                      onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          spiritualHealth: {
-                            ...prev.spiritualHealth!,
-                            testimonies: parseInt(e.target.value) || 0,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="spiritualTemp">Temperatura Espiritual (1-10)</Label>
-                    <Input
-                      id="spiritualTemp"
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={weeklyReport.spiritualHealth?.spiritualTemperature || 5}
-                      onChange={e =>
-                        setWeeklyReport(prev => ({
-                          ...prev,
-                          spiritualHealth: {
-                            ...prev.spiritualHealth!,
-                            spiritualTemperature: parseInt(e.target.value) || 5,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <Label htmlFor="groupMorale">Estado General del Grupo</Label>
-                  <Select
-                    value={weeklyReport.spiritualHealth?.groupMorale || 'good'}
-                    onValueChange={value =>
-                      setWeeklyReport(prev => ({
-                        ...prev,
-                        spiritualHealth: { ...prev.spiritualHealth!, groupMorale: value as any },
-                      }))
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Mi Célula</h1>
+          <p className="text-muted-foreground">
+            {myGroup ? myGroup.group_name : 'Dashboard de líder de célula'}
+          </p>
+        </div>
+        <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
+          <DialogTrigger asChild>
+            <Button disabled={hasCurrentWeekReport || !myGroup}>
+              <Plus className="h-4 w-4 mr-2" />
+              {hasCurrentWeekReport ? 'Reporte enviado' : 'Nuevo Reporte Semanal'}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Reporte Semanal</DialogTitle>
+              <DialogDescription>
+                Período: {format(lastWeekStart, 'dd MMM', { locale: es })} -{' '}
+                {format(lastWeekEnd, 'dd MMM yyyy', { locale: es })}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              {/* Asistencia y Visitantes */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="attendance">Asistencia Total</Label>
+                  <Input
+                    id="attendance"
+                    type="number"
+                    min="0"
+                    value={reportData.attendance}
+                    onChange={e =>
+                      setReportData({ ...reportData, attendance: parseInt(e.target.value) || 0 })
                     }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="excellent">Excelente</SelectItem>
-                      <SelectItem value="good">Bueno</SelectItem>
-                      <SelectItem value="fair">Regular</SelectItem>
-                      <SelectItem value="needs_attention">Necesita Atención</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Concerns and Blessings */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="concerns">Preocupaciones</Label>
-                  <Textarea
-                    id="concerns"
-                    placeholder="Describe cualquier preocupación o desafío..."
-                    className="min-h-[100px]"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="blessings">Bendiciones</Label>
-                  <Textarea
-                    id="blessings"
-                    placeholder="Comparte las bendiciones y motivos de gratitud..."
-                    className="min-h-[100px]"
+                <div className="space-y-2">
+                  <Label htmlFor="visitors">Visitantes Nuevos</Label>
+                  <Input
+                    id="visitors"
+                    type="number"
+                    min="0"
+                    value={reportData.new_visitors}
+                    onChange={e =>
+                      setReportData({ ...reportData, new_visitors: parseInt(e.target.value) || 0 })
+                    }
                   />
                 </div>
               </div>
 
-              <Button
-                onClick={handleSubmitWeeklyReport}
-                disabled={isSubmittingReport}
-                className="w-full"
-                size="lg"
-              >
-                {isSubmittingReport ? (
-                  <>Enviando...</>
+              {/* Conversiones y Ofrenda */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="conversions">Conversiones</Label>
+                  <Input
+                    id="conversions"
+                    type="number"
+                    min="0"
+                    value={reportData.conversions}
+                    onChange={e =>
+                      setReportData({ ...reportData, conversions: parseInt(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="offering">Ofrenda ($)</Label>
+                  <Input
+                    id="offering"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={reportData.offering_amount}
+                    onChange={e =>
+                      setReportData({
+                        ...reportData,
+                        offering_amount: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Temperatura Espiritual */}
+              <div className="space-y-4">
+                <div className="flex justify-between">
+                  <Label>Temperatura Espiritual del Grupo</Label>
+                  <span className="font-medium">{reportData.spiritual_temperature}/10</span>
+                </div>
+                <Slider
+                  value={[reportData.spiritual_temperature]}
+                  onValueChange={value =>
+                    setReportData({ ...reportData, spiritual_temperature: value[0] })
+                  }
+                  min={1}
+                  max={10}
+                  step={1}
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Frío</span>
+                  <span>Tibio</span>
+                  <span>En fuego</span>
+                </div>
+              </div>
+
+              {/* Testimonios */}
+              <div className="space-y-2">
+                <Label htmlFor="testimonies">Testimonios (uno por línea)</Label>
+                <Textarea
+                  id="testimonies"
+                  placeholder="Escribe los testimonios de esta semana..."
+                  value={reportData.testimonies}
+                  onChange={e => setReportData({ ...reportData, testimonies: e.target.value })}
+                  rows={3}
+                />
+              </div>
+
+              {/* Peticiones de Oración */}
+              <div className="space-y-2">
+                <Label htmlFor="prayer">Peticiones de Oración (una por línea)</Label>
+                <Textarea
+                  id="prayer"
+                  placeholder="Escribe las peticiones de oración..."
+                  value={reportData.prayer_requests}
+                  onChange={e => setReportData({ ...reportData, prayer_requests: e.target.value })}
+                  rows={3}
+                />
+              </div>
+
+              {/* Notas Adicionales */}
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notas Adicionales</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Observaciones, desafíos, necesidades especiales..."
+                  value={reportData.notes}
+                  onChange={e => setReportData({ ...reportData, notes: e.target.value })}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowReportModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSubmitReport} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    Enviando...
+                  </>
                 ) : (
                   <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Enviar Reporte Semanal
+                    <Send className="h-4 w-4 mr-2" />
+                    Enviar Reporte
                   </>
                 )}
               </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
-        <TabsContent value="members" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Miembros de la Célula</CardTitle>
-              <CardDescription>Gestiona la información de los miembros de tu grupo</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { name: 'María González', role: 'Miembro', status: 'Activo', attendance: '95%' },
-                  { name: 'Juan Pérez', role: 'Co-líder', status: 'Activo', attendance: '90%' },
-                  { name: 'Ana Silva', role: 'Miembro', status: 'Activo', attendance: '85%' },
-                  { name: 'Pedro López', role: 'Visitante', status: 'Nuevo', attendance: '100%' },
-                ].map((member, index) => (
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Miembros</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {myGroup?.member_count || stats?.total_members || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">{myGroup?.active_members || 0} activos</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Asistencia Prom.</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.average_attendance || 0}%</div>
+            <p className="text-xs text-muted-foreground">Últimas 4 semanas</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Próxima Reunión</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{myGroup?.meeting_day || 'No definido'}</div>
+            <p className="text-xs text-muted-foreground">
+              {myGroup?.meeting_time || ''} - {myGroup?.meeting_location || ''}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Estado Reporte</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {hasCurrentWeekReport ? (
+              <>
+                <div className="text-2xl font-bold text-green-600">
+                  <CheckCircle className="h-6 w-6 inline" />
+                </div>
+                <p className="text-xs text-muted-foreground">Reporte semanal enviado</p>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-amber-600">
+                  <Clock className="h-6 w-6 inline" />
+                </div>
+                <p className="text-xs text-muted-foreground">Pendiente de enviar</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Goals Section */}
+      {goals && goals.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Mis Objetivos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {goals.map(
+                (goal: {
+                  id: string;
+                  target_metric?: string;
+                  description?: string;
+                  current_value?: number;
+                  target_value?: number;
+                  progress_percentage?: number;
+                }) => (
+                  <div key={goal.id} className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="font-medium">{goal.target_metric || goal.description}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {goal.current_value || 0} / {goal.target_value || 0}
+                      </span>
+                    </div>
+                    <Progress value={goal.progress_percentage || 0} className="h-2" />
+                  </div>
+                )
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Reports */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Mis Reportes Recientes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {myReports.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No has enviado reportes aún</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myReports.slice(0, 5).map(report => {
+                const reportData = report.report_data as {
+                  attendance?: number;
+                  conversions?: number;
+                };
+                return (
                   <div
-                    key={index}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                    key={report.id}
+                    className="flex items-center justify-between p-3 border rounded-lg"
                   >
                     <div>
-                      <p className="font-medium">{member.name}</p>
-                      <p className="text-sm text-muted-foreground">{member.role}</p>
+                      <p className="font-medium">
+                        Semana {format(new Date(report.period_start), 'dd MMM', { locale: es })} -{' '}
+                        {format(new Date(report.period_end), 'dd MMM', { locale: es })}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Asistencia: {reportData?.attendance || 0} • Conversiones:{' '}
+                        {reportData?.conversions || 0}
+                      </p>
                     </div>
-                    <div className="flex items-center space-x-4">
-                      <Badge variant={member.status === 'Activo' ? 'default' : 'secondary'}>
-                        {member.status}
-                      </Badge>
-                      <span className="text-sm">{member.attendance}</span>
-                    </div>
+                    <Badge
+                      variant={
+                        report.status === 'approved'
+                          ? 'default'
+                          : report.status === 'submitted'
+                            ? 'secondary'
+                            : report.status === 'revision_required'
+                              ? 'destructive'
+                              : 'outline'
+                      }
+                    >
+                      {report.status === 'approved'
+                        ? 'Aprobado'
+                        : report.status === 'submitted'
+                          ? 'Pendiente'
+                          : report.status === 'revision_required'
+                            ? 'Revisar'
+                            : 'Borrador'}
+                    </Badge>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="schedule" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Programación de Reuniones</CardTitle>
-              <CardDescription>Horarios y ubicación de las reuniones</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-3 p-4 bg-muted rounded-lg">
-                <Calendar className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Reunión Semanal</p>
-                  <p className="text-sm text-muted-foreground">Miércoles 7:00 PM</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3 p-4 bg-muted rounded-lg">
-                <MapPin className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Ubicación</p>
-                  <p className="text-sm text-muted-foreground">Casa de María - Colonia Centro</p>
-                </div>
-              </div>
-              <div className="pt-4">
-                <h4 className="font-medium mb-2">Próximos Eventos</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-3 border rounded">
-                    <span>Retiro Juvenil</span>
-                    <Badge variant="outline">Oct 15</Badge>
-                  </div>
-                  <div className="flex justify-between items-center p-3 border rounded">
-                    <span>Evangelismo Barrial</span>
-                    <Badge variant="outline">Oct 22</Badge>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
-};
-
-export default LeaderDashboard;
+}

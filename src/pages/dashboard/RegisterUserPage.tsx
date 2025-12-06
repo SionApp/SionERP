@@ -1,10 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { format, parseISO } from 'date-fns';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -14,14 +10,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from 'sonner';
-import { UserPlus, Save } from 'lucide-react';
-import { registerUserSchema, RegisterUserFormData } from '@/schemas/user.schemas';
-import { UserService } from '@/services/user.service';
-import { User } from '@/types/user.types';
-import { usePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { RegisterUserFormData, registerUserSchema } from '@/schemas/user.schemas';
+import { UserService } from '@/services/user.service';
+import { CreateUserData, User, UserRole } from '@/types/user.types';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format, parseISO } from 'date-fns';
+import { Save, UserPlus } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const RegisterUserPage = () => {
   const [loading, setLoading] = useState(false);
@@ -30,10 +30,7 @@ const RegisterUserPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const {
-    canManageRoles,
-    isLoading: isLoadingPermissions,
-  } = usePermissions();
+  const { canManageRoles, isLoading: isLoadingPermissions } = usePermissions();
 
   const userId = location.state?.userId;
 
@@ -53,7 +50,7 @@ const RegisterUserPage = () => {
           email: user.email,
           first_name: user.first_name || '',
           last_name: user.last_name || '',
-          id_number: user.id_number || '',
+          id_number: user.id_number,
           phone: user.phone || '',
           address: user.address || '',
           role: user.role,
@@ -150,9 +147,10 @@ const RegisterUserPage = () => {
         navigate('/dashboard/users');
       } else {
         // Modo creación
-        await UserService.createUser(data);
+        await UserService.createUser(data as CreateUserData);
         toast.success('Usuario creado exitosamente');
         reset();
+        navigate('/dashboard/users');
       }
     } catch (error) {
       console.error('Error saving user:', error);
@@ -196,9 +194,9 @@ const RegisterUserPage = () => {
               <h3 className="text-lg font-semibold">Información Personal</h3>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="nombres">Nombres *</Label>
+                  <Label htmlFor="first_name">Nombre *</Label>
                   <Input
-                    id="nombres"
+                    id="first_name"
                     {...register('first_name')}
                     placeholder="Ingresa los nombres"
                   />
@@ -208,9 +206,9 @@ const RegisterUserPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="apellidos">Apellidos *</Label>
+                  <Label htmlFor="last_name">Apellido*</Label>
                   <Input
-                    id="apellidos"
+                    id="last_name"
                     {...register('last_name')}
                     placeholder="Ingresa los apellidos"
                   />
@@ -353,6 +351,47 @@ const RegisterUserPage = () => {
               </div>
             </div>
 
+            {/* Role and Configuration - Solo visible para staff y pastor */}
+            {!isLoadingPermissions && canManageRoles && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Rol y Configuración</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Rol *</Label>
+                    <Select
+                      value={watch('role')}
+                      onValueChange={value => setValue('role', value as UserRole)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un rol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Miembro</SelectItem>
+                        <SelectItem value="server">Servidor</SelectItem>
+                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                        <SelectItem value="staff">Personal Administrativo</SelectItem>
+                        <SelectItem value="pastor">Pastor</SelectItem>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {errors.role && (
+                      <p className="text-sm text-destructive">{errors.role.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="pastoral_notes">Notas Pastorales</Label>
+                  <textarea
+                    id="pastoral_notes"
+                    {...register('pastoral_notes')}
+                    className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder="Notas adicionales sobre el miembro"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Church Membership */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Membresía de la Iglesia</h3>
@@ -372,47 +411,6 @@ const RegisterUserPage = () => {
                 )}
               </div>
             </div>
-
-            {/* Role and Configuration - Solo visible para staff y pastor */}
-            {!isLoadingPermissions && canManageRoles && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Rol y Configuración</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Rol *</Label>
-                    <Select
-                      value={watch('role')}
-                      onValueChange={value =>
-                        setValue('role', value as 'pastor' | 'staff' | 'supervisor' | 'server')
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un rol" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="server">Servidor</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="staff">Staff</SelectItem>
-                        <SelectItem value="pastor">Pastor</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {errors.role && (
-                      <p className="text-sm text-destructive">{errors.role.message}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="pastoral_notes">Notas Pastorales (Solo Admin)</Label>
-                  <textarea
-                    id="pastoral_notes"
-                    {...register('pastoral_notes')}
-                    className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder="Notas adicionales sobre el miembro"
-                  />
-                </div>
-              </div>
-            )}
 
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Configuraciones</h3>

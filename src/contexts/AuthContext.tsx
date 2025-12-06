@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { User as UserType } from '@/types/user.types';
 import { UserService } from '@/services/user.service';
+import { User as UserType } from '@/types/user.types';
+import { AuthError, Session, User } from '@supabase/supabase-js';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
   user: User | null;
@@ -81,6 +81,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
+
+      // El trigger handle_new_user() actualiza automáticamente el estado de la invitación
+      // cuando se crea un usuario, así que no necesitamos hacer nada aquí
+      // Esto evita cargar todas las invitaciones en cada SIGNED_IN event
 
       // Solo resetear el estado del usuario actual, no cargar automáticamente
       if (!session?.user) {

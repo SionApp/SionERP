@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
-import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
 import type {
-  DiscipleshipAnalytics,
-  ZoneStats,
-  GroupPerformance,
   DiscipleshipAlert,
+  DiscipleshipAnalytics,
+  GroupPerformance,
   MultiplicationTracker,
   WeeklyTrend,
+  ZoneStats,
 } from '@/services/discipleship-analytics.service';
+import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import { useCallback, useEffect, useState } from 'react';
 
-export const useDiscipleshipAnalytics = () => {
+export const useDiscipleshipAnalytics = (zoneName?: string) => {
   const [analytics, setAnalytics] = useState<DiscipleshipAnalytics>({
     totalGroups: 0,
     totalMembers: 0,
@@ -29,7 +29,7 @@ export const useDiscipleshipAnalytics = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDiscipleshipData = async () => {
+  const loadDiscipleshipData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -42,17 +42,41 @@ export const useDiscipleshipAnalytics = () => {
       setAlerts(data.alerts);
       setMultiplications(data.multiplications);
       setWeeklyTrends(data.weeklyTrends);
-    } catch (err) {
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Error desconocido al cargar los datos de discipulado');
+      }
       console.error('Error loading discipleship data:', err);
-      setError('Error al cargar los datos de discipulado');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Resolver una alerta
+  const resolveAlert = useCallback(
+    async (alertId: string) => {
+      try {
+        await DiscipleshipAnalyticsService.getAlerts(); // Recargar alertas
+        // Actualizar estado local
+        setAlerts(prev => prev.map(a => (a.id === alertId ? { ...a, resolved: true } : a)));
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+          console.error('Error resolving alert:', err);
+        } else {
+          setError('Error desconocido al resolver alerta');
+          console.error('Error resolving alert:', err);
+        }
+      }
+    },
+    [setAlerts]
+  );
 
   useEffect(() => {
     loadDiscipleshipData();
-  }, []);
+  }, [loadDiscipleshipData]);
 
   return {
     analytics,
@@ -64,5 +88,8 @@ export const useDiscipleshipAnalytics = () => {
     loading,
     error,
     refetch: loadDiscipleshipData,
+    resolveAlert,
   };
 };
+
+export default useDiscipleshipAnalytics;

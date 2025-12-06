@@ -9,15 +9,6 @@ export const setDashboardLoadingCallbacks = (callbacks: typeof dashboardLoadingC
   dashboardLoadingCallbacks = callbacks;
 };
 
-// Singleton para callbacks de loading
-let dashboardLoadingCallbacks: {
-  setFetching?: (loading: boolean) => void;
-} = {};
-
-export const setDashboardLoadingCallbacks = (callbacks: typeof dashboardLoadingCallbacks) => {
-  dashboardLoadingCallbacks = callbacks;
-};
-
 // ========================================
 // INTERFACES
 // ========================================

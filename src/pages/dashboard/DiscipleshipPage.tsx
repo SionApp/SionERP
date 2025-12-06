@@ -1,104 +1,247 @@
-import { useState } from 'react';
+import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
+import GroupManagement from '@/components/discipleship/GroupManagement';
+import HierarchyManagement from '@/components/discipleship/HierarchyManagement';
+import ZoneManagement from '@/components/discipleship/ZoneManagement';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Users,
-  TrendingUp,
-  Target,
-  AlertCircle,
-  MapPin,
-  Calendar,
-  BarChart3,
-  Settings,
-  Plus,
-} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import LeaderDashboard from './discipleship/LeaderDashboard';
+import { UserService } from '@/services/user.service';
+import { User as UserType } from '@/types/user.types';
+import {
+  getDashboardLevel,
+  getDiscipleshipAccess,
+  type DiscipleshipAccess,
+} from '@/utils/discipleship-access';
+import { AlertCircle, BarChart3, MapPin, Plus, Target, TrendingUp, Users } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import AuxiliarySupervisorDashboard from './discipleship/AuxiliarySupervisorDashboard';
-import GeneralSupervisorDashboard from './discipleship/GeneralSupervisorDashboard';
 import CoordinatorDashboard from './discipleship/CoordinatorDashboard';
+import GeneralSupervisorDashboard from './discipleship/GeneralSupervisorDashboard';
+import LeaderDashboard from './discipleship/LeaderDashboard';
 import PastoralDashboard from './discipleship/PastoralDashboard';
-import GroupManagement from '@/components/discipleship/GroupManagement';
-import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
-import ZoneManagement from '@/components/discipleship/ZoneManagement';
 
 const DiscipleshipPage = () => {
-  const { user } = useAuth();
+  const authUser = useAuth().user;
   const [activeTab, setActiveTab] = useState('overview');
+  const [user, setUser] = useState<UserType | null>(null);
+  const [discipleshipAccess, setDiscipleshipAccess] = useState<DiscipleshipAccess | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Determine user's discipleship role and level
-  const getDiscipleshipLevel = () => {
-    if (!user) return 1;
+  useEffect(() => {
+    const loadUserAndAccess = async () => {
+      if (!authUser?.id) {
+        setLoading(false);
+        return;
+      }
 
-    switch (user.role) {
-      case 'pastor':
-        return 5; // Pastoral level
-      case 'staff':
-        return 4; // General Supervisor level
+      try {
+        setLoading(true);
+
+        // Cargar datos del usuario
+        const userData = await UserService.getUserById(authUser.id as string);
+        const userWithRole = {
+          ...userData,
+          role: userData.role as UserType['role'],
+        };
+        setUser(userWithRole);
+
+        // Cargar acceso al módulo de discipulado
+        if (userWithRole.role) {
+          const access = await getDiscipleshipAccess(
+            authUser.id as string,
+            userWithRole.role as string
+          );
+          setDiscipleshipAccess(access);
+        }
+      } catch (error) {
+        toast.error('Error al cargar el usuario probando');
+        console.error('Error al cargar el usuario:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserAndAccess();
+  }, [authUser]);
+
+  const getDiscipleshipLevel = (): number => {
+    if (!discipleshipAccess) return 1;
+    return getDashboardLevel(discipleshipAccess);
+  };
+
+  const getLevelName = (): string => {
+    if (!discipleshipAccess) return 'Sin acceso';
+
+    if (discipleshipAccess.isFullAccess) {
+      return user?.role === 'pastor'
+        ? 'Pastoral (Acceso Completo)'
+        : 'Supervisor General (Acceso Completo)';
+    }
+
+    const level = discipleshipAccess.level || 1;
+    switch (level) {
+      case 5:
+        return 'Pastoral';
+      case 4:
+        return 'Coordinador General';
+      case 3:
+        return 'Coordinador';
+      case 2:
+        return 'Supervisor Auxiliar';
+      case 1:
       default:
-        // Could be based on user's discipleship_level field
-        return (user as any).discipleship_level || 1;
+        return 'Líder';
     }
   };
 
-  const renderDiscipleshipDashboard = () => {
-    const level = getDiscipleshipLevel();
+  // Memoizar el dashboard para evitar re-renders innecesarios
+  const DashboardComponent = React.useMemo(() => {
+    // Si no tiene acceso, retornar null (se maneja en renderDiscipleshipDashboard)
+    if (!discipleshipAccess || !discipleshipAccess.canAccess) {
+      return null;
+    }
+
+    // Si es acceso completo (pastor/staff), mostrar dashboard pastoral
+    if (discipleshipAccess.isFullAccess) {
+      return PastoralDashboard;
+    }
+
+    // Si no, usar el nivel de jerarquía
+    const level = discipleshipAccess.level || 1;
 
     switch (level) {
-      case 5: // Pastor
-        return <PastoralDashboard />;
-      case 4: // General Supervisor
-        return <GeneralSupervisorDashboard />;
-      case 3: // Coordinator
-        return <CoordinatorDashboard />;
-      case 2: // Auxiliary Supervisor
-        return <AuxiliarySupervisorDashboard />;
-      case 1: // Leader
+      case 5:
+        return PastoralDashboard;
+      case 4:
+        return GeneralSupervisorDashboard;
+      case 3:
+        return CoordinatorDashboard;
+      case 2:
+        return AuxiliarySupervisorDashboard;
+      case 1:
       default:
-        return <LeaderDashboard />;
+        return LeaderDashboard;
     }
+  }, [discipleshipAccess]);
+
+  const renderDiscipleshipDashboard = () => {
+    // Si no tiene acceso, mostrar mensaje
+    if (!discipleshipAccess || !discipleshipAccess.canAccess) {
+      return (
+        <Card>
+          <CardContent className="p-4 md:p-6">
+            <div className="text-center space-y-4">
+              <AlertCircle className="w-10 h-10 md:w-12 md:h-12 mx-auto text-muted-foreground" />
+              <div>
+                <h3 className="text-base md:text-lg font-semibold mb-2">
+                  Sin Acceso al Módulo de Discipulado
+                </h3>
+                <p className="text-sm md:text-base text-muted-foreground">
+                  No tienes un nivel jerárquico asignado en el sistema de discipulado.
+                  <br />
+                  Contacta a un administrador (Pastor o Staff) para que te asigne un nivel.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const Component = DashboardComponent;
+    if (!Component) return null;
+    return <Component />;
   };
 
   const canManageGroups =
-    user?.role === 'pastor' || user?.role === 'staff' || getDiscipleshipLevel() >= 3;
+    discipleshipAccess?.isFullAccess ||
+    (discipleshipAccess?.level && discipleshipAccess.level >= 3) ||
+    false;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground">Cargando módulo de discipulado...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Ministerio de Discipuladoasda
+            Ministerio de Discipulado
           </h1>
           <p className="text-muted-foreground mt-1">
-            Dashboard nivel {getDiscipleshipLevel()} -{' '}
-            {user?.role === 'pastor'
-              ? 'Pastoral'
-              : user?.role === 'staff'
-                ? 'Supervisor General'
-                : getDiscipleshipLevel() === 3
-                  ? 'Coordinador'
-                  : getDiscipleshipLevel() === 2
-                    ? 'Supervisor Auxiliar'
-                    : 'Líder'}
+            {loading ? (
+              'Cargando...'
+            ) : discipleshipAccess?.canAccess ? (
+              <>
+                Dashboard nivel {getDiscipleshipLevel()} - {getLevelName()}
+                {discipleshipAccess.isFullAccess && (
+                  <span className="ml-2 text-xs text-green-600">(Acceso Completo)</span>
+                )}
+              </>
+            ) : (
+              'Sin acceso al módulo de discipulado'
+            )}
           </p>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Resumen</TabsTrigger>
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="manage">Gestión de Grupos</TabsTrigger>
-          <TabsTrigger value="zones">Zonas</TabsTrigger>
-          <TabsTrigger value="map">Mapa</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
+        {/* Mobile: Scroll horizontal, Desktop: Grid */}
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <TabsList className="inline-flex w-full md:grid md:grid-cols-6 h-auto min-w-max md:min-w-0 gap-1 md:gap-0">
+            <TabsTrigger
+              value="overview"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Resumen
+            </TabsTrigger>
+            <TabsTrigger
+              value="dashboard"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger
+              value="manage"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Gestión
+            </TabsTrigger>
+            <TabsTrigger
+              value="hierarchy"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Jerarquías
+            </TabsTrigger>
+            <TabsTrigger
+              value="zones"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Zonas
+            </TabsTrigger>
+            <TabsTrigger
+              value="map"
+              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+            >
+              Mapa
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <TabsContent value="overview" className="space-y-4 md:space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center gap-2">
@@ -223,6 +366,11 @@ const DiscipleshipPage = () => {
         {/* Group Management Tab */}
         <TabsContent value="manage">
           <GroupManagement />
+        </TabsContent>
+
+        {/* Hierarchy Management Tab */}
+        <TabsContent value="hierarchy">
+          <HierarchyManagement />
         </TabsContent>
 
         {/* Zones Tab */}
