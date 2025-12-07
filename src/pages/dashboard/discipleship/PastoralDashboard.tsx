@@ -77,14 +77,16 @@ const PastoralDashboard: React.FC = React.memo(() => {
   // Usar hook compartido para evitar consultas duplicadas
   const { loading, stats, zoneStats, weeklyTrends, goals, alerts, pendingReports, refetch } =
     useDiscipleshipData({ level: 5 });
-
+  console.log(user, 'user');
   const handleApproveReport = async (reportId: string) => {
     try {
       await DiscipleshipService.approveReport(reportId);
       toast.success('Reporte aprobado');
       refetch();
-    } catch (error: any) {
-      toast.error(error.message || 'Error al aprobar el reporte');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error((errorMessage as string) || 'Error al aprobar el reporte');
+      console.log(errorMessage, 'errorMessageasdasd');
     }
   };
 
@@ -93,8 +95,10 @@ const PastoralDashboard: React.FC = React.memo(() => {
       await DiscipleshipService.resolveAlert(alertId);
       toast.success('Alerta resuelta');
       refetch();
-    } catch (error: any) {
-      toast.error(error.message || 'Error al resolver la alerta');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error((errorMessage as string) || 'Error al resolver la alerta');
+      console.log(errorMessage, 'errorMessageasdasd');
     }
   };
 

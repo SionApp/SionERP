@@ -10,6 +10,26 @@ import { User } from '@/types/user.types';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
+// Helper para normalizar valores sql.NullString que vienen como {String, Valid}
+const normalizeNullString = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null && 'String' in value && 'Valid' in value) {
+    const nullString = value as { String: string; Valid: boolean };
+    return nullString.Valid ? nullString.String : null;
+  }
+  return String(value);
+};
+
+const normalizeZone = (zone: Zone): Zone => {
+  return {
+    ...zone,
+    description: normalizeNullString(zone.description) || undefined,
+    supervisor_id: normalizeNullString(zone.supervisor_id) || undefined,
+    supervisor_name: normalizeNullString(zone.supervisor_name) || undefined,
+  };
+};
+
 interface UseZonesOptions {
   autoLoad?: boolean;
   onlyActive?: boolean;
@@ -49,7 +69,12 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         ZonesService.getAllZoneStats().catch(() => []),
       ]);
 
-      setZones(zonesData);
+      // Normalizar zonas para manejar sql.NullString
+      const normalizedZones = Array.isArray(zonesData) 
+        ? zonesData.map(normalizeZone)
+        : [];
+
+      setZones(normalizedZones);
       setZoneStats(statsData);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al cargar zonas';
@@ -62,7 +87,8 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
 
   const getZone = useCallback(async (zoneId: string): Promise<Zone | null> => {
     try {
-      return await ZonesService.getZone(zoneId);
+      const zone = await ZonesService.getZone(zoneId);
+      return zone ? normalizeZone(zone) : null;
     } catch (err) {
       console.error('Error getting zone:', err);
       return null;
@@ -210,9 +236,11 @@ export const useAvailableSupervisors = () => {
     try {
       setLoading(true);
       const data = await ZonesService.getAvailableSupervisors();
-      setSupervisors(data as User[]);
+      // Asegurarse de que siempre sea un array
+      setSupervisors(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading supervisors:', err);
+      setSupervisors([]); // En caso de error, establecer array vacío
     } finally {
       setLoading(false);
     }

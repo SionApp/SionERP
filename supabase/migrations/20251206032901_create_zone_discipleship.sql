@@ -21,6 +21,9 @@ CREATE TABLE public.zones (
 ALTER TABLE public.users ADD COLUMN zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL;
 ALTER TABLE public.discipleship_groups ADD COLUMN zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL;
 ALTER TABLE public.discipleship_reports ADD COLUMN zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL;
+ALTER TABLE public.discipleship_goals ADD COLUMN zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL;
+ALTER TABLE public.discipleship_alerts ADD COLUMN zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL;
+ALTER TABLE public.discipleship_hierarchy ADD COLUMN zone_id UUID REFERENCES public.zones(id) ON DELETE SET NULL;
 
 -- Habilitar RLS
 ALTER TABLE public.zones ENABLE ROW LEVEL SECURITY;
@@ -80,3 +83,12 @@ FROM zones z WHERE u.zone_name = z.name AND u.zone_name IS NOT NULL;
 
 UPDATE discipleship_groups g SET zone_id = z.id
 FROM zones z WHERE g.zone_name = z.name AND g.zone_name IS NOT NULL;
+
+UPDATE discipleship_goals g SET zone_id = z.id
+FROM zones z WHERE g.zone_name = z.name AND g.zone_name IS NOT NULL;
+
+UPDATE discipleship_alerts a SET zone_id = z.id
+FROM zones z WHERE a.zone_name = z.name AND a.zone_name IS NOT NULL;
+
+UPDATE discipleship_hierarchy h SET zone_id = z.id
+FROM zones z WHERE h.zone_name = z.name AND h.zone_name IS NOT NULL;

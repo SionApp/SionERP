@@ -48,6 +48,17 @@ import {
 import React, { useState } from 'react';
 import UserZoneAssignment from './UserZoneAssignment';
 
+// Helper para normalizar valores sql.NullString que vienen como {String, Valid}
+const normalizeNullString = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null && 'String' in value && 'Valid' in value) {
+    const nullString = value as { String: string; Valid: boolean };
+    return nullString.Valid ? nullString.String : null;
+  }
+  return String(value);
+};
+
 const ZoneManagement: React.FC = () => {
   const { zones, zoneStats, loading, error, refetch, createZone, updateZone, deleteZone } =
     useZones();
@@ -102,9 +113,9 @@ const ZoneManagement: React.FC = () => {
     setEditingZone(zone);
     setFormData({
       name: zone.name,
-      description: zone.description || '',
+      description: normalizeNullString(zone.description) || '',
       color: zone.color,
-      supervisor_id: zone.supervisor_id || '',
+      supervisor_id: normalizeNullString(zone.supervisor_id) || '',
     });
     setIsDialogOpen(true);
   };
@@ -136,10 +147,13 @@ const ZoneManagement: React.FC = () => {
     return zoneStats.find(s => s.zone_id === zoneId);
   };
 
-  const getSupervisorName = (supervisorId?: string | null) => {
-    if (!supervisorId) return 'Sin supervisor';
-    const supervisor = supervisors.find(s => s.id === supervisorId);
-    return supervisor?.full_name || 'Sin supervisor';
+  const getSupervisorName = (supervisorId?: string | null | unknown) => {
+    const normalizedId = normalizeNullString(supervisorId);
+    if (!normalizedId) return 'Sin supervisor';
+    const supervisor = supervisors.find(s => s.id === normalizedId);
+    return supervisor?.full_name || supervisor?.first_name && supervisor?.last_name 
+      ? `${supervisor.first_name} ${supervisor.last_name}`.trim()
+      : supervisor?.email || 'Sin supervisor';
   };
 
   if (loading && zones.length === 0) {
@@ -253,9 +267,9 @@ const ZoneManagement: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">Sin supervisor</SelectItem>
-                          {supervisors.map(supervisor => (
+                          {Array.isArray(supervisors) && supervisors.map(supervisor => (
                             <SelectItem key={supervisor.id} value={supervisor.id}>
-                              {supervisor.full_name || supervisor.email}
+                              {supervisor.full_name || `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || supervisor.email}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -332,8 +346,8 @@ const ZoneManagement: React.FC = () => {
                       </div>
                     </div>
 
-                    {zone.description && (
-                      <p className="text-sm text-muted-foreground mb-3">{zone.description}</p>
+                    {normalizeNullString(zone.description) && (
+                      <p className="text-sm text-muted-foreground mb-3">{normalizeNullString(zone.description)}</p>
                     )}
 
                     <div className="grid grid-cols-3 gap-4 text-sm">

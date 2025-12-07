@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ApiService } from '@/services/api.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateGroupRequest, DiscipleshipGroup } from '@/types/discipleship.types';
+import { GeolocationInput, type GeolocationResult } from '@/components/ui/geolocation-input';
 import { Calendar, Edit, Loader2, MapPin, Plus, Search, Trash2, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -74,7 +75,9 @@ const GroupManagement = () => {
     meeting_day: '',
     meeting_time: '',
     meeting_location: '',
+    meeting_address: '',
   });
+  const [geolocation, setGeolocation] = useState<GeolocationResult | null>(null);
 
   // Cargar usuarios (solo una vez)
   const loadUsers = useCallback(async () => {
@@ -177,7 +180,20 @@ const GroupManagement = () => {
         meeting_day: String(normalizeNullString(group.meeting_day) || ''),
         meeting_time: String(normalizeNullString(group.meeting_time) || ''),
         meeting_location: String(normalizeNullString(group.meeting_location) || ''),
+        meeting_address: String(normalizeNullString(group.meeting_address) || ''),
+        latitude: group.latitude || undefined,
+        longitude: group.longitude || undefined,
       });
+      // Cargar geolocalización si existe
+      if (group.latitude && group.longitude) {
+        setGeolocation({
+          address: String(normalizeNullString(group.meeting_address) || normalizeNullString(group.meeting_location) || ''),
+          latitude: group.latitude,
+          longitude: group.longitude,
+        });
+      } else {
+        setGeolocation(null);
+      }
     } else {
       setEditingGroup(null);
       setFormData({
@@ -188,7 +204,9 @@ const GroupManagement = () => {
         meeting_day: '',
         meeting_time: '',
         meeting_location: '',
+        meeting_address: '',
       });
+      setGeolocation(null);
     }
     setIsDialogOpen(true);
   }, []);
@@ -202,11 +220,20 @@ const GroupManagement = () => {
     try {
       setSaving(true);
 
+      // Preparar datos con geolocalización
+      const submitData: CreateGroupRequest = {
+        ...formData,
+        meeting_address: geolocation?.address || formData.meeting_address || '',
+        latitude: geolocation?.latitude,
+        longitude: geolocation?.longitude,
+        meeting_location: geolocation?.address || formData.meeting_location || '',
+      };
+
       if (editingGroup) {
-        await DiscipleshipService.updateGroup(editingGroup.id, formData);
+        await DiscipleshipService.updateGroup(editingGroup.id, submitData);
         toast.success('Grupo actualizado exitosamente');
       } else {
-        await DiscipleshipService.createGroup(formData);
+        await DiscipleshipService.createGroup(submitData);
         toast.success('Grupo creado exitosamente');
       }
 
@@ -599,15 +626,33 @@ const GroupManagement = () => {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="meeting_location">Ubicación</Label>
-                    <Input
-                      id="meeting_location"
-                      value={String(normalizeNullString(formData.meeting_location) || '')}
-                      onChange={e => setFormData({ ...formData, meeting_location: e.target.value })}
-                      placeholder="Dirección o lugar"
-                    />
-                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <GeolocationInput
+                    value={geolocation || undefined}
+                    onChange={(value) => {
+                      setGeolocation(value);
+                      if (value) {
+                        setFormData({
+                          ...formData,
+                          meeting_address: value.address,
+                          latitude: value.latitude,
+                          longitude: value.longitude,
+                          meeting_location: value.address,
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          meeting_address: '',
+                          latitude: undefined,
+                          longitude: undefined,
+                        });
+                      }
+                    }}
+                    label="Ubicación de Reunión"
+                    placeholder="Buscar dirección o seleccionar en el mapa..."
+                  />
                 </div>
               </div>
 

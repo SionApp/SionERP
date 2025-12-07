@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"backend-sion/config"
 	"backend-sion/models"
 	"database/sql"
 	"fmt"
@@ -18,7 +17,10 @@ func NewZonesHandler() *ZonesHandler {
 
 // GetZones obtiene todas las zonas
 func (h *ZonesHandler) GetZones(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
 	isActiveParam := c.QueryParam("is_active")
 	
@@ -76,7 +78,10 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 // GetZone obtiene una zona específica
 func (h *ZonesHandler) GetZone(c echo.Context) error {
 	zoneID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
 	query := `
 		SELECT 
@@ -91,7 +96,7 @@ func (h *ZonesHandler) GetZone(c echo.Context) error {
 	`
 	
 	var z models.ZoneWithDetails
-	err := db.DB.QueryRow(query, zoneID).Scan(
+	err = db.DB.QueryRow(query, zoneID).Scan(
 		&z.ID, &z.Name, &z.Description, &z.Color, &z.SupervisorID,
 		&z.Boundaries, &z.CenterLat, &z.CenterLng, &z.IsActive,
 		&z.TotalGroups, &z.TotalMembers, &z.AvgAttendance,
@@ -127,7 +132,10 @@ func (h *ZonesHandler) CreateZone(c echo.Context) error {
 		})
 	}
 	
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
 	color := "#3b82f6"
 	if req.Color != "" {
@@ -155,7 +163,7 @@ func (h *ZonesHandler) CreateZone(c echo.Context) error {
 	}
 	
 	var zoneID string
-	err := db.DB.QueryRow(
+	err = db.DB.QueryRow(
 		query,
 		req.Name,
 		description,
@@ -190,7 +198,10 @@ func (h *ZonesHandler) UpdateZone(c echo.Context) error {
 		})
 	}
 	
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
 	query := "UPDATE zones SET updated_at = NOW()"
 	args := []interface{}{}
@@ -268,11 +279,14 @@ func (h *ZonesHandler) UpdateZone(c echo.Context) error {
 // DeleteZone elimina una zona
 func (h *ZonesHandler) DeleteZone(c echo.Context) error {
 	zoneID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
 	// Verificar si hay grupos asignados
 	var groupCount int
-	err := db.DB.QueryRow("SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = $1", zoneID).Scan(&groupCount)
+	err = db.DB.QueryRow("SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = $1", zoneID).Scan(&groupCount)
 	if err == nil && groupCount > 0 {
 		return c.JSON(http.StatusConflict, map[string]string{
 			"error": fmt.Sprintf("No se puede eliminar la zona porque tiene %d grupos asignados", groupCount),
@@ -301,7 +315,10 @@ func (h *ZonesHandler) DeleteZone(c echo.Context) error {
 // GetZoneStats obtiene estadísticas detalladas de una zona
 func (h *ZonesHandler) GetZoneStats(c echo.Context) error {
 	zoneID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
 	query := `
 		SELECT 
@@ -322,7 +339,7 @@ func (h *ZonesHandler) GetZoneStats(c echo.Context) error {
 	`
 	
 	var stats models.ZoneStats
-	err := db.DB.QueryRow(query, zoneID).Scan(
+	err = db.DB.QueryRow(query, zoneID).Scan(
 		&stats.ZoneName,
 		&stats.ZoneID,
 		&stats.TotalGroups,
@@ -349,17 +366,22 @@ func (h *ZonesHandler) GetZoneStats(c echo.Context) error {
 // GetZoneGroups obtiene los grupos de una zona
 func (h *ZonesHandler) GetZoneGroups(c echo.Context) error {
 	zoneID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
 	query := `
 		SELECT 
-			g.id, g.group_name, g.leader_id, g.supervisor_id, g.zone_name,
+			g.id, g.group_name, g.leader_id, g.supervisor_id,
+			COALESCE(z.name, '') as zone_name,
 			g.meeting_day, g.meeting_time, g.meeting_location,
 			g.member_count, g.active_members, g.status,
 			g.created_at, g.updated_at,
 			COALESCE(u.first_name || ' ' || u.last_name, 'Sin líder') as leader_name,
 			COALESCE(s.first_name || ' ' || s.last_name, '') as supervisor_name
 		FROM discipleship_groups g
+		LEFT JOIN zones z ON g.zone_id = z.id
 		LEFT JOIN users u ON g.leader_id = u.id
 		LEFT JOIN users s ON g.supervisor_id = s.id
 		WHERE g.zone_id = $1
@@ -398,23 +420,31 @@ func (h *ZonesHandler) AssignGroupToZone(c echo.Context) error {
 	zoneID := c.Param("id")
 	groupID := c.Param("groupId")
 	
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
-	// Obtener el nombre de la zona
-	var zoneName string
-	err := db.DB.QueryRow("SELECT name FROM zones WHERE id = $1", zoneID).Scan(&zoneName)
-	if err == sql.ErrNoRows {
+	// Verificar que la zona existe
+	var zoneExists bool
+	err = db.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM zones WHERE id = $1)", zoneID).Scan(&zoneExists)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al verificar zona",
+		})
+	}
+	if !zoneExists {
 		return c.JSON(http.StatusNotFound, map[string]string{
 			"error": "Zona no encontrada",
 		})
 	}
 	
-	// Actualizar grupo
+	// Actualizar grupo - solo zone_id, no mantener zone_name
 	_, err = db.DB.Exec(`
 		UPDATE discipleship_groups 
-		SET zone_id = $1, zone_name = $2, updated_at = NOW()
-		WHERE id = $3
-	`, zoneID, zoneName, groupID)
+		SET zone_id = $1, updated_at = NOW()
+		WHERE id = $2
+	`, zoneID, groupID)
 	
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -432,23 +462,31 @@ func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 	zoneID := c.Param("id")
 	userID := c.Param("userId")
 	
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	
-	// Obtener el nombre de la zona
-	var zoneName string
-	err := db.DB.QueryRow("SELECT name FROM zones WHERE id = $1", zoneID).Scan(&zoneName)
-	if err == sql.ErrNoRows {
+	// Verificar que la zona existe
+	var zoneExists bool
+	err = db.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM zones WHERE id = $1)", zoneID).Scan(&zoneExists)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al verificar zona",
+		})
+	}
+	if !zoneExists {
 		return c.JSON(http.StatusNotFound, map[string]string{
 			"error": "Zona no encontrada",
 		})
 	}
 	
-	// Actualizar usuario
+	// Actualizar usuario - solo zone_id, no mantener zone_name
 	_, err = db.DB.Exec(`
 		UPDATE users 
-		SET zone_id = $1, zone_name = $2, updated_at = NOW()
-		WHERE id = $3
-	`, zoneID, zoneName, userID)
+		SET zone_id = $1, updated_at = NOW()
+		WHERE id = $2
+	`, zoneID, userID)
 	
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
