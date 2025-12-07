@@ -124,6 +124,20 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.GET("/leaders/:id/stats", discipleshipHandler.GetLeaderGroupStats)
 		discipleship.GET("/supervisors/:id/subordinates", discipleshipHandler.GetSupervisorSubordinates)
 		discipleship.GET("/goals", discipleshipHandler.GetGoals)
+	}
 
+	// Zones routes
+	zonesHandler := handlers.NewZonesHandler()
+	zones := protected.Group("/zones")
+	{
+		zones.GET("", zonesHandler.GetZones)
+		zones.GET("/:id", zonesHandler.GetZone)
+		zones.POST("", zonesHandler.CreateZone)
+		zones.PUT("/:id", zonesHandler.UpdateZone)
+		zones.DELETE("/:id", zonesHandler.DeleteZone)
+		zones.GET("/:id/stats", zonesHandler.GetZoneStats)
+		zones.GET("/:id/groups", zonesHandler.GetZoneGroups)
+		zones.PUT("/:id/groups/:groupId", zonesHandler.AssignGroupToZone)
+		zones.PUT("/:id/users/:userId", zonesHandler.AssignUserToZone)
 	}
 }
