@@ -227,13 +227,6 @@ type DiscipleshipAnalytics struct {
 	PendingAlerts     int     `json:"pending_alerts"`
 }
 
-type ZoneStats struct {
-	ZoneName      string  `json:"zone_name"`
-	TotalGroups   int     `json:"total_groups"`
-	TotalMembers  int     `json:"total_members"`
-	AvgAttendance float64 `json:"avg_attendance"`
-	GrowthRate    float64 `json:"growth_rate"`
-}
 
 type GroupPerformance struct {
 	GroupID        string  `json:"group_id"`
