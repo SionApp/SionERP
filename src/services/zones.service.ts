@@ -68,6 +68,16 @@ export class ZonesService {
   }
 
   static async getAvailableSupervisors(): Promise<User[]> {
-    return ApiService.get(`/users?role=supervisor,staff,pastor`);
+    const response = await ApiService.get<{ users: User[]; total: number } | User[]>(
+      `/users?role=supervisor,staff,pastor`
+    );
+    // Si la respuesta es un objeto con 'users', extraer el array
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (response && typeof response === 'object' && 'users' in response) {
+      return response.users || [];
+    }
+    return [];
   }
 }
