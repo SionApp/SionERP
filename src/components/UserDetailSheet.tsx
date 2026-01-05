@@ -1,28 +1,26 @@
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  Users, 
-  TrendingUp, 
-  FileText, 
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { User as UserType } from '@/types/user.types';
+import {
+  Activity,
   AlertCircle,
-  Edit,
-  History,
   Building2,
-  Target,
-  Activity
-} from "lucide-react";
-import { User as UserType } from "@/types/user.types";
-import { useEffect, useState } from "react";
+  Calendar,
+  Edit,
+  FileText,
+  History,
+  Mail,
+  MapPin,
+  Phone,
+  User,
+  Users,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface UserDetailSheetProps {
   user: UserType | null;
@@ -44,7 +42,7 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 
   const loadUserRelations = async () => {
     if (!user) return;
-    
+
     setLoading(true);
     try {
       // Aquí cargarías todas las relaciones del usuario
@@ -53,13 +51,11 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
       // - Métricas
       // - Reportes
       // - Alertas
-      
       // TODO: Implementar servicios para cargar esta data
       // const hierarchy = await DiscipleshipService.getUserHierarchy(user.id);
       // const groups = await DiscipleshipService.getUserGroups(user.id);
       // const metrics = await DiscipleshipService.getUserMetrics(user.id);
       // etc...
-      
     } catch (error) {
       console.error('Error loading user relations:', error);
     } finally {
@@ -71,11 +67,16 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
-      case 'pastor': return 'destructive';
-      case 'staff': return 'default';
-      case 'supervisor': return 'secondary';
-      case 'server': return 'outline';
-      default: return 'default';
+      case 'pastor':
+        return 'destructive';
+      case 'staff':
+        return 'default';
+      case 'supervisor':
+        return 'secondary';
+      case 'server':
+        return 'outline';
+      default:
+        return 'default';
     }
   };
 
@@ -85,7 +86,7 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
       staff: 'Staff',
       supervisor: 'Supervisor',
       server: 'Servidor',
-      member: 'Miembro'
+      member: 'Miembro',
     };
     return roles[role] || role;
   };
@@ -105,7 +106,7 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 {getInitials(user.first_name || '', user.last_name || '')}
               </AvatarFallback>
             </Avatar>
-            
+
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 <SheetTitle className="text-2xl">
@@ -124,7 +125,7 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                   </Badge>
                 )}
               </div>
-              
+
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Mail className="h-3 w-3" />
@@ -167,11 +168,26 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 <InfoRow label="Email" value={user.email} icon={<Mail className="h-4 w-4" />} />
                 <InfoRow label="Teléfono" value={user.phone} icon={<Phone className="h-4 w-4" />} />
                 <InfoRow label="WhatsApp" value={user.whatsapp ? 'Sí' : 'No'} />
-                <InfoRow label="Dirección" value={user.address} icon={<MapPin className="h-4 w-4" />} />
-                <InfoRow label="Fecha de Nacimiento" value={user.birth_date ? new Date(user.birth_date).toLocaleDateString() : 'No especificada'} icon={<Calendar className="h-4 w-4" />} />
+                <InfoRow
+                  label="Dirección"
+                  value={user.address}
+                  icon={<MapPin className="h-4 w-4" />}
+                />
+                <InfoRow
+                  label="Fecha de Nacimiento"
+                  value={
+                    user.birth_date
+                      ? new Date(user.birth_date).toLocaleDateString()
+                      : 'No especificada'
+                  }
+                  icon={<Calendar className="h-4 w-4" />}
+                />
                 <InfoRow label="Estado Civil" value={user.marital_status || 'No especificado'} />
                 <InfoRow label="Ocupación" value={user.occupation || 'No especificada'} />
-                <InfoRow label="Nivel Educativo" value={user.education_level || 'No especificado'} />
+                <InfoRow
+                  label="Nivel Educativo"
+                  value={user.education_level || 'No especificado'}
+                />
               </CardContent>
             </Card>
 
@@ -200,24 +216,41 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <InfoRow 
-                  label="Bautizado" 
+                <InfoRow
+                  label="Bautizado"
                   value={user.baptized ? 'Sí' : 'No'}
                   badge={user.baptized ? { variant: 'default', text: 'Bautizado' } : undefined}
                 />
-                {user.baptized && user.fecha_bautizo && (
-                  <InfoRow label="Fecha de Bautismo" value={new Date(user.fecha_bautizo).toLocaleDateString()} />
+                {user.baptized && user.baptism_date && (
+                  <InfoRow
+                    label="Fecha de Bautismo"
+                    value={new Date(user.baptism_date).toLocaleDateString()}
+                  />
                 )}
-                <InfoRow 
-                  label="Miembro Activo" 
-                  value={user.is_active_member ? 'Sí' : 'No'}
-                />
+
+                <InfoRow label="Miembro Activo" value={user.is_active_member ? 'Sí' : 'No'} />
                 {user.membership_date && (
-                  <InfoRow label="Fecha de Membresía" value={new Date(user.membership_date).toLocaleDateString()} />
+                  <InfoRow
+                    label="Fecha de Membresía"
+                    value={new Date(user.membership_date).toLocaleDateString()}
+                  />
                 )}
-                <InfoRow label="Primera Visita" value={user.first_visit_date ? new Date(user.first_visit_date).toLocaleDateString() : 'No registrada'} />
-                <InfoRow label="Cómo conoció la iglesia" value={user.how_found_church || 'No especificado'} />
-                <InfoRow label="Interés en Ministerio" value={user.ministry_interest || 'No especificado'} />
+                <InfoRow
+                  label="Primera Visita"
+                  value={
+                    user.first_visit_date
+                      ? new Date(user.first_visit_date).toLocaleDateString()
+                      : 'No registrada'
+                  }
+                />
+                <InfoRow
+                  label="Cómo conoció la iglesia"
+                  value={user.how_found_church || 'No especificado'}
+                />
+                <InfoRow
+                  label="Interés en Ministerio"
+                  value={user.ministry_interest || 'No especificado'}
+                />
                 <InfoRow label="Grupo Celular" value={user.cell_group || 'Sin asignar'} />
               </CardContent>
             </Card>
@@ -245,8 +278,14 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 <CardTitle className="text-base">Sistema</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <InfoRow label="Usuario Creado" value={new Date(user.created_at).toLocaleString()} />
-                <InfoRow label="Última Actualización" value={new Date(user.updated_at).toLocaleString()} />
+                <InfoRow
+                  label="Usuario Creado"
+                  value={new Date(user.created_at).toLocaleString()}
+                />
+                <InfoRow
+                  label="Última Actualización"
+                  value={new Date(user.updated_at).toLocaleString()}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -261,17 +300,23 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <InfoRow label="Nivel de Discipulado" value={user.discipleship_level?.toString() || 'No asignado'} />
+                <InfoRow
+                  label="Nivel de Discipulado"
+                  value={user.discipleship_level?.toString() || 'No asignado'}
+                />
                 <InfoRow label="Zona" value={user.zone_name || 'No asignada'} />
                 <InfoRow label="Territorio" value={user.territory || 'No asignado'} />
-                <InfoRow label="Grupos Activos" value={user.active_groups_count?.toString() || '0'} />
-                
+                <InfoRow
+                  label="Grupos Activos"
+                  value={user.active_groups_count?.toString() || '0'}
+                />
+
                 {loading && (
                   <div className="py-4 text-center text-muted-foreground">
                     Cargando información de discipulado...
                   </div>
                 )}
-                
+
                 {/* TODO: Aquí cargarías y mostrarías:
                     - Grupos que lidera
                     - Supervisor asignado
@@ -293,9 +338,7 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="py-4 text-center text-muted-foreground">
-                    Cargando métricas...
-                  </div>
+                  <div className="py-4 text-center text-muted-foreground">Cargando métricas...</div>
                 ) : (
                   <div className="text-sm text-muted-foreground">
                     {/* TODO: Aquí mostrarías:
@@ -322,9 +365,7 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="py-4 text-center text-muted-foreground">
-                    Cargando reportes...
-                  </div>
+                  <div className="py-4 text-center text-muted-foreground">Cargando reportes...</div>
                 ) : (
                   <div className="text-sm text-muted-foreground">
                     {/* TODO: Aquí mostrarías:
@@ -342,7 +383,13 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 
         {/* Footer con acciones */}
         <div className="flex gap-2 pt-6 pb-2 border-t mt-6">
-          <Button variant="outline" className="flex-1" onClick={() => {/* TODO: Ver auditoría */}}>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              /* TODO: Ver auditoría */
+            }}
+          >
             <History className="h-4 w-4 mr-2" />
             Ver Auditoría
           </Button>
@@ -357,14 +404,14 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 };
 
 // Componente helper para mostrar filas de información
-const InfoRow = ({ 
-  label, 
-  value, 
-  icon, 
-  badge 
-}: { 
-  label: string; 
-  value?: string; 
+const InfoRow = ({
+  label,
+  value,
+  icon,
+  badge,
+}: {
+  label: string;
+  value?: string;
   icon?: React.ReactNode;
   badge?: { variant: any; text: string };
 }) => (
@@ -385,4 +432,3 @@ const InfoRow = ({
 );
 
 export default UserDetailSheet;
-

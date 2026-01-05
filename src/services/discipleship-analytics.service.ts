@@ -1,3 +1,4 @@
+import { DiscipleshipMetrics } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
 import { DiscipleshipService } from './discipleship.service';
 
@@ -5,6 +6,13 @@ import { DiscipleshipService } from './discipleship.service';
 // TIPOS
 // =====================================================
 
+export type MultiplicationTypeStatus =
+  | 'planned'
+  | 'in_progress'
+  | 'successful'
+  | 'struggling'
+  | 'failed';
+export type MultiplicationType = 'standard' | 'planned' | 'emergency';
 export interface DiscipleshipAnalytics {
   totalGroups: number;
   totalMembers: number;
@@ -60,6 +68,25 @@ export interface MultiplicationTracker {
   initialMembers: number;
 }
 
+export interface MultiplicationWithDetails {
+  id: string;
+  parentGroupId: string;
+  parentLeaderId: string;
+  newGroupId: string | null;
+  newLeaderId: string | null;
+  multiplicationDate: string;
+  multiplicationType: MultiplicationType;
+  successStatus: MultiplicationTypeStatus;
+  initialMembers: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  parentGroupName: string;
+  newGroupName: string | null;
+  parentLeaderName: string;
+  newLeaderName: string | null;
+}
+
 export interface WeeklyTrend {
   week: string;
   attendance: number;
@@ -100,16 +127,14 @@ export interface DashboardStats {
 // =====================================================
 
 export class DiscipleshipAnalyticsService {
-  private static baseUrl = '/discipleship';
-
   // Obtener analytics generales
   static async getAnalytics(zoneName?: string): Promise<DiscipleshipAnalytics> {
     const url = zoneName
-      ? `${this.baseUrl}/analytics?zone_name=${zoneName}`
-      : `${this.baseUrl}/analytics`;
+      ? `/discipleship/analytics?zone_name=${zoneName}`
+      : `/discipleship/analytics`;
 
     const data = await ApiService.get(url);
-
+    console.log(data);
     return {
       totalGroups: data.total_groups || 0,
       totalMembers: data.total_members || 0,
@@ -124,65 +149,65 @@ export class DiscipleshipAnalyticsService {
 
   // Obtener estadísticas por zona
   static async getZoneStats(): Promise<ZoneStats[]> {
-    const data = await ApiService.get(`${this.baseUrl}/analytics/zones`);
+    const data = await ApiService.get(`/discipleship/analytics/zones`);
 
-    return (data || []).map((zone: any) => ({
-      zoneName: zone.zone_name || 'Sin zona',
-      totalGroups: zone.total_groups || 0,
-      totalMembers: zone.total_members || 0,
-      avgAttendance: zone.avg_attendance || 0,
-      growthRate: zone.growth_rate || 0,
-      healthIndex: zone.health_index || 0,
+    return (data as ZoneStats[]).map((zone: ZoneStats) => ({
+      zoneName: zone.zoneName || 'Sin zona',
+      totalGroups: zone.totalGroups || 0,
+      totalMembers: zone.totalMembers || 0,
+      avgAttendance: zone.avgAttendance || 0,
+      growthRate: zone.growthRate || 0,
+      healthIndex: zone.healthIndex || 0,
     }));
   }
 
   // Obtener rendimiento de grupos
   static async getGroupPerformance(): Promise<GroupPerformance[]> {
-    const data = await ApiService.get(`${this.baseUrl}/analytics/performance`);
+    const data = await ApiService.get(`/discipleship/analytics/performance`);
 
-    return (data || []).map((group: any) => ({
-      groupId: group.group_id || '',
-      groupName: group.group_name || 'Sin nombre',
-      leaderName: group.leader_name || 'Sin líder',
-      avgAttendance: group.avg_attendance || 0,
-      growthRate: group.growth_rate || 0,
-      spiritualTemp: group.spiritual_temp || 0,
+    return (data as GroupPerformance[]).map((group: GroupPerformance) => ({
+      groupId: group.groupId || '',
+      groupName: group.groupName || 'Sin nombre',
+      leaderName: group.leaderName || 'Sin líder',
+      avgAttendance: group.avgAttendance || 0,
+      growthRate: group.growthRate || 0,
+      spiritualTemp: group.spiritualTemp || 0,
       status: group.status || 'active',
-      lastReportDate: group.last_report_date || '',
+      lastReportDate: group.lastReportDate || '',
     }));
   }
 
   // Obtener alertas
   static async getAlerts(resolved = false): Promise<DiscipleshipAlert[]> {
-    const data = await ApiService.get(`${this.baseUrl}/alerts?resolved=${resolved}`);
+    const data = await ApiService.get(`/discipleship/alerts?resolved=${resolved}`);
 
-    return (data || []).map((alert: any) => ({
+    return (data as DiscipleshipAlert[]).map((alert: DiscipleshipAlert) => ({
       id: alert.id || '',
       type: this.mapAlertPriorityToType(alert.priority),
       title: alert.title || '',
       message: alert.message || '',
-      groupName: alert.group_name,
-      userName: alert.user_name,
-      createdAt: alert.created_at || '',
+      groupName: alert.groupName,
+      userName: alert.userName,
+      createdAt: alert.createdAt || '',
       priority: alert.priority || 3,
-      actionRequired: alert.action_required || false,
+      actionRequired: alert.actionRequired || false,
       resolved: alert.resolved || false,
     }));
   }
 
   // Obtener multiplicaciones
   static async getMultiplications(): Promise<MultiplicationTracker[]> {
-    const data = await ApiService.get(`${this.baseUrl}/multiplications`);
+    const data = await ApiService.get(`/discipleship/multiplications`);
 
-    return (data || []).map((mult: any) => ({
+    return (data as MultiplicationTracker[]).map((mult: MultiplicationTracker) => ({
       id: mult.id || '',
-      parentGroupName: mult.parent_group_name || '',
-      newGroupName: mult.new_group_name,
-      parentLeaderName: mult.parent_leader_name || '',
-      newLeaderName: mult.new_leader_name,
-      multiplicationDate: mult.multiplication_date || '',
-      status: mult.success_status || 'planned',
-      initialMembers: mult.initial_members || 0,
+      parentGroupName: mult.parentGroupName || '',
+      newGroupName: mult.newGroupName,
+      parentLeaderName: mult.parentLeaderName || '',
+      newLeaderName: mult.newLeaderName || '',
+      multiplicationDate: mult.multiplicationDate || '',
+      status: mult.status || 'planned',
+      initialMembers: mult.initialMembers || 0,
     }));
   }
 
@@ -195,8 +220,10 @@ export class DiscipleshipAnalyticsService {
 
       // Agrupar métricas por semana
       const weeklyMap = new Map<string, any>();
+      console.log(weeklyMap);
+      console.log(metrics);
 
-      metrics.forEach((metric: any) => {
+      metrics.forEach((metric: DiscipleshipMetrics) => {
         const weekStart = new Date(metric.week_date);
         weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Lunes de esa semana
         const weekKey = weekStart.toISOString().split('T')[0];
@@ -216,9 +243,9 @@ export class DiscipleshipAnalyticsService {
         const week = weeklyMap.get(weekKey);
         week.total_attendance += metric.attendance || 0;
         week.total_visitors += (metric.new_visitors || 0) + (metric.returning_visitors || 0);
-        week.total_conversions += metric.conversions || 0;
-        week.avg_spiritual_temp += metric.spiritual_temperature || 0;
-        week.count += 1;
+        week.conversions += metric.conversions || 0;
+        week.spiritualTemp += metric.spiritual_temperature || 0;
+        week.groupsReporting++;
       });
 
       // Calcular promedios y convertir a array
@@ -240,7 +267,7 @@ export class DiscipleshipAnalyticsService {
     }
 
     // Para tendencias generales, usar el endpoint específico de weekly-trends
-    const url = `${this.baseUrl}/weekly-trends?weeks=${weeks}`;
+    const url = `/discipleship/weekly-trends?weeks=${weeks}`;
     const data = await ApiService.get(url);
 
     return (data || []).map((trend: any) => ({
@@ -281,7 +308,7 @@ export class DiscipleshipAnalyticsService {
   // Obtener datos del grupo para un líder
   static async getLeaderGroupStats(leaderId: string): Promise<LeaderStats | null> {
     try {
-      const response = await ApiService.get(`${this.baseUrl}/groups?leader_id=${leaderId}`);
+      const response = await ApiService.get(`/discipleship/groups?leader_id=${leaderId}`);
       const groups = response.data || [];
 
       if (groups.length === 0) return null;

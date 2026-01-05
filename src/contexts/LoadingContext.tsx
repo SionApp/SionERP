@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { ReactNode, createContext, useCallback, useContext, useState } from 'react';
 
 interface LoadingContextType {
   isFetching: boolean;
@@ -13,13 +13,13 @@ export const LoadingProvider = ({ children }: { children: ReactNode }) => {
   const [isFetching, setIsFetching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const setFetching = (loading: boolean) => {
+  const setFetching = useCallback((loading: boolean) => {
     setIsFetching(loading);
-  };
+  }, []);
 
-  const setSubmitting = (loading: boolean) => {
+  const setSubmitting = useCallback((loading: boolean) => {
     setIsSubmitting(loading);
-  };
+  }, []);
 
   return (
     <LoadingContext.Provider value={{ isFetching, isSubmitting, setFetching, setSubmitting }}>
@@ -31,7 +31,7 @@ export const LoadingProvider = ({ children }: { children: ReactNode }) => {
 export const useLoadingContext = () => {
   const context = useContext(LoadingContext);
   if (context === undefined) {
-    throw new Error("useLoadingContext must be used within a LoadingProvider");
+    throw new Error('useLoadingContext must be used within a LoadingProvider');
   }
   return context;
 };

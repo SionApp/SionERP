@@ -1,9 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -11,314 +7,326 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Map, MapPin, Users, Calendar, Clock, Filter, Layers, ZoomIn, ZoomOut } from 'lucide-react';
-import { mockGroups } from '@/mocks/discipleship/data.mock';
-import { DiscipleshipGroup } from '@/types/discipleship.types';
+import { useZones } from '@/hooks/useZones';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import type { DiscipleshipGroup, GeoJSONPolygon, Zone } from '@/types/discipleship.types';
+import { Calendar, Layers, Loader2, Map as MapIcon, MapPin, Users } from 'lucide-react';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import MapLibreMap, {
+  Layer,
+  MapLayerMouseEvent,
+  MapRef,
+  Marker,
+  Popup,
+  Source,
+} from 'react-map-gl/maplibre';
+import { toast } from 'sonner';
 
-// Extended mock data with coordinates
-const groupsWithCoordinates: (DiscipleshipGroup & { latitude: number; longitude: number })[] = [
-  {
-    ...mockGroups[0],
-    latitude: 10.2547,
-    longitude: -67.5926,
-    meeting_address: 'Av. Bolívar Norte #45, Sector La Paz',
-  },
-  {
-    ...mockGroups[1],
-    latitude: 10.2612,
-    longitude: -67.5889,
-    meeting_address: 'Calle Miranda #78, Centro Norte',
-  },
-  {
-    ...mockGroups[2],
-    latitude: 10.2489,
-    longitude: -67.5945,
-    meeting_address: 'Urbanización Parque Residencial #23',
-  },
-  {
-    ...mockGroups[3],
-    latitude: 10.2145,
-    longitude: -67.5934,
-    meeting_address: 'Av. Sur #156, Las Delicias',
-  },
-  {
-    ...mockGroups[4],
-    latitude: 10.2089,
-    longitude: -67.5812,
-    meeting_address: 'Calle Principal #89, El Limón',
-  },
-];
-
-const zoneColors = {
-  'Zona Norte': '#3b82f6',
-  'Zona Sur': '#ef4444',
-  'Zona Este': '#10b981',
-  'Zona Oeste': '#f59e0b',
-};
+const DEFAULT_CENTER: { longitude: number; latitude: number } = {
+  longitude: -67.5926,
+  latitude: 10.2425,
+}; // Maracay
+const DEFAULT_ZOOM = 12;
 
 const DiscipleshipMap: React.FC = () => {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const [mapboxToken, setMapboxToken] = useState('');
-  const [showTokenInput, setShowTokenInput] = useState(true);
-  const [selectedZone, setSelectedZone] = useState<string>('all');
+  const [selectedZoneId, setSelectedZoneId] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [groups, setGroups] = useState<DiscipleshipGroup[]>([]);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [popupInfo, setPopupInfo] = useState<{
+    group: DiscipleshipGroup;
+    lngLat: [number, number];
+  } | null>(null);
+  const [selectedZonePopup, setSelectedZonePopup] = useState<{
+    zone: Zone;
+    lngLat: [number, number];
+  } | null>(null);
+  const mapRef = React.useRef<MapRef>(null);
+  const [viewState, setViewState] = useState({
+    longitude: DEFAULT_CENTER.longitude,
+    latitude: DEFAULT_CENTER.latitude,
+    zoom: DEFAULT_ZOOM,
+  });
 
-  const initializeMap = () => {
-    if (!mapContainer.current) return;
+  const { zones: zonesData, loading: zonesLoading } = useZones({
+    autoLoad: true,
+    onlyActive: true,
+  });
 
-    // Use a temporary token for demonstration - in production this should come from Supabase secrets
-    const tempToken =
-      'pk.eyJ1IjoidGVzdHVzZXIiLCJhIjoiY2ttZXJpeHZ2MDMxaDJ3cXhqdTZ0ejJ5MyJ9.demo_token_for_mapbox';
-    const token = mapboxToken || tempToken;
-
-    mapboxgl.accessToken = token;
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/light-v11',
-      center: [-67.5926, 10.2425], // Centered on Maracay, Venezuela
-      zoom: 12,
-      pitch: 0,
-    });
-
-    // Add navigation controls
-    map.current.addControl(
-      new mapboxgl.NavigationControl({
-        visualizePitch: true,
-      }),
-      'top-right'
-    );
-
-    // Wait for map to load then add markers
-    map.current.on('load', () => {
-      addMarkersToMap();
-    });
-
-    setShowTokenInput(false);
-  };
-
-  const addMarkersToMap = () => {
-    if (!map.current) return;
-
-    // Clear existing markers
-    markers.forEach(marker => marker.remove());
-    setMarkers([]);
-
-    const newMarkers: mapboxgl.Marker[] = [];
-
-    groupsWithCoordinates
-      .filter(group => {
-        if (selectedZone !== 'all' && group.zone_name !== selectedZone) return false;
-        if (selectedStatus !== 'all' && group.status !== selectedStatus) return false;
-        return true;
-      })
-      .forEach(group => {
-        // Create marker element
-        const markerElement = document.createElement('div');
-        markerElement.className = 'custom-marker';
-        markerElement.style.width = '30px';
-        markerElement.style.height = '30px';
-        markerElement.style.borderRadius = '50%';
-        markerElement.style.backgroundColor =
-          zoneColors[group.zone_name as keyof typeof zoneColors] || '#6b7280';
-        markerElement.style.border = '3px solid white';
-        markerElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-        markerElement.style.cursor = 'pointer';
-        markerElement.style.display = 'flex';
-        markerElement.style.alignItems = 'center';
-        markerElement.style.justifyContent = 'center';
-        markerElement.style.fontSize = '12px';
-        markerElement.style.fontWeight = 'bold';
-        markerElement.style.color = 'white';
-        markerElement.textContent = group.active_members.toString();
-
-        // Status ring
-        if (group.status === 'multiplying') {
-          markerElement.style.border = '3px solid #10b981';
-          markerElement.style.animation = 'pulse 2s infinite';
-        } else if (group.status === 'inactive') {
-          markerElement.style.opacity = '0.5';
-        }
-
-        // Create popup content
-        const popupContent = `
-          <div class="p-3 min-w-[250px]">
-            <h3 class="font-bold text-lg mb-2">${group.group_name}</h3>
-            <div class="space-y-2 text-sm">
-              <div class="flex items-center gap-2">
-                <div class="w-3 h-3 rounded-full" style="background-color: ${zoneColors[group.zone_name as keyof typeof zoneColors]}"></div>
-                <span>${group.zone_name}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-                <span>${group.meeting_address}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                </svg>
-                <span>${group.meeting_day}s ${group.meeting_time}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/>
-                </svg>
-                <span>${group.active_members}/${group.member_count} miembros</span>
-              </div>
-              <div class="mt-2">
-                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                  group.status === 'active'
-                    ? 'bg-green-100 text-green-800'
-                    : group.status === 'multiplying'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
-                }">
-                  ${group.status === 'active' ? 'Activo' : group.status === 'multiplying' ? 'Multiplicando' : 'Inactivo'}
-                </span>
-              </div>
-            </div>
-          </div>
-        `;
-
-        // Create popup
-        const popup = new mapboxgl.Popup({
-          offset: 25,
-          closeButton: true,
-          closeOnClick: false,
-        }).setHTML(popupContent);
-
-        // Create marker
-        const marker = new mapboxgl.Marker(markerElement)
-          .setLngLat([group.longitude, group.latitude])
-          .setPopup(popup)
-          .addTo(map.current!);
-
-        newMarkers.push(marker);
-      });
-
-    setMarkers(newMarkers);
-  };
-
-  useEffect(() => {
-    if (map.current) {
-      addMarkersToMap();
+  // Cargar grupos desde el backend
+  const loadGroups = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await DiscipleshipService.getGroups({ limit: 1000 });
+      const groupsData = Array.isArray(response.data) ? response.data : [];
+      setGroups(groupsData);
+    } catch (error) {
+      console.error('Error loading groups:', error);
+      toast.error('Error al cargar grupos');
+    } finally {
+      setLoading(false);
     }
-  }, [selectedZone, selectedStatus]);
-
-  // Add CSS for pulse animation
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-      }
-    `;
-    document.head.appendChild(style);
-
-    return () => {
-      document.head.removeChild(style);
-    };
   }, []);
 
-  if (showTokenInput) {
+  // Cargar grupos al montar
+  useEffect(() => {
+    loadGroups();
+  }, [loadGroups]);
+
+  // Calcular centro inicial basado en zonas (solo una vez)
+  const [centerCalculated, setCenterCalculated] = useState(false);
+
+  useEffect(() => {
+    if (zonesData && zonesData.length > 0 && !centerCalculated) {
+      const zonesWithCenter = zonesData.filter(z => {
+        const lat =
+          typeof z.center_lat === 'number' && !isNaN(z.center_lat) && z.center_lat !== null;
+        const lng =
+          typeof z.center_lng === 'number' && !isNaN(z.center_lng) && z.center_lng !== null;
+        return lat && lng && z.center_lat !== undefined && z.center_lng !== undefined;
+      });
+
+      if (zonesWithCenter.length > 0) {
+        let sumLat = 0;
+        let sumLng = 0;
+        let validCount = 0;
+
+        zonesWithCenter.forEach(z => {
+          const lat = Number(z.center_lat);
+          const lng = Number(z.center_lng);
+          if (
+            !isNaN(lat) &&
+            !isNaN(lng) &&
+            lat !== null &&
+            lng !== null &&
+            isFinite(lat) &&
+            isFinite(lng)
+          ) {
+            sumLat += lat;
+            sumLng += lng;
+            validCount++;
+          }
+        });
+
+        if (validCount > 0) {
+          const avgLat = sumLat / validCount;
+          const avgLng = sumLng / validCount;
+
+          if (!isNaN(avgLat) && !isNaN(avgLng) && isFinite(avgLat) && isFinite(avgLng)) {
+            setViewState(prev => ({
+              ...prev,
+              longitude: avgLng,
+              latitude: avgLat,
+            }));
+            setCenterCalculated(true);
+          }
+        }
+      }
+    }
+  }, [zonesData, centerCalculated]);
+
+  // Filtrar grupos según filtros
+  const filteredGroups = useMemo(() => {
+    return groups.filter(group => {
+      if (selectedZoneId !== 'all' && group.zone_id !== selectedZoneId) return false;
+      if (selectedStatus !== 'all' && group.status !== selectedStatus) return false;
+
+      // Solo grupos con coordenadas válidas
+      const lat =
+        typeof group.latitude === 'number' && !isNaN(group.latitude) && isFinite(group.latitude);
+      const lng =
+        typeof group.longitude === 'number' && !isNaN(group.longitude) && isFinite(group.longitude);
+      return lat && lng && group.latitude != null && group.longitude != null;
+    });
+  }, [groups, selectedZoneId, selectedStatus]);
+
+  // Crear FeatureCollection GeoJSON para todas las zonas (objeto limpio sin propiedades React)
+  const zonesGeoJSON = useMemo(() => {
+    if (!zonesData || zonesData.length === 0) {
+      return {
+        type: 'FeatureCollection' as const,
+        features: [],
+      };
+    }
+
+    const features = zonesData
+      .filter(zone => zone.boundaries && zone.id)
+      .map(zone => {
+        const boundaries = zone.boundaries as GeoJSONPolygon;
+        if (!boundaries.coordinates || boundaries.coordinates.length === 0) return null;
+
+        // Crear objeto limpio sin propiedades React
+        return {
+          type: 'Feature',
+          geometry: {
+            type: boundaries.type,
+            coordinates: boundaries.coordinates,
+          },
+          properties: {
+            id: String(zone.id),
+            name: String(zone.name),
+            color: String(zone.color || '#3b82f6'),
+            description: String(zone.description || ''),
+          },
+        };
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null);
+
+    // Crear objeto limpio con JSON parse/stringify para remover cualquier propiedad React
+    const cleanGeoJSON = JSON.parse(
+      JSON.stringify({
+        type: 'FeatureCollection',
+        features,
+      })
+    );
+
+    return cleanGeoJSON;
+  }, [zonesData]);
+
+  // Manejar errores del mapa
+  const handleMapError = useCallback((event: { error?: Error; message?: string }) => {
+    const errorMsg = event.error?.message || event.message || '';
+
+    // Ignorar errores de propiedades React que no afectan la funcionalidad
+    if (
+      errorMsg.includes('data-component-content') ||
+      errorMsg.includes('data-lov-id') ||
+      errorMsg.includes('unknown property')
+    ) {
+      console.warn('Ignorando error de propiedad React:', errorMsg);
+      return;
+    }
+
+    console.error('Map error:', event);
+    setMapError(errorMsg || 'Error al cargar el mapa.');
+    toast.error('Error al cargar el mapa.');
+  }, []);
+
+  // Manejar clicks en el mapa para detectar selección de zonas
+  const handleMapClick = useCallback(
+    (event: MapLayerMouseEvent) => {
+      if (!mapRef.current) return;
+
+      // No hacer nada si el click fue en un marcador (se maneja en el onClick del Marker)
+      if ((event.originalEvent.target as HTMLElement)?.closest('.mapboxgl-marker')) {
+        return;
+      }
+
+      const map = mapRef.current.getMap();
+      const features = map.queryRenderedFeatures(event.point, {
+        layers: ['zones-fill', 'zones-stroke'],
+      });
+
+      if (features.length > 0) {
+        const feature = features[0];
+        const zoneId = feature.properties?.id;
+
+        if (zoneId) {
+          const zone = zonesData?.find(z => z.id === zoneId);
+          if (zone) {
+            // Calcular centro del polígono o usar coordenadas del click
+            const center =
+              zone.center_lat && zone.center_lng
+                ? ([zone.center_lng, zone.center_lat] as [number, number])
+                : ([event.lngLat.lng, event.lngLat.lat] as [number, number]);
+
+            setSelectedZonePopup({
+              zone,
+              lngLat: center,
+            });
+            // Cerrar popup de grupo si está abierto
+            setPopupInfo(null);
+          }
+        }
+      } else {
+        // Click fuera de una zona, cerrar popup de zona pero no de grupos
+        setSelectedZonePopup(null);
+      }
+    },
+    [zonesData]
+  );
+
+  const stats = {
+    totalGroups: filteredGroups.length,
+    totalMembers: filteredGroups.reduce((sum, g) => sum + (g.active_members || 0), 0),
+    multiplying: filteredGroups.filter(g => g.status === 'multiplying').length,
+    activeZones: zonesData?.length || 0,
+  };
+
+  if (zonesLoading || loading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Map className="w-5 h-5" />
-            Mapa de Células de Discipulado
-          </CardTitle>
-          <CardDescription>
-            Visualización de todas las células organizadas por zonas geográficas
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-            <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-              💡 <strong>Demo disponible:</strong> Puedes ver el mapa con datos de ejemplo sin
-              configurar token
-            </p>
-            <div className="flex gap-2">
-              <Button onClick={() => initializeMap()} variant="default">
-                <Map className="w-4 h-4 mr-2" />
-                Ver Mapa Demo
-              </Button>
-              <Button onClick={() => setShowTokenInput(false)} variant="outline">
-                Continuar sin mapa
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Token de Mapbox (Opcional)</label>
-            <Input
-              type="password"
-              placeholder="Ingresa tu token público de Mapbox para mapas reales"
-              value={mapboxToken}
-              onChange={e => setMapboxToken(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Obtén tu token público gratuito en{' '}
-              <a
-                href="https://mapbox.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                mapbox.com
-              </a>
-            </p>
-          </div>
-
-          <Button
-            onClick={initializeMap}
-            disabled={!mapboxToken}
-            variant="outline"
-            className="w-full"
-          >
-            <Map className="w-4 h-4 mr-2" />
-            Cargar Mapa con Token Personal
-          </Button>
+        <CardContent className="p-12 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </CardContent>
       </Card>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      {/* Controls */}
+  if (mapError) {
+    return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Map className="w-5 h-5" />
+            <MapIcon className="w-5 h-5" />
             Mapa de Células de Discipulado
           </CardTitle>
-          <CardDescription>
-            Visualiza la ubicación geográfica de todas las células organizadas por zonas
-          </CardDescription>
+          <CardDescription>Visualiza la ubicación de todas las células por zona</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+              ⚠️ <strong>Error al cargar el mapa:</strong> {mapError}
+            </p>
+            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-2">
+              Error al cargar el mapa. Por favor, verifica tu conexión a internet e intenta de
+              nuevo.
+            </p>
+            <Button
+              onClick={() => {
+                setMapError(null);
+                window.location.reload();
+              }}
+              variant="outline"
+              className="mt-3"
+            >
+              Reintentar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const zoneColorMap = new globalThis.Map(zonesData?.map(z => [z.id, z.color || '#6b7280']) || []);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapIcon className="w-5 h-5" />
+            Mapa de Células de Discipulado
+          </CardTitle>
+          <CardDescription>Visualiza la ubicación de todas las células por zona</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4 mb-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Filtrar por Zona</label>
-              <Select value={selectedZone} onValueChange={setSelectedZone}>
+              <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las Zonas</SelectItem>
-                  <SelectItem value="Zona Norte">Zona Norte</SelectItem>
-                  <SelectItem value="Zona Sur">Zona Sur</SelectItem>
-                  <SelectItem value="Zona Este">Zona Este</SelectItem>
-                  <SelectItem value="Zona Oeste">Zona Oeste</SelectItem>
+                  {zonesData?.map(zone => (
+                    <SelectItem key={zone.id} value={zone.id}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -330,7 +338,7 @@ const DiscipleshipMap: React.FC = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los Estados</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="active">Activas</SelectItem>
                   <SelectItem value="multiplying">Multiplicando</SelectItem>
                   <SelectItem value="inactive">Inactivas</SelectItem>
@@ -339,40 +347,300 @@ const DiscipleshipMap: React.FC = () => {
             </div>
           </div>
 
-          {/* Legend */}
-          <div className="flex flex-wrap gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#3b82f6] border-2 border-white"></div>
-              <span className="text-sm">Zona Norte</span>
+          {/* Leyenda de colores */}
+          {zonesData && zonesData.length > 0 && (
+            <div className="flex flex-wrap gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
+              {zonesData.map(zone => (
+                <div key={zone.id} className="flex items-center gap-2">
+                  <div
+                    className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                    style={{ backgroundColor: zone.color || '#3b82f6' }}
+                  />
+                  <span className="text-sm">{zone.name}</span>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#ef4444] border-2 border-white"></div>
-              <span className="text-sm">Zona Sur</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#10b981] border-2 border-white"></div>
-              <span className="text-sm">Zona Este</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#f59e0b] border-2 border-white"></div>
-              <span className="text-sm">Zona Oeste</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#10b981] border-2 border-[#10b981] animate-pulse"></div>
-              <span className="text-sm">Multiplicando</span>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Map */}
       <Card>
         <CardContent className="p-0">
-          <div ref={mapContainer} className="w-full h-[600px] rounded-lg" />
+          <MapLibreMap
+            ref={mapRef}
+            {...viewState}
+            onMove={evt => setViewState(evt.viewState)}
+            onClick={handleMapClick}
+            style={{ width: '100%', height: 600 }}
+            mapStyle={{
+              version: 8,
+              sources: {
+                osm: {
+                  type: 'raster',
+                  tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                  tileSize: 256,
+                  attribution: '© OpenStreetMap contributors',
+                },
+              },
+              layers: [
+                {
+                  id: 'osm-layer',
+                  type: 'raster',
+                  source: 'osm',
+                },
+              ],
+            }}
+            onError={handleMapError}
+          >
+            {/* Capa de polígonos de zonas - Un solo Source con FeatureCollection */}
+            {zonesGeoJSON.features.length > 0 && (
+              <Source
+                id="zones-source"
+                type="geojson"
+                data={JSON.parse(JSON.stringify(zonesGeoJSON))}
+              >
+                <Layer
+                  id="zones-fill"
+                  type="fill"
+                  paint={{
+                    'fill-color': ['get', 'color'],
+                    'fill-opacity': [
+                      'case',
+                      ['boolean', ['feature-state', 'hover'], false],
+                      0.35,
+                      0.2,
+                    ],
+                  }}
+                />
+                <Layer
+                  id="zones-stroke"
+                  type="line"
+                  paint={{
+                    'line-color': ['get', 'color'],
+                    'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 3, 2],
+                  }}
+                />
+              </Source>
+            )}
+
+            {/* Marcadores de grupos */}
+            {filteredGroups.map(group => {
+              const lat = Number(group.latitude);
+              const lng = Number(group.longitude);
+
+              if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) {
+                return null;
+              }
+
+              const zoneColor = group.zone_id ? zoneColorMap.get(group.zone_id) : '#6b7280';
+              const zone = zonesData?.find(z => z.id === group.zone_id);
+
+              return (
+                <Marker
+                  key={group.id}
+                  longitude={lng}
+                  latitude={lat}
+                  anchor="center"
+                  onClick={e => {
+                    e.originalEvent.stopPropagation();
+                    setPopupInfo({ group, lngLat: [lng, lat] });
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full border-3 border-white cursor-pointer flex items-center justify-center text-white text-xs font-bold shadow-lg transition-transform hover:scale-110"
+                    style={{
+                      backgroundColor: zoneColor || '#6b7280',
+                      borderWidth: group.status === 'multiplying' ? '3px' : '2px',
+                      borderColor: group.status === 'multiplying' ? '#10b981' : 'white',
+                      boxShadow:
+                        group.status === 'multiplying'
+                          ? '0 0 0 2px rgba(16, 185, 129, 0.3)'
+                          : '0 2px 6px rgba(0,0,0,0.3)',
+                      opacity: group.status === 'inactive' ? 0.6 : 1,
+                    }}
+                  >
+                    {group.active_members || 0}
+                  </div>
+                </Marker>
+              );
+            })}
+
+            {/* Popup para información del grupo */}
+            {popupInfo && (
+              <Popup
+                longitude={popupInfo.lngLat[0]}
+                latitude={popupInfo.lngLat[1]}
+                anchor="bottom"
+                onClose={() => setPopupInfo(null)}
+                closeButton={true}
+                closeOnClick={false}
+              >
+                <div className="p-3 min-w-[250px]">
+                  <h3 className="font-bold text-lg mb-2">
+                    {popupInfo.group.group_name || 'Sin nombre'}
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    {zonesData?.find(z => z.id === popupInfo.group.zone_id) && (
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{
+                            backgroundColor:
+                              zoneColorMap.get(popupInfo.group.zone_id || '') || '#6b7280',
+                          }}
+                        />
+                        <span>{zonesData.find(z => z.id === popupInfo.group.zone_id)?.name}</span>
+                      </div>
+                    )}
+                    <div>
+                      📍{' '}
+                      {popupInfo.group.meeting_address ||
+                        popupInfo.group.meeting_location ||
+                        'Sin dirección'}
+                    </div>
+                    {popupInfo.group.meeting_day && popupInfo.group.meeting_time && (
+                      <div>
+                        📅 {popupInfo.group.meeting_day}s {popupInfo.group.meeting_time}
+                      </div>
+                    )}
+                    <div>
+                      👥 {popupInfo.group.active_members || 0}/{popupInfo.group.member_count || 0}{' '}
+                      miembros
+                    </div>
+                    {popupInfo.group.leader_name && (
+                      <div>👤 Líder: {popupInfo.group.leader_name}</div>
+                    )}
+                    <div className="mt-2">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          popupInfo.group.status === 'active'
+                            ? 'bg-green-100 text-green-800'
+                            : popupInfo.group.status === 'multiplying'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {popupInfo.group.status === 'active'
+                          ? 'Activo'
+                          : popupInfo.group.status === 'multiplying'
+                            ? 'Multiplicando'
+                            : 'Inactivo'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Popup>
+            )}
+
+            {/* Popup para información de zona */}
+            {selectedZonePopup && (
+              <Popup
+                longitude={selectedZonePopup.lngLat[0]}
+                latitude={selectedZonePopup.lngLat[1]}
+                anchor="bottom"
+                onClose={() => setSelectedZonePopup(null)}
+                closeButton={true}
+                closeOnClick={false}
+                maxWidth="400px"
+              >
+                <div className="p-4 min-w-[300px] max-w-[400px]">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div
+                      className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
+                      style={{
+                        backgroundColor: selectedZonePopup.zone.color || '#3b82f6',
+                      }}
+                    />
+                    <h3 className="font-bold text-lg">{selectedZonePopup.zone.name}</h3>
+                  </div>
+
+                  {selectedZonePopup.zone.description && (
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {selectedZonePopup.zone.description}
+                    </p>
+                  )}
+
+                  {/* Estadísticas de la zona */}
+                  <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-muted/50 rounded-lg">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Grupos</div>
+                      <div className="text-lg font-semibold">
+                        {selectedZonePopup.zone.total_groups || 0}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Miembros</div>
+                      <div className="text-lg font-semibold">
+                        {selectedZonePopup.zone.total_members || 0}
+                      </div>
+                    </div>
+                    {selectedZonePopup.zone.supervisor_name && (
+                      <div className="col-span-2">
+                        <div className="text-xs text-muted-foreground">Supervisor</div>
+                        <div className="text-sm font-medium">
+                          {selectedZonePopup.zone.supervisor_name}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Grupos dentro de esta zona */}
+                  {(() => {
+                    const zoneGroups = filteredGroups.filter(
+                      g => g.zone_id === selectedZonePopup.zone.id
+                    );
+                    return zoneGroups.length > 0 ? (
+                      <div>
+                        <div className="text-sm font-semibold mb-2">
+                          Grupos ({zoneGroups.length})
+                        </div>
+                        <div className="max-h-48 overflow-y-auto space-y-2">
+                          {zoneGroups.slice(0, 5).map(group => (
+                            <div
+                              key={group.id}
+                              className="p-2 bg-background rounded border border-border text-sm cursor-pointer hover:bg-muted transition-colors"
+                              onClick={() => {
+                                setPopupInfo({
+                                  group,
+                                  lngLat: [
+                                    Number(group.longitude) || selectedZonePopup.lngLat[0],
+                                    Number(group.latitude) || selectedZonePopup.lngLat[1],
+                                  ],
+                                });
+                                setSelectedZonePopup(null);
+                              }}
+                            >
+                              <div className="font-medium">{group.group_name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {group.active_members || 0} miembros •{' '}
+                                {group.status === 'active'
+                                  ? 'Activo'
+                                  : group.status === 'multiplying'
+                                    ? 'Multiplicando'
+                                    : 'Inactivo'}
+                              </div>
+                            </div>
+                          ))}
+                          {zoneGroups.length > 5 && (
+                            <div className="text-xs text-muted-foreground text-center">
+                              +{zoneGroups.length - 5} grupos más
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground text-center py-2">
+                        No hay grupos en esta zona
+                      </div>
+                    );
+                  })()}
+                </div>
+              </Popup>
+            )}
+          </MapLibreMap>
         </CardContent>
       </Card>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -380,7 +648,7 @@ const DiscipleshipMap: React.FC = () => {
               <MapPin className="w-4 h-4 text-primary" />
               <span className="text-sm font-medium">Total Células</span>
             </div>
-            <p className="text-2xl font-bold">{groupsWithCoordinates.length}</p>
+            <p className="text-2xl font-bold">{stats.totalGroups}</p>
           </CardContent>
         </Card>
         <Card>
@@ -389,9 +657,7 @@ const DiscipleshipMap: React.FC = () => {
               <Users className="w-4 h-4 text-green-600" />
               <span className="text-sm font-medium">Miembros Activos</span>
             </div>
-            <p className="text-2xl font-bold">
-              {groupsWithCoordinates.reduce((sum, group) => sum + group.active_members, 0)}
-            </p>
+            <p className="text-2xl font-bold">{stats.totalMembers}</p>
           </CardContent>
         </Card>
         <Card>
@@ -400,9 +666,7 @@ const DiscipleshipMap: React.FC = () => {
               <Calendar className="w-4 h-4 text-blue-600" />
               <span className="text-sm font-medium">Multiplicando</span>
             </div>
-            <p className="text-2xl font-bold">
-              {groupsWithCoordinates.filter(g => g.status === 'multiplying').length}
-            </p>
+            <p className="text-2xl font-bold">{stats.multiplying}</p>
           </CardContent>
         </Card>
         <Card>
@@ -411,7 +675,7 @@ const DiscipleshipMap: React.FC = () => {
               <Layers className="w-4 h-4 text-purple-600" />
               <span className="text-sm font-medium">Zonas</span>
             </div>
-            <p className="text-2xl font-bold">4</p>
+            <p className="text-2xl font-bold">{stats.activeZones}</p>
           </CardContent>
         </Card>
       </div>
