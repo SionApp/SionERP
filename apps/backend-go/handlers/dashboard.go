@@ -111,12 +111,28 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		AlertsCount:     0,
 	}
 
+	// Fetch installed modules
+	installedModules := []string{}
+	rows, err := db.DB.Query("SELECT key FROM modules WHERE is_installed = true")
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var key string
+			if err := rows.Scan(&key); err == nil {
+				installedModules = append(installedModules, key)
+			}
+		}
+	} else {
+		fmt.Printf("Error fetching installed modules: %v\n", err)
+	}
+
 	response := models.DashboardResponse{
 		Stats:             stats,
 		RoleDistribution:  rolesDistribution,
 		RecentActivity:    recentActivity,
 		DiscipleshipStats: discipleshipStats,
 		CurrentUserRole:   currentUserRole,
+		InstalledModules:  installedModules,
 	}
 
 	return c.JSON(http.StatusOK, response)

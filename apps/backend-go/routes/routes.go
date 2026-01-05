@@ -52,29 +52,45 @@ func SetupRoutes(e *echo.Echo) {
 		dashboard.GET("/stats", dashboardHandler.GetStats) // GET /api/v1/dashboard/stats
 	}
 
+	// Setup routes (Public or protected check inside handler)
+	// Setup routes (Use OptionalAuth to allow both public init and protected admin access)
+	setupHandler := handlers.NewSetupHandler()
+	setup := api.Group("/setup")
+	setup.Use(middleware.OptionalAuth())
+	{
+		setup.GET("/status", setupHandler.GetSetupStatus)
+		setup.POST("", setupHandler.PerformSetup)
+	}
+
+	// Module management routes (protected)
+	modules := protected.Group("/modules")
+	{
+		modules.PUT("/:key", setupHandler.UpdateModuleStatus)
+	}
+
 	// Invitation routes
 	invitations := protected.Group("/invitations")
 	{
-		invitations.GET("", handlers.NewInviteHandler().GetInvitations) // GET /api/v1/invitations - List all invitations
-		invitations.POST("", handlers.NewInviteHandler().InviteUser) // POST /api/v1/invitations - Invite a user
+		invitations.GET("", handlers.NewInviteHandler().GetInvitations)               // GET /api/v1/invitations - List all invitations
+		invitations.POST("", handlers.NewInviteHandler().InviteUser)                  // POST /api/v1/invitations - Invite a user
 		invitations.POST("/:id/resend", handlers.NewInviteHandler().ResendInvitation) // POST /api/v1/invitations/:id/resend - Resend an invitation
 		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation) // POST /api/v1/invitations/:id/accept - Accept an invitation
 	}
 	// Settings routes
 	settings := protected.Group("/settings")
 	{
-		settings.GET("/system", handlers.NewSettingsHandler().GetSystemSettings) // GET /api/v1/settings/system - Get system settings
-		settings.PUT("/system", handlers.NewSettingsHandler().UpdateSystemSettings) // PUT /api/v1/settings/system - Update system settings
-		settings.GET("/church", handlers.NewSettingsHandler().GetChurchInfo) // GET /api/v1/settings/church - Get church info
-		settings.PUT("/church", handlers.NewSettingsHandler().UpdateChurchInfo) // PUT /api/v1/settings/church - Update church info
-		settings.GET("/notifications", handlers.NewSettingsHandler().GetNotificationConfig) // GET /api/v1/settings/notifications - Get notification config
+		settings.GET("/system", handlers.NewSettingsHandler().GetSystemSettings)               // GET /api/v1/settings/system - Get system settings
+		settings.PUT("/system", handlers.NewSettingsHandler().UpdateSystemSettings)            // PUT /api/v1/settings/system - Update system settings
+		settings.GET("/church", handlers.NewSettingsHandler().GetChurchInfo)                   // GET /api/v1/settings/church - Get church info
+		settings.PUT("/church", handlers.NewSettingsHandler().UpdateChurchInfo)                // PUT /api/v1/settings/church - Update church info
+		settings.GET("/notifications", handlers.NewSettingsHandler().GetNotificationConfig)    // GET /api/v1/settings/notifications - Get notification config
 		settings.PUT("/notifications", handlers.NewSettingsHandler().UpdateNotificationConfig) // PUT /api/v1/settings/notifications - Update notification config
 	}
 
 	preferencesHandler := handlers.NewPreferencesHandler()
 	preferences := protected.Group("/preferences")
 	{
-		preferences.GET("", preferencesHandler.GetUserPreferences) // GET /api/v1/preferences - Get user preferences
+		preferences.GET("", preferencesHandler.GetUserPreferences)    // GET /api/v1/preferences - Get user preferences
 		preferences.PUT("", preferencesHandler.UpdateUserPreferences) // PUT /api/v1/preferences - Update user preferences
 	}
 
@@ -82,6 +98,7 @@ func SetupRoutes(e *echo.Echo) {
 	reportsHandler := handlers.NewDiscipleshipReportsHandler()
 	alertsHandler := handlers.NewDiscipleshipAlertsHandler()
 	discipleship := protected.Group("/discipleship")
+	discipleship.Use(middleware.RequireModule("discipleship")) // Enforce Discipleship Module
 	{
 		// Grupos
 		discipleship.GET("/groups", discipleshipHandler.GetGroups)
@@ -129,6 +146,7 @@ func SetupRoutes(e *echo.Echo) {
 	// Zones routes
 	zonesHandler := handlers.NewZonesHandler()
 	zones := protected.Group("/zones")
+	zones.Use(middleware.RequireModule("zones")) // Enforce Zones Module
 	{
 		zones.GET("", zonesHandler.GetZones)
 		zones.GET("/:id", zonesHandler.GetZone)

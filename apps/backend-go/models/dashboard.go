@@ -42,4 +42,5 @@ type DashboardResponse struct {
 	RecentActivity    []RecentActivity   `json:"recentActivity"`
 	DiscipleshipStats DiscipleshipStats  `json:"discipleshipStats"`
 	CurrentUserRole   string             `json:"currentUserRole,omitempty"`
+	InstalledModules  []string           `json:"installedModules"`
 }
