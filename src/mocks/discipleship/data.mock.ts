@@ -1,27 +1,23 @@
-import { User } from '@/types/user.types';
 import {
-  DiscipleshipHierarchy,
-  DiscipleshipGroup,
-  DiscipleshipMetrics,
-  WeeklyLeaderReport,
-  BiweeklyAuxiliaryReport,
-  MonthlyGeneralReport,
-  QuarterlyCoordinatorReport,
-  ZonePerformance,
-  LeaderPerformance,
-  ChartData,
-  TimeSeriesData,
   Alert,
+  ChartData,
+  DiscipleshipGroup,
+  DiscipleshipHierarchy,
+  DiscipleshipMetrics,
   Goal,
+  LeaderPerformance,
+  TimeSeriesData,
+  WeeklyLeaderReport,
+  ZonePerformance,
 } from '@/types/discipleship.types';
+import { User } from '@/types/user.types';
 
-// Mock users for discipleship hierarchy - extended from real DB users
+// Mock users for discipleship hierarchy
 export const mockDiscipleshipUsers: User[] = [
   {
     id: '00000000-0000-0000-0000-000000000001',
     first_name: 'David',
     last_name: 'Martínez',
-    full_name: 'David Martínez',
     email: 'pastor@sion.church',
     phone: '+1234567890',
     address: 'Calle Principal 123',
@@ -33,7 +29,6 @@ export const mockDiscipleshipUsers: User[] = [
     created_at: '2020-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
   },
-  // Add more mock users as needed for testing
 ];
 
 export const mockGroups: DiscipleshipGroup[] = [
@@ -42,10 +37,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     group_name: 'Célula Esperanza',
     leader_id: 'leader-001',
     supervisor_id: '00000000-0000-0000-0000-000000000008',
-    meeting_location: 'Casa de María - Colonia Centro',
-    meeting_address: 'Av. Bolívar Norte #45, Sector La Paz',
-    latitude: 10.2547,
-    longitude: -67.5926,
+    meeting_location: 'Av. Bolívar Norte #45, Sector La Paz',
     meeting_day: 'Miércoles',
     meeting_time: '19:00',
     member_count: 12,
@@ -60,10 +52,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     group_name: 'Juventud Victoriosa',
     leader_id: 'leader-002',
     supervisor_id: '00000000-0000-0000-0000-000000000008',
-    meeting_location: 'Centro Comunitario Norte',
-    meeting_address: 'Calle Miranda #78, Centro Norte',
-    latitude: 10.2612,
-    longitude: -67.5889,
+    meeting_location: 'Calle Miranda #78, Centro Norte',
     meeting_day: 'Viernes',
     meeting_time: '18:30',
     member_count: 18,
@@ -78,10 +67,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     group_name: 'Familia en Cristo',
     leader_id: 'leader-003',
     supervisor_id: '00000000-0000-0000-0000-000000000009',
-    meeting_location: 'Parque Residencial',
-    meeting_address: 'Urbanización Parque Residencial #23',
-    latitude: 10.2489,
-    longitude: -67.5945,
+    meeting_location: 'Urbanización Parque Residencial #23',
     meeting_day: 'Sábado',
     meeting_time: '16:00',
     member_count: 8,
@@ -96,10 +82,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     group_name: 'Guerreros de Fe',
     leader_id: 'leader-004',
     supervisor_id: '00000000-0000-0000-0000-000000000012',
-    meeting_location: 'Casa de Oración Sur',
-    meeting_address: 'Av. Sur #156, Las Delicias',
-    latitude: 10.2145,
-    longitude: -67.5934,
+    meeting_location: 'Av. Sur #156, Las Delicias',
     meeting_day: 'Martes',
     meeting_time: '19:30',
     member_count: 14,
@@ -114,10 +97,7 @@ export const mockGroups: DiscipleshipGroup[] = [
     group_name: 'Nueva Vida',
     leader_id: 'leader-005',
     supervisor_id: '00000000-0000-0000-0000-000000000012',
-    meeting_location: 'Salon Comunal Sur',
-    meeting_address: 'Calle Principal #89, El Limón',
-    latitude: 10.2089,
-    longitude: -67.5812,
+    meeting_location: 'Calle Principal #89, El Limón',
     meeting_day: 'Jueves',
     meeting_time: '18:00',
     member_count: 6,
@@ -134,7 +114,9 @@ export const mockHierarchy: DiscipleshipHierarchy[] = [
     id: 'hier-001',
     user_id: '00000000-0000-0000-0000-000000000001',
     hierarchy_level: 5,
+    supervisor_id: null,
     zone_name: 'Toda la Ciudad',
+    territory: 'Ciudad Completa',
     active_groups_assigned: 30,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-09-20T00:00:00Z',
@@ -145,6 +127,7 @@ export const mockHierarchy: DiscipleshipHierarchy[] = [
     hierarchy_level: 4,
     supervisor_id: '00000000-0000-0000-0000-000000000001',
     zone_name: 'Zona Norte',
+    territory: 'Norte',
     active_groups_assigned: 15,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-09-20T00:00:00Z',
@@ -155,6 +138,7 @@ export const mockHierarchy: DiscipleshipHierarchy[] = [
     hierarchy_level: 4,
     supervisor_id: '00000000-0000-0000-0000-000000000001',
     zone_name: 'Zona Sur',
+    territory: 'Sur',
     active_groups_assigned: 15,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-09-20T00:00:00Z',
@@ -169,11 +153,13 @@ export const mockMetrics: DiscipleshipMetrics[] = [
     attendance: 10,
     new_visitors: 2,
     returning_visitors: 1,
+    conversions: 1,
+    baptisms: 0,
+    offering_amount: 150,
     testimonies_count: 3,
     prayer_requests: 5,
     spiritual_temperature: 8,
-    leader_notes:
-      'Excelente ambiente de adoración. Dos personas expresaron interés en el bautismo.',
+    leader_notes: 'Excelente ambiente de adoración.',
     created_at: '2024-09-15T20:00:00Z',
     updated_at: '2024-09-15T20:00:00Z',
   },
@@ -184,16 +170,18 @@ export const mockMetrics: DiscipleshipMetrics[] = [
     attendance: 15,
     new_visitors: 3,
     returning_visitors: 2,
+    conversions: 2,
+    baptisms: 1,
+    offering_amount: 200,
     testimonies_count: 4,
     prayer_requests: 7,
     spiritual_temperature: 9,
-    leader_notes: 'Grupo muy activo. Planeando multiplicación para octubre.',
+    leader_notes: 'Grupo muy activo.',
     created_at: '2024-09-13T19:30:00Z',
     updated_at: '2024-09-13T19:30:00Z',
   },
 ];
 
-// Mock reports data
 export const mockWeeklyReports: WeeklyLeaderReport[] = [
   {
     groupId: 'group-001',
@@ -205,25 +193,20 @@ export const mockWeeklyReports: WeeklyLeaderReport[] = [
     },
     spiritualHealth: {
       testimonies: 3,
-      prayerRequests: ['Sanidad para María', 'Trabajo para Juan', 'Salvación familia López'],
+      prayerRequests: ['Sanidad para María', 'Trabajo para Juan'],
       spiritualTemperature: 8,
       groupMorale: 'excellent',
     },
     followUp: {
       visitorsContacted: 2,
-      membersCared: ['Ana (enfermedad)', 'Pedro (problema familiar)'],
-      upcomingEvents: ['Retiro juvenil - Oct 15', 'Evangelismo barrial - Oct 22'],
+      membersCared: ['Ana (enfermedad)'],
+      upcomingEvents: ['Retiro juvenil - Oct 15'],
     },
-    concerns: ['Necesitamos más sillas', 'Algunos jóvenes llegando tarde'],
-    blessings: [
-      'Dos sanidades instantáneas',
-      'Nueva familia comprometida',
-      'Ofrenda especial para misiones',
-    ],
+    concerns: ['Necesitamos más sillas'],
+    blessings: ['Dos sanidades instantáneas'],
   },
 ];
 
-// Performance data for charts
 export const mockZonePerformance: ZonePerformance[] = [
   {
     zoneName: 'Zona Norte',
@@ -292,7 +275,6 @@ export const mockLeaderPerformance: LeaderPerformance[] = [
   },
 ];
 
-// Time series data for growth charts
 export const mockGrowthData: TimeSeriesData[] = [
   { date: '2024-01', value: 250, comparison: 230 },
   { date: '2024-02', value: 265, comparison: 245 },
@@ -317,36 +299,37 @@ export const mockAttendanceData: TimeSeriesData[] = [
   { date: 'Sep', value: 94 },
 ];
 
-// Alerts for dashboard
 export const mockAlerts: Alert[] = [
   {
     id: 'alert-001',
     type: 'critical',
-    message: 'Grupo "Nueva Vida" ha tenido asistencia baja por 3 semanas consecutivas',
+    title: 'Asistencia Baja',
+    message: 'Grupo "Nueva Vida" ha tenido asistencia baja por 3 semanas',
     actionRequired: true,
     relatedGroup: 'group-005',
-    relatedLeader: 'leader-005',
+    groupName: 'Nueva Vida',
     created_at: '2024-09-20T10:00:00Z',
   },
   {
     id: 'alert-002',
     type: 'warning',
-    message: 'Supervisor Auxiliar Patricia Jiménez no ha enviado reporte quincenal',
+    title: 'Reporte Pendiente',
+    message: 'Supervisor Patricia no ha enviado reporte quincenal',
     actionRequired: true,
-    relatedLeader: '00000000-0000-0000-0000-000000000008',
     created_at: '2024-09-19T15:30:00Z',
   },
   {
     id: 'alert-003',
     type: 'info',
+    title: 'Multiplicación Lista',
     message: 'Grupo "Juventud Victoriosa" listo para multiplicación',
     actionRequired: false,
     relatedGroup: 'group-002',
+    groupName: 'Juventud Victoriosa',
     created_at: '2024-09-18T09:00:00Z',
   },
 ];
 
-// Goals for coordinators and pastor
 export const mockGoals: Goal[] = [
   {
     id: 'goal-001',
@@ -374,7 +357,6 @@ export const mockGoals: Goal[] = [
   },
 ];
 
-// Chart data for various dashboards
 export const mockGroupStatusData: ChartData[] = [
   { name: 'Activos', value: 28, color: '#22c55e' },
   { name: 'Multiplicando', value: 4, color: '#3b82f6' },
@@ -389,44 +371,15 @@ export const mockSpiritualHealthData: ChartData[] = [
   { name: 'Necesita Atención (1-4)', value: 1, color: '#ef4444' },
 ];
 
-// Mock notifications for discipleship system
 export const mockNotifications = [
   {
     id: 'notif-001',
     type: 'success' as const,
     title: '¡Nuevo Grupo Asignado!',
-    message: 'Has sido asignado como líder del grupo "Célula Esperanza" en la Zona Norte.',
+    message: 'Has sido asignado como líder del grupo "Célula Esperanza".',
     actionText: 'Ver Dashboard',
     actionUrl: '/dashboard/discipleship',
-    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 min ago
+    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
     read: false,
-    relatedUser: {
-      name: 'Pastor David Martínez',
-      avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=David Martínez',
-    },
-  },
-  {
-    id: 'notif-002',
-    type: 'info' as const,
-    title: 'Zona Asignada',
-    message: 'Has sido asignado a la Zona Norte. Conoce a tu supervisor María González.',
-    actionText: 'Ver Zona',
-    actionUrl: '/dashboard/discipleship?tab=zones',
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-    read: false,
-    relatedUser: {
-      name: 'María González',
-      avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=María González',
-    },
-  },
-  {
-    id: 'notif-003',
-    type: 'warning' as const,
-    title: 'Reporte Pendiente',
-    message: 'Recuerda enviar tu reporte semanal antes del domingo.',
-    actionText: 'Enviar Reporte',
-    actionUrl: '/dashboard/discipleship?tab=dashboard',
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-    read: true,
   },
 ];

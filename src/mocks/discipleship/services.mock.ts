@@ -1,35 +1,29 @@
 import {
-  DiscipleshipGroup,
-  DiscipleshipReport,
-  DiscipleshipMetrics,
-  WeeklyLeaderReport,
-  BiweeklyAuxiliaryReport,
-  MonthlyGeneralReport,
-  QuarterlyCoordinatorReport,
-  ZonePerformance,
-  LeaderPerformance,
   Alert,
+  DiscipleshipGroup,
+  DiscipleshipMetrics,
+  DiscipleshipReport,
   Goal,
+  LeaderPerformance,
+  WeeklyLeaderReport,
+  ZonePerformance,
 } from '@/types/discipleship.types';
 import {
-  mockGroups,
-  mockMetrics,
-  mockWeeklyReports,
-  mockZonePerformance,
-  mockLeaderPerformance,
   mockAlerts,
-  mockGoals,
-  mockGrowthData,
   mockAttendanceData,
+  mockGoals,
   mockGroupStatusData,
+  mockGroups,
+  mockGrowthData,
+  mockLeaderPerformance,
+  mockMetrics,
   mockSpiritualHealthData,
+  mockZonePerformance,
 } from './data.mock';
 
-// Simulated API delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export class DiscipleshipMockService {
-  // Groups management
   static async getGroups(filters?: {
     zone?: string;
     supervisor?: string;
@@ -62,14 +56,14 @@ export class DiscipleshipMockService {
       id: `group-${Date.now()}`,
       group_name: group.group_name!,
       leader_id: group.leader_id!,
-      supervisor_id: group.supervisor_id,
-      meeting_location: group.meeting_location,
-      meeting_day: group.meeting_day,
-      meeting_time: group.meeting_time,
+      supervisor_id: group.supervisor_id || null,
+      meeting_location: group.meeting_location || null,
+      meeting_day: group.meeting_day || null,
+      meeting_time: group.meeting_time || null,
       member_count: group.member_count || 0,
       active_members: group.active_members || 0,
       status: group.status || 'active',
-      zone_name: group.zone_name,
+      zone_name: group.zone_name || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -93,7 +87,6 @@ export class DiscipleshipMockService {
     return mockGroups[groupIndex];
   }
 
-  // Metrics management
   static async getGroupMetrics(
     groupId: string,
     startDate?: string,
@@ -116,41 +109,15 @@ export class DiscipleshipMockService {
     report: WeeklyLeaderReport
   ): Promise<{ success: boolean; id: string }> {
     await delay(600);
-    // Simulate saving the report
     const reportId = `report-${Date.now()}`;
     return { success: true, id: reportId };
   }
 
-  static async submitBiweeklyReport(
-    report: BiweeklyAuxiliaryReport
-  ): Promise<{ success: boolean; id: string }> {
-    await delay(700);
-    const reportId = `aux-report-${Date.now()}`;
-    return { success: true, id: reportId };
-  }
-
-  static async submitMonthlyReport(
-    report: MonthlyGeneralReport
-  ): Promise<{ success: boolean; id: string }> {
-    await delay(800);
-    const reportId = `monthly-report-${Date.now()}`;
-    return { success: true, id: reportId };
-  }
-
-  static async submitQuarterlyReport(
-    report: QuarterlyCoordinatorReport
-  ): Promise<{ success: boolean; id: string }> {
-    await delay(900);
-    const reportId = `quarterly-report-${Date.now()}`;
-    return { success: true, id: reportId };
-  }
-
-  // Dashboard data
   static async getDashboardStats(level: number, userId: string) {
     await delay(400);
 
     switch (level) {
-      case 5: // Pastor
+      case 5:
         return {
           totalGroups: 36,
           totalMembers: 432,
@@ -161,8 +128,7 @@ export class DiscipleshipMockService {
           activeZones: 4,
           monthlyGoalProgress: 75,
         };
-
-      case 4: // Coordinator
+      case 4:
         return {
           totalGroups: 18,
           totalMembers: 216,
@@ -172,8 +138,7 @@ export class DiscipleshipMockService {
           zoneHealthIndex: 8.1,
           quarterlyGoalProgress: 68,
         };
-
-      case 3: // General Supervisor
+      case 3:
         return {
           totalGroups: 8,
           totalMembers: 96,
@@ -183,8 +148,7 @@ export class DiscipleshipMockService {
           territoryHealthIndex: 8.7,
           monthlyGoalProgress: 82,
         };
-
-      case 2: // Auxiliary Supervisor
+      case 2:
         return {
           groupsUnderSupervision: 4,
           totalMembers: 48,
@@ -192,8 +156,7 @@ export class DiscipleshipMockService {
           leadersSupportNeeded: 1,
           biweeklyGoalProgress: 91,
         };
-
-      case 1: // Group Leader
+      case 1:
         return {
           groupMembers: 12,
           weeklyAttendance: 10,
@@ -202,7 +165,6 @@ export class DiscipleshipMockService {
           visitorsThisMonth: 5,
           weeklyGoalProgress: 85,
         };
-
       default:
         return {};
     }
@@ -240,12 +202,11 @@ export class DiscipleshipMockService {
 
   static async getAlerts(level: number, userId: string): Promise<Alert[]> {
     await delay(200);
-    // Filter alerts based on user level and responsibilities
     return mockAlerts.filter(alert => {
-      if (level === 5) return true; // Pastor sees all
-      if (level === 4) return alert.type !== 'info'; // Coordinator sees critical and warnings
-      if (level === 3) return alert.type === 'critical'; // General supervisor sees only critical
-      return []; // Levels 1-2 handle alerts differently
+      if (level === 5) return true;
+      if (level === 4) return alert.type !== 'info';
+      if (level === 3) return alert.type === 'critical';
+      return [];
     });
   }
 
@@ -254,14 +215,12 @@ export class DiscipleshipMockService {
     return mockGoals;
   }
 
-  // Reports management
   static async getReports(filters?: {
     level?: number;
     status?: string;
     dateRange?: { start: string; end: string };
   }): Promise<DiscipleshipReport[]> {
     await delay(400);
-    // Return mock reports based on filters
     return [];
   }
 
@@ -278,51 +237,26 @@ export class DiscipleshipMockService {
     return { success: true };
   }
 
-  // User hierarchy helpers
   static async getUserHierarchyLevel(userId: string): Promise<number> {
     await delay(100);
-    // Mock logic to determine user level
-    if (userId === '00000000-0000-0000-0000-000000000001') return 5; // Pastor
+    if (userId === '00000000-0000-0000-0000-000000000001') return 5;
     if (
       ['00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003'].includes(
         userId
       )
     )
-      return 4; // Coordinators
-    if (
-      [
-        '00000000-0000-0000-0000-000000000004',
-        '00000000-0000-0000-0000-000000000005',
-        '00000000-0000-0000-0000-000000000006',
-        '00000000-0000-0000-0000-000000000007',
-      ].includes(userId)
-    )
-      return 3; // General Supervisors
-    if (
-      userId.includes('aux-supervisor') ||
-      [
-        '00000000-0000-0000-0000-000000000008',
-        '00000000-0000-0000-0000-000000000009',
-        '00000000-0000-0000-0000-000000000010',
-        '00000000-0000-0000-0000-000000000011',
-        '00000000-0000-0000-0000-000000000012',
-        '00000000-0000-0000-0000-000000000013',
-      ].includes(userId)
-    )
-      return 2; // Auxiliary Supervisors
-    return 1; // Group Leaders
+      return 4;
+    return 1;
   }
 
   static async getUserZone(userId: string): Promise<string | null> {
     await delay(100);
-    // Mock logic to get user zone
     const user = mockGroups.find(g => g.leader_id === userId || g.supervisor_id === userId);
     return user?.zone_name || null;
   }
 
   static async getSubordinates(userId: string): Promise<string[]> {
     await delay(200);
-    // Mock logic to get user's subordinates
     return [];
   }
 }

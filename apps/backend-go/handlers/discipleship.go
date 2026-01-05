@@ -22,7 +22,7 @@ func NewDiscipleshipHandler() *DiscipleshipHandler {
 // =====================================================
 
 // Helper para obtener información de acceso a discipulado
-func getDiscipleshipAccessInfo(c echo.Context, db *config.Database) (userID string, hierarchyLevel *int, zoneName *string, canSeeAll bool) {
+func getDiscipleshipAccessInfo(c echo.Context, db *config.Database) (userID string, hierarchyLevel *int, zoneID *string, canSeeAll bool) {
 	userID, _ = c.Get("user_id").(string)
 	userRole, _ := c.Get("db_role").(string)
 	
@@ -35,18 +35,18 @@ func getDiscipleshipAccessInfo(c echo.Context, db *config.Database) (userID stri
 	var level int
 	var zone sql.NullString
 	err := db.DB.QueryRow(`
-		SELECT hierarchy_level, zone_name 
+		SELECT hierarchy_level, COALESCE(zone_id::text, '') 
 		FROM discipleship_hierarchy 
 		WHERE user_id = $1
 	`, userID).Scan(&level, &zone)
 	
 	if err == nil {
 		hierarchyLevel = &level
-		if zone.Valid {
-			zoneNameStr := zone.String
-			zoneName = &zoneNameStr
+		if zone.Valid && zone.String != "" {
+			zoneIDStr := zone.String
+			zoneID = &zoneIDStr
 		}
-		return userID, hierarchyLevel, zoneName, false
+		return userID, hierarchyLevel, zoneID, false
 	}
 	
 	// Sin jerarquía asignada
@@ -55,10 +55,13 @@ func getDiscipleshipAccessInfo(c echo.Context, db *config.Database) (userID stri
 
 // GetGroups obtiene lista de grupos con filtros
 func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	// Obtener información de acceso del usuario
-	userID, hierarchyLevel, userZone, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, db)
 	
 	// Si no tiene acceso, retornar error o lista vacía
 	if !canSeeAll && hierarchyLevel == nil {
@@ -68,7 +71,8 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 	}
 
 	// Parámetros de filtro del query
-	zoneName := c.QueryParam("zone_name")
+	zoneIDParam := c.QueryParam("zone_id")
+	zoneNameParam := c.QueryParam("zone_name") // Compatibilidad: buscar por nombre de zona
 	status := c.QueryParam("status")
 	leaderIDParam := c.QueryParam("leader_id")
 	search := c.QueryParam("search")
@@ -83,16 +87,19 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 	}
 	offset := (page - 1) * limit
 
-	// Query base
+	// Query base - ahora con JOIN a zones para obtener zone_name
 	query := `
 		SELECT 
-			g.id, g.group_name, g.leader_id, g.supervisor_id, g.zone_name,
+			g.id, g.group_name, g.leader_id, g.supervisor_id,
+			g.zone_id, COALESCE(z.name, '') as zone_name,
 			g.meeting_day, g.meeting_time, g.meeting_location,
+			g.meeting_address, g.latitude, g.longitude,
 			g.member_count, g.active_members, g.status,
 			g.created_at, g.updated_at,
 			COALESCE(u.first_name || ' ' || u.last_name, 'Sin líder') as leader_name,
 			COALESCE(s.first_name || ' ' || s.last_name, '') as supervisor_name
 		FROM discipleship_groups g
+		LEFT JOIN zones z ON g.zone_id = z.id
 		LEFT JOIN users u ON g.leader_id = u.id
 		LEFT JOIN users s ON g.supervisor_id = s.id
 		WHERE 1=1
@@ -113,10 +120,10 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 			query += fmt.Sprintf(" AND g.supervisor_id = $%d", argCount)
 			args = append(args, userID)
 		case 3: // Coordinador - su zona
-			if userZone != nil && *userZone != "" {
+			if userZoneID != nil && *userZoneID != "" {
 				argCount++
-				query += fmt.Sprintf(" AND g.zone_name = $%d", argCount)
-				args = append(args, *userZone)
+				query += fmt.Sprintf(" AND g.zone_id = $%d", argCount)
+				args = append(args, *userZoneID)
 			}
 		// case 4 y 5 pueden ver más, según necesidad
 		// Por ahora, si no hay filtro específico, no se aplica restricción adicional
@@ -124,10 +131,15 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 	}
 
 	// Filtros del query parameter (aplicados después de los filtros de acceso)
-	if zoneName != "" {
+	if zoneIDParam != "" {
 		argCount++
-		query += fmt.Sprintf(" AND g.zone_name = $%d", argCount)
-		args = append(args, zoneName)
+		query += fmt.Sprintf(" AND g.zone_id = $%d", argCount)
+		args = append(args, zoneIDParam)
+	} else if zoneNameParam != "" {
+		// Compatibilidad: buscar por nombre de zona
+		argCount++
+		query += fmt.Sprintf(" AND z.name = $%d", argCount)
+		args = append(args, zoneNameParam)
 	}
 
 	if status != "" {
@@ -148,14 +160,71 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 		args = append(args, "%"+search+"%")
 	}
 
-	// Contar total
-	countQuery := "SELECT COUNT(*) FROM discipleship_groups g LEFT JOIN users u ON g.leader_id = u.id WHERE 1=1"
-	// (agregar los mismos filtros)
+	// Construir count query con los mismos filtros
+	countQuery := `
+		SELECT COUNT(*) 
+		FROM discipleship_groups g
+		LEFT JOIN zones z ON g.zone_id = z.id
+		LEFT JOIN users u ON g.leader_id = u.id
+		WHERE 1=1
+	`
+	
+	// Aplicar los mismos filtros al count
+	countArgs := []interface{}{}
+	countArgCount := 0
+	
+	if !canSeeAll && hierarchyLevel != nil {
+		switch *hierarchyLevel {
+		case 1:
+			countArgCount++
+			countQuery += fmt.Sprintf(" AND g.leader_id = $%d", countArgCount)
+			countArgs = append(countArgs, userID)
+		case 2:
+			countArgCount++
+			countQuery += fmt.Sprintf(" AND g.supervisor_id = $%d", countArgCount)
+			countArgs = append(countArgs, userID)
+		case 3:
+			if userZoneID != nil && *userZoneID != "" {
+				countArgCount++
+				countQuery += fmt.Sprintf(" AND g.zone_id = $%d", countArgCount)
+				countArgs = append(countArgs, *userZoneID)
+			}
+		}
+	}
+	
+	if zoneIDParam != "" {
+		countArgCount++
+		countQuery += fmt.Sprintf(" AND g.zone_id = $%d", countArgCount)
+		countArgs = append(countArgs, zoneIDParam)
+	} else if zoneNameParam != "" {
+		countArgCount++
+		countQuery += fmt.Sprintf(" AND z.name = $%d", countArgCount)
+		countArgs = append(countArgs, zoneNameParam)
+	}
+	
+	if status != "" {
+		countArgCount++
+		countQuery += fmt.Sprintf(" AND g.status = $%d", countArgCount)
+		countArgs = append(countArgs, status)
+	}
+	
+	if leaderIDParam != "" {
+		countArgCount++
+		countQuery += fmt.Sprintf(" AND g.leader_id = $%d", countArgCount)
+		countArgs = append(countArgs, leaderIDParam)
+	}
+	
+	if search != "" {
+		countArgCount++
+		countQuery += fmt.Sprintf(" AND (g.group_name ILIKE $%d OR u.first_name ILIKE $%d OR u.last_name ILIKE $%d)", countArgCount, countArgCount, countArgCount)
+		countArgs = append(countArgs, "%"+search+"%")
+	}
 
 	var total int
-	err := db.DB.QueryRow(countQuery).Scan(&total)
+	err = db.DB.QueryRow(countQuery, countArgs...).Scan(&total)
 	if err != nil {
 		c.Logger().Error("Error counting groups:", err)
+		total = 0
 	}
 
 	// Agregar paginación
@@ -174,8 +243,10 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 	for rows.Next() {
 		var g models.DiscipleshipGroupWithDetails
 		err := rows.Scan(
-			&g.ID, &g.GroupName, &g.LeaderID, &g.SupervisorID, &g.ZoneName,
+			&g.ID, &g.GroupName, &g.LeaderID, &g.SupervisorID,
+			&g.ZoneID, &g.ZoneName,
 			&g.MeetingDay, &g.MeetingTime, &g.MeetingLocation,
+			&g.MeetingAddress, &g.Latitude, &g.Longitude,
 			&g.MemberCount, &g.ActiveMembers, &g.Status,
 			&g.CreatedAt, &g.UpdatedAt,
 			&g.LeaderName, &g.SupervisorName,
@@ -201,26 +272,34 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 // GetGroup obtiene un grupo específico
 func (h *DiscipleshipHandler) GetGroup(c echo.Context) error {
 	groupID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	query := `
 		SELECT 
-			g.id, g.group_name, g.leader_id, g.supervisor_id, g.zone_name,
+			g.id, g.group_name, g.leader_id, g.supervisor_id,
+			g.zone_id, COALESCE(z.name, '') as zone_name,
 			g.meeting_day, g.meeting_time, g.meeting_location,
+			g.meeting_address, g.latitude, g.longitude,
 			g.member_count, g.active_members, g.status,
 			g.created_at, g.updated_at,
 			COALESCE(u.first_name || ' ' || u.last_name, 'Sin líder') as leader_name,
 			COALESCE(s.first_name || ' ' || s.last_name, '') as supervisor_name
 		FROM discipleship_groups g
+		LEFT JOIN zones z ON g.zone_id = z.id
 		LEFT JOIN users u ON g.leader_id = u.id
 		LEFT JOIN users s ON g.supervisor_id = s.id
 		WHERE g.id = $1
 	`
 
 	var g models.DiscipleshipGroupWithDetails
-	err := db.DB.QueryRow(query, groupID).Scan(
-		&g.ID, &g.GroupName, &g.LeaderID, &g.SupervisorID, &g.ZoneName,
+	err = db.DB.QueryRow(query, groupID).Scan(
+		&g.ID, &g.GroupName, &g.LeaderID, &g.SupervisorID,
+		&g.ZoneID, &g.ZoneName,
 		&g.MeetingDay, &g.MeetingTime, &g.MeetingLocation,
+		&g.MeetingAddress, &g.Latitude, &g.Longitude,
 		&g.MemberCount, &g.ActiveMembers, &g.Status,
 		&g.CreatedAt, &g.UpdatedAt,
 		&g.LeaderName, &g.SupervisorName,
@@ -256,13 +335,35 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 		})
 	}
 
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	// Determinar zone_id: usar el que viene en el request o buscar por zone_name (compatibilidad)
+	var zoneID interface{}
+	if req.ZoneID != "" {
+		zoneID = req.ZoneID
+	} else if req.ZoneName != "" {
+		// Compatibilidad: buscar zona por nombre
+		var foundZoneID string
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", req.ZoneName).Scan(&foundZoneID)
+		if err == nil {
+			zoneID = foundZoneID
+		} else {
+			// Si no se encuentra la zona, zone_id será NULL
+			zoneID = nil
+		}
+	} else {
+		zoneID = nil
+	}
 
 	query := `
 		INSERT INTO discipleship_groups (
-			group_name, leader_id, supervisor_id, zone_name,
-			meeting_day, meeting_time, meeting_location, status
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
+			group_name, leader_id, supervisor_id, zone_id,
+			meeting_day, meeting_time, meeting_location, meeting_address,
+			latitude, longitude, status
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active')
 		RETURNING id
 	`
 
@@ -273,11 +374,31 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 		supervisorID = nil
 	}
 
+	var meetingAddress interface{}
+	if req.MeetingAddress != "" {
+		meetingAddress = req.MeetingAddress
+	} else {
+		meetingAddress = nil
+	}
+
+	var latitude, longitude interface{}
+	if req.Latitude != nil {
+		latitude = *req.Latitude
+	} else {
+		latitude = nil
+	}
+	if req.Longitude != nil {
+		longitude = *req.Longitude
+	} else {
+		longitude = nil
+	}
+
 	var groupID string
-	err := db.DB.QueryRow(
+	err = db.DB.QueryRow(
 		query,
-		req.GroupName, req.LeaderID, supervisorID, req.ZoneName,
-		req.MeetingDay, req.MeetingTime, req.MeetingLocation,
+		req.GroupName, req.LeaderID, supervisorID, zoneID,
+		req.MeetingDay, req.MeetingTime, req.MeetingLocation, meetingAddress,
+		latitude, longitude,
 	).Scan(&groupID)
 
 	if err != nil {
@@ -311,9 +432,9 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 
 			_, err = db.DB.Exec(`
 				INSERT INTO discipleship_hierarchy (
-					user_id, hierarchy_level, supervisor_id, zone_name, active_groups_assigned
+					user_id, hierarchy_level, supervisor_id, zone_id, active_groups_assigned
 				) VALUES ($1, 1, $2, $3, 1)
-			`, req.LeaderID, supervisorIDForLeader, nullIfEmpty(req.ZoneName))
+			`, req.LeaderID, supervisorIDForLeader, zoneID)
 			if err != nil {
 				c.Logger().Error("Error assigning hierarchy to leader:", err)
 			}
@@ -322,10 +443,10 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 			_, _ = db.DB.Exec(`
 				UPDATE users SET 
 					discipleship_level = 1,
-					zone_name = $1,
+					zone_id = $1,
 					updated_at = NOW()
 				WHERE id = $2
-			`, nullIfEmpty(req.ZoneName), req.LeaderID)
+			`, zoneID, req.LeaderID)
 		} else if err == nil && existingLevel.Valid {
 			// Ya tiene jerarquía, solo actualizar si es menor a 1 o actualizar contador
 			if existingLevel.Int64 < 1 {
@@ -333,11 +454,11 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 					UPDATE discipleship_hierarchy SET
 						hierarchy_level = 1,
 						supervisor_id = COALESCE($1, supervisor_id),
-						zone_name = COALESCE($2, zone_name),
+						zone_id = COALESCE($2, zone_id),
 						active_groups_assigned = active_groups_assigned + 1,
 						updated_at = NOW()
 					WHERE user_id = $3
-				`, nullIfEmpty(req.SupervisorID), nullIfEmpty(req.ZoneName), req.LeaderID)
+				`, nullIfEmpty(req.SupervisorID), zoneID, req.LeaderID)
 			} else {
 				// Solo actualizar contador
 				_, _ = db.DB.Exec(`
@@ -369,9 +490,9 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 			// No tiene jerarquía, crear con nivel 2 (Supervisor Auxiliar)
 			_, err = db.DB.Exec(`
 				INSERT INTO discipleship_hierarchy (
-					user_id, hierarchy_level, zone_name, active_groups_assigned
+					user_id, hierarchy_level, zone_id, active_groups_assigned
 				) VALUES ($1, 2, $2, 1)
-			`, req.SupervisorID, nullIfEmpty(req.ZoneName))
+			`, req.SupervisorID, zoneID)
 			if err != nil {
 				c.Logger().Error("Error assigning hierarchy to supervisor:", err)
 			}
@@ -380,21 +501,21 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 			_, _ = db.DB.Exec(`
 				UPDATE users SET 
 					discipleship_level = 2,
-					zone_name = $1,
+					zone_id = $1,
 					updated_at = NOW()
 				WHERE id = $2
-			`, nullIfEmpty(req.ZoneName), req.SupervisorID)
+			`, zoneID, req.SupervisorID)
 		} else if err == nil && existingLevel.Valid {
 			// Ya tiene jerarquía, actualizar solo si es menor a 2
 			if existingLevel.Int64 < 2 {
 				_, _ = db.DB.Exec(`
 					UPDATE discipleship_hierarchy SET
 						hierarchy_level = 2,
-						zone_name = COALESCE($1, zone_name),
+						zone_id = COALESCE($1, zone_id),
 						active_groups_assigned = active_groups_assigned + 1,
 						updated_at = NOW()
 					WHERE user_id = $2
-				`, nullIfEmpty(req.ZoneName), req.SupervisorID)
+				`, zoneID, req.SupervisorID)
 			} else {
 				// Solo actualizar contador
 				_, _ = db.DB.Exec(`
@@ -423,7 +544,27 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		})
 	}
 
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	// Determinar zone_id si viene en el request
+	var zoneID interface{}
+	if req.ZoneID != nil && *req.ZoneID != "" {
+		zoneID = *req.ZoneID
+	} else if req.ZoneName != nil && *req.ZoneName != "" {
+		// Compatibilidad: buscar zona por nombre
+		var foundZoneID string
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", *req.ZoneName).Scan(&foundZoneID)
+		if err == nil {
+			zoneID = foundZoneID
+		} else {
+			zoneID = nil
+		}
+	} else {
+		zoneID = nil
+	}
 
 	// Construir query dinámico
 	query := "UPDATE discipleship_groups SET updated_at = NOW()"
@@ -445,10 +586,11 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		query += fmt.Sprintf(", supervisor_id = $%d", argCount)
 		args = append(args, *req.SupervisorID)
 	}
-	if req.ZoneName != nil {
+	if zoneID != nil || (req.ZoneID != nil && *req.ZoneID == "") {
+		// Actualizar zone_id si viene en el request (incluso si es NULL para eliminar)
 		argCount++
-		query += fmt.Sprintf(", zone_name = $%d", argCount)
-		args = append(args, *req.ZoneName)
+		query += fmt.Sprintf(", zone_id = $%d", argCount)
+		args = append(args, zoneID)
 	}
 	if req.MeetingDay != nil {
 		argCount++
@@ -464,6 +606,25 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		argCount++
 		query += fmt.Sprintf(", meeting_location = $%d", argCount)
 		args = append(args, *req.MeetingLocation)
+	}
+	if req.MeetingAddress != nil {
+		argCount++
+		query += fmt.Sprintf(", meeting_address = $%d", argCount)
+		if *req.MeetingAddress == "" {
+			args = append(args, nil)
+		} else {
+			args = append(args, *req.MeetingAddress)
+		}
+	}
+	if req.Latitude != nil {
+		argCount++
+		query += fmt.Sprintf(", latitude = $%d", argCount)
+		args = append(args, *req.Latitude)
+	}
+	if req.Longitude != nil {
+		argCount++
+		query += fmt.Sprintf(", longitude = $%d", argCount)
+		args = append(args, *req.Longitude)
 	}
 	if req.MemberCount != nil {
 		argCount++
@@ -503,13 +664,18 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 	var currentGroup struct {
 		LeaderID     string
 		SupervisorID sql.NullString
-		ZoneName     sql.NullString
+		ZoneID       sql.NullString
 	}
 	err = db.DB.QueryRow(`
-		SELECT leader_id, supervisor_id, zone_name 
+		SELECT leader_id, supervisor_id, zone_id 
 		FROM discipleship_groups 
 		WHERE id = $1
-	`, groupID).Scan(&currentGroup.LeaderID, &currentGroup.SupervisorID, &currentGroup.ZoneName)
+	`, groupID).Scan(&currentGroup.LeaderID, &currentGroup.SupervisorID, &currentGroup.ZoneID)
+	
+	// Usar zoneID del request si está disponible, sino usar el actual
+	if zoneID == nil && currentGroup.ZoneID.Valid {
+		zoneID = currentGroup.ZoneID.String
+	}
 
 	if err == nil {
 		// 1. Asignar jerarquía al nuevo LÍDER si se cambió
@@ -532,18 +698,12 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 					supervisorIDForLeader = nil
 				}
 
-				zoneName := ""
-				if req.ZoneName != nil {
-					zoneName = *req.ZoneName
-				} else if currentGroup.ZoneName.Valid {
-					zoneName = currentGroup.ZoneName.String
-				}
-
+				// Usar zoneID que ya determinamos arriba
 				_, err = db.DB.Exec(`
 					INSERT INTO discipleship_hierarchy (
-						user_id, hierarchy_level, supervisor_id, zone_name, active_groups_assigned
+						user_id, hierarchy_level, supervisor_id, zone_id, active_groups_assigned
 					) VALUES ($1, 1, $2, $3, 1)
-				`, *req.LeaderID, supervisorIDForLeader, nullIfEmpty(zoneName))
+				`, *req.LeaderID, supervisorIDForLeader, zoneID)
 				if err != nil {
 					c.Logger().Error("Error assigning hierarchy to new leader:", err)
 				}
@@ -552,10 +712,10 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				_, _ = db.DB.Exec(`
 					UPDATE users SET 
 						discipleship_level = 1,
-						zone_name = $1,
+						zone_id = $1,
 						updated_at = NOW()
 					WHERE id = $2
-				`, nullIfEmpty(zoneName), *req.LeaderID)
+				`, zoneID, *req.LeaderID)
 			} else if err == nil && existingLevel.Valid {
 				// Ya tiene jerarquía, actualizar si es menor a 1
 				if existingLevel.Int64 < 1 {
@@ -568,22 +728,16 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 						supervisorIDForLeader = nil
 					}
 
-					zoneName := ""
-					if req.ZoneName != nil {
-						zoneName = *req.ZoneName
-					} else if currentGroup.ZoneName.Valid {
-						zoneName = currentGroup.ZoneName.String
-					}
-
+					// Usar zoneID que ya determinamos arriba
 					_, _ = db.DB.Exec(`
 						UPDATE discipleship_hierarchy SET
 							hierarchy_level = 1,
 							supervisor_id = COALESCE($1, supervisor_id),
-							zone_name = COALESCE($2, zone_name),
+							zone_id = COALESCE($2, zone_id),
 							active_groups_assigned = active_groups_assigned + 1,
 							updated_at = NOW()
 						WHERE user_id = $3
-					`, supervisorIDForLeader, nullIfEmpty(zoneName), *req.LeaderID)
+					`, supervisorIDForLeader, zoneID, *req.LeaderID)
 				}
 			}
 		}
@@ -599,18 +753,12 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 
 			if err == sql.ErrNoRows {
 				// No tiene jerarquía, crear con nivel 2 (Supervisor Auxiliar)
-				zoneName := ""
-				if req.ZoneName != nil {
-					zoneName = *req.ZoneName
-				} else if currentGroup.ZoneName.Valid {
-					zoneName = currentGroup.ZoneName.String
-				}
-
+				// Usar zoneID que ya determinamos arriba
 				_, err = db.DB.Exec(`
 					INSERT INTO discipleship_hierarchy (
-						user_id, hierarchy_level, zone_name, active_groups_assigned
+						user_id, hierarchy_level, zone_id, active_groups_assigned
 					) VALUES ($1, 2, $2, 1)
-				`, *req.SupervisorID, nullIfEmpty(zoneName))
+				`, *req.SupervisorID, zoneID)
 				if err != nil {
 					c.Logger().Error("Error assigning hierarchy to new supervisor:", err)
 				}
@@ -619,28 +767,22 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				_, _ = db.DB.Exec(`
 					UPDATE users SET 
 						discipleship_level = 2,
-						zone_name = $1,
+						zone_id = $1,
 						updated_at = NOW()
 					WHERE id = $2
-				`, nullIfEmpty(zoneName), *req.SupervisorID)
+				`, zoneID, *req.SupervisorID)
 			} else if err == nil && existingLevel.Valid {
 				// Ya tiene jerarquía, actualizar solo si es menor a 2
 				if existingLevel.Int64 < 2 {
-					zoneName := ""
-					if req.ZoneName != nil {
-						zoneName = *req.ZoneName
-					} else if currentGroup.ZoneName.Valid {
-						zoneName = currentGroup.ZoneName.String
-					}
-
+					// Usar zoneID que ya determinamos arriba
 					_, _ = db.DB.Exec(`
 						UPDATE discipleship_hierarchy SET
 							hierarchy_level = 2,
-							zone_name = COALESCE($1, zone_name),
+							zone_id = COALESCE($1, zone_id),
 							active_groups_assigned = active_groups_assigned + 1,
 							updated_at = NOW()
 						WHERE user_id = $2
-					`, nullIfEmpty(zoneName), *req.SupervisorID)
+					`, zoneID, *req.SupervisorID)
 				}
 			}
 		}
@@ -654,12 +796,15 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 // DeleteGroup elimina (soft delete) un grupo
 func (h *DiscipleshipHandler) DeleteGroup(c echo.Context) error {
 	groupID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	// Obtener leader_id y supervisor_id antes de eliminar
 	var leaderID string
 	var supervisorID sql.NullString
-	err := db.DB.QueryRow(`
+	err = db.DB.QueryRow(`
 		SELECT leader_id, supervisor_id 
 		FROM discipleship_groups 
 		WHERE id = $1
@@ -726,13 +871,20 @@ func (h *DiscipleshipHandler) DeleteGroup(c echo.Context) error {
 
 // GetHierarchy obtiene la jerarquía de un usuario
 func (h *DiscipleshipHandler) GetHierarchy(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	userID := c.QueryParam("user_id")
 
+	// Query simplificada: usar zone_name directamente hasta que se ejecute la migración
+	// Después de la migración, zone_id estará disponible y podemos hacer JOIN con zones
 	query := `
 		SELECT 
 			h.id, h.user_id, h.hierarchy_level, h.supervisor_id,
-			h.zone_name, h.territory, h.active_groups_assigned,
+			COALESCE((SELECT z.id::text FROM zones z WHERE z.name = h.zone_name), '') as zone_id,
+			COALESCE(h.zone_name, '') as zone_name,
+			h.territory, h.active_groups_assigned,
 			h.created_at, h.updated_at,
 			COALESCE(u.first_name || ' ' || u.last_name, '') as user_name,
 			COALESCE(u.email, '') as user_email,
@@ -762,9 +914,10 @@ func (h *DiscipleshipHandler) GetHierarchy(c echo.Context) error {
 	var hierarchy []models.HierarchyWithUser
 	for rows.Next() {
 		var h models.HierarchyWithUser
-		err := rows.Scan(
+		err = rows.Scan(
 			&h.ID, &h.UserID, &h.HierarchyLevel, &h.SupervisorID,
-			&h.ZoneName, &h.Territory, &h.ActiveGroupsAssigned,
+			&h.ZoneID, &h.ZoneName,
+			&h.Territory, &h.ActiveGroupsAssigned,
 			&h.CreatedAt, &h.UpdatedAt,
 			&h.UserName, &h.UserEmail, &h.SupervisorName,
 		)
@@ -787,11 +940,31 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 		})
 	}
 
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	// Determinar zone_id: usar el que viene en el request o buscar por zone_name (compatibilidad)
+	var zoneID interface{}
+	if req.ZoneID != "" {
+		zoneID = req.ZoneID
+	} else if req.ZoneName != "" {
+		// Compatibilidad: buscar zona por nombre
+		var foundZoneID string
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", req.ZoneName).Scan(&foundZoneID)
+		if err == nil {
+			zoneID = foundZoneID
+		} else {
+			zoneID = nil
+		}
+	} else {
+		zoneID = nil
+	}
 
 	// Verificar si ya existe
 	var existingID string
-	err := db.DB.QueryRow(
+	err = db.DB.QueryRow(
 		"SELECT id FROM discipleship_hierarchy WHERE user_id = $1",
 		req.UserID,
 	).Scan(&existingID)
@@ -803,14 +976,14 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 		// Crear nuevo
 		query = `
 			INSERT INTO discipleship_hierarchy (
-				user_id, hierarchy_level, supervisor_id, zone_name, territory
+				user_id, hierarchy_level, supervisor_id, zone_id, territory
 			) VALUES ($1, $2, $3, $4, $5)
 			RETURNING id
 		`
 		args = []interface{}{
 			req.UserID, req.HierarchyLevel, 
 			nullIfEmpty(req.SupervisorID), 
-			nullIfEmpty(req.ZoneName), 
+			zoneID,
 			nullIfEmpty(req.Territory),
 		}
 	} else {
@@ -819,7 +992,7 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 			UPDATE discipleship_hierarchy SET
 				hierarchy_level = $2,
 				supervisor_id = $3,
-				zone_name = $4,
+				zone_id = $4,
 				territory = $5,
 				updated_at = NOW()
 			WHERE user_id = $1
@@ -827,7 +1000,7 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 		args = []interface{}{
 			req.UserID, req.HierarchyLevel,
 			nullIfEmpty(req.SupervisorID),
-			nullIfEmpty(req.ZoneName),
+			zoneID,
 			nullIfEmpty(req.Territory),
 		}
 	}
@@ -841,14 +1014,14 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 	}
 
 	// Actualizar también el nivel de discipulado en la tabla users
-	db.DB.Exec(`
+	_, _ = db.DB.Exec(`
 		UPDATE users SET 
 			discipleship_level = $1,
-			zone_name = $2,
+			zone_id = $2,
 			territory = $3,
 			updated_at = NOW()
 		WHERE id = $4
-	`, req.HierarchyLevel, req.ZoneName, req.Territory, req.UserID)
+	`, req.HierarchyLevel, zoneID, req.Territory, req.UserID)
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Jerarquía asignada exitosamente",
@@ -858,16 +1031,21 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 // GetSubordinates obtiene los subordinados de un supervisor
 func (h *DiscipleshipHandler) GetSubordinates(c echo.Context) error {
 	supervisorID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	query := `
 		SELECT 
 			h.id, h.user_id, h.hierarchy_level, h.supervisor_id,
-			h.zone_name, h.territory, h.active_groups_assigned,
+			h.zone_id, COALESCE(z.name, '') as zone_name,
+			h.territory, h.active_groups_assigned,
 			h.created_at, h.updated_at,
 			COALESCE(u.first_name || ' ' || u.last_name, '') as user_name,
 			COALESCE(u.email, '') as user_email
 		FROM discipleship_hierarchy h
+		LEFT JOIN zones z ON h.zone_id = z.id
 		LEFT JOIN users u ON h.user_id = u.id
 		WHERE h.supervisor_id = $1
 		ORDER BY h.hierarchy_level DESC
@@ -887,7 +1065,8 @@ func (h *DiscipleshipHandler) GetSubordinates(c echo.Context) error {
 		var h models.HierarchyWithUser
 		err := rows.Scan(
 			&h.ID, &h.UserID, &h.HierarchyLevel, &h.SupervisorID,
-			&h.ZoneName, &h.Territory, &h.ActiveGroupsAssigned,
+			&h.ZoneID, &h.ZoneName,
+			&h.Territory, &h.ActiveGroupsAssigned,
 			&h.CreatedAt, &h.UpdatedAt,
 			&h.UserName, &h.UserEmail,
 		)
@@ -906,26 +1085,49 @@ func (h *DiscipleshipHandler) GetSubordinates(c echo.Context) error {
 
 // GetAnalytics obtiene estadísticas generales
 func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
-	db := config.GetDB()
-	zoneName := c.QueryParam("zone_name")
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+	
+	zoneIDParam := c.QueryParam("zone_id")
+	zoneNameParam := c.QueryParam("zone_name") // Compatibilidad
 
 	var analytics models.DiscipleshipAnalytics
+
+	// Determinar zone_id si viene zone_name (compatibilidad)
+	var zoneID interface{}
+	if zoneIDParam != "" {
+		zoneID = zoneIDParam
+	} else if zoneNameParam != "" {
+		var foundZoneID string
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", zoneNameParam).Scan(&foundZoneID)
+		if err == nil {
+			zoneID = foundZoneID
+		}
+	}
 
 	// Total grupos activos
 	groupQuery := "SELECT COUNT(*) FROM discipleship_groups WHERE status = 'active'"
 	groupArgs := []interface{}{}
-	if zoneName != "" {
-		groupQuery += " AND zone_name = $1"
-		groupArgs = append(groupArgs, zoneName)
+	if zoneID != nil {
+		groupQuery += " AND zone_id = $1"
+		groupArgs = append(groupArgs, zoneID)
 	}
-	db.DB.QueryRow(groupQuery, groupArgs...).Scan(&analytics.TotalGroups)
+	err = db.DB.QueryRow(groupQuery, groupArgs...).Scan(&analytics.TotalGroups)
+	if err != nil {
+		c.Logger().Error("Error counting groups in analytics:", err)
+	}
 
 	// Total miembros
 	memberQuery := "SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE status = 'active'"
-	if zoneName != "" {
-		memberQuery += " AND zone_name = $1"
+	if zoneID != nil {
+		memberQuery += " AND zone_id = $1"
 	}
-	db.DB.QueryRow(memberQuery, groupArgs...).Scan(&analytics.TotalMembers)
+	err = db.DB.QueryRow(memberQuery, groupArgs...).Scan(&analytics.TotalMembers)
+	if err != nil {
+		c.Logger().Error("Error counting members in analytics:", err)
+	}
 
 	// Promedio de asistencia (últimas 4 semanas)
 	db.DB.QueryRow(`
@@ -985,17 +1187,22 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 
 // GetZoneStats obtiene estadísticas por zona
 func (h *DiscipleshipHandler) GetZoneStats(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	rows, err := db.DB.Query(`
 		SELECT 
-			COALESCE(zone_name, 'Sin zona') as zone_name,
+			COALESCE(z.id::text, '') as zone_id,
+			COALESCE(z.name, 'Sin zona') as zone_name,
 			COUNT(*) as total_groups,
-			COALESCE(SUM(member_count), 0) as total_members,
-			COALESCE(AVG(active_members::float / NULLIF(member_count, 0) * 100), 0) as avg_attendance
-		FROM discipleship_groups
-		WHERE status = 'active'
-		GROUP BY zone_name
+			COALESCE(SUM(g.member_count), 0) as total_members,
+			COALESCE(AVG(g.active_members::float / NULLIF(g.member_count, 0) * 100), 0) as avg_attendance
+		FROM discipleship_groups g
+		LEFT JOIN zones z ON g.zone_id = z.id
+		WHERE g.status = 'active'
+		GROUP BY z.id, z.name
 		ORDER BY total_groups DESC
 	`)
 	if err != nil {
@@ -1009,8 +1216,9 @@ func (h *DiscipleshipHandler) GetZoneStats(c echo.Context) error {
 	var stats []models.ZoneStats
 	for rows.Next() {
 		var s models.ZoneStats
-		err := rows.Scan(&s.ZoneName, &s.TotalGroups, &s.TotalMembers, &s.AvgAttendance)
+		err := rows.Scan(&s.ZoneID, &s.ZoneName, &s.TotalGroups, &s.TotalMembers, &s.AvgAttendance)
 		if err != nil {
+			c.Logger().Error("Error scanning zone stats:", err)
 			continue
 		}
 		stats = append(stats, s)
@@ -1021,7 +1229,10 @@ func (h *DiscipleshipHandler) GetZoneStats(c echo.Context) error {
 
 // GetGroupPerformance obtiene el rendimiento de cada grupo
 func (h *DiscipleshipHandler) GetGroupPerformance(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	rows, err := db.DB.Query(`
 		SELECT 
@@ -1073,10 +1284,26 @@ func nullIfEmpty(s string) interface{} {
 
 // GetMultiplications obtiene el historial de multiplicaciones
 func (h *DiscipleshipHandler) GetMultiplications(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	status := c.QueryParam("status")
-	zoneName := c.QueryParam("zone_name")
+	zoneIDParam := c.QueryParam("zone_id")
+	zoneNameParam := c.QueryParam("zone_name") // Compatibilidad
+
+	// Determinar zone_id si viene zone_name (compatibilidad)
+	var zoneID interface{}
+	if zoneIDParam != "" {
+		zoneID = zoneIDParam
+	} else if zoneNameParam != "" {
+		var foundZoneID string
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", zoneNameParam).Scan(&foundZoneID)
+		if err == nil {
+			zoneID = foundZoneID
+		}
+	}
 
 	query := `
 		SELECT 
@@ -1103,10 +1330,10 @@ func (h *DiscipleshipHandler) GetMultiplications(c echo.Context) error {
 		args = append(args, status)
 	}
 
-	if zoneName != "" {
+	if zoneID != nil {
 		argCount++
-		query += fmt.Sprintf(" AND pg.zone_name = $%d", argCount)
-		args = append(args, zoneName)
+		query += fmt.Sprintf(" AND pg.zone_id = $%d", argCount)
+		args = append(args, zoneID)
 	}
 
 	query += " ORDER BY m.multiplication_date DESC LIMIT 50"
@@ -1159,7 +1386,10 @@ func (h *DiscipleshipHandler) GetMultiplications(c echo.Context) error {
 
 // GetWeeklyTrends obtiene tendencias semanales
 func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	weeks := c.QueryParam("weeks")
 	if weeks == "" {
 		weeks = "12"
@@ -1215,7 +1445,10 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 
 // GetDashboardStatsByLevel obtiene estadísticas según el nivel del usuario
 func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	userID := c.Get("user_id").(string)
 	level := c.QueryParam("level")
 
@@ -1262,20 +1495,22 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		`, userID).Scan(&stats.ActiveLeaders)
 
 	case "3": // Supervisor General - toda su zona
-		var zoneName string
+		var zoneID sql.NullString
 		db.DB.QueryRow(`
-			SELECT zone_name FROM discipleship_hierarchy WHERE user_id = $1
-		`, userID).Scan(&zoneName)
+			SELECT zone_id FROM discipleship_hierarchy WHERE user_id = $1
+		`, userID).Scan(&zoneID)
 
-		db.DB.QueryRow(`
-			SELECT COUNT(*) FROM discipleship_groups 
-			WHERE zone_name = $1 AND status = 'active'
-		`, zoneName).Scan(&stats.TotalGroups)
-		
-		db.DB.QueryRow(`
-			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups 
-			WHERE zone_name = $1 AND status = 'active'
-		`, zoneName).Scan(&stats.TotalMembers)
+		if zoneID.Valid && zoneID.String != "" {
+			db.DB.QueryRow(`
+				SELECT COUNT(*) FROM discipleship_groups 
+				WHERE zone_id = $1 AND status = 'active'
+			`, zoneID.String).Scan(&stats.TotalGroups)
+			
+			db.DB.QueryRow(`
+				SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups 
+				WHERE zone_id = $1 AND status = 'active'
+			`, zoneID.String).Scan(&stats.TotalMembers)
+		}
 		
 		db.DB.QueryRow(`
 			SELECT COUNT(*) FROM discipleship_hierarchy 
@@ -1327,7 +1562,10 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 // GetLeaderGroupStats obtiene estadísticas de grupos para un líder específico
 func (h *DiscipleshipHandler) GetLeaderGroupStats(c echo.Context) error {
 	leaderID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	type GroupStats struct {
 		GroupID           string  `json:"group_id"`
@@ -1385,7 +1623,10 @@ func (h *DiscipleshipHandler) GetLeaderGroupStats(c echo.Context) error {
 // GetSupervisorSubordinates obtiene los subordinados de un supervisor
 func (h *DiscipleshipHandler) GetSupervisorSubordinates(c echo.Context) error {
 	supervisorID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	type Subordinate struct {
 		ID               string  `json:"id"`
@@ -1450,16 +1691,34 @@ func (h *DiscipleshipHandler) GetSupervisorSubordinates(c echo.Context) error {
 
 // GetGoals obtiene los objetivos estratégicos
 func (h *DiscipleshipHandler) GetGoals(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	status := c.QueryParam("status")
-	zoneName := c.QueryParam("zone_name")
+	zoneIDParam := c.QueryParam("zone_id")
+	zoneNameParam := c.QueryParam("zone_name") // Compatibilidad
+
+	// Determinar zone_id: usar el que viene en el request o buscar por zone_name (compatibilidad)
+	var zoneID interface{}
+	if zoneIDParam != "" {
+		zoneID = zoneIDParam
+	} else if zoneNameParam != "" {
+		// Compatibilidad: buscar zona por nombre
+		var foundZoneID string
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", zoneNameParam).Scan(&foundZoneID)
+		if err == nil {
+			zoneID = foundZoneID
+		}
+	}
 
 	query := `
 		SELECT 
-			id, goal_type, description, target_metric, target_value,
-			current_value, progress_percentage, deadline, status,
-			supervisor_id, zone_name, created_at, updated_at
-		FROM discipleship_goals
+			g.id, g.goal_type, g.description, g.target_metric, g.target_value,
+			g.current_value, g.progress_percentage, g.deadline, g.status,
+			g.supervisor_id, COALESCE(z.name, '') as zone_name, g.created_at, g.updated_at
+		FROM discipleship_goals g
+		LEFT JOIN zones z ON g.zone_id = z.id
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -1467,14 +1726,14 @@ func (h *DiscipleshipHandler) GetGoals(c echo.Context) error {
 
 	if status != "" && status != "all" {
 		argCount++
-		query += fmt.Sprintf(" AND status = $%d", argCount)
+		query += fmt.Sprintf(" AND g.status = $%d", argCount)
 		args = append(args, status)
 	}
 
-	if zoneName != "" {
+	if zoneID != nil {
 		argCount++
-		query += fmt.Sprintf(" AND (zone_name = $%d OR zone_name IS NULL)", argCount)
-		args = append(args, zoneName)
+		query += fmt.Sprintf(" AND g.zone_id = $%d", argCount)
+		args = append(args, zoneID)
 	}
 
 	query += " ORDER BY deadline ASC"

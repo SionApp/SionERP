@@ -132,7 +132,7 @@ const ProfilePage = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Mi Perfil
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground">
             Gestiona tu información personal y preferencias de la cuenta
           </p>
         </div>

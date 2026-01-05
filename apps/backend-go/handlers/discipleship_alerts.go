@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"backend-sion/config"
 	"backend-sion/models"
+	"database/sql"
 	"fmt"
 	"net/http"
 
@@ -17,21 +17,39 @@ func NewDiscipleshipAlertsHandler() *DiscipleshipAlertsHandler {
 
 // GetAlerts obtiene alertas con filtros
 func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	resolved := c.QueryParam("resolved")
-	zoneName := c.QueryParam("zone_name")
+	zoneIDParam := c.QueryParam("zone_id")
+	zoneNameParam := c.QueryParam("zone_name") // Compatibilidad
 	priority := c.QueryParam("priority")
+
+	// Determinar zone_id si viene zone_name (compatibilidad)
+	var zoneID interface{}
+	if zoneIDParam != "" {
+		zoneID = zoneIDParam
+	} else if zoneNameParam != "" {
+		var foundZoneID string
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", zoneNameParam).Scan(&foundZoneID)
+		if err == nil {
+			zoneID = foundZoneID
+		}
+	}
 
 	query := `
 		SELECT 
 			a.id, a.alert_type, a.title, a.message, a.priority,
-			a.related_group_id, a.related_user_id, a.zone_name,
+			a.related_group_id, a.related_user_id,
+			a.zone_id, COALESCE(z.name, '') as zone_name,
 			a.action_required, a.resolved, a.resolved_by, a.resolved_at,
 			a.expires_at, a.created_at, a.updated_at,
 			COALESCE(g.group_name, '') as group_name,
 			COALESCE(u.first_name || ' ' || u.last_name, '') as user_name
 		FROM discipleship_alerts a
+		LEFT JOIN zones z ON a.zone_id = z.id
 		LEFT JOIN discipleship_groups g ON a.related_group_id = g.id
 		LEFT JOIN users u ON a.related_user_id = u.id
 		WHERE (a.expires_at IS NULL OR a.expires_at > NOW())
@@ -44,10 +62,10 @@ func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
 		query += fmt.Sprintf(" AND a.resolved = $%d", argCount)
 		args = append(args, resolved == "true")
 	}
-	if zoneName != "" {
+	if zoneID != nil {
 		argCount++
-		query += fmt.Sprintf(" AND a.zone_name = $%d", argCount)
-		args = append(args, zoneName)
+		query += fmt.Sprintf(" AND a.zone_id = $%d", argCount)
+		args = append(args, zoneID)
 	}
 	if priority != "" {
 		argCount++
@@ -75,9 +93,10 @@ func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
 	var alerts []AlertWithDetails
 	for rows.Next() {
 		var a AlertWithDetails
-		err := rows.Scan(
+		err = rows.Scan(
 			&a.ID, &a.AlertType, &a.Title, &a.Message, &a.Priority,
-			&a.RelatedGroupID, &a.RelatedUserID, &a.ZoneName,
+			&a.RelatedGroupID, &a.RelatedUserID,
+			&a.ZoneID, &a.ZoneName,
 			&a.ActionRequired, &a.Resolved, &a.ResolvedBy, &a.ResolvedAt,
 			&a.ExpiresAt, &a.CreatedAt, &a.UpdatedAt,
 			&a.GroupName, &a.UserName,
@@ -100,18 +119,38 @@ func (h *DiscipleshipAlertsHandler) CreateAlert(c echo.Context) error {
 		})
 	}
 
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	// Determinar zone_id: usar el que viene en el request o buscar por zone_name (compatibilidad)
+	var zoneID interface{}
+	if req.ZoneID != "" {
+		zoneID = req.ZoneID
+	} else if req.ZoneName != "" {
+		// Compatibilidad: buscar zona por nombre
+		var foundZoneID string
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", req.ZoneName).Scan(&foundZoneID)
+		if err == nil {
+			zoneID = foundZoneID
+		} else {
+			zoneID = nil
+		}
+	} else {
+		zoneID = nil
+	}
 
 	var alertID string
-	err := db.DB.QueryRow(`
+	err = db.DB.QueryRow(`
 		INSERT INTO discipleship_alerts (
 			alert_type, title, message, priority,
-			related_group_id, related_user_id, zone_name, action_required
+			related_group_id, related_user_id, zone_id, action_required
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`, req.AlertType, req.Title, req.Message, req.Priority,
 		nullIfEmpty(req.RelatedGroupID), nullIfEmpty(req.RelatedUserID),
-		nullIfEmpty(req.ZoneName), req.ActionRequired).Scan(&alertID)
+		zoneID, req.ActionRequired).Scan(&alertID)
 
 	if err != nil {
 		c.Logger().Error("Error creating alert:", err)
@@ -130,7 +169,10 @@ func (h *DiscipleshipAlertsHandler) CreateAlert(c echo.Context) error {
 func (h *DiscipleshipAlertsHandler) ResolveAlert(c echo.Context) error {
 	alertID := c.Param("id")
 	userID := c.Get("user_id").(string)
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	result, err := db.DB.Exec(`
 		UPDATE discipleship_alerts SET
@@ -163,7 +205,10 @@ func (h *DiscipleshipAlertsHandler) ResolveAlert(c echo.Context) error {
 // DeleteAlert elimina una alerta
 func (h *DiscipleshipAlertsHandler) DeleteAlert(c echo.Context) error {
 	alertID := c.Param("id")
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 
 	result, err := db.DB.Exec("DELETE FROM discipleship_alerts WHERE id = $1", alertID)
 	if err != nil {
@@ -187,12 +232,15 @@ func (h *DiscipleshipAlertsHandler) DeleteAlert(c echo.Context) error {
 
 // GenerateAutomaticAlerts genera alertas automáticas basadas en reglas
 func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) error {
-	db := config.GetDB()
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
 	alertsCreated := 0
 
 	// 1. Grupos sin reportes en las últimas 2 semanas
-	rows, _ := db.DB.Query(`
-		SELECT g.id, g.group_name, g.leader_id, g.zone_name
+	rows, err := db.DB.Query(`
+		SELECT g.id, g.group_name, g.leader_id, g.zone_id
 		FROM discipleship_groups g
 		WHERE g.status = 'active'
 		AND NOT EXISTS (
@@ -207,16 +255,32 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 			AND a.resolved = false
 		)
 	`)
+	if err != nil {
+		c.Logger().Error("Error querying groups for alerts:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al generar alertas",
+		})
+	}
 	
 	for rows.Next() {
 		var groupID, groupName, leaderID string
-		var zoneName *string
-		rows.Scan(&groupID, &groupName, &leaderID, &zoneName)
+		var zoneID sql.NullString
+		err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID)
+		if err != nil {
+			continue
+		}
 
-		db.DB.Exec(`
+		var zoneIDValue interface{}
+		if zoneID.Valid {
+			zoneIDValue = zoneID.String
+		} else {
+			zoneIDValue = nil
+		}
+
+		_, _ = db.DB.Exec(`
 			INSERT INTO discipleship_alerts (
 				alert_type, title, message, priority,
-				related_group_id, related_user_id, zone_name, action_required
+				related_group_id, related_user_id, zone_id, action_required
 			) VALUES (
 				'no_reports',
 				'Sin reportes recientes',
@@ -225,20 +289,20 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 				$2, $3, $4, true
 			)
 		`, fmt.Sprintf("El grupo '%s' no ha enviado reportes en las últimas 2 semanas", groupName),
-			groupID, leaderID, zoneName)
+			groupID, leaderID, zoneIDValue)
 		alertsCreated++
 	}
 	rows.Close()
 
 	// 2. Grupos con baja asistencia (menos del 50% de miembros)
-	rows, _ = db.DB.Query(`
-		SELECT g.id, g.group_name, g.leader_id, g.zone_name, g.member_count, 
+	rows, err = db.DB.Query(`
+		SELECT g.id, g.group_name, g.leader_id, g.zone_id, g.member_count, 
 			   COALESCE(AVG(m.attendance), 0) as avg_attendance
 		FROM discipleship_groups g
 		LEFT JOIN discipleship_metrics m ON g.id = m.group_id 
 			AND m.week_date >= CURRENT_DATE - INTERVAL '28 days'
 		WHERE g.status = 'active' AND g.member_count > 0
-		GROUP BY g.id, g.group_name, g.leader_id, g.zone_name, g.member_count
+		GROUP BY g.id, g.group_name, g.leader_id, g.zone_id, g.member_count
 		HAVING COALESCE(AVG(m.attendance), 0) < (g.member_count * 0.5)
 		AND NOT EXISTS (
 			SELECT 1 FROM discipleship_alerts a
@@ -248,18 +312,36 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 			AND a.created_at >= CURRENT_DATE - INTERVAL '7 days'
 		)
 	`)
+	if err != nil {
+		c.Logger().Error("Error querying groups for attendance alerts:", err)
+		rows.Close()
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"message":        "Algunas alertas generadas",
+			"alerts_created": alertsCreated,
+		})
+	}
 
 	for rows.Next() {
 		var groupID, groupName, leaderID string
-		var zoneName *string
+		var zoneID sql.NullString
 		var memberCount int
 		var avgAttendance float64
-		rows.Scan(&groupID, &groupName, &leaderID, &zoneName, &memberCount, &avgAttendance)
+		err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID, &memberCount, &avgAttendance)
+		if err != nil {
+			continue
+		}
 
-		db.DB.Exec(`
+		var zoneIDValue interface{}
+		if zoneID.Valid {
+			zoneIDValue = zoneID.String
+		} else {
+			zoneIDValue = nil
+		}
+
+		_, _ = db.DB.Exec(`
 			INSERT INTO discipleship_alerts (
 				alert_type, title, message, priority,
-				related_group_id, related_user_id, zone_name, action_required
+				related_group_id, related_user_id, zone_id, action_required
 			) VALUES (
 				'low_attendance',
 				'Baja asistencia',
@@ -269,7 +351,7 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 			)
 		`, fmt.Sprintf("El grupo '%s' tiene una asistencia promedio de %.0f de %d miembros", 
 			groupName, avgAttendance, memberCount),
-			groupID, leaderID, zoneName)
+			groupID, leaderID, zoneIDValue)
 		alertsCreated++
 	}
 	rows.Close()
