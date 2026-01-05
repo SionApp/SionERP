@@ -6,22 +6,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { RecentActivity } from '@/services/dashboard.service';
 import { AuditLog } from '@/types/audit.types';
-import {
-  Activity,
-  Calendar,
-  Shield,
-  Target,
-  UserPlus,
-  Users
-} from 'lucide-react';
+import { Activity, Calendar, Shield, Target, UserPlus, Users } from 'lucide-react';
 import { useState } from 'react';
-import {
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer
-} from 'recharts';
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer } from 'recharts';
 
 const DashboardHome = () => {
   const { user } = useAuth(); // Obtener usuario del contexto
@@ -34,6 +21,7 @@ const DashboardHome = () => {
     recentActivity,
     recentLogin,
     currentUserRole,
+    installedModules,
     loading: statsLoading,
   } = useDashboardStats();
 
@@ -185,8 +173,8 @@ const DashboardHome = () => {
             </CardContent>
           </Card>
 
-          {/* Recent Activity - Solo para pastor y staff */}
-          {currentUserRole && ['pastor', 'staff'].includes(currentUserRole) && (
+          {/* Recent Activity - Visible for admin, pastor and staff */}
+          {currentUserRole && ['admin', 'pastor', 'staff'].includes(currentUserRole) && (
             <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
               <CardHeader>
                 <CardTitle className="text-xl font-bold flex items-center gap-2">
@@ -194,7 +182,7 @@ const DashboardHome = () => {
                   Actividades Recientes del Sistema
                 </CardTitle>
                 <CardDescription>
-                  Registro de audit logs - Solo visible para Pastor y Staff
+                  Registro de audit logs - Visible para Admin, Pastor y Staff
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -237,10 +225,11 @@ const DashboardHome = () => {
           )}
         </div>
 
-        {/* Sección de Analytics de Discipulado - Solo para Pastor */}
-        {currentUserRole === 'pastor' && (
-          <DiscipleshipAnalyticsSection discipleshipStats={discipleshipStats} />
-        )}
+        {/* Sección de Analytics de Discipulado - Visible para Admin y Pastor Y si el módulo está instalado */}
+        {['admin', 'pastor'].includes(currentUserRole || '') &&
+          installedModules.includes('discipleship') && (
+            <DiscipleshipAnalyticsSection discipleshipStats={discipleshipStats} />
+          )}
       </div>
 
       {/* Modal de detalles de audit log */}

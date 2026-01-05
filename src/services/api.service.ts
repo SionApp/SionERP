@@ -54,7 +54,9 @@ export class ApiService {
           details: errorData.details,
         });
 
-        throw new Error(`${errorMessage}${errorDetails}`);
+        const error: any = new Error(`${errorMessage}${errorDetails}`);
+        error.status = response.status;
+        throw error;
       }
 
       return await response.json();

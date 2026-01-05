@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
 import {
   DashboardService,
   DashboardStats,
   DiscipleshipDashboardStats,
-  RoleDistribution,
   RecentActivity,
+  RoleDistribution,
 } from '@/services/dashboard.service';
+import { useEffect, useState } from 'react';
 
 export const useDashboardStats = () => {
   const [stats, setStats] = useState<DashboardStats>({
@@ -32,6 +32,7 @@ export const useDashboardStats = () => {
   const [loading, setLoading] = useState(true);
   const [recentLogin, setRecentLogin] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>('pastor');
+  const [installedModules, setInstalledModules] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const loadDashboardData = async () => {
@@ -48,6 +49,7 @@ export const useDashboardStats = () => {
       setRecentActivity(data.recentActivity);
       setRecentLogin(data.stats.lastLogin);
       setCurrentUserRole(data.currentUserRole || null);
+      setInstalledModules(data.installedModules || []);
     } catch (err) {
       console.error('Error loading dashboard data:', err);
       setError('Error al cargar los datos del dashboard');
@@ -67,6 +69,7 @@ export const useDashboardStats = () => {
     recentActivity,
     recentLogin,
     currentUserRole,
+    installedModules,
     loading,
     error,
     refetch: loadDashboardData,

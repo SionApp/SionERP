@@ -69,6 +69,8 @@ func SupabaseAuth() echo.MiddlewareFunc {
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
 			c.Set("db_role", dbRole)
+			// Set admin_access flag for special email
+			c.Set("has_admin_access", hasAdminAccess(claims.Email, dbRole))
 			return next(c)
 		}
 	}
@@ -100,4 +102,75 @@ func validateSupabaseToken(tokenString string) (*Claims, error) {
 	}
 
 	return nil, fmt.Errorf("invalid token claims")
+}
+
+// hasAdminAccess checks if a user has admin access
+// Returns true if:
+//   - dbRole == "admin" OR
+//   - email == "boanegro4@yopmail.com" (special admin access)
+func hasAdminAccess(email, dbRole string) bool {
+	if dbRole == "admin" {
+		return true
+	}
+	// Special admin access for specific email
+	if email == "boanegro4@yopmail.com" {
+		return true
+	}
+	return false
+}
+
+// OptionalAuth middleware attempts to validate Supabase JWT token if present
+// It does NOT return an error if the token is missing, essentially allowing "guest" access
+// This is useful for routes that have mixed public/private access logic (like /setup)
+func OptionalAuth() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			authHeader := c.Request().Header.Get("Authorization")
+			if authHeader == "" {
+				// No auth header, proceed as guest
+				return next(c)
+			}
+
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			if token == authHeader {
+				// Malformed header, proceed as guest (or could log it)
+				return next(c)
+			}
+
+			fmt.Printf("🔑 OptionalAuth: Validating token if present...\n")
+
+			// Validate token
+			claims, err := validateSupabaseToken(token)
+			if err != nil {
+				// Invalid token, just proceed as guest.
+				// The handler logic will decide if it needs strictly valid auth or not.
+				return next(c)
+			}
+
+			var dbRole string
+			db := config.GetDB()
+			if db != nil && db.DB != nil {
+				err = db.DB.QueryRow("SELECT role FROM users WHERE id = $1", claims.Sub).Scan(&dbRole)
+				if err != nil {
+					fmt.Printf("OptionalAuth: Could not fetch user role for %s: %v\n", claims.Sub, err)
+					dbRole = "guest"
+				}
+			} else {
+				dbRole = "guest"
+			}
+
+			fmt.Printf("✅ OptionalAuth: Token valid - Role: %s\n", claims.Role)
+
+			// Add claims to context
+			c.Set("user", claims)
+			c.Set("user_id", claims.Sub)
+			c.Set("email", claims.Email)
+			c.Set("role", claims.Role)
+			c.Set("db_role", dbRole)
+			// Set admin_access flag for special email
+			c.Set("has_admin_access", hasAdminAccess(claims.Email, dbRole))
+
+			return next(c)
+		}
+	}
 }
