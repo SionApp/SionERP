@@ -257,39 +257,41 @@ const PastoralDashboard: React.FC = React.memo(() => {
             <CardContent>
               {weeklyTrends.length > 0 ? (
                 <div className="w-full overflow-x-auto">
-                  <ResponsiveContainer width="100%" height={300} minHeight={250}>
-                    <LineChart data={weeklyTrends}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis yAxisId="left" />
-                      <YAxis yAxisId="right" orientation="right" />
-                      <Tooltip />
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="miembros"
-                        stroke="#3b82f6"
-                        strokeWidth={3}
-                        name="Asistencia"
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="grupos"
-                        stroke="#22c55e"
-                        strokeWidth={2}
-                        name="Grupos Activos"
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="conversiones"
-                        stroke="#f59e0b"
-                        strokeWidth={2}
-                        name="Conversiones"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <div style={{ width: '100%', height: 300, minHeight: 250 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={weeklyTrends}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis yAxisId="left" />
+                        <YAxis yAxisId="right" orientation="right" />
+                        <Tooltip />
+                        <Line
+                          yAxisId="left"
+                          type="monotone"
+                          dataKey="miembros"
+                          stroke="#3b82f6"
+                          strokeWidth={3}
+                          name="Asistencia"
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="grupos"
+                          stroke="#22c55e"
+                          strokeWidth={2}
+                          name="Grupos Activos"
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="conversiones"
+                          stroke="#f59e0b"
+                          strokeWidth={2}
+                          name="Conversiones"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground py-8 md:py-12 text-sm">
@@ -308,16 +310,18 @@ const PastoralDashboard: React.FC = React.memo(() => {
               <CardContent>
                 {zoneStats.length > 0 ? (
                   <div className="w-full overflow-x-auto">
-                    <ResponsiveContainer width="100%" height={250} minHeight={200}>
-                      <BarChart data={zoneStats}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="zone_name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="total_groups" fill="#3b82f6" name="Grupos" />
-                        <Bar dataKey="total_members" fill="#22c55e" name="Miembros" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <div style={{ width: '100%', height: 250, minHeight: 200 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={zoneStats}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="zone_name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar dataKey="total_groups" fill="#3b82f6" name="Grupos" />
+                          <Bar dataKey="total_members" fill="#22c55e" name="Miembros" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-center text-muted-foreground py-8 text-sm">
