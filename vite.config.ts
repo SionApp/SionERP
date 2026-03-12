@@ -16,4 +16,13 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom"],
   },
+  build: {
+    sourcemap: process.env.NODE_ENV === "development" ? false : true,
+    rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        if (warning.code === 'SOURCEMAP_ERROR') return;
+        defaultHandler(warning);
+      },
+    },
+  },
 }));

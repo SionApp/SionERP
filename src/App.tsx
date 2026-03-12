@@ -28,6 +28,7 @@ import UsersPage from './pages/dashboard/UsersPage';
 import { ApiService } from './services/api.service';
 import { setLoadingCallbacks } from './services/api.service';
 import { setDashboardLoadingCallbacks } from './services/dashboard.service';
+import ZonesPage from './pages/dashboard/ZonesPage';
 
 const queryClient = new QueryClient();
 
@@ -116,7 +117,7 @@ const AppContent = () => {
     <>
       <LoadingOverlay isLoading={isFetching} variant="fetching" />
       <LoadingOverlay isLoading={isSubmitting} variant="submitting" />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Toaster />
         <Sonner />
         <SetupGuard>
@@ -144,6 +145,7 @@ const AppContent = () => {
               <Route path="roles" element={<RolesPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="discipleship" element={<DiscipleshipPage />} />
+              <Route path="zones" element={<ZonesPage />} />
             </Route>
           </Routes>
         </SetupGuard>
