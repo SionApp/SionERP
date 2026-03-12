@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAuxiliarySupervisorData } from '@/hooks/useAuxiliarySupervisorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateReportRequest } from '@/types/discipleship.types';
+import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
 import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -64,94 +65,16 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
   const { loading, stats, groups, myReports, error, refetch, refetchReports } =
     useAuxiliarySupervisorData();
 
-  // Calcular período quincenal (últimas 2 semanas)
+  // Calcular período semanal (semana anterior)
   const today = new Date();
-  const twoWeeksAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
-  const periodStart = startOfWeek(twoWeeksAgo, { weekStartsOn: 0 });
+  const periodStart = startOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
   const periodEnd = endOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
 
   // Validar si ya existe reporte para este período
-  const hasCurrentPeriodReport = myReports.some(report => {
+  const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
     const reportStart = new Date(report.period_start);
     return reportStart >= periodStart && reportStart <= periodEnd;
   });
-
-  const [biweeklyReport, setBiweeklyReport] = useState({
-    totalGroups: 0,
-    healthyGroups: 0,
-    groupsNeedingAttention: '',
-    trainingSessions: 0,
-    totalAttendance: 0,
-    leadersNeedingSupport: '',
-    potentialNewLeaders: '',
-    newConversions: 0,
-    highlights: '',
-    concerns: '',
-  });
-
-  const handleSubmitBiweeklyReport = async () => {
-    if (!user) return;
-
-    setIsSubmittingReport(true);
-    try {
-      const createData: CreateReportRequest = {
-        report_type: 'biweekly',
-        report_level: 2,
-        period_start: format(periodStart, 'yyyy-MM-dd'),
-        period_end: format(periodEnd, 'yyyy-MM-dd'),
-        report_data: {
-          groupsOverview: {
-            totalGroups: biweeklyReport.totalGroups,
-            healthyGroups: biweeklyReport.healthyGroups,
-            groupsNeedingAttention: biweeklyReport.groupsNeedingAttention
-              .split('\n')
-              .filter(Boolean),
-          },
-          leaderDevelopment: {
-            trainingSessions: biweeklyReport.trainingSessions,
-            leadersNeedingSupport: biweeklyReport.leadersNeedingSupport.split('\n').filter(Boolean),
-            potentialNewLeaders: biweeklyReport.potentialNewLeaders.split('\n').filter(Boolean),
-          },
-          zoneMetrics: {
-            totalAttendance: biweeklyReport.totalAttendance,
-            newConversions: biweeklyReport.newConversions,
-          },
-          highlights: biweeklyReport.highlights,
-          concerns: biweeklyReport.concerns,
-        },
-      };
-
-      await DiscipleshipService.createReport(createData);
-
-      toast.success('Reporte quincenal enviado exitosamente');
-      setShowReportModal(false);
-
-      // Reset form
-      setBiweeklyReport({
-        totalGroups: 0,
-        healthyGroups: 0,
-        groupsNeedingAttention: '',
-        trainingSessions: 0,
-        totalAttendance: 0,
-        leadersNeedingSupport: '',
-        potentialNewLeaders: '',
-        newConversions: 0,
-        highlights: '',
-        concerns: '',
-      });
-
-      await refetchReports();
-    } catch (error: unknown) {
-      console.error('Error submitting report:', error);
-      if (error instanceof Error) {
-        toast.error(error.message || 'Error al enviar el reporte');
-      } else {
-        toast.error('Error al enviar el reporte');
-      }
-    } finally {
-      setIsSubmittingReport(false);
-    }
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -184,7 +107,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
             Dashboard Supervisor Auxiliar
           </h1>
           <p className="text-sm md:text-base text-muted-foreground">
-            {user?.first_name} {user?.last_name} - {user?.zone_name || 'Zona no asignada'}
+            {user?.email} - {(user as any)?.zone_name || 'Zona no asignada'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -203,204 +126,15 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
         </div>
       </div>
 
-      {/* Dialog para crear reporte - Fuera de los tabs para que funcione desde el header */}
-      <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Reporte Quincenal</DialogTitle>
-            <DialogDescription>
-              Período: {format(periodStart, 'dd MMM', { locale: es })} -{' '}
-              {format(periodEnd, 'dd MMM yyyy', { locale: es })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Groups Overview */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Resumen de Grupos</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="totalGroups">Total de Grupos</Label>
-                  <Input
-                    id="totalGroups"
-                    type="number"
-                    value={biweeklyReport.totalGroups}
-                    onChange={e =>
-                      setBiweeklyReport(prev => ({
-                        ...prev,
-                        totalGroups: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="healthyGroups">Grupos Saludables</Label>
-                  <Input
-                    id="healthyGroups"
-                    type="number"
-                    value={biweeklyReport.healthyGroups}
-                    onChange={e =>
-                      setBiweeklyReport(prev => ({
-                        ...prev,
-                        healthyGroups: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="mt-4">
-                <Label htmlFor="needsAttention">Grupos que Necesitan Atención</Label>
-                <Textarea
-                  id="needsAttention"
-                  placeholder="Lista los grupos que requieren atención especial (uno por línea)..."
-                  className="min-h-[80px]"
-                  value={biweeklyReport.groupsNeedingAttention}
-                  onChange={e =>
-                    setBiweeklyReport(prev => ({
-                      ...prev,
-                      groupsNeedingAttention: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Leader Development */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Desarrollo de Liderazgo</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="trainingSessions">Sesiones de Capacitación</Label>
-                  <Input
-                    id="trainingSessions"
-                    type="number"
-                    value={biweeklyReport.trainingSessions}
-                    onChange={e =>
-                      setBiweeklyReport(prev => ({
-                        ...prev,
-                        trainingSessions: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="totalAttendance">Asistencia Total del Período</Label>
-                  <Input
-                    id="totalAttendance"
-                    type="number"
-                    value={biweeklyReport.totalAttendance}
-                    onChange={e =>
-                      setBiweeklyReport(prev => ({
-                        ...prev,
-                        totalAttendance: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2 mt-4">
-                <div>
-                  <Label htmlFor="leadersNeedingSupport">
-                    Líderes que Necesitan Apoyo
-                  </Label>
-                  <Textarea
-                    id="leadersNeedingSupport"
-                    placeholder="Lista los líderes (uno por línea)..."
-                    className="min-h-[80px]"
-                    value={biweeklyReport.leadersNeedingSupport}
-                    onChange={e =>
-                      setBiweeklyReport(prev => ({
-                        ...prev,
-                        leadersNeedingSupport: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="potentialLeaders">Potenciales Nuevos Líderes</Label>
-                  <Textarea
-                    id="potentialLeaders"
-                    placeholder="Identifica miembros con potencial (uno por línea)..."
-                    className="min-h-[80px]"
-                    value={biweeklyReport.potentialNewLeaders}
-                    onChange={e =>
-                      setBiweeklyReport(prev => ({
-                        ...prev,
-                        potentialNewLeaders: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="mt-4">
-                <Label htmlFor="newConversions">Nuevas Conversiones</Label>
-                <Input
-                  id="newConversions"
-                  type="number"
-                  value={biweeklyReport.newConversions}
-                  onChange={e =>
-                    setBiweeklyReport(prev => ({
-                      ...prev,
-                      newConversions: parseInt(e.target.value) || 0,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Highlights and Concerns */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="highlights">Logros y Bendiciones</Label>
-                <Textarea
-                  id="highlights"
-                  placeholder="Describe los logros destacados del período..."
-                  className="min-h-[100px]"
-                  value={biweeklyReport.highlights}
-                  onChange={e =>
-                    setBiweeklyReport(prev => ({
-                      ...prev,
-                      highlights: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="concerns">Preocupaciones y Desafíos</Label>
-                <Textarea
-                  id="concerns"
-                  placeholder="Describe las preocupaciones o desafíos..."
-                  className="min-h-[100px]"
-                  value={biweeklyReport.concerns}
-                  onChange={e =>
-                    setBiweeklyReport(prev => ({
-                      ...prev,
-                      concerns: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReportModal(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSubmitBiweeklyReport} disabled={isSubmittingReport}>
-              {isSubmittingReport ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                  Enviando...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Enviar Reporte
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog para crear reporte */}
+      <SupervisionReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        onSuccess={refetchReports}
+        periodStart={periodStart}
+        periodEnd={periodEnd}
+        hierarchyLevel={2}
+      />
 
       {/* Quick Stats */}
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -448,7 +182,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                 <div className="text-2xl font-bold text-green-600">
                   <CheckCircle className="h-6 w-6 inline" />
                 </div>
-                <p className="text-xs text-muted-foreground">Reporte quincenal enviado</p>
+                <p className="text-xs text-muted-foreground">Reporte semanal enviado</p>
               </>
             ) : (
               <>
@@ -471,7 +205,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
             Grupos
           </TabsTrigger>
           <TabsTrigger value="biweekly-report" className="text-xs md:text-sm">
-            Reporte
+            Reporte Semanal
           </TabsTrigger>
           <TabsTrigger value="leaders" className="text-xs md:text-sm">
             Líderes
@@ -602,8 +336,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                 <div className="space-y-3">
                   {myReports.slice(0, 5).map(report => {
                     const reportData = report.report_data as {
-                      groupsOverview?: { totalGroups?: number };
-                      zoneMetrics?: { newConversions?: number };
+                      new_disciples_care?: number; visited_groups?: number;
                     };
                     return (
                       <div
@@ -612,13 +345,10 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                       >
                         <div>
                           <p className="font-medium">
-                            Período:{' '}
-                            {format(new Date(report.period_start), 'dd MMM', { locale: es })} -{' '}
-                            {format(new Date(report.period_end), 'dd MMM yyyy', { locale: es })}
+                            Semana del {format(new Date(report.period_start), 'dd MMM', { locale: es })}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Grupos: {reportData?.groupsOverview?.totalGroups || 0} • Conversiones:{' '}
-                            {reportData?.zoneMetrics?.newConversions || 0}
+                            Atención Nvos: {reportData?.new_disciples_care || 0} • VD: {reportData?.visited_groups || 0}
                           </p>
                         </div>
                         <Badge
@@ -652,7 +382,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Reporte Quincenal</CardTitle>
+                  <CardTitle>Reporte Semanal</CardTitle>
                   <CardDescription>
                     Período: {format(periodStart, 'dd MMM', { locale: es })} -{' '}
                     {format(periodEnd, 'dd MMM yyyy', { locale: es })}
@@ -672,12 +402,12 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
               {hasCurrentPeriodReport ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-600" />
-                  <p>Ya has enviado el reporte quincenal para este período</p>
+                  <p>Ya has enviado el reporte semanal para este período</p>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Haz clic en "Nuevo Reporte" para crear un reporte quincenal</p>
+                  <p>Haz clic en "Nuevo Reporte" para crear un reporte semanal</p>
                 </div>
               )}
             </CardContent>
