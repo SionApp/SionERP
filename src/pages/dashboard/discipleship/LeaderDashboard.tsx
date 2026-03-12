@@ -16,6 +16,7 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
+import { LeaderReportModal } from '@/components/discipleship/LeaderReportModal';
 import { useLeaderDiscipleshipData } from '@/hooks/useLeaderDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateReportRequest } from '@/types/discipleship.types';
@@ -43,17 +44,6 @@ export default function LeaderDashboard() {
 
   // Report form state
   const [showReportModal, setShowReportModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reportData, setReportData] = useState({
-    attendance: 0,
-    new_visitors: 0,
-    conversions: 0,
-    spiritual_temperature: 7,
-    offering_amount: 0,
-    testimonies: '',
-    prayer_requests: '',
-    notes: '',
-  });
 
   // Get current week dates
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
@@ -62,68 +52,10 @@ export default function LeaderDashboard() {
   const lastWeekEnd = endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 0 });
 
   // Check if report for this week already exists
-  const hasCurrentWeekReport = myReports.some(report => {
+  const hasCurrentWeekReport = myReports.some((report: { period_start: string }) => {
     const reportStart = new Date(report.period_start);
     return reportStart >= lastWeekStart && reportStart <= currentWeekEnd;
   });
-
-  const handleSubmitReport = async () => {
-    if (!groups[0]?.id) {
-      toast.error('No tienes un grupo asignado');
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      const createData: CreateReportRequest = {
-        report_type: 'weekly',
-        report_level: 1,
-        period_start: format(lastWeekStart, 'yyyy-MM-dd'),
-        period_end: format(lastWeekEnd, 'yyyy-MM-dd'),
-        report_data: {
-          attendance: reportData.attendance,
-          new_visitors: reportData.new_visitors,
-          conversions: reportData.conversions,
-          spiritual_temperature: reportData.spiritual_temperature,
-          offering_amount: reportData.offering_amount,
-          testimonies: reportData.testimonies.split('\n').filter(t => t.trim()),
-          prayer_requests: reportData.prayer_requests.split('\n').filter(p => p.trim()),
-          notes: reportData.notes,
-          group_id: groups[0].id, // Incluir group_id en report_data para referencia
-        },
-      };
-
-      // Crear el reporte (el backend lo crea con status 'submitted' automáticamente)
-      const result = await DiscipleshipService.createReport(createData);
-
-      toast.success('Reporte semanal enviado exitosamente');
-      setShowReportModal(false);
-      resetForm();
-      await refetchReports();
-    } catch (error: unknown) {
-      console.error('Error submitting report:', error);
-      if (error instanceof Error) {
-        toast.error(error.message || 'Error al enviar el reporte');
-      } else {
-        toast.error('Error al enviar el reporte');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const resetForm = () => {
-    setReportData({
-      attendance: 0,
-      new_visitors: 0,
-      conversions: 0,
-      spiritual_temperature: 7,
-      offering_amount: 0,
-      testimonies: '',
-      prayer_requests: '',
-      notes: '',
-    });
-  };
 
   // Loading state
   if (loading) {
@@ -166,160 +98,23 @@ export default function LeaderDashboard() {
             {myGroup ? myGroup.group_name : 'Dashboard de líder de célula'}
           </p>
         </div>
-        <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
-          <DialogTrigger asChild>
-            <Button disabled={hasCurrentWeekReport || !myGroup}>
-              <Plus className="h-4 w-4 mr-2" />
-              {hasCurrentWeekReport ? 'Reporte enviado' : 'Nuevo Reporte Semanal'}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Reporte Semanal</DialogTitle>
-              <DialogDescription>
-                Período: {format(lastWeekStart, 'dd MMM', { locale: es })} -{' '}
-                {format(lastWeekEnd, 'dd MMM yyyy', { locale: es })}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-6 py-4">
-              {/* Asistencia y Visitantes */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="attendance">Asistencia Total</Label>
-                  <Input
-                    id="attendance"
-                    type="number"
-                    min="0"
-                    value={reportData.attendance}
-                    onChange={e =>
-                      setReportData({ ...reportData, attendance: parseInt(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="visitors">Visitantes Nuevos</Label>
-                  <Input
-                    id="visitors"
-                    type="number"
-                    min="0"
-                    value={reportData.new_visitors}
-                    onChange={e =>
-                      setReportData({ ...reportData, new_visitors: parseInt(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Conversiones y Ofrenda */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="conversions">Conversiones</Label>
-                  <Input
-                    id="conversions"
-                    type="number"
-                    min="0"
-                    value={reportData.conversions}
-                    onChange={e =>
-                      setReportData({ ...reportData, conversions: parseInt(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="offering">Ofrenda ($)</Label>
-                  <Input
-                    id="offering"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={reportData.offering_amount}
-                    onChange={e =>
-                      setReportData({
-                        ...reportData,
-                        offering_amount: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Temperatura Espiritual */}
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <Label>Temperatura Espiritual del Grupo</Label>
-                  <span className="font-medium">{reportData.spiritual_temperature}/10</span>
-                </div>
-                <Slider
-                  value={[reportData.spiritual_temperature]}
-                  onValueChange={value =>
-                    setReportData({ ...reportData, spiritual_temperature: value[0] })
-                  }
-                  min={1}
-                  max={10}
-                  step={1}
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Frío</span>
-                  <span>Tibio</span>
-                  <span>En fuego</span>
-                </div>
-              </div>
-
-              {/* Testimonios */}
-              <div className="space-y-2">
-                <Label htmlFor="testimonies">Testimonios (uno por línea)</Label>
-                <Textarea
-                  id="testimonies"
-                  placeholder="Escribe los testimonios de esta semana..."
-                  value={reportData.testimonies}
-                  onChange={e => setReportData({ ...reportData, testimonies: e.target.value })}
-                  rows={3}
-                />
-              </div>
-
-              {/* Peticiones de Oración */}
-              <div className="space-y-2">
-                <Label htmlFor="prayer">Peticiones de Oración (una por línea)</Label>
-                <Textarea
-                  id="prayer"
-                  placeholder="Escribe las peticiones de oración..."
-                  value={reportData.prayer_requests}
-                  onChange={e => setReportData({ ...reportData, prayer_requests: e.target.value })}
-                  rows={3}
-                />
-              </div>
-
-              {/* Notas Adicionales */}
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notas Adicionales</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Observaciones, desafíos, necesidades especiales..."
-                  value={reportData.notes}
-                  onChange={e => setReportData({ ...reportData, notes: e.target.value })}
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowReportModal(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSubmitReport} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Enviar Reporte
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <div>
+          <Button disabled={hasCurrentWeekReport || !myGroup} onClick={() => setShowReportModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            {hasCurrentWeekReport ? 'Reporte enviado' : 'Nuevo Reporte Semanal'}
+          </Button>
+          
+          {myGroup && (
+            <LeaderReportModal
+              isOpen={showReportModal}
+              onClose={() => setShowReportModal(false)}
+              onSuccess={refetchReports}
+              periodStart={lastWeekStart}
+              periodEnd={lastWeekEnd}
+              groupId={myGroup.id}
+            />
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}

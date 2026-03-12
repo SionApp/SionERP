@@ -34,7 +34,7 @@ export function useGeneralSupervisorData() {
       setLoadingReports(true);
       const reports = await DiscipleshipService.getReports({
         reporter_id: user.id,
-        report_type: 'monthly',
+        report_type: 'supervision',
         limit: 20,
       });
       setMyReports(reports || []);
