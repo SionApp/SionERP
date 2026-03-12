@@ -19,8 +19,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useGeneralSupervisorData } from '@/hooks/useGeneralSupervisorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateReportRequest } from '@/types/discipleship.types';
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
 import {
   Building,
   CheckCircle,
@@ -87,92 +88,16 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
     refetchReports,
   } = useGeneralSupervisorData();
 
-  // Calcular período mensual (mes anterior)
+  // Calcular período semanal (semana anterior)
   const today = new Date();
-  const lastMonth = subMonths(today, 1);
-  const periodStart = startOfMonth(lastMonth);
-  const periodEnd = endOfMonth(lastMonth);
+  const periodStart = startOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
+  const periodEnd = endOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
 
   // Validar si ya existe reporte para este período
-  const hasCurrentPeriodReport = myReports.some(report => {
+  const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
     const reportStart = new Date(report.period_start);
     return reportStart >= periodStart && reportStart <= periodEnd;
   });
-
-  const [monthlyReport, setMonthlyReport] = useState({
-    totalGroups: 0,
-    totalMembers: 0,
-    monthlyGrowth: 0,
-    auxiliarySupervisors: 0,
-    trainingSupervisors: 0,
-    leadershipGaps: '',
-    newGroupLocations: '',
-    communityOutreach: '',
-    specialEvents: '',
-    multiplicationPlans: '',
-  });
-
-  const handleSubmitMonthlyReport = async () => {
-    if (!user) return;
-
-    setIsSubmittingReport(true);
-    try {
-      const createData: CreateReportRequest = {
-        report_type: 'monthly',
-        report_level: 3,
-        period_start: format(periodStart, 'yyyy-MM-dd'),
-        period_end: format(periodEnd, 'yyyy-MM-dd'),
-        report_data: {
-          zoneStatistics: {
-            totalGroups: monthlyReport.totalGroups,
-            totalMembers: monthlyReport.totalMembers,
-            monthlyGrowth: monthlyReport.monthlyGrowth,
-            multiplicationPlans: monthlyReport.multiplicationPlans.split('\n').filter(Boolean),
-          },
-          leadershipPipeline: {
-            auxiliarySupervisors: monthlyReport.auxiliarySupervisors,
-            trainingSupervisors: monthlyReport.trainingSupervisors,
-            leadershipGaps: monthlyReport.leadershipGaps.split('\n').filter(Boolean),
-          },
-          strategicInitiatives: {
-            newGroupLocations: monthlyReport.newGroupLocations.split('\n').filter(Boolean),
-            communityOutreach: monthlyReport.communityOutreach.split('\n').filter(Boolean),
-            specialEvents: monthlyReport.specialEvents.split('\n').filter(Boolean),
-          },
-        },
-      };
-
-      await DiscipleshipService.createReport(createData);
-
-      toast.success('Reporte mensual enviado exitosamente');
-      setShowReportModal(false);
-
-      // Reset form
-      setMonthlyReport({
-        totalGroups: 0,
-        totalMembers: 0,
-        monthlyGrowth: 0,
-        auxiliarySupervisors: 0,
-        trainingSupervisors: 0,
-        leadershipGaps: '',
-        newGroupLocations: '',
-        communityOutreach: '',
-        specialEvents: '',
-        multiplicationPlans: '',
-      });
-
-      await refetchReports();
-    } catch (error: unknown) {
-      console.error('Error submitting report:', error);
-      if (error instanceof Error) {
-        toast.error(error.message || 'Error al enviar el reporte');
-      } else {
-        toast.error('Error al enviar el reporte');
-      }
-    } finally {
-      setIsSubmittingReport(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -192,7 +117,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
             Dashboard Supervisor General
           </h1>
           <p className="text-sm md:text-base text-muted-foreground">
-            {user?.first_name} {user?.last_name} - {user?.zone_name || 'Zona no asignada'}
+            {user?.email} - {(user as any)?.zone_name || 'Zona no asignada'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -211,206 +136,15 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
         </div>
       </div>
 
-      {/* Dialog para crear reporte - Fuera de los tabs para que funcione desde el header */}
-      <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Reporte Mensual</DialogTitle>
-            <DialogDescription>
-              Período: {format(periodStart, 'MMMM yyyy', { locale: es })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Zone Statistics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Estadísticas de Zona</h3>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <Label htmlFor="totalGroups">Total de Grupos</Label>
-                  <Input
-                    id="totalGroups"
-                    type="number"
-                    value={monthlyReport.totalGroups}
-                    onChange={e =>
-                      setMonthlyReport(prev => ({
-                        ...prev,
-                        totalGroups: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="totalMembers">Total de Miembros</Label>
-                  <Input
-                    id="totalMembers"
-                    type="number"
-                    value={monthlyReport.totalMembers}
-                    onChange={e =>
-                      setMonthlyReport(prev => ({
-                        ...prev,
-                        totalMembers: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="monthlyGrowth">Crecimiento Mensual (%)</Label>
-                  <Input
-                    id="monthlyGrowth"
-                    type="number"
-                    value={monthlyReport.monthlyGrowth}
-                    onChange={e =>
-                      setMonthlyReport(prev => ({
-                        ...prev,
-                        monthlyGrowth: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Leadership Pipeline */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Pipeline de Liderazgo</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="auxiliarySupervisors">
-                    Supervisores Auxiliares Activos
-                  </Label>
-                  <Input
-                    id="auxiliarySupervisors"
-                    type="number"
-                    value={monthlyReport.auxiliarySupervisors}
-                    onChange={e =>
-                      setMonthlyReport(prev => ({
-                        ...prev,
-                        auxiliarySupervisors: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="trainingSupervisors">
-                    Supervisores en Entrenamiento
-                  </Label>
-                  <Input
-                    id="trainingSupervisors"
-                    type="number"
-                    value={monthlyReport.trainingSupervisors}
-                    onChange={e =>
-                      setMonthlyReport(prev => ({
-                        ...prev,
-                        trainingSupervisors: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="mt-4">
-                <Label htmlFor="leadershipGaps">Brechas de Liderazgo</Label>
-                <Textarea
-                  id="leadershipGaps"
-                  placeholder="Describe las brechas o necesidades de liderazgo..."
-                  className="min-h-[80px]"
-                  value={monthlyReport.leadershipGaps}
-                  onChange={e =>
-                    setMonthlyReport(prev => ({
-                      ...prev,
-                      leadershipGaps: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="mt-4">
-                <Label htmlFor="multiplicationPlans">Planes de Multiplicación</Label>
-                <Textarea
-                  id="multiplicationPlans"
-                  placeholder="Lista los planes de multiplicación (uno por línea)..."
-                  className="min-h-[80px]"
-                  value={monthlyReport.multiplicationPlans}
-                  onChange={e =>
-                    setMonthlyReport(prev => ({
-                      ...prev,
-                      multiplicationPlans: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Strategic Initiatives */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Iniciativas Estratégicas</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="newGroupLocations">Nuevas Ubicaciones de Grupos</Label>
-                  <Textarea
-                    id="newGroupLocations"
-                    placeholder="Lista las nuevas ubicaciones..."
-                    className="min-h-[80px]"
-                    value={monthlyReport.newGroupLocations}
-                    onChange={e =>
-                      setMonthlyReport(prev => ({
-                        ...prev,
-                        newGroupLocations: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="communityOutreach">Alcance Comunitario</Label>
-                  <Textarea
-                    id="communityOutreach"
-                    placeholder="Actividades de alcance realizadas..."
-                    className="min-h-[80px]"
-                    value={monthlyReport.communityOutreach}
-                    onChange={e =>
-                      setMonthlyReport(prev => ({
-                        ...prev,
-                        communityOutreach: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="mt-4">
-                <Label htmlFor="specialEvents">Eventos Especiales</Label>
-                <Textarea
-                  id="specialEvents"
-                  placeholder="Lista los eventos especiales realizados..."
-                  className="min-h-[80px]"
-                  value={monthlyReport.specialEvents}
-                  onChange={e =>
-                    setMonthlyReport(prev => ({
-                      ...prev,
-                      specialEvents: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReportModal(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSubmitMonthlyReport} disabled={isSubmittingReport}>
-              {isSubmittingReport ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                  Enviando...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Enviar Reporte
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog para crear reporte */}
+      <SupervisionReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        onSuccess={refetchReports}
+        periodStart={periodStart}
+        periodEnd={periodEnd}
+        hierarchyLevel={3}
+      />
 
       {/* Quick Stats */}
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -458,7 +192,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                 <div className="text-2xl font-bold text-green-600">
                   <CheckCircle className="h-6 w-6 inline" />
                 </div>
-                <p className="text-xs text-muted-foreground">Reporte mensual enviado</p>
+                <p className="text-xs text-muted-foreground">Reporte semanal enviado</p>
               </>
             ) : (
               <>
@@ -481,7 +215,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
             Análisis Zonal
           </TabsTrigger>
           <TabsTrigger value="monthly-report" className="text-xs md:text-sm">
-            Reporte Mensual
+            Reporte Semanal
           </TabsTrigger>
           <TabsTrigger value="multiplication" className="text-xs md:text-sm">
             Multiplicación
@@ -497,32 +231,34 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
             </CardHeader>
             <CardContent>
               {weeklyTrends.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={weeklyTrends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Area
-                      type="monotone"
-                      dataKey="asistencia"
-                      stackId="1"
-                      stroke="#3b82f6"
-                      fill="#3b82f6"
-                      fillOpacity={0.6}
-                      name="Asistencia"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="visitantes"
-                      stackId="2"
-                      stroke="#22c55e"
-                      fill="#22c55e"
-                      fillOpacity={0.8}
-                      name="Visitantes"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <div style={{ width: '100%', height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={weeklyTrends}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Area
+                        type="monotone"
+                        dataKey="asistencia"
+                        stackId="1"
+                        stroke="#3b82f6"
+                        fill="#3b82f6"
+                        fillOpacity={0.6}
+                        name="Asistencia"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="visitantes"
+                        stackId="2"
+                        stroke="#22c55e"
+                        fill="#22c55e"
+                        fillOpacity={0.8}
+                        name="Visitantes"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               ) : (
                 <p className="text-center text-muted-foreground py-12">
                   No hay datos de tendencias disponibles
@@ -648,7 +384,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                 <div className="space-y-3">
                   {myReports.slice(0, 5).map(report => {
                     const reportData = report.report_data as {
-                      zoneStatistics?: { totalGroups?: number; monthlyGrowth?: number };
+                      new_disciples_care?: number; visited_groups?: number;
                     };
                     return (
                       <div
@@ -657,11 +393,10 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                       >
                         <div>
                           <p className="font-medium">
-                            {format(new Date(report.period_start), 'MMMM yyyy', { locale: es })}
+                            Semana del {format(new Date(report.period_start), 'dd MMM', { locale: es })}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Grupos: {reportData?.zoneStatistics?.totalGroups || 0} • Crecimiento:{' '}
-                            {reportData?.zoneStatistics?.monthlyGrowth || 0}%
+                            Atención Nvos: {reportData?.new_disciples_care || 0} • VD: {reportData?.visited_groups || 0}
                           </p>
                         </div>
                         <Badge
@@ -695,9 +430,9 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Reporte Mensual</CardTitle>
+                  <CardTitle>Reporte Semanal</CardTitle>
                   <CardDescription>
-                    Período: {format(periodStart, 'MMMM yyyy', { locale: es })}
+                    Período: {format(periodStart, 'dd MMM', { locale: es })} al {format(periodEnd, 'dd MMM yyyy', { locale: es })}
                   </CardDescription>
                 </div>
                 <Button
@@ -714,12 +449,12 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
               {hasCurrentPeriodReport ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-600" />
-                  <p>Ya has enviado el reporte mensual para este período</p>
+                  <p>Ya has enviado el reporte semanal para este período</p>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Haz clic en "Nuevo Reporte" para crear un reporte mensual</p>
+                  <p>Haz clic en "Nuevo Reporte" para crear un reporte semanal</p>
                 </div>
               )}
             </CardContent>

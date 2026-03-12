@@ -82,7 +82,7 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
     };
 
     checkSetupStatus();
-  }, [location.pathname, user]);
+  }, [location.pathname, user?.id]);
 
   if (isChecking) {
     return (
