@@ -53,7 +53,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Initial fetch
     refreshModules();
-  }, [user]); // Re-fetch when user changes (login/logout) to ensure fresh state
+  }, [user?.id]); // Re-fetch when user ID changes (login/logout) to ensure fresh state
 
   const isModuleInstalled = (key: string) => {
     return installedModules.includes(key);
