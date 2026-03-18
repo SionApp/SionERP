@@ -40,26 +40,29 @@ const DashboardHome = () => {
     <>
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6 space-y-8">
         {/* Hero Header */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary via-accent to-primary p-8 shadow-[var(--shadow-primary)] animate-fade-in">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-accent/30 to-primary/20"></div>
+        <div className="relative overflow-hidden rounded-3xl p-8 shadow-lg transition-transform hover:shadow-xl dark:shadow-none bg-gradient-to-r from-primary/90 via-blue-600/80 to-purple-600/80 dark:from-primary/20 dark:via-blue-900/40 dark:to-purple-900/30 border border-primary/20 dark:border-white/10 backdrop-blur-md animate-fade-in">
+          {/* Subtle noise/pattern overlay for texture */}
+          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+          {/* Accent glow on the edges */}
+          <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-white/10 dark:bg-white/5 rounded-full blur-3xl pointer-events-none"></div>
           <div className="relative z-10">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-4xl font-bold mb-2 text-foreground drop-shadow-sm">
+                <h1 className="text-2xl sm:text-4xl font-extrabold mb-2 text-white drop-shadow-md">
                   Bienvenido de vuelta,{' '}
                   {user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Admin'}
                 </h1>
-                <p className="text-foreground/80 text-lg font-medium">
+                <p className="text-white/80 text-sm sm:text-lg font-medium mt-1">
                   Sistema de Gestión Sion - Panel de Control
                 </p>
               </div>
               <div className="hidden md:flex items-center space-x-4">
                 <div className="text-right">
-                  <p className="text-sm text-foreground/70 font-medium">Último acceso</p>
-                  <p className="font-semibold text-foreground">{lastLogin}</p>
+                  <p className="text-sm text-white/70 font-medium">Último acceso</p>
+                  <p className="font-semibold text-white">{lastLogin}</p>
                 </div>
-                <div className="w-16 h-16 rounded-full bg-primary/20 backdrop-blur-sm flex items-center justify-center border border-primary/30">
-                  <Activity className="h-8 w-8 text-primary" />
+                <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
+                  <Activity className="h-8 w-8 text-white" />
                 </div>
               </div>
             </div>
