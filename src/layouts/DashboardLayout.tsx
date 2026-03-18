@@ -65,10 +65,10 @@ const DashboardLayout = () => {
                 <span className="text-primary-foreground font-bold text-sm">S</span>
               </div>
               <div>
-                <h1 className="text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                   Sistema Sion
                 </h1>
-                <p className="text-xs text-muted-foreground">Panel de Administración</p>
+                <p className="hidden sm:block text-xs text-muted-foreground">Panel de Administración</p>
               </div>
             </div>
           </div>
@@ -92,12 +92,20 @@ const DashboardLayout = () => {
 
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
+              className="sm:hidden flex items-center justify-center rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
             >
               <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Salir</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Salir</span>
             </Button>
           </div>
         </header>
