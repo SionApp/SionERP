@@ -3,7 +3,6 @@ package routes
 import (
 	"backend-sion/handlers"
 	"backend-sion/middleware"
-
 	"github.com/labstack/echo/v4"
 )
 
