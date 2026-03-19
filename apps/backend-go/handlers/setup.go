@@ -4,6 +4,7 @@ import (
 	"backend-sion/config"
 	"backend-sion/models"
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -284,6 +285,18 @@ func (h *SetupHandler) UpdateModuleStatus(c echo.Context) error {
 			"error": "Module not found",
 		})
 	}
+
+	// Registrar el cambio en audit_logs
+	userID, _ := c.Get("user_id").(string)
+	if userID == "" {
+		userID = "system"
+	}
+	newValues := fmt.Sprintf(`{"is_installed": %v}`, req.IsInstalled)
+	_, _ = db.DB.Exec(
+		`INSERT INTO audit_logs (table_name, record_id, action, new_values, changed_by, changed_at)
+		 VALUES ('modules', $1, 'UPDATE', $2::jsonb, $3, NOW())`,
+		moduleKey, newValues, userID,
+	)
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Module updated successfully",
