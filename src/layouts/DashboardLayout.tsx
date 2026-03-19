@@ -8,11 +8,14 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { SetupModal } from '@/components/SetupModal';
+import { useSetupShortcut } from '@/hooks/useSetupShortcut';
 
 const DashboardLayout = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { isOpen: isSetupOpen, setIsOpen: setSetupOpen } = useSetupShortcut();
 
   useEffect(() => {
     getUser();
@@ -117,6 +120,9 @@ const DashboardLayout = () => {
           </main>
         </div>
       </div>
+
+      {/* Panel secreto de módulos — Ctrl + Shift + S */}
+      <SetupModal isOpen={isSetupOpen} onClose={() => setSetupOpen(false)} />
     </SidebarProvider>
   );
 };
