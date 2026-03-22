@@ -258,15 +258,15 @@ const ZoneManagement: React.FC = () => {
                     <div className="space-y-2">
                       <Label htmlFor="zone-supervisor">Supervisor</Label>
                       <Select
-                        value={formData.supervisor_id}
-                        onValueChange={value => setFormData({ ...formData, supervisor_id: value })}
+                        value={formData.supervisor_id || 'none'}
+                        onValueChange={value => setFormData({ ...formData, supervisor_id: value === 'none' ? '' : value })}
                         disabled={loadingSupervisors}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona un supervisor" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Sin supervisor</SelectItem>
+                          <SelectItem value="none">Sin supervisor</SelectItem>
                           {Array.isArray(supervisors) && supervisors.map(supervisor => (
                             <SelectItem key={supervisor.id} value={supervisor.id}>
                               {supervisor.full_name || `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || supervisor.email}
