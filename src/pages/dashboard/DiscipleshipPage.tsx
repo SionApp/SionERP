@@ -106,7 +106,7 @@ const DiscipleshipPage = () => {
     // Si es acceso completo (pastor/staff), mostrar dashboard pastoral
     if (discipleshipAccess.isFullAccess) {
       return PastoralDashboard;
-      // return AuxiliarySupervisorDashboard;
+      // return CoordinatorDashboard;
     }
 
     // Si no, usar el nivel de jerarquía
@@ -186,9 +186,7 @@ const DiscipleshipPage = () => {
             ) : discipleshipAccess?.canAccess ? (
               <>
                 Dashboard nivel {getDiscipleshipLevel()} - {getLevelName()}
-                {discipleshipAccess.isFullAccess && (
-                  <span className="ml-2 text-xs text-green-600">(Acceso Completo)</span>
-                )}
+                {discipleshipAccess.isFullAccess}
               </>
             ) : (
               'Sin acceso al módulo de discipulado'
