@@ -258,15 +258,15 @@ const ZoneManagement: React.FC = () => {
                     <div className="space-y-2">
                       <Label htmlFor="zone-supervisor">Supervisor</Label>
                       <Select
-                        value={formData.supervisor_id}
-                        onValueChange={value => setFormData({ ...formData, supervisor_id: value })}
+                        value={formData.supervisor_id || 'none'}
+                        onValueChange={value => setFormData({ ...formData, supervisor_id: value === 'none' ? '' : value })}
                         disabled={loadingSupervisors}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona un supervisor" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Sin supervisor</SelectItem>
+                          <SelectItem value="none">Sin supervisor</SelectItem>
                           {Array.isArray(supervisors) && supervisors.map(supervisor => (
                             <SelectItem key={supervisor.id} value={supervisor.id}>
                               {supervisor.full_name || `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || supervisor.email}
@@ -327,21 +327,21 @@ const ZoneManagement: React.FC = () => {
 
                 return (
                   <div key={zone.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         <div
-                          className="w-4 h-4 rounded-full"
+                          className="w-4 h-4 rounded-full flex-shrink-0"
                           style={{ backgroundColor: zone.color }}
                         />
                         <h3 className="font-semibold">{zone.name}</h3>
                         <Badge variant="secondary">{getSupervisorName(zone.supervisor_id)}</Badge>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
                         <Button variant="outline" size="sm" onClick={() => handleEdit(zone)}>
                           <Edit2 className="w-4 h-4" />
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => handleDeleteClick(zone)}>
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
                       </div>
                     </div>
@@ -350,18 +350,18 @@ const ZoneManagement: React.FC = () => {
                       <p className="text-sm text-muted-foreground mb-3">{normalizeNullString(zone.description)}</p>
                     )}
 
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Building className="w-4 h-4 text-muted-foreground" />
-                        <span>{stats?.total_groups ?? zone.total_groups ?? 0} Células</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                      <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2">
+                        <Building className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{stats?.total_groups ?? zone.total_groups ?? 0} Células</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4 text-muted-foreground" />
-                        <span>{stats?.total_members ?? zone.total_members ?? 0} Miembros</span>
+                      <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2">
+                        <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{stats?.total_members ?? zone.total_members ?? 0} Miembros</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Target className="w-4 h-4 text-muted-foreground" />
-                        <span>
+                      <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2 col-span-2 sm:col-span-1">
+                        <Target className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">
                           {(stats?.avg_attendance ?? zone.avg_attendance ?? 0).toFixed(0)}%
                           Asistencia
                         </span>

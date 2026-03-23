@@ -401,14 +401,14 @@ const UsersPage = () => {
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Usuarios
           </h1>
-          <p className="text-muted-foreground">Administra los usuarios registrados en el sistema</p>
+          <p className="text-muted-foreground mt-1">Administra los usuarios registrados en el sistema</p>
         </div>
-        <Button onClick={() => navigate('/dashboard/register-user')}>
+        <Button onClick={() => navigate('/dashboard/register-user')} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Usuario
         </Button>
