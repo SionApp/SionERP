@@ -50,12 +50,41 @@ type UpdateZoneRequest struct {
 }
 
 type ZoneStats struct {
-	ZoneName      string  `json:"zone_name"`
-	ZoneID        string  `json:"zone_id"`
-	TotalGroups   int     `json:"total_groups"`
-	TotalMembers  int     `json:"total_members"`
-	AvgAttendance float64 `json:"avg_attendance"`
-	GrowthRate    float64 `json:"growth_rate"`
-	ActiveLeaders int     `json:"active_leaders"`
-	Multiplications int   `json:"multiplications"`
+	ZoneName        string  `json:"zone_name"`
+	ZoneID          string  `json:"zone_id"`
+	TotalGroups     int     `json:"total_groups"`
+	TotalMembers    int     `json:"total_members"`
+	AvgAttendance   float64 `json:"avg_attendance"`
+	GrowthRate      float64 `json:"growth_rate"`
+	ActiveLeaders   int     `json:"active_leaders"`
+	Multiplications int     `json:"multiplications"`
+}
+
+type ZoneMapGroup struct {
+	ID              string          `json:"id"`
+	GroupName       string          `json:"group_name"`
+	LeaderID        string          `json:"leader_id"`
+	SupervisorID    sql.NullString  `json:"supervisor_id"`
+	ZoneID          sql.NullString  `json:"zone_id"`
+	ZoneName        sql.NullString  `json:"zone_name"`
+	MeetingDay      sql.NullString  `json:"meeting_day"`
+	MeetingTime     sql.NullString  `json:"meeting_time"`
+	MeetingLocation sql.NullString  `json:"meeting_location"`
+	MeetingAddress  sql.NullString  `json:"meeting_address"`
+	Latitude        sql.NullFloat64 `json:"latitude"`
+	Longitude       sql.NullFloat64 `json:"longitude"`
+	MemberCount     int             `json:"member_count"`
+	ActiveMembers   int             `json:"active_members"`
+	Status          string          `json:"status"`
+	LeaderName      string          `json:"leader_name"`
+	SupervisorName  string          `json:"supervisor_name.omitempty"`
+}
+
+type ZoneMapData struct {
+	Zone   ZoneWithDetails `json:"zone"`
+	Groups []ZoneMapGroup  `json:"groups"`
+}
+
+type ZoneMapsResponse struct {
+	Zones []ZoneMapData `json:"zones"`
 }
