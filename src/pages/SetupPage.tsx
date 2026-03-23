@@ -3,9 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ApiService } from '@/services/api.service';
-import { useAuth } from '@/contexts/AuthContext';
 import { useSystem } from '@/contexts/SystemContext';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -26,7 +24,6 @@ interface SetupStatus {
 
 export default function SetupPage() {
   const navigate = useNavigate();
-  const { user, currentUser } = useAuth();
   const { refreshModules } = useSystem();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -34,8 +31,6 @@ export default function SetupPage() {
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasAdmin, setHasAdmin] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [adminData, setAdminData] = useState({
     first_name: '',
@@ -47,67 +42,34 @@ export default function SetupPage() {
 
   useEffect(() => {
     checkSetupStatus();
-  }, [user]);
+  }, []);
 
   const checkSetupStatus = async () => {
     try {
-      // Use ApiService to automatically include auth headers if logged in
       const data: SetupStatus = await ApiService.get<SetupStatus>('/setup/status');
 
       setIsInitialized(data.is_initialized);
       setHasAdmin(data.has_admin);
 
-      // Check if current user is admin (email check for special user or role check)
-      const userEmail = user?.email || '';
-      const userRole = currentUser?.role || '';
-      const isAdminUser = userEmail === 'boanegro4@yopmail.com' || userRole === 'admin';
-      setIsAdmin(isAdminUser);
-
-      // If system is not initialized, show step 1 (create admin)
-      if (!data.is_initialized) {
+      if (!data.is_initialized || !data.has_admin) {
         setStep(1);
-        setErrorMessage(null);
-      } else if (data.is_initialized && isAdminUser) {
-        // System initialized and user is admin, skip to module management (step 2)
-        setStep(2);
-        setErrorMessage(null);
-      } else if (data.is_initialized && !data.has_admin) {
-        // System initialized but no admin exists - allow creating admin
-        setStep(1);
-        setErrorMessage(null);
-      } else if (data.is_initialized && !isAdminUser && user) {
-        // System initialized, user logged in but not admin
-        setErrorMessage('No tienes permisos de administrador para acceder a esta página.');
-        setTimeout(() => navigate('/login'), 2000);
-      } else if (data.is_initialized && !user) {
-        // System initialized but user not logged in
-        setErrorMessage('Debes ser administrador para acceder. Por favor inicia sesión.');
+      } else {
+        // System already initialized — redirect to dashboard
+        navigate('/dashboard', { replace: true });
       }
 
       setModules(data.modules.filter(m => m.key !== 'base'));
 
-      // Pre-select already installed modules
       const installedModules = data.modules
         .filter(m => m.is_installed && m.key !== 'base')
         .map(m => m.key);
       setSelectedModules(installedModules);
-    } catch (error: any) {
-      console.error('Error checking setup status:', error);
-
-      // If 403/401, it means system is initialized but user is not admin/logged in
-      if (error.status === 403 || error.status === 401) {
-        if (!user) {
-          setErrorMessage('Debes ser administrador para acceder. Por favor inicia sesión.');
-        } else {
-          setErrorMessage('No tienes permisos de administrador para acceder a esta página.');
-          setTimeout(() => navigate('/login'), 2000);
-        }
-        return;
-      }
-
-      toast.error('Error al verificar estado del sistema: ' + error.message);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error('Error al verificar estado del sistema: ' + msg);
     }
   };
+
 
   const handleModuleToggle = (moduleKey: string) => {
     setSelectedModules(prev =>
@@ -148,7 +110,17 @@ export default function SetupPage() {
     setLoading(true);
     let keepLoadingUntilRedirect = false;
     try {
-      const requestBody: any = {
+      interface SetupRequestBody {
+        selected_modules: string[];
+        admin_user?: {
+          first_name: string;
+          last_name: string;
+          email: string;
+          password_hash: string;
+          role: string;
+        };
+      }
+      const requestBody: SetupRequestBody = {
         selected_modules: selectedModules,
       };
 
@@ -187,9 +159,9 @@ export default function SetupPage() {
         keepLoadingUntilRedirect = true;
         setTimeout(() => navigate('/login', { replace: true }), 800);
       }
-    } catch (error: any) {
-      console.error('Setup error:', error);
-      toast.error(error.message || 'Error al configurar el sistema');
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error al configurar el sistema';
+      toast.error(msg);
     } finally {
       // Keep the loader visible until we redirect after success
       if (!keepLoadingUntilRedirect) setLoading(false);
@@ -206,11 +178,6 @@ export default function SetupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {errorMessage && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{errorMessage}</AlertDescription>
-            </Alert>
-          )}
           {step === 1 ? (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

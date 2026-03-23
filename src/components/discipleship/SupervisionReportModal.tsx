@@ -15,7 +15,23 @@ import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateReportRequest } from '@/types/discipleship.types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { RefreshCw, Send } from 'lucide-react';
+import {
+  BarChart3,
+  BookText,
+  Church,
+  ClipboardList,
+  Flame,
+  Globe,
+  MapPin,
+  MessageCircle,
+  MessageSquare,
+  PenLine,
+  RefreshCw,
+  Send,
+  Sparkles,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -133,46 +149,62 @@ export function SupervisionReportModal({
             {format(periodEnd, 'dd MMM yyyy', { locale: es })}
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-8 py-4">
-          
+
+        <div className="space-y-6 py-4">
           {/* SECCIÓN 1: Trabajo de Supervisión */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">📘 Trabajo de Supervisión</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-5 border rounded-xl bg-card text-card-foreground shadow-sm space-y-5">
+            <div className="flex items-center gap-3 border-b pb-3">
+              <div className="p-2 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg">
+                <ClipboardList className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-semibold">Trabajo de Supervisión</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
-                <Label htmlFor="new_disciples_care">1️⃣ Atención a nuevos discípulos (Cant.)</Label>
+                <Label htmlFor="new_disciples_care" className="flex items-center gap-2 text-sm font-medium">
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  Atención a nuevos discípulos
+                </Label>
                 <Input
                   id="new_disciples_care"
                   type="number"
                   min="0"
+                  className="bg-background"
                   value={reportData.new_disciples_care}
-                  onChange={e =>
+                  onChange={(e) =>
                     setReportData({ ...reportData, new_disciples_care: parseInt(e.target.value) || 0 })
                   }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="team_care">2️⃣ Atención a equipo de trabajo (Cant.)</Label>
+                <Label htmlFor="team_care" className="flex items-center gap-2 text-sm font-medium">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  Atención a equipo de trabajo
+                </Label>
                 <Input
                   id="team_care"
                   type="number"
                   min="0"
                   placeholder="Líderes, D.M. o Sup."
+                  className="bg-background"
                   value={reportData.team_care}
-                  onChange={e =>
+                  onChange={(e) =>
                     setReportData({ ...reportData, team_care: parseInt(e.target.value) || 0 })
                   }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="visited_groups">3️⃣ Grupos de Discipulado visitados (Cant.)</Label>
+                <Label htmlFor="visited_groups" className="flex items-center gap-2 text-sm font-medium">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  Grupos de Discipulado visitados
+                </Label>
                 <Input
                   id="visited_groups"
                   type="number"
                   min="0"
+                  className="bg-background"
                   value={reportData.visited_groups}
-                  onChange={e =>
+                  onChange={(e) =>
                     setReportData({ ...reportData, visited_groups: parseInt(e.target.value) || 0 })
                   }
                 />
@@ -181,29 +213,42 @@ export function SupervisionReportModal({
           </div>
 
           {/* SECCIÓN 2: Vida Espiritual Personal */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">🕊️ Vida Espiritual Personal</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-5 border rounded-xl bg-card text-card-foreground shadow-sm space-y-5">
+            <div className="flex items-center gap-3 border-b pb-3">
+              <div className="p-2 bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-lg">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-semibold">Vida Espiritual Personal</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <Label htmlFor="spiritual_journal_days">4️⃣ Diario espiritual personal (Cant.)</Label>
+                <Label htmlFor="spiritual_journal_days" className="flex items-center gap-2 text-sm font-medium">
+                  <BookText className="h-4 w-4 text-muted-foreground" />
+                  Diario espiritual personal (Días)
+                </Label>
                 <Input
                   id="spiritual_journal_days"
                   type="number"
                   min="0"
+                  className="bg-background"
                   value={reportData.spiritual_journal_days}
-                  onChange={e =>
+                  onChange={(e) =>
                     setReportData({ ...reportData, spiritual_journal_days: parseInt(e.target.value) || 0 })
                   }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="personal_evangelism">5️⃣ Personas evangelizadas (Cant.)</Label>
+                <Label htmlFor="personal_evangelism" className="flex items-center gap-2 text-sm font-medium">
+                  <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                  Personas evangelizadas
+                </Label>
                 <Input
                   id="personal_evangelism"
                   type="number"
                   min="0"
+                  className="bg-background"
                   value={reportData.personal_evangelism}
-                  onChange={e =>
+                  onChange={(e) =>
                     setReportData({
                       ...reportData,
                       personal_evangelism: parseInt(e.target.value) || 0,
@@ -212,58 +257,91 @@ export function SupervisionReportModal({
                 />
               </div>
             </div>
-            
-            <div className="space-y-3 pt-2">
-              <Label>6️⃣ Asistencia a servicios congregacionales</Label>
-              <div className="flex flex-col sm:flex-row gap-4 sm:gap-8">
-                <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="service_prayer" 
+
+            <div className="space-y-3 pt-4 border-t">
+              <Label className="text-sm font-semibold text-muted-foreground">Asistencia a servicios congregacionales</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label
+                  htmlFor="service_prayer"
+                  className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
+                    reportData.service_attendance_prayer
+                      ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <Checkbox
+                    id="service_prayer"
                     checked={reportData.service_attendance_prayer}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setReportData({ ...reportData, service_attendance_prayer: checked === true })
                     }
                   />
-                  <Label htmlFor="service_prayer" className="font-normal cursor-pointer">🙏 Servicio de Oración</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="service_sunday" 
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Flame className="h-4 w-4 text-orange-500" />
+                    Servicio de Oración
+                  </div>
+                </label>
+                <label
+                  htmlFor="service_sunday"
+                  className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
+                    reportData.service_attendance_sunday
+                      ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <Checkbox
+                    id="service_sunday"
                     checked={reportData.service_attendance_sunday}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setReportData({ ...reportData, service_attendance_sunday: checked === true })
                     }
                   />
-                  <Label htmlFor="service_sunday" className="font-normal cursor-pointer">⛪ Servicio Dominical</Label>
-                </div>
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Church className="h-4 w-4 text-slate-500" />
+                    Servicio Dominical
+                  </div>
+                </label>
               </div>
             </div>
           </div>
 
           {/* SECCIÓN 3: Métricas de Zona/Sector */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">📊 Métricas de Zona / Sector</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-5 border rounded-xl bg-card text-card-foreground shadow-sm space-y-5">
+            <div className="flex items-center gap-3 border-b pb-3">
+              <div className="p-2 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-semibold">Métricas de Zona / Sector</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <Label htmlFor="zone_discipleships">7️⃣ Total de Discipulados en la Zona (Cant.)</Label>
+                <Label htmlFor="zone_discipleships" className="flex items-center gap-2 text-sm font-medium">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  Total de Discipulados en la Zona
+                </Label>
                 <Input
                   id="zone_discipleships"
                   type="number"
                   min="0"
+                  className="bg-background"
                   value={reportData.zone_total_discipleships}
-                  onChange={e =>
+                  onChange={(e) =>
                     setReportData({ ...reportData, zone_total_discipleships: parseInt(e.target.value) || 0 })
                   }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="zone_evangelism">8️⃣ Total de Evangelismos en la Zona (Cant.)</Label>
+                <Label htmlFor="zone_evangelism" className="flex items-center gap-2 text-sm font-medium">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  Total de Evangelismos en la Zona
+                </Label>
                 <Input
                   id="zone_evangelism"
                   type="number"
                   min="0"
+                  className="bg-background"
                   value={reportData.zone_total_evangelism}
-                  onChange={e =>
+                  onChange={(e) =>
                     setReportData({ ...reportData, zone_total_evangelism: parseInt(e.target.value) || 0 })
                   }
                 />
@@ -272,22 +350,30 @@ export function SupervisionReportModal({
           </div>
 
           {/* SECCIÓN 4: Comentarios */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">📝 Comentarios</h3>
+          <div className="p-5 border rounded-xl bg-card text-card-foreground shadow-sm space-y-5">
+            <div className="flex items-center gap-3 border-b pb-3">
+              <div className="p-2 bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 rounded-lg">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-semibold">Comentarios</h3>
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="comments">9️⃣ Motivos de oración, necesidades u observaciones</Label>
+              <Label htmlFor="comments" className="flex items-center gap-2 text-sm font-medium">
+                <PenLine className="h-4 w-4 text-muted-foreground" />
+                Motivos de oración, necesidades u observaciones
+              </Label>
               <Textarea
                 id="comments"
                 placeholder="Escribe tus observaciones de la semana..."
+                className="bg-background resize-none"
                 value={reportData.comments}
-                onChange={e => setReportData({ ...reportData, comments: e.target.value })}
+                onChange={(e) => setReportData({ ...reportData, comments: e.target.value })}
                 rows={4}
               />
             </div>
           </div>
-
         </div>
-        
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancelar
