@@ -7,20 +7,20 @@ import (
 )
 
 type Zone struct {
-	ID            string          `json:"id"`
-	Name          string          `json:"name"`
-	Description   sql.NullString  `json:"description"`
-	Color         string          `json:"color"`
-	SupervisorID  sql.NullString  `json:"supervisor_id"`
-	Boundaries    json.RawMessage `json:"boundaries"`
-	CenterLat     sql.NullFloat64 `json:"center_lat"`
-	CenterLng     sql.NullFloat64 `json:"center_lng"`
-	IsActive      bool            `json:"is_active"`
-	TotalGroups   int             `json:"total_groups"`
-	TotalMembers  int             `json:"total_members"`
-	AvgAttendance float64         `json:"avg_attendance"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	ID            string           `json:"id"`
+	Name          string           `json:"name"`
+	Description   sql.NullString   `json:"description"`
+	Color         string           `json:"color"`
+	SupervisorID  sql.NullString   `json:"supervisor_id"`
+	Boundaries    *json.RawMessage `json:"boundaries"`
+	CenterLat     sql.NullFloat64  `json:"center_lat"`
+	CenterLng     sql.NullFloat64  `json:"center_lng"`
+	IsActive      bool             `json:"is_active"`
+	TotalGroups   int              `json:"total_groups"`
+	TotalMembers  int              `json:"total_members"`
+	AvgAttendance float64          `json:"avg_attendance"`
+	CreatedAt     time.Time        `json:"created_at"`
+	UpdatedAt     time.Time        `json:"updated_at"`
 }
 
 type ZoneWithDetails struct {
@@ -85,6 +85,6 @@ type ZoneMapData struct {
 	Groups []ZoneMapGroup  `json:"groups"`
 }
 
-type ZoneMapsResponse struct {
+type ZoneMapResponse struct {
 	Zones []ZoneMapData `json:"zones"`
 }
