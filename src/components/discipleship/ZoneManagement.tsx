@@ -30,8 +30,15 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { ZoneEditor } from '@/components/zones/ZoneEditor';
 import { useAvailableSupervisors, useZones } from '@/hooks/useZones';
-import { CreateZoneRequest, UpdateZoneRequest, Zone } from '@/types/discipleship.types';
+import {
+  CreateZoneRequest,
+  UpdateZoneRequest,
+  Zone,
+  ZoneGeometry,
+  ZoneBoundaries,
+} from '@/types/discipleship.types';
 import {
   AlertCircle,
   Building,
@@ -69,13 +76,21 @@ const ZoneManagement: React.FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [zoneToDelete, setZoneToDelete] = useState<Zone | null>(null);
+  const [isMapEditorOpen, setIsMapEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    color: string;
+    supervisor_id: string;
+    boundaries: ZoneGeometry | ZoneBoundaries | null;
+  }>({
     name: '',
     description: '',
     color: '#3b82f6',
     supervisor_id: '',
+    boundaries: null,
   });
 
   const handleSave = async () => {
@@ -90,6 +105,7 @@ const ZoneManagement: React.FC = () => {
           description: formData.description || undefined,
           color: formData.color,
           supervisor_id: formData.supervisor_id || undefined,
+          boundaries: (formData.boundaries as ZoneGeometry) || undefined,
         };
         await updateZone(editingZone.id, updateData);
       } else {
@@ -98,6 +114,7 @@ const ZoneManagement: React.FC = () => {
           description: formData.description || undefined,
           color: formData.color,
           supervisor_id: formData.supervisor_id || undefined,
+          boundaries: (formData.boundaries as ZoneGeometry) || undefined,
         };
         await createZone(createData);
       }
@@ -116,6 +133,7 @@ const ZoneManagement: React.FC = () => {
       description: normalizeNullString(zone.description) || '',
       color: zone.color,
       supervisor_id: normalizeNullString(zone.supervisor_id) || '',
+      boundaries: zone.boundaries || null,
     });
     setIsDialogOpen(true);
   };
@@ -140,6 +158,7 @@ const ZoneManagement: React.FC = () => {
       description: '',
       color: '#3b82f6',
       supervisor_id: '',
+      boundaries: null,
     });
   };
 
@@ -151,7 +170,7 @@ const ZoneManagement: React.FC = () => {
     const normalizedId = normalizeNullString(supervisorId);
     if (!normalizedId) return 'Sin supervisor';
     const supervisor = supervisors.find(s => s.id === normalizedId);
-    return supervisor?.full_name || supervisor?.first_name && supervisor?.last_name 
+    return supervisor?.full_name || (supervisor?.first_name && supervisor?.last_name)
       ? `${supervisor.first_name} ${supervisor.last_name}`.trim()
       : supervisor?.email || 'Sin supervisor';
   };
@@ -259,7 +278,9 @@ const ZoneManagement: React.FC = () => {
                       <Label htmlFor="zone-supervisor">Supervisor</Label>
                       <Select
                         value={formData.supervisor_id || 'none'}
-                        onValueChange={value => setFormData({ ...formData, supervisor_id: value === 'none' ? '' : value })}
+                        onValueChange={value =>
+                          setFormData({ ...formData, supervisor_id: value === 'none' ? '' : value })
+                        }
                         disabled={loadingSupervisors}
                       >
                         <SelectTrigger>
@@ -267,11 +288,14 @@ const ZoneManagement: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">Sin supervisor</SelectItem>
-                          {Array.isArray(supervisors) && supervisors.map(supervisor => (
-                            <SelectItem key={supervisor.id} value={supervisor.id}>
-                              {supervisor.full_name || `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || supervisor.email}
-                            </SelectItem>
-                          ))}
+                          {Array.isArray(supervisors) &&
+                            supervisors.map(supervisor => (
+                              <SelectItem key={supervisor.id} value={supervisor.id}>
+                                {supervisor.full_name ||
+                                  `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() ||
+                                  supervisor.email}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -292,6 +316,26 @@ const ZoneManagement: React.FC = () => {
                         />
                         <span className="text-sm text-muted-foreground">{formData.color}</span>
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Área de la Zona</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => setIsMapEditorOpen(true)}
+                      >
+                        <MapPin className="w-4 h-4 mr-2" />
+                        {formData.boundaries
+                          ? 'Editar polígono en el mapa'
+                          : 'Definir área en el mapa (Opcional)'}
+                      </Button>
+                      {formData.boundaries && (
+                        <p className="text-xs text-green-600 mt-1">
+                          Polígono definido correctamente.
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex justify-end gap-2 pt-4">
@@ -347,17 +391,23 @@ const ZoneManagement: React.FC = () => {
                     </div>
 
                     {normalizeNullString(zone.description) && (
-                      <p className="text-sm text-muted-foreground mb-3">{normalizeNullString(zone.description)}</p>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        {normalizeNullString(zone.description)}
+                      </p>
                     )}
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                       <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2">
                         <Building className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{stats?.total_groups ?? zone.total_groups ?? 0} Células</span>
+                        <span className="truncate">
+                          {stats?.total_groups ?? zone.total_groups ?? 0} Células
+                        </span>
                       </div>
                       <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2">
                         <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{stats?.total_members ?? zone.total_members ?? 0} Miembros</span>
+                        <span className="truncate">
+                          {stats?.total_members ?? zone.total_members ?? 0} Miembros
+                        </span>
                       </div>
                       <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2 col-span-2 sm:col-span-1">
                         <Target className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -395,6 +445,26 @@ const ZoneManagement: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isMapEditorOpen} onOpenChange={setIsMapEditorOpen}>
+        <DialogContent className="sm:max-w-[700px] p-0 w-full">
+          <div className="p-4 bg-muted/40 border-b">
+            <DialogTitle>Dibujar área de la zona</DialogTitle>
+          </div>
+          <div className="p-4">
+            <ZoneEditor
+              initialBoundaries={formData.boundaries as GeoJSON.Polygon | null}
+              existingZones={zones}
+              editingZoneId={editingZone?.id}
+              onSave={boundaries => {
+                setFormData(prev => ({ ...prev, boundaries }));
+                setIsMapEditorOpen(false);
+              }}
+              onCancel={() => setIsMapEditorOpen(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

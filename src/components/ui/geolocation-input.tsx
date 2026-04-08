@@ -7,10 +7,15 @@ import { Card, CardContent } from './card';
 import { Input } from './input';
 import { Label } from './label';
 
+export interface TypeGeolocalization {
+  Valid: boolean;
+  Float64: number;
+}
+
 export interface GeolocationResult {
   address: string;
-  latitude: number;
-  longitude: number;
+  latitude?: TypeGeolocalization | number;
+  longitude?: TypeGeolocalization | number;
 }
 
 interface GeolocationInputProps {
@@ -48,20 +53,31 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
   required = false,
   disabled = false,
 }) => {
+  const getCoordValue = (coord?: TypeGeolocalization | number): number | undefined => {
+    if (typeof coord === 'number') return coord;
+    if (coord && typeof coord === 'object' && coord.Valid) return coord.Float64;
+    return undefined;
+  };
+
   const [address, setAddress] = useState(value?.address || '');
   const [suggestions, setSuggestions] = useState<NominatimFeature[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [viewState, setViewState] = useState({
-    longitude: value?.longitude || DEFAULT_CENTER.longitude,
-    latitude: value?.latitude || DEFAULT_CENTER.latitude,
-    zoom: value ? 15 : 12,
-  });
 
+  console.log(value, 'value');
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const lat = getCoordValue(value?.latitude);
+  const lng = getCoordValue(value?.longitude);
+  const hasCoordinates = lat !== undefined && lng !== undefined;
+
+  const [viewState, setViewState] = useState({
+    longitude: lng ?? DEFAULT_CENTER.longitude,
+    latitude: lat ?? DEFAULT_CENTER.latitude,
+    zoom: hasCoordinates ? 15 : 12,
+  });
 
   // Geocodificación: buscar direcciones usando Nominatim
   const searchAddresses = useCallback(async (query: string) => {
@@ -259,8 +275,8 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
       setAddress(value.address);
       setViewState(prev => ({
         ...prev,
-        longitude: value.longitude,
-        latitude: value.latitude,
+        longitude: lng,
+        latitude: lat,
         zoom: prev.zoom < 14 ? 15 : prev.zoom,
       }));
     }
@@ -378,8 +394,8 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
                 ],
               }}
             >
-              {value && (
-                <Marker longitude={value.longitude} latitude={value.latitude}>
+              {hasCoordinates && (
+                <Marker longitude={lng} latitude={lat}>
                   <div className="w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg" />
                 </Marker>
               )}
@@ -389,11 +405,11 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
       )}
 
       {/* Mostrar coordenadas si hay valor */}
-      {value && (
+      {hasCoordinates && (
         <div className="text-xs text-muted-foreground flex items-center gap-2">
           <MapPin className="w-3 h-3" />
           <span>
-            {value.latitude.toFixed(6)}, {value.longitude.toFixed(6)}
+            {lat.toFixed(6)}, {lng.toFixed(6)}
           </span>
         </div>
       )}
