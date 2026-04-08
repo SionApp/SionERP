@@ -26,7 +26,9 @@ export class DiscipleshipService {
 
   static async getGroups(filters?: GroupFilters): Promise<PaginatedResponse<DiscipleshipGroup[]>> {
     const params = new URLSearchParams();
-    if (filters?.zone_name) params.append('zone_name', filters.zone_name);
+    if (filters?.zone_id) params.append('zone_id', filters.zone_id);
+    else if (filters?.zone_name) params.append('zone_name', filters.zone_name); // temporal para compatibilidad con frontend - no olvidar refactorizar frontend para usar solo zone_id :()
+
     if (filters?.status) params.append('status', filters.status);
     if (filters?.leader_id) params.append('leader_id', filters.leader_id);
     if (filters?.search) params.append('search', filters.search);
@@ -82,9 +84,9 @@ export class DiscipleshipService {
   // ANALYTICS
   // =====================================================
 
-  static async getAnalytics(zoneName?: string): Promise<DiscipleshipAnalytics> {
-    const url = zoneName
-      ? `${this.baseUrl}/analytics?zone_name=${zoneName}`
+  static async getAnalytics(zoneId?: string): Promise<DiscipleshipAnalytics> {
+    const url = zoneId
+      ? `${this.baseUrl}/analytics?zone_name=${zoneId}`
       : `${this.baseUrl}/analytics`;
     return ApiService.get(url);
   }
@@ -228,7 +230,10 @@ export class DiscipleshipService {
   }
 
   static async resolveAlert(id: string, notes?: string): Promise<{ message: string }> {
-    return ApiService.put(`${this.baseUrl}/alerts/${id}/resolve`, notes ? { resolution_notes: notes } : {});
+    return ApiService.put(
+      `${this.baseUrl}/alerts/${id}/resolve`,
+      notes ? { resolution_notes: notes } : {}
+    );
   }
 
   static async generateAutomaticAlerts(): Promise<{ alerts_created: number; message: string }> {
