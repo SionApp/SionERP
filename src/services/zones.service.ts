@@ -1,10 +1,12 @@
-import type { ZoneStats } from '@/types/discipleship.types';
-import {
+import type {
   CreateZoneRequest,
   DiscipleshipGroup,
   UpdateZoneRequest,
   Zone,
+  ZoneStats,
+  ZoneMapResponse,
 } from '@/types/discipleship.types';
+
 import { User } from '@/types/user.types';
 import { ApiService } from './api.service';
 
@@ -16,7 +18,8 @@ export class ZonesService {
       params.append('is_active', filters.is_active.toString());
     }
 
-    return ApiService.get(`/zones?${params}`);
+    const query = params.toString();
+    return ApiService.get(`/zones${query ? `?${query}` : ''}`);
   }
 
   static async getZone(zoneId: string): Promise<Zone> {
@@ -35,7 +38,7 @@ export class ZonesService {
     return ApiService.delete(`/zones/${zoneId}`);
   }
 
-  static async getZoneStats(zoneId: string): Promise<ZoneStats> {
+  static getZoneStats(zoneId: string): Promise<ZoneStats> {
     return ApiService.get(`/zones/${zoneId}/stats`);
   }
 
@@ -43,20 +46,39 @@ export class ZonesService {
     const zones = await this.getZones({ is_active: true });
     const statsPromises = zones.map(z =>
       this.getZoneStats(z.id).catch(() => ({
-        zoneId: z.id,
-        zoneName: z.name,
-        totalGroups: z.total_groups || 0,
-        totalMembers: z.total_members || 0,
-        avgAttendance: z.avg_attendance || 0,
-        growthRate: 0,
-        healthIndex: 0,
+        zone_id: z.id,
+        zone_name: z.name,
+        total_groups: z.total_groups || 0,
+        total_members: z.total_members || 0,
+        avg_attendance: z.avg_attendance || 0,
+        growth_rate: 0,
+        active_leaders: 0,
+        multiple_groups: 0,
       }))
     );
-    return (await Promise.all(statsPromises)) as unknown as ZoneStats[];
+    return Promise.all(statsPromises) as unknown as ZoneStats[];
   }
 
   static async getZoneGroups(zoneId: string): Promise<DiscipleshipGroup[]> {
     return ApiService.get(`/zones/${zoneId}/groups`);
+  }
+
+  static async getMapData(filters?: {
+    is_active?: boolean;
+    zone_id?: string;
+  }): Promise<ZoneMapResponse> {
+    const params = new URLSearchParams();
+
+    if (filters?.is_active !== undefined) {
+      params.append('is_active', String(filters.is_active));
+    }
+
+    if (filters?.zone_id) {
+      params.append('zone_id', filters.zone_id);
+    }
+
+    const query = params.toString();
+    return ApiService.get(`/zones/map${query ? `?${query}` : ''}`);
   }
 
   static async assignGroupToZone(zoneId: string, groupId: string): Promise<{ message: string }> {
@@ -71,13 +93,9 @@ export class ZonesService {
     const response = await ApiService.get<{ users: User[]; total: number } | User[]>(
       `/users?role=supervisor,staff,pastor`
     );
-    // Si la respuesta es un objeto con 'users', extraer el array
-    if (Array.isArray(response)) {
-      return response;
-    }
-    if (response && typeof response === 'object' && 'users' in response) {
+
+    if (Array.isArray(response)) return response;
+    if (response && typeof response === 'object' && 'users' in response)
       return response.users || [];
-    }
-    return [];
   }
 }

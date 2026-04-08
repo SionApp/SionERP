@@ -148,6 +148,7 @@ func SetupRoutes(e *echo.Echo) {
 	zones.Use(middleware.RequireModule("zones")) // Enforce Zones Module
 	{
 		zones.GET("", zonesHandler.GetZones)
+		zones.GET("/map", zonesHandler.GetMapData)
 		zones.GET("/:id", zonesHandler.GetZone)
 		zones.POST("", zonesHandler.CreateZone)
 		zones.PUT("/:id", zonesHandler.UpdateZone)

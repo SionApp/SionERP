@@ -7,6 +7,13 @@ export interface GeoJSONPolygon {
   coordinates: number[][][];
 }
 
+export interface GeoJSONMultiPolygon {
+  type: 'MultiPolygon';
+  coordinates: number[][][][];
+}
+
+export type ZoneGeometry = GeoJSONPolygon | GeoJSONMultiPolygon;
+
 export interface ZoneBoundaries {
   north: number;
   south: number;
@@ -20,7 +27,7 @@ export interface Zone {
   description?: string;
   color: string;
   supervisor_id?: string | null;
-  boundaries?: GeoJSONPolygon | ZoneBoundaries | null;
+  boundaries?: ZoneGeometry | ZoneBoundaries | null;
   center_lat?: number;
   center_lng?: number;
   is_active?: boolean;
@@ -32,12 +39,26 @@ export interface Zone {
   supervisor_name?: string;
 }
 
+export interface ZoneMapGroup extends DiscipleshipGroup {
+  leader_name?: string;
+  supervisor_name?: string;
+}
+
+export interface ZoneMapData {
+  zone: Zone;
+  groups: ZoneMapGroup[];
+}
+
+export interface ZoneMapResponse {
+  zones: ZoneMapData[];
+}
+
 export interface CreateZoneRequest {
   name: string;
   description?: string;
   color?: string;
   supervisor_id?: string;
-  boundaries?: GeoJSONPolygon;
+  boundaries?: ZoneGeometry;
   center_lat?: number;
   center_lng?: number;
 }
@@ -47,7 +68,7 @@ export interface UpdateZoneRequest {
   description?: string;
   color?: string;
   supervisor_id?: string;
-  boundaries?: GeoJSONPolygon;
+  boundaries?: ZoneGeometry;
   center_lat?: number;
   center_lng?: number;
   is_active?: boolean;
@@ -488,7 +509,7 @@ export interface CellMultiplicationTracking {
 
 export interface GroupFilters {
   zone_id?: string;
-  zone_name?: string;
+  zone_name?: string; // Esto se removera en su momento. No se filtara las zonas por el nombre sino por el ID
   status?: string;
   leader_id?: string;
   supervisor_id?: string;
