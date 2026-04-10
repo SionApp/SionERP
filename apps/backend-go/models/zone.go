@@ -1,7 +1,6 @@
 package models
 
 import (
-	"database/sql"
 	"encoding/json"
 	"time"
 )
@@ -9,12 +8,12 @@ import (
 type Zone struct {
 	ID            string           `json:"id"`
 	Name          string           `json:"name"`
-	Description   sql.NullString   `json:"description"`
+	Description   string           `json:"description"`
 	Color         string           `json:"color"`
-	SupervisorID  sql.NullString   `json:"supervisor_id"`
+	SupervisorID  string           `json:"supervisor_id"`
 	Boundaries    *json.RawMessage `json:"boundaries"`
-	CenterLat     sql.NullFloat64  `json:"center_lat"`
-	CenterLng     sql.NullFloat64  `json:"center_lng"`
+	CenterLat     float64          `json:"center_lat"`
+	CenterLng     float64          `json:"center_lng"`
 	IsActive      bool             `json:"is_active"`
 	TotalGroups   int              `json:"total_groups"`
 	TotalMembers  int              `json:"total_members"`
@@ -64,15 +63,15 @@ type ZoneMapGroup struct {
 	ID              string          `json:"id"`
 	GroupName       string          `json:"group_name"`
 	LeaderID        string          `json:"leader_id"`
-	SupervisorID    sql.NullString  `json:"supervisor_id"`
-	ZoneID          sql.NullString  `json:"zone_id"`
-	ZoneName        sql.NullString  `json:"zone_name"`
-	MeetingDay      sql.NullString  `json:"meeting_day"`
-	MeetingTime     sql.NullString  `json:"meeting_time"`
-	MeetingLocation sql.NullString  `json:"meeting_location"`
-	MeetingAddress  sql.NullString  `json:"meeting_address"`
-	Latitude        sql.NullFloat64 `json:"latitude"`
-	Longitude       sql.NullFloat64 `json:"longitude"`
+	SupervisorID    string          `json:"supervisor_id"`
+	ZoneID          string          `json:"zone_id"`
+	ZoneName        string          `json:"zone_name"`
+	MeetingDay      string          `json:"meeting_day"`
+	MeetingTime     string          `json:"meeting_time"`
+	MeetingLocation string          `json:"meeting_location"`
+	MeetingAddress  string          `json:"meeting_address"`
+	Latitude        float64         `json:"latitude"`
+	Longitude       float64         `json:"longitude"`
 	MemberCount     int             `json:"member_count"`
 	ActiveMembers   int             `json:"active_members"`
 	Status          string          `json:"status"`

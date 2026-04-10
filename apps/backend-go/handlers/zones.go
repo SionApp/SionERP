@@ -56,9 +56,9 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 
 	query := `
 	SELECT
-		z.id, z.name, z.description, z.color, z.supervisor_id,
-		z.boundaries, z.center_lat, z.center_lng, z.is_active,
-		z.total_groups, z.total_members, z.avg_attendance,
+		z.id, z.name, COALESCE(z.description, '') as description, z.color, COALESCE(z.supervisor_id::text, '') as supervisor_id,
+		z.boundaries, COALESCE(z.center_lat, 0) as center_lat, COALESCE(z.center_lng, 0) as center_lng, z.is_active,
+		COALESCE(z.total_groups, 0) as total_groups, COALESCE(z.total_members, 0) as total_members, COALESCE(z.avg_attendance, 0) as avg_attendance,
 		z.created_at, z.updated_at,
 		COALESCE(u.first_name || ' ' || u.last_name, '') as
 		supervisor_name
@@ -116,9 +116,9 @@ func (h *ZonesHandler) GetZone(c echo.Context) error {
 
 	query := `
 	SELECT
-		z.id, z.name, z.description, z.color, z.supervisor_id,
-		z.boundaries, z.center_lat, z.center_lng, z.is_active,
-		z.total_groups, z.total_members, z.avg_attendance,
+		z.id, z.name, COALESCE(z.description, '') as description, z.color, COALESCE(z.supervisor_id::text, '') as supervisor_id,
+		z.boundaries, COALESCE(z.center_lat, 0) as center_lat, COALESCE(z.center_lng, 0) as center_lng, z.is_active,
+		COALESCE(z.total_groups, 0) as total_groups, COALESCE(z.total_members, 0) as total_members, COALESCE(z.avg_attendance, 0) as avg_attendance,
 		z.created_at, z.updated_at,
 		COALESCE(u.first_name || ' ' || u.last_name, '') as supervisor_name
 		FROM zones z
