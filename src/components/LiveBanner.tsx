@@ -6,7 +6,6 @@ import { Radio } from "lucide-react";
 
 const LiveBanner = () => {
   const [isLive, setIsLive] = useState(false);
-  const [liveStream, setLiveStream] = useState<any>(null);
 
   useEffect(() => {
     checkLiveStatus();
@@ -44,10 +43,8 @@ const LiveBanner = () => {
 
       if (data?.youtube_video_id) {
         setIsLive(true);
-        setLiveStream(data);
       } else {
         setIsLive(false);
-        setLiveStream(null);
       }
     } catch (error) {
       console.error('Error checking live status:', error);

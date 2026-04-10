@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const useLiveStreamStatus = () => {
   const [isLive, setIsLive] = useState(false);
-  const [liveData, setLiveData] = useState<any>(null);
+  const [liveData, setLiveData] = useState<{is_live?: boolean; youtube_video_id?: string; title?: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

@@ -2,8 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock } from "lucide-react";
 
+interface LiveStreamData {
+  is_live?: boolean;
+  youtube_video_id?: string;
+  title?: string;
+}
+
 interface LiveStreamProps {
-  liveData?: any;
+  liveData?: LiveStreamData;
 }
 
 const LiveStream = ({ liveData }: LiveStreamProps) => {

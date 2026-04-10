@@ -17,7 +17,7 @@ const About = () => {
       // Animate sections on scroll
       const sections = gsap.utils.toArray(".animate-on-scroll");
 
-      sections.forEach((section: any) => {
+      sections.forEach((section: Element) => {
         gsap.fromTo(section,
           { y: 50, opacity: 0 },
           {
@@ -34,7 +34,7 @@ const About = () => {
 
       // Image Parallax
       const images = gsap.utils.toArray(".parallax-image");
-      images.forEach((img: any) => {
+      images.forEach((img: Element) => {
         gsap.to(img, {
           yPercent: 20,
           ease: "none",
