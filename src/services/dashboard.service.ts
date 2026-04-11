@@ -62,6 +62,7 @@ export class DashboardService {
     roleDistribution: RoleDistribution[];
     recentActivity: RecentActivity[];
     currentUserRole?: string;
+    installedModules: string[];
   }> {
     dashboardLoadingCallbacks.setFetching?.(true);
     try {
@@ -100,6 +101,7 @@ export class DashboardService {
         recentActivity: data.recentActivity || [],
         discipleshipStats: data.discipleshipStats || this.getEmptyDiscipleshipStats(),
         currentUserRole: data.currentUserRole || null,
+        installedModules: data.installedModules || [],
       };
     } catch (error) {
       console.error('Error fetching dashboard data from Go backend:', error);

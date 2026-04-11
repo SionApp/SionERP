@@ -19,7 +19,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCoordinatorData } from '@/hooks/useCoordinatorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateReportRequest } from '@/types/discipleship.types';
-import { endOfQuarter, format, startOfQuarter, subQuarters } from 'date-fns';
+import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
+import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   Award,
@@ -87,88 +88,16 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
     refetchReports,
   } = useCoordinatorData();
 
-  // Calcular período trimestral (trimestre anterior)
+  // Calcular período semanal (semana anterior)
   const today = new Date();
-  const lastQuarter = subQuarters(today, 1);
-  const periodStart = startOfQuarter(lastQuarter);
-  const periodEnd = endOfQuarter(lastQuarter);
+  const periodStart = startOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
+  const periodEnd = endOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
 
   // Validar si ya existe reporte para este período
-  const hasCurrentPeriodReport = myReports.some(report => {
+  const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
     const reportStart = new Date(report.period_start);
     return reportStart >= periodStart && reportStart <= periodEnd;
   });
-
-  const [quarterlyReport, setQuarterlyReport] = useState({
-    totalZones: 0,
-    totalGroups: 0,
-    totalMembers: 0,
-    quarterlyGrowth: 0,
-    leadershipStrength: 5,
-    systemEfficiency: 5,
-    memberSatisfaction: 5,
-    strategicNotes: '',
-    challengesAndRisks: '',
-    nextQuarterPriorities: '',
-  });
-
-  const handleSubmitQuarterlyReport = async () => {
-    setIsSubmittingReport(true);
-    try {
-      const createData: CreateReportRequest = {
-        report_type: 'quarterly',
-        report_level: 4,
-        period_start: format(periodStart, 'yyyy-MM-dd'),
-        period_end: format(periodEnd, 'yyyy-MM-dd'),
-        report_data: {
-          ministryOverview: {
-            totalZones: quarterlyReport.totalZones,
-            totalGroups: quarterlyReport.totalGroups,
-            totalMembers: quarterlyReport.totalMembers,
-            quarterlyGrowth: quarterlyReport.quarterlyGrowth,
-          },
-          systemHealth: {
-            leadershipStrength: quarterlyReport.leadershipStrength,
-            systemEfficiency: quarterlyReport.systemEfficiency,
-            memberSatisfaction: quarterlyReport.memberSatisfaction,
-          },
-          strategicNotes: quarterlyReport.strategicNotes,
-          challengesAndRisks: quarterlyReport.challengesAndRisks,
-          nextQuarterPriorities: quarterlyReport.nextQuarterPriorities,
-        },
-      };
-
-      await DiscipleshipService.createReport(createData);
-
-      toast.success('Reporte trimestral enviado exitosamente');
-      setShowReportModal(false);
-
-      // Reset form
-      setQuarterlyReport({
-        totalZones: 0,
-        totalGroups: 0,
-        totalMembers: 0,
-        quarterlyGrowth: 0,
-        leadershipStrength: 5,
-        systemEfficiency: 5,
-        memberSatisfaction: 5,
-        strategicNotes: '',
-        challengesAndRisks: '',
-        nextQuarterPriorities: '',
-      });
-
-      await refetchReports();
-    } catch (error: unknown) {
-      console.error('Error submitting report:', error);
-      if (error instanceof Error) {
-        toast.error(error.message || 'Error al enviar el reporte');
-      } else {
-        toast.error('Error al enviar el reporte');
-      }
-    } finally {
-      setIsSubmittingReport(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -188,7 +117,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
             Dashboard del Coordinador
           </h1>
           <p className="text-sm md:text-base text-muted-foreground">
-            {user?.first_name} {user?.last_name} - Vista Ejecutiva
+            {(user as any)?.first_name} {(user as any)?.last_name} - Vista Ejecutiva
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -207,215 +136,15 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
         </div>
       </div>
 
-      {/* Dialog para crear reporte - Fuera de los tabs para que funcione desde el header */}
-      <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Reporte Trimestral</DialogTitle>
-            <DialogDescription>
-              Período: {format(periodStart, 'QQQ yyyy', { locale: es })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Ministry Overview */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Resumen del Ministerio</h3>
-              <div className="grid gap-4 md:grid-cols-4">
-                <div>
-                  <Label htmlFor="totalZones">Total de Zonas</Label>
-                  <Input
-                    id="totalZones"
-                    type="number"
-                    value={quarterlyReport.totalZones}
-                    onChange={e =>
-                      setQuarterlyReport(prev => ({
-                        ...prev,
-                        totalZones: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="totalGroups">Total de Grupos</Label>
-                  <Input
-                    id="totalGroups"
-                    type="number"
-                    value={quarterlyReport.totalGroups}
-                    onChange={e =>
-                      setQuarterlyReport(prev => ({
-                        ...prev,
-                        totalGroups: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="totalMembers">Total de Miembros</Label>
-                  <Input
-                    id="totalMembers"
-                    type="number"
-                    value={quarterlyReport.totalMembers}
-                    onChange={e =>
-                      setQuarterlyReport(prev => ({
-                        ...prev,
-                        totalMembers: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="quarterlyGrowth">Crecimiento (%)</Label>
-                  <Input
-                    id="quarterlyGrowth"
-                    type="number"
-                    value={quarterlyReport.quarterlyGrowth}
-                    onChange={e =>
-                      setQuarterlyReport(prev => ({
-                        ...prev,
-                        quarterlyGrowth: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* System Health */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">
-                Evaluación del Sistema (1-10)
-              </h3>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <Label htmlFor="leadershipStrength">Fortaleza de Liderazgo</Label>
-                  <Input
-                    id="leadershipStrength"
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={quarterlyReport.leadershipStrength}
-                    onChange={e =>
-                      setQuarterlyReport(prev => ({
-                        ...prev,
-                        leadershipStrength: Math.min(
-                          10,
-                          Math.max(1, parseInt(e.target.value) || 1)
-                        ),
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="systemEfficiency">Eficiencia del Sistema</Label>
-                  <Input
-                    id="systemEfficiency"
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={quarterlyReport.systemEfficiency}
-                    onChange={e =>
-                      setQuarterlyReport(prev => ({
-                        ...prev,
-                        systemEfficiency: Math.min(
-                          10,
-                          Math.max(1, parseInt(e.target.value) || 1)
-                        ),
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="memberSatisfaction">Satisfacción de Miembros</Label>
-                  <Input
-                    id="memberSatisfaction"
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={quarterlyReport.memberSatisfaction}
-                    onChange={e =>
-                      setQuarterlyReport(prev => ({
-                        ...prev,
-                        memberSatisfaction: Math.min(
-                          10,
-                          Math.max(1, parseInt(e.target.value) || 1)
-                        ),
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Strategic Notes */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="strategicNotes">Notas Estratégicas</Label>
-                <Textarea
-                  id="strategicNotes"
-                  placeholder="Observaciones estratégicas del trimestre..."
-                  className="min-h-[120px]"
-                  value={quarterlyReport.strategicNotes}
-                  onChange={e =>
-                    setQuarterlyReport(prev => ({
-                      ...prev,
-                      strategicNotes: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="challengesAndRisks">Desafíos y Riesgos</Label>
-                <Textarea
-                  id="challengesAndRisks"
-                  placeholder="Desafíos identificados y riesgos potenciales..."
-                  className="min-h-[120px]"
-                  value={quarterlyReport.challengesAndRisks}
-                  onChange={e =>
-                    setQuarterlyReport(prev => ({
-                      ...prev,
-                      challengesAndRisks: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="nextQuarterPriorities">Prioridades Próximo Trimestre</Label>
-              <Textarea
-                id="nextQuarterPriorities"
-                placeholder="Prioridades y enfoque para el próximo trimestre..."
-                className="min-h-[100px]"
-                value={quarterlyReport.nextQuarterPriorities}
-                onChange={e =>
-                  setQuarterlyReport(prev => ({
-                    ...prev,
-                    nextQuarterPriorities: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReportModal(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSubmitQuarterlyReport} disabled={isSubmittingReport}>
-              {isSubmittingReport ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                  Enviando...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Enviar Reporte
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog para crear reporte */}
+      <SupervisionReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        onSuccess={refetchReports}
+        periodStart={periodStart}
+        periodEnd={periodEnd}
+        hierarchyLevel={4}
+      />
 
       {/* Quick Stats */}
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -463,7 +192,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
                 <div className="text-2xl font-bold text-green-600">
                   <CheckCircle className="h-6 w-6 inline" />
                 </div>
-                <p className="text-xs text-muted-foreground">Reporte trimestral enviado</p>
+                <p className="text-xs text-muted-foreground">Reporte semanal enviado</p>
               </>
             ) : (
               <>
@@ -502,30 +231,32 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
             </CardHeader>
             <CardContent>
               {weeklyTrends.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={weeklyTrends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Area
-                      type="monotone"
-                      dataKey="asistencia"
-                      stroke="#3b82f6"
-                      fill="#3b82f6"
-                      fillOpacity={0.6}
-                      name="Asistencia"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="conversiones"
-                      stroke="#22c55e"
-                      fill="#22c55e"
-                      fillOpacity={0.8}
-                      name="Conversiones"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <div style={{ width: '100%', height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={weeklyTrends}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Area
+                        type="monotone"
+                        dataKey="asistencia"
+                        stroke="#3b82f6"
+                        fill="#3b82f6"
+                        fillOpacity={0.6}
+                        name="Asistencia"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="conversiones"
+                        stroke="#22c55e"
+                        fill="#22c55e"
+                        fillOpacity={0.8}
+                        name="Conversiones"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               ) : (
                 <p className="text-center text-muted-foreground py-12">
                   No hay datos de tendencias
@@ -542,15 +273,17 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
               </CardHeader>
               <CardContent>
                 {zoneStats.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={zoneStats}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="zone_name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="total_members" fill="#3b82f6" name="Miembros" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div style={{ width: '100%', height: 200 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={zoneStats}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="zone_name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="total_members" fill="#3b82f6" name="Miembros" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No hay datos de zonas</p>
                 )}
@@ -638,7 +371,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
                 <div className="space-y-3">
                   {myReports.slice(0, 5).map(report => {
                     const reportData = report.report_data as {
-                      ministryOverview?: { totalGroups?: number; quarterlyGrowth?: number };
+                      new_disciples_care?: number; visited_groups?: number;
                     };
                     return (
                       <div
@@ -647,11 +380,10 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
                       >
                         <div>
                           <p className="font-medium">
-                            {format(new Date(report.period_start), 'QQQ yyyy', { locale: es })}
+                            Semana del {format(new Date(report.period_start), 'dd MMM', { locale: es })}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Grupos: {reportData?.ministryOverview?.totalGroups || 0} • Crecimiento:{' '}
-                            {reportData?.ministryOverview?.quarterlyGrowth || 0}%
+                            Atención Nvos: {reportData?.new_disciples_care || 0} • VD: {reportData?.visited_groups || 0}
                           </p>
                         </div>
                         <Badge
@@ -685,9 +417,9 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Reporte Trimestral</CardTitle>
+                  <CardTitle>Reporte Semanal</CardTitle>
                   <CardDescription>
-                    Período: {format(periodStart, 'QQQ yyyy', { locale: es })}
+                    Período: {format(periodStart, 'dd MMM', { locale: es })} al {format(periodEnd, 'dd MMM yyyy', { locale: es })}
                   </CardDescription>
                 </div>
                 <Button
@@ -704,12 +436,12 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
               {hasCurrentPeriodReport ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-600" />
-                  <p>Ya has enviado el reporte trimestral para este período</p>
+                  <p>Ya has enviado el reporte semanal para este período</p>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Haz clic en "Nuevo Reporte" para crear un reporte trimestral</p>
+                  <p>Haz clic en "Nuevo Reporte" para crear un reporte semanal</p>
                 </div>
               )}
             </CardContent>

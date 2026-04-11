@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -25,6 +26,13 @@ func NewUserHandler() *UserHandler {
 
 // GetUsers obtiene la lista de usuarios con su estado de invitación
 func (h *UserHandler) GetUsers(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+	
+	roleParam := c.QueryParam("role")
+	
 	query := `
 		SELECT 
 			u.id, u.first_name, u.last_name, u.id_number, u.email, u.phone, u.address,
@@ -38,10 +46,36 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 		LEFT JOIN user_invitations i ON u.email = i.email 
 			AND i.status IN ('pending', 'accepted')
 		WHERE u.is_active = true
-		ORDER BY u.created_at DESC
 	`
+	
+	args := []interface{}{}
+	argCount := 0
+	
+	// Filtrar por roles si viene el parámetro
+	if roleParam != "" {
+		rolesStr := strings.Split(roleParam, ",")
+		roles := make([]string, 0, len(rolesStr))
+		for _, r := range rolesStr {
+			trimmed := strings.TrimSpace(r)
+			if trimmed != "" {
+				roles = append(roles, trimmed)
+			}
+		}
+		if len(roles) > 0 {
+			// Construir la query con múltiples placeholders para IN clause
+			inPlaceholders := make([]string, len(roles))
+			for i := range roles {
+				argCount++
+				inPlaceholders[i] = fmt.Sprintf("$%d", argCount)
+				args = append(args, roles[i])
+			}
+			query += fmt.Sprintf(" AND u.role IN (%s)", strings.Join(inPlaceholders, ","))
+		}
+	}
+	
+	query += " ORDER BY u.created_at DESC"
 
-	rows, err := config.GetDB().DB.Query(query)
+	rows, err := db.DB.Query(query, args...)
 	if err != nil {
 		c.Logger().Error("Database query error in GetUsers: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{

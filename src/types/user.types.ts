@@ -15,6 +15,7 @@ export interface User {
   emergency_contact_phone?: string;
   baptized?: boolean;
   baptism_date?: string;
+  fecha_bautizo?: string; // Alias para compatibilidad
   bautizado?: boolean;
   marital_status?: string;
   occupation?: string;
@@ -31,6 +32,16 @@ export interface User {
   created_at: string;
   updated_at: string;
   invitation_status?: string;
+
+  // Campos de discipulado
+  zone_id?: string;
+  zone_name?: string;
+  territory?: string;
+  active_groups_count?: number;
+  cell_leader_id?: string;
+
+  // Campo computado (opcional para compatibilidad)
+  full_name?: string;
 }
 
 export interface CreateUserData {

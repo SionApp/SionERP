@@ -30,7 +30,7 @@ const inviteSchema = z.object({
   last_name: z.string().min(2, 'Mínimo 2 caracteres'),
   phone: z.string().optional(),
   id_number: z.string().optional(),
-  role: z.enum(['pastor', 'staff', 'supervisor', 'server']),
+  role: z.enum(['admin', 'pastor', 'staff', 'supervisor', 'server', 'member']),
 });
 
 type InviteFormData = z.infer<typeof inviteSchema>;
