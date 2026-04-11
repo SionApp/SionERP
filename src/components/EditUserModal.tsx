@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -10,8 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { User, UserRole } from '@/types/user.types';
 import { UserService } from '@/services/user.service';
+import { User, UserRole } from '@/types/user.types';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface EditUserModalProps {
@@ -32,7 +32,8 @@ const roles: { value: UserRole; label: string }[] = [
 
 const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalProps) => {
   const [formData, setFormData] = useState({
-    full_name: '',
+    first_name: '',
+    last_name: '',
     email: '',
     phone: '',
     role: 'member' as UserRole,
@@ -46,7 +47,8 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
   useEffect(() => {
     if (user) {
       setFormData({
-        full_name: user.full_name || '',
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
         email: user.email || '',
         phone: user.phone || '',
         role: user.role || 'member',
@@ -87,14 +89,25 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="full_name">Nombre Completo</Label>
-            <Input
-              id="full_name"
-              value={formData.full_name}
-              onChange={e => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-              required
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="first_name">Nombre</Label>
+              <Input
+                id="first_name"
+                value={formData.first_name}
+                onChange={e => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="last_name">Apellido</Label>
+              <Input
+                id="last_name"
+                value={formData.last_name}
+                onChange={e => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -109,13 +122,22 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="phone">Teléfono</Label>
+            <Input
+              id="phone"
+              value={formData.phone}
+              onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="role">Rol</Label>
             <Select
               value={formData.role}
               onValueChange={(value: UserRole) => setFormData(prev => ({ ...prev, role: value }))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecciona un rol" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {roles.map(role => (
@@ -128,19 +150,29 @@ const EditUserModal = ({ user, isOpen, onClose, onUserUpdated }: EditUserModalPr
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Teléfono</Label>
+            <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
             <Input
-              id="phone"
-              value={formData.phone}
-              onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              id="birth_date"
+              type="date"
+              value={formData.birth_date}
+              onChange={e => setFormData(prev => ({ ...prev, birth_date: e.target.value }))}
             />
           </div>
 
-          <div className="flex gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+          <div className="space-y-2">
+            <Label htmlFor="address">Dirección</Label>
+            <Input
+              id="address"
+              value={formData.address}
+              onChange={e => setFormData(prev => ({ ...prev, address: e.target.value }))}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading} className="flex-1">
+            <Button type="submit" disabled={isLoading}>
               {isLoading ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>

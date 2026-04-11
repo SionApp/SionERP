@@ -96,7 +96,7 @@ const DiscipleshipPage = () => {
     }
   };
 
-  // Memoizar el dashboard para evitar re-renders innecesarios
+  // Memorizar el dashboard para evitar re-renders innecesarios
   const DashboardComponent = React.useMemo(() => {
     // Si no tiene acceso, retornar null (se maneja en renderDiscipleshipDashboard)
     if (!discipleshipAccess || !discipleshipAccess.canAccess) {
@@ -106,6 +106,7 @@ const DiscipleshipPage = () => {
     // Si es acceso completo (pastor/staff), mostrar dashboard pastoral
     if (discipleshipAccess.isFullAccess) {
       return PastoralDashboard;
+      // return CoordinatorDashboard;
     }
 
     // Si no, usar el nivel de jerarquía
@@ -185,9 +186,7 @@ const DiscipleshipPage = () => {
             ) : discipleshipAccess?.canAccess ? (
               <>
                 Dashboard nivel {getDiscipleshipLevel()} - {getLevelName()}
-                {discipleshipAccess.isFullAccess && (
-                  <span className="ml-2 text-xs text-green-600">(Acceso Completo)</span>
-                )}
+                {discipleshipAccess.isFullAccess}
               </>
             ) : (
               'Sin acceso al módulo de discipulado'

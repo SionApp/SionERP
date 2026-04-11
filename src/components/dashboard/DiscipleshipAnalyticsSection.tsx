@@ -1,48 +1,40 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import {
-  Users,
-  TrendingUp,
-  Heart,
-  AlertTriangle,
-  Target,
-  Calendar,
-  BarChart3,
-  Activity,
-  MapPin,
-  UserCheck,
-  Zap,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus,
-} from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-} from 'recharts';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Progress } from '@/components/ui/progress';
 import { useDiscipleshipAnalytics } from '@/hooks/useDiscipleshipAnalytics';
 import type { DiscipleshipDashboardStats } from '@/services/dashboard.service';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  BarChart3,
+  Calendar,
+  Heart,
+  Minus,
+  Target,
+  TrendingUp,
+  UserCheck,
+  Users,
+} from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 interface DiscipleshipAnalyticsSectionProps {
   discipleshipStats: DiscipleshipDashboardStats;
@@ -83,9 +75,9 @@ export const DiscipleshipAnalyticsSection = ({
   // Datos para el radar chart de salud espiritual por zona
   const spiritualHealthRadarData = zoneStats.map(zone => ({
     zone: zone.zoneName.replace('Zona ', ''),
-    salud: zone.spiritualHealth,
-    asistencia: (zone.attendance / 20) * 10, // Normalizar a escala 0-10
-    crecimiento: Math.max(0, zone.growthRate / 2), // Normalizar crecimiento
+    salud: zone.healthIndex || 8,
+    asistencia: (zone.avgAttendance / 20) * 10,
+    crecimiento: Math.max(0, zone.growthRate / 2),
   }));
 
   return (
@@ -322,9 +314,13 @@ export const DiscipleshipAnalyticsSection = ({
             {/* Alertas críticas */}
             <div className="space-y-2">
               <h4 className="font-semibold text-sm text-muted-foreground">Alertas Activas</h4>
-              {alerts.slice(0, 3).map(alert => (
+              {alerts.slice(0, 3).map((alert, alertIndex) => (
                 <div
-                  key={alert.id}
+                  key={
+                    alert.id && alert.id.trim()
+                      ? alert.id
+                      : `alert-${alertIndex}-${alert.title || 'unknown'}`
+                  }
                   className="flex items-start space-x-3 p-3 rounded-lg bg-accent/20 border border-accent/30"
                 >
                   <div
@@ -356,13 +352,17 @@ export const DiscipleshipAnalyticsSection = ({
               </h4>
               {multiplications.slice(0, 3).map((mult, index) => (
                 <div
-                  key={index}
+                  key={
+                    mult.id && mult.id.trim()
+                      ? mult.id
+                      : `mult-${index}-${mult.parentGroupName || 'unknown'}-${mult.multiplicationDate || index}`
+                  }
                   className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20"
                 >
                   <div>
-                    <p className="text-sm font-medium">{mult.parentGroup}</p>
+                    <p className="text-sm font-medium">{mult.parentGroupName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {mult.newGroup || 'En planificación'} • {mult.initialMembers} miembros
+                      {mult.newGroupName || 'En planificación'} • {mult.initialMembers} miembros
                     </p>
                   </div>
                   <Badge
@@ -398,50 +398,56 @@ export const DiscipleshipAnalyticsSection = ({
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {groupPerformance.slice(0, 6).map((leader, index) => (
-              <div
-                key={leader.groupId}
-                className="flex items-center space-x-4 p-4 rounded-xl bg-gradient-to-r from-accent/30 to-transparent border border-border/50"
-              >
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
-                  {index + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <p className="font-medium truncate">{leader.leaderName}</p>
-                    <Badge variant="outline" className="text-xs">
-                      {leader.groupName}
-                    </Badge>
+            {groupPerformance.slice(0, 6).map((leader, index) => {
+              const uniqueKey =
+                leader.groupId && leader.groupId.trim()
+                  ? leader.groupId
+                  : `leader-${index}-${leader.leaderName || 'unknown'}-${leader.groupName || 'nogroup'}`;
+              return (
+                <div
+                  key={uniqueKey}
+                  className="flex items-center space-x-4 p-4 rounded-xl bg-gradient-to-r from-accent/30 to-transparent border border-border/50"
+                >
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                    {index + 1}
                   </div>
-                  <div className="flex items-center space-x-4 mt-1">
-                    <div className="flex items-center space-x-1">
-                      <Users className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {leader.attendance}% asistencia
-                      </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2">
+                      <p className="font-medium truncate">{leader.leaderName}</p>
+                      <Badge variant="outline" className="text-xs">
+                        {leader.groupName}
+                      </Badge>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <Heart className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {leader.spiritualHealth}/10 salud
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <TrendingUp className="h-3 w-3 text-muted-foreground" />
-                      <span className={`text-xs ${getTrendColor(leader.growth)}`}>
-                        {leader.growth > 0 ? '+' : ''}
-                        {leader.growth}% crecimiento
-                      </span>
+                    <div className="flex items-center space-x-4 mt-1">
+                      <div className="flex items-center space-x-1">
+                        <Users className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {leader.avgAttendance}% asistencia
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Heart className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {leader.spiritualTemp}/10 salud
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                        <span className={`text-xs ${getTrendColor(leader.growthRate)}`}>
+                          {leader.growthRate > 0 ? '+' : ''}
+                          {leader.growthRate}% crecimiento
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium">{leader.avgAttendance}%</div>
+                    <div className="text-xs text-muted-foreground">asistencia</div>
+                    <Progress value={leader.avgAttendance} className="w-16 mt-1" />
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium">{leader.consistency}%</div>
-                  <div className="text-xs text-muted-foreground">consistencia</div>
-                  <Progress value={leader.consistency} className="w-16 mt-1" />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>

@@ -21,7 +21,14 @@ func main() {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins:     []string{"*"}, // En producción, especificar orígenes permitidos
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
+		AllowCredentials: true,
+		MaxAge:           3600,
+	}))
 
 	// Routes
 	e.GET("/", func(c echo.Context) error {

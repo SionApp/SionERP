@@ -14,10 +14,14 @@ type DiscipleshipGroup struct {
 	GroupName       string         `json:"group_name"`
 	LeaderID        string         `json:"leader_id"`
 	SupervisorID    sql.NullString `json:"supervisor_id"`
-	ZoneName        sql.NullString `json:"zone_name"`
+	ZoneID          sql.NullString `json:"zone_id" db:"zone_id"`
+	ZoneName        sql.NullString `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
 	MeetingDay      sql.NullString `json:"meeting_day"`
 	MeetingTime     sql.NullString `json:"meeting_time"`
 	MeetingLocation sql.NullString `json:"meeting_location"`
+	MeetingAddress  sql.NullString `json:"meeting_address"`
+	Latitude        sql.NullFloat64 `json:"latitude"`
+	Longitude       sql.NullFloat64 `json:"longitude"`
 	MemberCount     int            `json:"member_count"`
 	ActiveMembers   int            `json:"active_members"`
 	Status          string         `json:"status"`
@@ -32,26 +36,34 @@ type DiscipleshipGroupWithDetails struct {
 }
 
 type CreateGroupRequest struct {
-	GroupName       string `json:"group_name" validate:"required"`
-	LeaderID        string `json:"leader_id" validate:"required,uuid"`
-	SupervisorID    string `json:"supervisor_id,omitempty"`
-	ZoneName        string `json:"zone_name,omitempty"`
-	MeetingDay      string `json:"meeting_day,omitempty"`
-	MeetingTime     string `json:"meeting_time,omitempty"`
-	MeetingLocation string `json:"meeting_location,omitempty"`
+	GroupName       string   `json:"group_name" validate:"required"`
+	LeaderID        string   `json:"leader_id" validate:"required,uuid"`
+	SupervisorID    string   `json:"supervisor_id,omitempty"`
+	ZoneID          string   `json:"zone_id,omitempty" validate:"omitempty,uuid"`
+	ZoneName        string   `json:"zone_name,omitempty"` // Deprecated: usar zone_id
+	MeetingDay      string   `json:"meeting_day,omitempty"`
+	MeetingTime     string   `json:"meeting_time,omitempty"`
+	MeetingLocation string   `json:"meeting_location,omitempty"`
+	MeetingAddress  string   `json:"meeting_address,omitempty"`
+	Latitude        *float64 `json:"latitude,omitempty"`
+	Longitude       *float64 `json:"longitude,omitempty"`
 }
 
 type UpdateGroupRequest struct {
-	GroupName       *string `json:"group_name,omitempty"`
-	LeaderID        *string `json:"leader_id,omitempty"`
-	SupervisorID    *string `json:"supervisor_id,omitempty"`
-	ZoneName        *string `json:"zone_name,omitempty"`
-	MeetingDay      *string `json:"meeting_day,omitempty"`
-	MeetingTime     *string `json:"meeting_time,omitempty"`
-	MeetingLocation *string `json:"meeting_location,omitempty"`
-	MemberCount     *int    `json:"member_count,omitempty"`
-	ActiveMembers   *int    `json:"active_members,omitempty"`
-	Status          *string `json:"status,omitempty"`
+	GroupName       *string   `json:"group_name,omitempty"`
+	LeaderID        *string   `json:"leader_id,omitempty"`
+	SupervisorID    *string   `json:"supervisor_id,omitempty"`
+	ZoneID          *string   `json:"zone_id,omitempty" validate:"omitempty,uuid"`
+	ZoneName        *string   `json:"zone_name,omitempty"` // Deprecated: usar zone_id
+	MeetingDay      *string   `json:"meeting_day,omitempty"`
+	MeetingTime     *string   `json:"meeting_time,omitempty"`
+	MeetingLocation *string   `json:"meeting_location,omitempty"`
+	MeetingAddress  *string   `json:"meeting_address,omitempty"`
+	Latitude        *float64  `json:"latitude,omitempty"`
+	Longitude       *float64  `json:"longitude,omitempty"`
+	MemberCount     *int      `json:"member_count,omitempty"`
+	ActiveMembers   *int      `json:"active_members,omitempty"`
+	Status          *string   `json:"status,omitempty"`
 }
 
 // =====================================================
@@ -63,7 +75,8 @@ type DiscipleshipHierarchy struct {
 	UserID              string         `json:"user_id"`
 	HierarchyLevel      int            `json:"hierarchy_level"`
 	SupervisorID        sql.NullString `json:"supervisor_id"`
-	ZoneName            sql.NullString `json:"zone_name"`
+	ZoneID              sql.NullString `json:"zone_id" db:"zone_id"`
+	ZoneName            sql.NullString `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
 	Territory           sql.NullString `json:"territory"`
 	ActiveGroupsAssigned int           `json:"active_groups_assigned"`
 	CreatedAt           time.Time      `json:"created_at"`
@@ -81,7 +94,8 @@ type AssignHierarchyRequest struct {
 	UserID         string `json:"user_id" validate:"required,uuid"`
 	HierarchyLevel int    `json:"hierarchy_level" validate:"required,min=1,max=5"`
 	SupervisorID   string `json:"supervisor_id,omitempty"`
-	ZoneName       string `json:"zone_name,omitempty"`
+	ZoneID         string `json:"zone_id,omitempty" validate:"omitempty,uuid"`
+	ZoneName       string `json:"zone_name,omitempty"` // Deprecated: usar zone_id
 	Territory      string `json:"territory,omitempty"`
 }
 
@@ -163,7 +177,8 @@ type DiscipleshipAlert struct {
 	Priority       int            `json:"priority"`
 	RelatedGroupID sql.NullString `json:"related_group_id"`
 	RelatedUserID  sql.NullString `json:"related_user_id"`
-	ZoneName       sql.NullString `json:"zone_name"`
+	ZoneID         sql.NullString `json:"zone_id" db:"zone_id"`
+	ZoneName       sql.NullString `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
 	ActionRequired bool           `json:"action_required"`
 	Resolved       bool           `json:"resolved"`
 	ResolvedBy     sql.NullString `json:"resolved_by"`
@@ -180,7 +195,8 @@ type CreateAlertRequest struct {
 	Priority       int    `json:"priority" validate:"min=1,max=5"`
 	RelatedGroupID string `json:"related_group_id,omitempty"`
 	RelatedUserID  string `json:"related_user_id,omitempty"`
-	ZoneName       string `json:"zone_name,omitempty"`
+	ZoneID         string `json:"zone_id,omitempty" validate:"omitempty,uuid"`
+	ZoneName       string `json:"zone_name,omitempty"` // Deprecated: usar zone_id
 	ActionRequired bool   `json:"action_required"`
 }
 
@@ -227,13 +243,6 @@ type DiscipleshipAnalytics struct {
 	PendingAlerts     int     `json:"pending_alerts"`
 }
 
-type ZoneStats struct {
-	ZoneName      string  `json:"zone_name"`
-	TotalGroups   int     `json:"total_groups"`
-	TotalMembers  int     `json:"total_members"`
-	AvgAttendance float64 `json:"avg_attendance"`
-	GrowthRate    float64 `json:"growth_rate"`
-}
 
 type GroupPerformance struct {
 	GroupID        string  `json:"group_id"`
@@ -251,7 +260,8 @@ type GroupPerformance struct {
 // =====================================================
 
 type GroupFilters struct {
-	ZoneName     string `query:"zone_name"`
+	ZoneID       string `query:"zone_id"`
+	ZoneName     string `query:"zone_name"` // Deprecated: usar zone_id
 	Status       string `query:"status"`
 	LeaderID     string `query:"leader_id"`
 	SupervisorID string `query:"supervisor_id"`
