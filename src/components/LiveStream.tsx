@@ -14,13 +14,13 @@ const LiveStream = () => {
 
   const fetchLiveStream = async () => {
     try {
-      const { data, error } = await supabase
-        .from('live_streams')
+      const { data, error } = await (supabase
+        .from('live_streams' as any)
         .select('*')
         .eq('is_live', true)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .single() as any);
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching live stream:', error);
