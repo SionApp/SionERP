@@ -12,7 +12,14 @@ import type {
 } from '@/types/discipleship.types';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Map, { Layer, Marker, NavigationControl, Source, type MapRef } from 'react-map-gl/maplibre';
+import Map, {
+  Layer,
+  Marker,
+  NavigationControl,
+  Source,
+  type MapRef,
+  type LayerProps,
+} from 'react-map-gl/maplibre';
 
 type FeatureProperties = {
   zoneId: string;
@@ -36,7 +43,7 @@ interface DiscipleshipMapProps {
 const DEFAULT_CENTER = { latitude: 11.4045, longitude: -69.6734 };
 const DEFAULT_ZOOM = 13;
 
-const fillLayer: Layer = {
+const fillLayer: LayerProps = {
   id: 'zones-fill',
   type: 'fill',
   paint: {
@@ -45,7 +52,7 @@ const fillLayer: Layer = {
   },
 };
 
-const borderLayer: Layer = {
+const borderLayer: LayerProps = {
   id: 'zones-border',
   type: 'line',
   paint: {
@@ -54,7 +61,7 @@ const borderLayer: Layer = {
   },
 };
 
-const selectedBorderLayer: Layer = {
+const selectedBorderLayer: LayerProps = {
   id: 'zones-selected-border',
   type: 'line',
   filter: ['==', ['get', 'zoneId'], ''],
@@ -242,7 +249,7 @@ export default function DiscipleshipMap({
     }
   };
 
-  const selectedBorder = useMemo<Layer>(() => {
+  const selectedBorder = useMemo<LayerProps>(() => {
     return {
       ...selectedBorderLayer,
       filter: ['==', ['get', 'zoneId'], internalSelectedZoneId ?? ''],
