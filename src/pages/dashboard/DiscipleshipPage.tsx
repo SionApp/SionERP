@@ -64,7 +64,7 @@ const DiscipleshipPage = () => {
     };
 
     loadUserAndAccess();
-  }, [authUser]);
+  }, [authUser?.id]);
 
   const getDiscipleshipLevel = (): number => {
     if (!discipleshipAccess) return 1;

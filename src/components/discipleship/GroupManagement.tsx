@@ -24,10 +24,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ApiService } from '@/services/api.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateGroupRequest, DiscipleshipGroup } from '@/types/discipleship.types';
-import { GeolocationInput, type GeolocationResult } from '@/components/ui/geolocation-input';
+import {
+  GeolocationInput,
+  type GeolocationResult,
+  type TypeGeolocalization,
+} from '@/components/ui/geolocation-input';
 import { Calendar, Edit, Loader2, MapPin, Plus, Search, Trash2, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+
+const getNumericCoord = (val: number | TypeGeolocalization | undefined): number | undefined => {
+  if (val === undefined || val === null) return undefined;
+  if (typeof val === 'number') return val;
+  if (typeof val === 'object' && 'Float64' in val) return val.Float64;
+  return undefined;
+};
 
 interface User {
   id: string;
@@ -187,7 +198,11 @@ const GroupManagement = () => {
       // Cargar geolocalización si existe
       if (group.latitude && group.longitude) {
         setGeolocation({
-          address: String(normalizeNullString(group.meeting_address) || normalizeNullString(group.meeting_location) || ''),
+          address: String(
+            normalizeNullString(group.meeting_address) ||
+              normalizeNullString(group.meeting_location) ||
+              ''
+          ),
           latitude: group.latitude,
           longitude: group.longitude,
         });
@@ -224,8 +239,8 @@ const GroupManagement = () => {
       const submitData: CreateGroupRequest = {
         ...formData,
         meeting_address: geolocation?.address || formData.meeting_address || '',
-        latitude: geolocation?.latitude,
-        longitude: geolocation?.longitude,
+        latitude: getNumericCoord(geolocation?.latitude) || formData.latitude,
+        longitude: getNumericCoord(geolocation?.longitude) || formData.longitude,
         meeting_location: geolocation?.address || formData.meeting_location || '',
       };
 
@@ -625,20 +640,19 @@ const GroupManagement = () => {
                       onChange={e => setFormData({ ...formData, meeting_time: e.target.value })}
                     />
                   </div>
-
                 </div>
 
                 <div className="space-y-2">
                   <GeolocationInput
                     value={geolocation || undefined}
-                    onChange={(value) => {
+                    onChange={value => {
                       setGeolocation(value);
                       if (value) {
                         setFormData({
                           ...formData,
                           meeting_address: value.address,
-                          latitude: value.latitude,
-                          longitude: value.longitude,
+                          latitude: getNumericCoord(value.latitude),
+                          longitude: getNumericCoord(value.longitude),
                           meeting_location: value.address,
                         });
                       } else {
