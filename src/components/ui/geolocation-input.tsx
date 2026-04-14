@@ -66,7 +66,6 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
   const [showMap, setShowMap] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  console.log(value, 'value');
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lat = getCoordValue(value?.latitude);

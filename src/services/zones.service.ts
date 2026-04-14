@@ -97,5 +97,7 @@ export class ZonesService {
     if (Array.isArray(response)) return response;
     if (response && typeof response === 'object' && 'users' in response)
       return response.users || [];
+
+    return [];
   }
 }

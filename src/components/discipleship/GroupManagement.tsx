@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ApiService } from '@/services/api.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateGroupRequest, DiscipleshipGroup } from '@/types/discipleship.types';
+import { useZones } from '@/hooks/useZones';
 import {
   GeolocationInput,
   type GeolocationResult,
@@ -50,7 +51,7 @@ interface User {
 
 const DAYS_OF_WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-const ZONES = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste', 'Zona Centro'];
+// const ZONES = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste', 'Zona Centro'];
 
 // Helper para normalizar valores sql.NullString que vienen como {String, Valid}
 const normalizeNullString = (value: unknown): string | null => {
@@ -64,6 +65,7 @@ const normalizeNullString = (value: unknown): string | null => {
 };
 
 const GroupManagement = () => {
+  const { zones } = useZones();
   const [groups, setGroups] = useState<DiscipleshipGroup[]>([]);
   const [allGroups, setAllGroups] = useState<DiscipleshipGroup[]>([]); // Todos los grupos sin filtrar
   const [leaders, setLeaders] = useState<User[]>([]);
@@ -188,6 +190,7 @@ const GroupManagement = () => {
         leader_id: String(normalizeNullString(group.leader_id) || ''),
         supervisor_id: String(normalizeNullString(group.supervisor_id) || ''),
         zone_name: String(normalizeNullString(group.zone_name) || ''),
+        zone_id: String(normalizeNullString(group.zone_id) || ''),
         meeting_day: String(normalizeNullString(group.meeting_day) || ''),
         meeting_time: String(normalizeNullString(group.meeting_time) || ''),
         meeting_location: String(normalizeNullString(group.meeting_location) || ''),
@@ -536,7 +539,7 @@ const GroupManagement = () => {
               </DialogHeader>
 
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="group_name">Nombre del Grupo *</Label>
                     <Input
@@ -557,9 +560,9 @@ const GroupManagement = () => {
                         <SelectValue placeholder="Seleccionar zona" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ZONES.map(zone => (
-                          <SelectItem key={zone} value={zone}>
-                            {zone}
+                        {zones.map(z => (
+                          <SelectItem key={z.id} value={z.name}>
+                            {z.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -567,7 +570,7 @@ const GroupManagement = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="leader_id">Líder *</Label>
                     <Select
@@ -611,7 +614,7 @@ const GroupManagement = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="meeting_day">Día de Reunión</Label>
                     <Select
@@ -710,9 +713,9 @@ const GroupManagement = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas las zonas</SelectItem>
-              {ZONES.map(zone => (
-                <SelectItem key={zone} value={zone}>
-                  {zone}
+              {zones.map(zone => (
+                <SelectItem key={zone.id} value={zone.name}>
+                  {zone.name}
                 </SelectItem>
               ))}
             </SelectContent>

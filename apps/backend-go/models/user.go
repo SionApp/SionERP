@@ -14,7 +14,7 @@ type User struct {
 	Phone            string     `json:"phone" db:"phone"`
 	Address          string     `json:"address" db:"address"`
 	BirthDate        *string    `json:"birth_date" db:"birth_date"`
-	BaptismDate      *time.Time  `json:"baptism_date" db:"baptism_date"`
+	BaptismDate      *time.Time `json:"baptism_date" db:"baptism_date"`
 	Baptized         bool       `json:"baptized" db:"baptized"`
 	Role             string     `json:"role" db:"role"`
 	WhatsApp         bool       `json:"whatsapp" db:"whatsapp"`
@@ -34,11 +34,12 @@ type User struct {
 	IsActiveMember   bool       `json:"is_active_member" db:"is_active_member"`
 	MembershipDate   *string    `json:"membership_date" db:"membership_date"`
 
-	Territory         *string `json:"territory" db:"territory"`
-	ZoneName          *string `json:"zone_name" db:"zone_name"`
-	ActiveGroupsCount *int    `json:"active_groups_count" db:"active_groups_count"`
-	DiscipleshipLevel *int    `json:"discipleship_level" db:"discipleship_level"`
-	EmergencyContactName *string `json:"emergency_contact_name" db:"emergency_contact_name"`
+	ZoneID                *string `json:"zone_id" db:"zone_id"`
+	Territory             *string `json:"territory" db:"territory"`
+	ZoneName              *string `json:"zone_name" db:"zone_name"`
+	ActiveGroupsCount     *int    `json:"active_groups_count" db:"active_groups_count"`
+	DiscipleshipLevel     *int    `json:"discipleship_level" db:"discipleship_level"`
+	EmergencyContactName  *string `json:"emergency_contact_name" db:"emergency_contact_name"`
 	EmergencyContactPhone *string `json:"emergency_contact_phone" db:"emergency_contact_phone"`
 
 	// Invitation status (from LEFT JOIN with user_invitations)
@@ -50,8 +51,7 @@ type UpdateUserRequest struct {
 	LastName  *string `json:"last_name,omitempty" validate:"omitempty,min=2"`
 	Phone     *string `json:"phone,omitempty" validate:"omitempty,min=10"`
 	Address   *string `json:"address,omitempty" validate:"omitempty,min=5"`
-	IdNumber *string `json:"id_number,omitempty" db:"id_number"`
-
+	IdNumber  *string `json:"id_number,omitempty" db:"id_number"`
 
 	// Extended fields
 	BirthDate        *string `json:"birth_date,omitempty"`
@@ -65,23 +65,24 @@ type UpdateUserRequest struct {
 	// Church membership
 	Baptized       *bool      `json:"baptized,omitempty"`
 	BaptismDate    *time.Time `json:"baptism_date,omitempty"`
-	IsActiveMember *bool   `json:"is_active_member,omitempty"`
-	MembershipDate *string `json:"membership_date,omitempty"`
+	IsActiveMember *bool      `json:"is_active_member,omitempty"`
+	MembershipDate *string    `json:"membership_date,omitempty"`
 
 	// Cell group
 	CellGroup *string `json:"cell_group,omitempty"`
 
 	// Preferences
-	WhatsApp      *bool   `json:"whatsapp,omitempty"`
-	PastoralNotes *string `json:"pastoral_notes,omitempty"`
-	EmergencyContactName *string `json:"emergency_contact_name,omitempty"`
+	WhatsApp              *bool   `json:"whatsapp,omitempty"`
+	PastoralNotes         *string `json:"pastoral_notes,omitempty"`
+	EmergencyContactName  *string `json:"emergency_contact_name,omitempty"`
 	EmergencyContactPhone *string `json:"emergency_contact_phone,omitempty"`
 
 	// Territory
-	Territory *string `json:"territory,omitempty"`
-	ZoneName *string `json:"zone_name,omitempty"`
-	ActiveGroupsCount *int `json:"active_groups_count,omitempty"`
-	DiscipleshipLevel *int `json:"discipleship_level,omitempty"`
+	Territory         *string `json:"territory,omitempty"`
+	ZoneName          *string `json:"zone_name,omitempty"`
+	ZoneID            *string `json:"zone_id,omitempty"`
+	ActiveGroupsCount *int    `json:"active_groups_count,omitempty"`
+	DiscipleshipLevel *int    `json:"discipleship_level,omitempty"`
 
 	// Role
 	Role *string `json:"role,omitempty"`

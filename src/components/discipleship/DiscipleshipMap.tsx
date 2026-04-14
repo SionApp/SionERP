@@ -1,3 +1,4 @@
+import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -61,7 +62,7 @@ const borderLayer: LayerProps = {
   },
 };
 
-const selectedBorderLayer: LayerProps = {
+const selectedBorderLayer: React.ComponentProps<typeof Layer> = {
   id: 'zones-selected-border',
   type: 'line',
   filter: ['==', ['get', 'zoneId'], ''],
@@ -249,7 +250,7 @@ export default function DiscipleshipMap({
     }
   };
 
-  const selectedBorder = useMemo<LayerProps>(() => {
+  const selectedBorder = useMemo<React.ComponentProps<typeof Layer>>(() => {
     return {
       ...selectedBorderLayer,
       filter: ['==', ['get', 'zoneId'], internalSelectedZoneId ?? ''],
