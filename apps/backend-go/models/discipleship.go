@@ -10,23 +10,23 @@ import (
 // =====================================================
 
 type DiscipleshipGroup struct {
-	ID              string         `json:"id"`
-	GroupName       string         `json:"group_name"`
-	LeaderID        string         `json:"leader_id"`
-	SupervisorID    sql.NullString `json:"supervisor_id"`
-	ZoneID          sql.NullString `json:"zone_id" db:"zone_id"`
-	ZoneName        sql.NullString `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
-	MeetingDay      sql.NullString `json:"meeting_day"`
-	MeetingTime     sql.NullString `json:"meeting_time"`
-	MeetingLocation sql.NullString `json:"meeting_location"`
-	MeetingAddress  sql.NullString `json:"meeting_address"`
+	ID              string          `json:"id"`
+	GroupName       string          `json:"group_name"`
+	LeaderID        string          `json:"leader_id"`
+	SupervisorID    sql.NullString  `json:"supervisor_id"`
+	ZoneID          sql.NullString  `json:"zone_id" db:"zone_id"`
+	ZoneName        sql.NullString  `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
+	MeetingDay      sql.NullString  `json:"meeting_day"`
+	MeetingTime     sql.NullString  `json:"meeting_time"`
+	MeetingLocation sql.NullString  `json:"meeting_location"`
+	MeetingAddress  sql.NullString  `json:"meeting_address"`
 	Latitude        sql.NullFloat64 `json:"latitude"`
 	Longitude       sql.NullFloat64 `json:"longitude"`
-	MemberCount     int            `json:"member_count"`
-	ActiveMembers   int            `json:"active_members"`
-	Status          string         `json:"status"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	MemberCount     int             `json:"member_count"`
+	ActiveMembers   int             `json:"active_members"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 type DiscipleshipGroupWithDetails struct {
@@ -50,20 +50,20 @@ type CreateGroupRequest struct {
 }
 
 type UpdateGroupRequest struct {
-	GroupName       *string   `json:"group_name,omitempty"`
-	LeaderID        *string   `json:"leader_id,omitempty"`
-	SupervisorID    *string   `json:"supervisor_id,omitempty"`
-	ZoneID          *string   `json:"zone_id,omitempty" validate:"omitempty,uuid"`
-	ZoneName        *string   `json:"zone_name,omitempty"` // Deprecated: usar zone_id
-	MeetingDay      *string   `json:"meeting_day,omitempty"`
-	MeetingTime     *string   `json:"meeting_time,omitempty"`
-	MeetingLocation *string   `json:"meeting_location,omitempty"`
-	MeetingAddress  *string   `json:"meeting_address,omitempty"`
-	Latitude        *float64  `json:"latitude,omitempty"`
-	Longitude       *float64  `json:"longitude,omitempty"`
-	MemberCount     *int      `json:"member_count,omitempty"`
-	ActiveMembers   *int      `json:"active_members,omitempty"`
-	Status          *string   `json:"status,omitempty"`
+	GroupName       *string  `json:"group_name,omitempty"`
+	LeaderID        *string  `json:"leader_id,omitempty"`
+	SupervisorID    *string  `json:"supervisor_id,omitempty"`
+	ZoneID          *string  `json:"zone_id,omitempty" validate:"omitempty,uuid"`
+	ZoneName        *string  `json:"zone_name,omitempty"` // Deprecated: usar zone_id
+	MeetingDay      *string  `json:"meeting_day,omitempty"`
+	MeetingTime     *string  `json:"meeting_time,omitempty"`
+	MeetingLocation *string  `json:"meeting_location,omitempty"`
+	MeetingAddress  *string  `json:"meeting_address,omitempty"`
+	Latitude        *float64 `json:"latitude,omitempty"`
+	Longitude       *float64 `json:"longitude,omitempty"`
+	MemberCount     *int     `json:"member_count,omitempty"`
+	ActiveMembers   *int     `json:"active_members,omitempty"`
+	Status          *string  `json:"status,omitempty"`
 }
 
 // =====================================================
@@ -71,16 +71,16 @@ type UpdateGroupRequest struct {
 // =====================================================
 
 type DiscipleshipHierarchy struct {
-	ID                  string         `json:"id"`
-	UserID              string         `json:"user_id"`
-	HierarchyLevel      int            `json:"hierarchy_level"`
-	SupervisorID        sql.NullString `json:"supervisor_id"`
-	ZoneID              sql.NullString `json:"zone_id" db:"zone_id"`
-	ZoneName            sql.NullString `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
-	Territory           sql.NullString `json:"territory"`
-	ActiveGroupsAssigned int           `json:"active_groups_assigned"`
-	CreatedAt           time.Time      `json:"created_at"`
-	UpdatedAt           time.Time      `json:"updated_at"`
+	ID                   string         `json:"id"`
+	UserID               string         `json:"user_id"`
+	HierarchyLevel       int            `json:"hierarchy_level"`
+	SupervisorID         sql.NullString `json:"supervisor_id"`
+	ZoneID               sql.NullString `json:"zone_id" db:"zone_id"`
+	ZoneName             sql.NullString `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
+	Territory            sql.NullString `json:"territory"`
+	ActiveGroupsAssigned int            `json:"active_groups_assigned"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
 }
 
 type HierarchyWithUser struct {
@@ -243,7 +243,6 @@ type DiscipleshipAnalytics struct {
 	PendingAlerts     int     `json:"pending_alerts"`
 }
 
-
 type GroupPerformance struct {
 	GroupID        string  `json:"group_id"`
 	GroupName      string  `json:"group_name"`
@@ -276,4 +275,100 @@ type PaginatedResponse struct {
 	Page       int         `json:"page"`
 	Limit      int         `json:"limit"`
 	TotalPages int         `json:"total_pages"`
+}
+
+// =====================================================
+// NIVELES DE DISCIPULADO
+// =====================================================
+
+type DiscipleshipLevel struct {
+	ID          string `json:"id" db:"id"`
+	Name        string `json:"name" db:"name"`
+	Description string `json:"description" db:"description"`
+	Icon        string `json:"icon" db:"icon"`
+	Color       string `json:"color" db:"color"`
+	OrderIndex  int    `json:"order_index" db:"order_index"`
+	IsActive    bool   `json:"is_active" db:"is_active"`
+	CreatedAt   string `json:"created_at" db:"created_at"`
+	UpdatedAt   string `json:"updated_at" db:"updated_at"`
+}
+
+type CreateDiscipleshipLevelRequest struct {
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description,omitempty"`
+	Icon        string `json:"icon,omitempty"`
+	Color       string `json:"color,omitempty"`
+	OrderIndex  int    `json:"order_index,omitempty"`
+}
+
+type UpdateDiscipleshipLevelRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
+	Color       *string `json:"color,omitempty"`
+	OrderIndex  *int    `json:"order_index,omitempty"`
+	IsActive    *bool   `json:"is_active,omitempty"`
+}
+
+// =====================================================
+// MIEMBROS DE GRUPO DE DISCIPULADO
+// =====================================================
+
+type GroupMember struct {
+	ID          string    `json:"id" db:"id"`
+	GroupID     string    `json:"group_id" db:"group_id"`
+	UserID      string    `json:"user_id" db:"user_id"`
+	RoleInGroup string    `json:"role_in_group" db:"role_in_group"`
+	IsActive    bool      `json:"is_active" db:"is_active"`
+	JoinedAt    time.Time `json:"joined_at" db:"joined_at"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
+
+type GroupMemberWithDetails struct {
+	GroupMember
+	UserName  string `json:"user_name" db:"user_name"`
+	UserEmail string `json:"user_email" db:"user_email"`
+}
+
+type AddGroupMemberRequest struct {
+	UserID      string `json:"user_id" validate:"required,uuid"`
+	RoleInGroup string `json:"role_in_group,omitempty"`
+}
+
+type UpdateGroupMemberRequest struct {
+	RoleInGroup *string `json:"role_in_group,omitempty"`
+	IsActive    *bool   `json:"is_active,omitempty"`
+}
+
+// =====================================================
+// ASISTENCIA A REUNIONES DE DISCIPULADO
+// =====================================================
+
+type Attendance struct {
+	ID             string    `json:"id" db:"id"`
+	GroupID        string    `json:"group_id" db:"group_id"`
+	UserID         string    `json:"user_id" db:"user_id"`
+	MeetingDate    string    `json:"meeting_date" db:"meeting_date"`
+	Present        bool      `json:"present" db:"present"`
+	AttendanceType string    `json:"attendance_type" db:"attendance_type"`
+	Notes          string    `json:"notes" db:"notes"`
+	CreatedAt      time.Time `json:"created_at" db:"created_at"`
+}
+
+type AttendanceWithDetails struct {
+	Attendance
+	UserName string `json:"user_name" db:"user_name"`
+}
+
+type RecordAttendanceRequest struct {
+	UserID         string `json:"user_id" validate:"required,uuid"`
+	Present        bool   `json:"present"`
+	AttendanceType string `json:"attendance_type,omitempty"`
+	Notes          string `json:"notes,omitempty"`
+}
+
+type BulkAttendanceRequest struct {
+	MeetingDate string                    `json:"meeting_date" validate:"required"`
+	Attendance  []RecordAttendanceRequest `json:"attendance" validate:"required"`
 }
