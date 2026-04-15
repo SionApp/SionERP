@@ -30,9 +30,22 @@ import {
   type GeolocationResult,
   type TypeGeolocalization,
 } from '@/components/ui/geolocation-input';
-import { Calendar, Edit, Loader2, MapPin, Plus, Search, Trash2, Users } from 'lucide-react';
+import {
+  Calendar,
+  ChevronLeft,
+  Edit,
+  Loader2,
+  MapPin,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  UserCog,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+
+import { GroupMembers } from './GroupMembers';
 
 const getNumericCoord = (val: number | TypeGeolocalization | undefined): number | undefined => {
   if (val === undefined || val === null) return undefined;
@@ -78,6 +91,7 @@ const GroupManagement = () => {
   const [filterZone, setFilterZone] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isFiltering, setIsFiltering] = useState(false);
+  const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<CreateGroupRequest>({
@@ -397,7 +411,10 @@ const GroupManagement = () => {
 
   // Acciones para cada grupo
   const groupActions = (group: DiscipleshipGroup) => (
-    <div className="flex justify-end gap-2">
+    <div className="flex justify-end gap-1">
+      <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(group.id)}>
+        <UserCog className="w-4 h-4" />
+      </Button>
       <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(group)}>
         <Edit className="w-4 h-4" />
       </Button>
@@ -745,6 +762,21 @@ const GroupManagement = () => {
           searchable={false}
           mobileCardRender={mobileCardRender}
         />
+
+        {selectedGroupForMembers && (
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(null)}>
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Volver a grupos
+              </Button>
+            </div>
+            <GroupMembers
+              groupId={selectedGroupForMembers}
+              groupName={groups.find(g => g.id === selectedGroupForMembers)?.group_name || ''}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -111,6 +111,25 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.POST("/hierarchy", discipleshipHandler.AssignHierarchy)
 		discipleship.GET("/hierarchy/:id/subordinates", discipleshipHandler.GetSubordinates)
 
+		// Niveles de Discipulado
+		discipleship.GET("/levels", discipleshipHandler.GetDiscipleshipLevels)
+		discipleship.GET("/levels/:id", discipleshipHandler.GetDiscipleshipLevel)
+		discipleship.POST("/levels", discipleshipHandler.CreateDiscipleshipLevel)
+		discipleship.PUT("/levels/:id", discipleshipHandler.UpdateDiscipleshipLevel)
+		discipleship.DELETE("/levels/:id", discipleshipHandler.DeleteDiscipleshipLevel)
+
+		// Miembros de Grupo - rutas específicas primero para evitar conflicto con :id
+		discipleship.GET("/groups/:id/members", discipleshipHandler.GetGroupMembers)
+		discipleship.POST("/groups/:id/members", discipleshipHandler.AddGroupMember)
+		discipleship.PUT("/members/:memberId", discipleshipHandler.UpdateGroupMember)
+		discipleship.DELETE("/members/:memberId", discipleshipHandler.RemoveGroupMember)
+
+		// Asistencia - rutas específicas primero
+		discipleship.GET("/groups/:id/attendance", discipleshipHandler.GetGroupAttendance)
+		discipleship.POST("/groups/:id/attendance", discipleshipHandler.RecordAttendance)
+		discipleship.POST("/groups/:id/attendance/bulk", discipleshipHandler.BulkRecordAttendance)
+		discipleship.GET("/attendance/stats/:userId", discipleshipHandler.GetMemberAttendanceStats)
+
 		// Analytics
 		discipleship.GET("/analytics", discipleshipHandler.GetAnalytics)
 		discipleship.GET("/analytics/zones", discipleshipHandler.GetZoneStats)
@@ -149,13 +168,15 @@ func SetupRoutes(e *echo.Echo) {
 	{
 		zones.GET("", zonesHandler.GetZones)
 		zones.GET("/map", zonesHandler.GetMapData)
-		zones.GET("/:id", zonesHandler.GetZone)
-		zones.POST("", zonesHandler.CreateZone)
-		zones.PUT("/:id", zonesHandler.UpdateZone)
-		zones.DELETE("/:id", zonesHandler.DeleteZone)
+		// Rutas específicas primero para evitar conflicto con :id
 		zones.GET("/:id/stats", zonesHandler.GetZoneStats)
 		zones.GET("/:id/groups", zonesHandler.GetZoneGroups)
 		zones.PUT("/:id/groups/:groupId", zonesHandler.AssignGroupToZone)
 		zones.PUT("/:id/users/:userId", zonesHandler.AssignUserToZone)
+		// Ruta genérica al final
+		zones.GET("/:id", zonesHandler.GetZone)
+		zones.POST("", zonesHandler.CreateZone)
+		zones.PUT("/:id", zonesHandler.UpdateZone)
+		zones.DELETE("/:id", zonesHandler.DeleteZone)
 	}
 }

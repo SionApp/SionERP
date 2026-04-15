@@ -21,12 +21,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import { UserPlus, Search, MapPin, Users, Crown, Shield, Check, Loader2 } from 'lucide-react';
+import { UserPlus, Search, MapPin, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useZones } from '@/hooks/useZones';
+import { useDiscipleshipLevels } from '@/hooks/useDiscipleshipLevels';
 import { ApiService } from '@/services/api.service';
 import { ZonesService } from '@/services/zones.service';
 import { normalizeNullString } from '@/lib/utils';
+import { getDiscipleshipLevelConfig } from '@/lib/discipleship';
 
 interface AssignmentUser {
   id: string;
@@ -50,13 +52,14 @@ interface UserZoneAssignmentProps {
 
 const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment }) => {
   const { zones, loading: zonesLoading } = useZones();
+  const { levels: discipleshipLevels, loading: levelsLoading } = useDiscipleshipLevels({
+    autoLoad: true,
+  });
   const [users, setUsers] = useState<AssignmentUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedZone, setSelectedZone] = useState('all');
-  const [selectedRole, setSelectedRole] = useState<'keep' | 'supervisor' | 'server' | 'member'>(
-    'keep'
-  );
+  const [selectedRole, setSelectedRole] = useState<string>('keep');
   const [selectedUser, setSelectedUser] = useState<AssignmentUser | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [assignZoneId, setAssignZoneId] = useState<string | undefined>(undefined);
@@ -128,15 +131,19 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
     return result;
   }, [users, searchTerm, selectedZone]);
 
-  const handleAssignToZone = async (user: AssignmentUser, zoneId: string, newRole?: string) => {
+  const handleAssignToZone = async (user: AssignmentUser, zoneId: string) => {
     if (!assignZoneId) return;
+
+    const levelId = selectedRole === 'keep' ? undefined : selectedRole;
+    const level = levelId ? discipleshipLevels.find(l => l.id === levelId) : undefined;
+    const levelIndex = level ? level.order_index : undefined;
 
     try {
       setAssigning(true);
-      await ZonesService.assignUserToZone(zoneId, user.id);
+      await ZonesService.assignUserToZone(zoneId, user.id, levelIndex);
       const zone = zones.find(z => z.id === zoneId);
       toast.success(`${user.full_name} asignado a ${zone?.name || 'la zona'}`);
-      onAssignment?.(user.id, zoneId, newRole);
+      onAssignment?.(user.id, zoneId, levelId);
       setIsDialogOpen(false);
       setSelectedUser(null);
       setAssignZoneId(undefined);
@@ -158,16 +165,8 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
     setIsDialogOpen(true);
   };
 
-  const getRoleBadge = (role: string) => {
-    const roleConfig = {
-      pastor: { label: 'Pastor', icon: Crown, variant: 'default' as const },
-      staff: { label: 'Staff', icon: Shield, variant: 'secondary' as const },
-      supervisor: { label: 'Supervisor', icon: Shield, variant: 'outline' as const },
-      server: { label: 'Servidor', icon: Users, variant: 'outline' as const },
-      member: { label: 'Miembro', icon: Users, variant: 'secondary' as const },
-    };
-
-    const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.member;
+  const getRoleBadge = (discipleshipLevel?: number) => {
+    const config = getDiscipleshipLevelConfig(discipleshipLevel);
     const Icon = config.icon;
 
     return (
@@ -219,10 +218,10 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
     {
       key: 'role',
       label: 'Rol',
-      render: user => getRoleBadge(user.role),
+      render: user => getRoleBadge(user.discipleship_level),
     },
     {
-      key: 'zone',
+      key: 'zone_name',
       label: 'Zona',
       render: user => {
         if (user.zone_id || user.zone_name) {
@@ -236,7 +235,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
       label: 'Teléfono',
     },
     {
-      key: 'actions',
+      key: 'id',
       label: 'Acciones',
       render: user => (
         <Button
@@ -272,7 +271,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
         </div>
       </div>
       <div className="flex flex-wrap gap-2 mb-3">
-        {getRoleBadge(user.role)}
+        {getRoleBadge(user.discipleship_level)}
         {user.zone_id || user.zone_name ? (
           getZoneBadge(user.zone_id, user.zone_name)
         ) : (
@@ -292,7 +291,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
     </div>
   );
 
-  if (loadingUsers || zonesLoading) {
+  if (loadingUsers || zonesLoading || levelsLoading) {
     return (
       <Card>
         <CardHeader>
@@ -411,21 +410,24 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="assign-role">Rol (opcional)</Label>
-                <Select
-                  value={selectedRole}
-                  onValueChange={v =>
-                    setSelectedRole(v as 'keep' | 'supervisor' | 'server' | 'member')
-                  }
-                >
+                <Label htmlFor="assign-role">Nivel de Discipulado (opcional)</Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Mantener rol actual" />
+                    <SelectValue placeholder="Mantener nivel actual" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="keep">Mantener rol actual</SelectItem>
-                    <SelectItem value="supervisor">Supervisor</SelectItem>
-                    <SelectItem value="server">Servidor</SelectItem>
-                    <SelectItem value="member">Miembro</SelectItem>
+                    <SelectItem value="keep">Mantener nivel actual</SelectItem>
+                    {discipleshipLevels.map(level => (
+                      <SelectItem key={level.id} value={level.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: level.color }}
+                          />
+                          {level.name}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -444,13 +446,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
                 </Button>
                 <Button
                   onClick={() =>
-                    selectedUser &&
-                    assignZoneId &&
-                    handleAssignToZone(
-                      selectedUser,
-                      assignZoneId,
-                      selectedRole === 'keep' ? undefined : selectedRole
-                    )
+                    selectedUser && assignZoneId && handleAssignToZone(selectedUser, assignZoneId)
                   }
                   disabled={!assignZoneId || assigning}
                 >
