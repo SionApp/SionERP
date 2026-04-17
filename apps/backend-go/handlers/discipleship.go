@@ -538,8 +538,9 @@ func (h *DiscipleshipHandler) CreateGroup(c echo.Context) error {
 func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 	groupID := c.Param("id")
 
-	var req models.UpdateGroupRequest
-	if err := c.Bind(&req); err != nil {
+	// Leer el body como map para evitar problemas con omitempty
+	var body map[string]interface{}
+	if err := c.Bind(&body); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "Datos inválidos",
 		})
@@ -550,21 +551,27 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		return err
 	}
 
-	// Determinar zone_id si viene en el request
+	// Crear punteros a strings desde el body para compatibilidad con el código existente
+	getStringPtr := func(key string) *string {
+		if val, ok := body[key].(string); ok {
+			return &val
+		}
+		return nil
+	}
+
+	// Determinar zone_id
 	var zoneID interface{}
-	if req.ZoneID != nil && *req.ZoneID != "" {
-		zoneID = *req.ZoneID
-	} else if req.ZoneName != nil && *req.ZoneName != "" {
-		// Compatibilidad: buscar zona por nombre
+	zoneIDStr := getStringPtr("zone_id")
+	zoneNameStr := getStringPtr("zone_name")
+
+	if zoneIDStr != nil && *zoneIDStr != "" {
+		zoneID = *zoneIDStr
+	} else if zoneNameStr != nil && *zoneNameStr != "" {
 		var foundZoneID string
-		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", *req.ZoneName).Scan(&foundZoneID)
+		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", *zoneNameStr).Scan(&foundZoneID)
 		if err == nil {
 			zoneID = foundZoneID
-		} else {
-			zoneID = nil
 		}
-	} else {
-		zoneID = nil
 	}
 
 	// Construir query dinámico
@@ -572,74 +579,65 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 	args := []interface{}{}
 	argCount := 0
 
-	if req.GroupName != nil {
-		argCount++
-		query += fmt.Sprintf(", group_name = $%d", argCount)
-		args = append(args, *req.GroupName)
+	// Helper para agregar campo si existe
+	addField := func(fieldName string, jsonKey string) {
+		if val, ok := body[jsonKey]; ok && val != nil {
+			// Verificar que no sea string vacío
+			if strVal, isStr := val.(string); isStr && strVal == "" {
+				return
+			}
+			argCount++
+			query += fmt.Sprintf(", %s = $%d", fieldName, argCount)
+			args = append(args, val)
+		}
 	}
-	if req.LeaderID != nil {
+
+	addField("group_name", "group_name")
+	addField("leader_id", "leader_id")
+	addField("supervisor_id", "supervisor_id")
+	addField("meeting_day", "meeting_day")
+	addField("meeting_time", "meeting_time")
+	addField("meeting_location", "meeting_location")
+
+	// MeetingAddress especial: vacío = NULL
+	if val, ok := body["meeting_address"]; ok {
 		argCount++
-		query += fmt.Sprintf(", leader_id = $%d", argCount)
-		args = append(args, *req.LeaderID)
+		if strVal, isStr := val.(string); isStr && strVal == "" {
+			query += fmt.Sprintf(", meeting_address = $%d", argCount)
+			args = append(args, nil)
+		} else if val != nil {
+			query += fmt.Sprintf(", meeting_address = $%d", argCount)
+			args = append(args, val)
+		}
 	}
-	if req.SupervisorID != nil {
-		argCount++
-		query += fmt.Sprintf(", supervisor_id = $%d", argCount)
-		args = append(args, *req.SupervisorID)
+
+	// Latitude y Longitude
+	if val, ok := body["latitude"]; ok && val != nil {
+		if floatVal, isFloat := val.(float64); isFloat {
+			argCount++
+			query += fmt.Sprintf(", latitude = $%d", argCount)
+			args = append(args, floatVal)
+		}
 	}
-	if zoneID != nil || (req.ZoneID != nil && *req.ZoneID == "") {
-		// Actualizar zone_id si viene en el request (incluso si es NULL para eliminar)
+	if val, ok := body["longitude"]; ok && val != nil {
+		if floatVal, isFloat := val.(float64); isFloat {
+			argCount++
+			query += fmt.Sprintf(", longitude = $%d", argCount)
+			args = append(args, floatVal)
+		}
+	}
+
+	// Status
+	addField("status", "status")
+
+	// Zone ID especial
+	if zoneID != nil || (body["zone_id"] != nil && body["zone_id"] == "") {
 		argCount++
 		query += fmt.Sprintf(", zone_id = $%d", argCount)
 		args = append(args, zoneID)
 	}
-	if req.MeetingDay != nil {
-		argCount++
-		query += fmt.Sprintf(", meeting_day = $%d", argCount)
-		args = append(args, *req.MeetingDay)
-	}
-	if req.MeetingTime != nil {
-		argCount++
-		query += fmt.Sprintf(", meeting_time = $%d", argCount)
-		args = append(args, *req.MeetingTime)
-	}
-	if req.MeetingLocation != nil {
-		argCount++
-		query += fmt.Sprintf(", meeting_location = $%d", argCount)
-		args = append(args, *req.MeetingLocation)
-	}
-	if req.MeetingAddress != nil {
-		argCount++
-		query += fmt.Sprintf(", meeting_address = $%d", argCount)
-		if *req.MeetingAddress == "" {
-			args = append(args, nil)
-		} else {
-			args = append(args, *req.MeetingAddress)
-		}
-	}
-	if req.Latitude != nil {
-		argCount++
-		query += fmt.Sprintf(", latitude = $%d", argCount)
-		args = append(args, *req.Latitude)
-	}
-	if req.Longitude != nil {
-		argCount++
-		query += fmt.Sprintf(", longitude = $%d", argCount)
-		args = append(args, *req.Longitude)
-	}
-	if req.MemberCount != nil {
-		argCount++
-		query += fmt.Sprintf(", member_count = $%d", argCount)
-		args = append(args, *req.MemberCount)
-	}
-	if req.Status != nil {
-		argCount++
-		query += fmt.Sprintf(", status = $%d", argCount)
-		args = append(args, *req.Status)
-	}
 
-	argCount++
-	query += fmt.Sprintf(" WHERE id = $%d", argCount)
+	query += fmt.Sprintf(" WHERE id = $%d", argCount+1)
 	args = append(args, groupID)
 
 	result, err := db.DB.Exec(query, args...)
@@ -678,21 +676,25 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		zoneID = currentGroup.ZoneID.String
 	}
 
+	// Reobtener punteros después de actualizar
+	reqLeaderID := getStringPtr("leader_id")
+	reqSupervisorID := getStringPtr("supervisor_id")
+
 	if err == nil {
 		// 1. Asignar jerarquía al nuevo LÍDER si se cambió
-		if req.LeaderID != nil {
+		if reqLeaderID != nil {
 			var existingLevel sql.NullInt64
 			err = db.DB.QueryRow(`
 				SELECT hierarchy_level 
 				FROM discipleship_hierarchy 
 				WHERE user_id = $1
-			`, *req.LeaderID).Scan(&existingLevel)
+			`, *reqLeaderID).Scan(&existingLevel)
 
 			if err == sql.ErrNoRows {
 				// No tiene jerarquía, crear con nivel 1 (Líder)
 				var supervisorIDForLeader interface{}
-				if req.SupervisorID != nil && *req.SupervisorID != "" {
-					supervisorIDForLeader = *req.SupervisorID
+				if reqSupervisorID != nil && *reqSupervisorID != "" {
+					supervisorIDForLeader = *reqSupervisorID
 				} else if currentGroup.SupervisorID.Valid {
 					supervisorIDForLeader = currentGroup.SupervisorID.String
 				} else {
@@ -704,7 +706,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 					INSERT INTO discipleship_hierarchy (
 						user_id, hierarchy_level, supervisor_id, zone_id, active_groups_assigned
 					) VALUES ($1, 1, $2, $3, 1)
-				`, *req.LeaderID, supervisorIDForLeader, zoneID)
+				`, *reqLeaderID, supervisorIDForLeader, zoneID)
 				if err != nil {
 					c.Logger().Error("Error assigning hierarchy to new leader:", err)
 				}
@@ -716,13 +718,13 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 						zone_id = $1,
 						updated_at = NOW()
 					WHERE id = $2
-				`, zoneID, *req.LeaderID)
+				`, zoneID, *reqLeaderID)
 			} else if err == nil && existingLevel.Valid {
 				// Ya tiene jerarquía, actualizar si es menor a 1
 				if existingLevel.Int64 < 1 {
 					var supervisorIDForLeader interface{}
-					if req.SupervisorID != nil && *req.SupervisorID != "" {
-						supervisorIDForLeader = *req.SupervisorID
+					if reqSupervisorID != nil && *reqSupervisorID != "" {
+						supervisorIDForLeader = *reqSupervisorID
 					} else if currentGroup.SupervisorID.Valid {
 						supervisorIDForLeader = currentGroup.SupervisorID.String
 					} else {
@@ -738,19 +740,19 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 							active_groups_assigned = active_groups_assigned + 1,
 							updated_at = NOW()
 						WHERE user_id = $3
-					`, supervisorIDForLeader, zoneID, *req.LeaderID)
+					`, supervisorIDForLeader, zoneID, *reqLeaderID)
 				}
 			}
 		}
 
 		// 2. Asignar jerarquía al nuevo SUPERVISOR si se cambió
-		if req.SupervisorID != nil {
+		if reqSupervisorID != nil {
 			var existingLevel sql.NullInt64
 			err = db.DB.QueryRow(`
 				SELECT hierarchy_level 
 				FROM discipleship_hierarchy 
 				WHERE user_id = $1
-			`, *req.SupervisorID).Scan(&existingLevel)
+			`, *reqSupervisorID).Scan(&existingLevel)
 
 			if err == sql.ErrNoRows {
 				// No tiene jerarquía, crear con nivel 2 (Supervisor Auxiliar)
@@ -759,7 +761,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 					INSERT INTO discipleship_hierarchy (
 						user_id, hierarchy_level, zone_id, active_groups_assigned
 					) VALUES ($1, 2, $2, 1)
-				`, *req.SupervisorID, zoneID)
+				`, *reqSupervisorID, zoneID)
 				if err != nil {
 					c.Logger().Error("Error assigning hierarchy to new supervisor:", err)
 				}
@@ -771,7 +773,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 						zone_id = $1,
 						updated_at = NOW()
 					WHERE id = $2
-				`, zoneID, *req.SupervisorID)
+				`, zoneID, *reqSupervisorID)
 			} else if err == nil && existingLevel.Valid {
 				// Ya tiene jerarquía, actualizar solo si es menor a 2
 				if existingLevel.Int64 < 2 {
@@ -783,7 +785,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 							active_groups_assigned = active_groups_assigned + 1,
 							updated_at = NOW()
 						WHERE user_id = $2
-					`, zoneID, *req.SupervisorID)
+					`, zoneID, *reqSupervisorID)
 				}
 			}
 		}
