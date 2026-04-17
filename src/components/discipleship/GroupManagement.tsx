@@ -251,10 +251,15 @@ const GroupManagement = () => {
 
     try {
       setSaving(true);
+      const matchedZone = zones.find(
+        z => z.name === formData.zone_name || z.id === formData.zone_name
+      );
 
       // Preparar datos con geolocalización
       const submitData: CreateGroupRequest = {
         ...formData,
+        zone_id: matchedZone?.id || undefined,
+        zone_name: matchedZone?.name || formData.zone_name || '',
         meeting_address: geolocation?.address || formData.meeting_address || '',
         latitude: getNumericCoord(geolocation?.latitude) || formData.latitude,
         longitude: getNumericCoord(geolocation?.longitude) || formData.longitude,

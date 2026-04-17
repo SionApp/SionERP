@@ -47,11 +47,13 @@ type User struct {
 }
 
 type UpdateUserRequest struct {
-	FirstName *string `json:"first_name,omitempty" validate:"omitempty,min=2"`
-	LastName  *string `json:"last_name,omitempty" validate:"omitempty,min=2"`
-	Phone     *string `json:"phone,omitempty" validate:"omitempty,min=10"`
-	Address   *string `json:"address,omitempty" validate:"omitempty,min=5"`
-	IdNumber  *string `json:"id_number,omitempty" db:"id_number"`
+	FirstName *string  `json:"first_name,omitempty" validate:"omitempty,min=2"`
+	LastName  *string  `json:"last_name,omitempty" validate:"omitempty,min=2"`
+	Phone     *string  `json:"phone,omitempty" validate:"omitempty,min=10"`
+	Address   *string  `json:"address,omitempty" validate:"omitempty,min=5"`
+	IdNumber  *string  `json:"id_number,omitempty" db:"id_number"`
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
 
 	// Extended fields
 	BirthDate        *string `json:"birth_date,omitempty"`
