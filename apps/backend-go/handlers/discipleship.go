@@ -596,7 +596,31 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 	addField("leader_id", "leader_id")
 	addField("supervisor_id", "supervisor_id")
 	addField("meeting_day", "meeting_day")
-	addField("meeting_time", "meeting_time")
+
+	// MeetingTime especial: parsear formato ISO8601 a time.Time
+	if val, ok := body["meeting_time"]; ok && val != nil {
+		if strVal, isStr := val.(string); isStr && strVal != "" {
+			var parsedTime time.Time
+			var parsed bool
+
+			// Intentar parsear el formato ISO8601
+			parsedTime, err := time.Parse(time.RFC3339, strVal)
+			if err != nil {
+				// Si falla, intentar con formato simple "HH:MM:SS"
+				parsedTime, err = time.Parse("15:04:05", strVal)
+			}
+			if err == nil {
+				parsed = true
+			}
+
+			if parsed {
+				argCount++
+				query += fmt.Sprintf(", meeting_time = $%d", argCount)
+				args = append(args, parsedTime.Format("15:04:05"))
+			}
+		}
+	}
+
 	addField("meeting_location", "meeting_location")
 
 	// MeetingAddress especial: vacío = NULL
@@ -1189,24 +1213,32 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 }
 
 // GetZoneStats obtiene estadísticas por zona
+// Una zona se considera activa si tiene al menos 1 grupo con status = 'active'
 func (h *DiscipleshipHandler) GetZoneStats(c echo.Context) error {
 	db, err := validateDB(c)
 	if err != nil {
 		return err
 	}
 
+	// Verificar que la tabla zones tenga datos
+	var zoneCount int
+	err = db.DB.QueryRow("SELECT COUNT(*) FROM zones").Scan(&zoneCount)
+	if err != nil {
+		c.Logger().Error("Error counting zones:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error counting zones"})
+	}
+	fmt.Println("Zones count:", zoneCount)
+
 	rows, err := db.DB.Query(`
 		SELECT 
-			COALESCE(z.id::text, '') as zone_id,
-			COALESCE(z.name, 'Sin zona') as zone_name,
-			COUNT(*) as total_groups,
-			COALESCE(SUM(g.member_count), 0) as total_members,
-			COALESCE(AVG(g.active_members::float / NULLIF(g.member_count, 0) * 100), 0) as avg_attendance
-		FROM discipleship_groups g
-		LEFT JOIN zones z ON g.zone_id = z.id
-		WHERE g.status = 'active'
-		GROUP BY z.id, z.name
-		ORDER BY total_groups DESC
+			z.id::text as zone_id,
+			z.name as zone_name,
+			(SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_groups,
+			(SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_members,
+			true as is_active,
+			0.0 as avg_attendance
+		FROM zones z
+		ORDER BY (SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') DESC
 	`)
 	if err != nil {
 		c.Logger().Error("Error fetching zone stats:", err)
@@ -1219,7 +1251,7 @@ func (h *DiscipleshipHandler) GetZoneStats(c echo.Context) error {
 	var stats []models.ZoneStats
 	for rows.Next() {
 		var s models.ZoneStats
-		err := rows.Scan(&s.ZoneID, &s.ZoneName, &s.TotalGroups, &s.TotalMembers, &s.AvgAttendance)
+		err := rows.Scan(&s.ZoneID, &s.ZoneName, &s.TotalGroups, &s.TotalMembers, &s.IsActive, &s.AvgAttendance)
 		if err != nil {
 			c.Logger().Error("Error scanning zone stats:", err)
 			continue
