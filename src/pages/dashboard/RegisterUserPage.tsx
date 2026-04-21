@@ -10,6 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  GeolocationInput,
+  type GeolocationResult,
+  type TypeGeolocalization,
+} from '@/components/ui/geolocation-input';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { RegisterUserFormData, registerUserSchema } from '@/schemas/user.schemas';
@@ -23,10 +28,18 @@ import { useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+const getNumericCoord = (val: number | TypeGeolocalization | undefined): number | undefined => {
+  if (val === undefined || val === null) return undefined;
+  if (typeof val === 'number') return val;
+  if (typeof val === 'object' && 'Float64' in val) return val.Float64;
+  return undefined;
+};
+
 const RegisterUserPage = () => {
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [geolocation, setGeolocation] = useState<GeolocationResult | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -46,6 +59,21 @@ const RegisterUserPage = () => {
         const user = await UserService.getUserById(id);
         setEditingUser(user);
 
+        const userLatitude = getNumericCoord(
+          user.latitude as number | TypeGeolocalization | undefined
+        );
+        const userLongitude = getNumericCoord(
+          user.longitude as number | TypeGeolocalization | undefined
+        );
+
+        if (userLatitude !== undefined && userLongitude !== undefined) {
+          setGeolocation({
+            address: user.address || '',
+            latitude: userLatitude,
+            longitude: userLongitude,
+          });
+        }
+
         reset({
           email: user.email,
           first_name: user.first_name || '',
@@ -53,6 +81,8 @@ const RegisterUserPage = () => {
           id_number: user.id_number,
           phone: user.phone || '',
           address: user.address || '',
+          latitude: userLatitude,
+          longitude: userLongitude,
           role: user.role,
           birth_date: formatDateForInput(user.birth_date) || '',
           baptized: user.baptized || false,
@@ -135,11 +165,19 @@ const RegisterUserPage = () => {
   const onSubmit = async (data: RegisterUserFormData) => {
     try {
       setLoading(true);
+
+      const submitData = {
+        ...data,
+        latitude: getNumericCoord(geolocation?.latitude) || data.latitude,
+        longitude: getNumericCoord(geolocation?.longitude) || data.longitude,
+        address: geolocation?.address || data.address,
+      };
+
       if (isEditMode && editingUser) {
         // Modo edición
         const updateData = {
           id: editingUser.id,
-          ...data,
+          ...submitData,
         };
 
         await UserService.updateUser(updateData);
@@ -147,9 +185,10 @@ const RegisterUserPage = () => {
         navigate('/dashboard/users');
       } else {
         // Modo creación
-        await UserService.createUser(data as CreateUserData);
+        await UserService.createUser(submitData as CreateUserData);
         toast.success('Usuario creado exitosamente');
         reset();
+        setGeolocation(null);
         navigate('/dashboard/users');
       }
     } catch (error) {
@@ -254,11 +293,24 @@ const RegisterUserPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Dirección *</Label>
-                <Input id="address" {...register('address')} placeholder="Dirección completa" />
-                {errors.address && (
-                  <p className="text-sm text-destructive">{errors.address.message}</p>
-                )}
+                <Label>Dirección y Ubicación</Label>
+                <GeolocationInput
+                  value={geolocation || undefined}
+                  onChange={value => {
+                    setGeolocation(value);
+                    if (value) {
+                      setValue('address', value.address);
+                      setValue('latitude', getNumericCoord(value.latitude));
+                      setValue('longitude', getNumericCoord(value.longitude));
+                    }
+                  }}
+                  label="Ubicación en el mapa (opcional)"
+                  placeholder="Buscar dirección o seleccionar en el mapa..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Busca una dirección o haz click en el mapa para seleccionar la ubicación. Esto
+                  permite ver la persona en el mapa de zonas.
+                </p>
               </div>
             </div>
 

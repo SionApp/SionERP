@@ -539,3 +539,103 @@ export const HIERARCHY_LEVELS = {
 } as const;
 
 export type HierarchyLevel = keyof typeof HIERARCHY_LEVELS;
+
+// =====================================================
+// NIVELES DE DISCIPULADO (desde DB)
+// =====================================================
+
+export interface DiscipleshipLevel {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  order_index: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDiscipleshipLevelRequest {
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  order_index?: number;
+}
+
+export interface UpdateDiscipleshipLevelRequest {
+  name?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  order_index?: number;
+  is_active?: boolean;
+}
+
+// =====================================================
+// MIEMBROS DE GRUPO
+// =====================================================
+
+export interface GroupMember {
+  id: string;
+  group_id: string;
+  user_id: string;
+  role_in_group: string;
+  is_active: boolean;
+  joined_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupMemberWithDetails extends GroupMember {
+  user_name: string;
+  user_email: string;
+}
+
+export interface AddGroupMemberRequest {
+  user_id: string;
+  role_in_group?: string;
+}
+
+export interface UpdateGroupMemberRequest {
+  role_in_group?: string;
+  is_active?: boolean;
+}
+
+// =====================================================
+// ASISTENCIA
+// =====================================================
+
+export interface Attendance {
+  id: string;
+  group_id: string;
+  user_id: string;
+  meeting_date: string;
+  present: boolean;
+  attendance_type: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface AttendanceWithDetails extends Attendance {
+  user_name: string;
+}
+
+export interface RecordAttendanceRequest {
+  user_id: string;
+  present: boolean;
+  attendance_type?: string;
+  notes?: string;
+}
+
+export interface BulkAttendanceRequest {
+  meeting_date: string;
+  attendance: RecordAttendanceRequest[];
+}
+
+export interface MemberAttendanceStats {
+  total_meetings: number;
+  present_count: number;
+  attendance_percentage: number;
+}

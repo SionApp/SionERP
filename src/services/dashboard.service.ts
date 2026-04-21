@@ -32,7 +32,7 @@ export interface RecentActivity {
   action: string;
   user: string;
   time: string;
-  type: 'success' | 'warning' | 'info';
+  type: 'success' | 'warning' | 'info' | 'error' | 'danger';
   details?: Record<string, unknown>;
 }
 
