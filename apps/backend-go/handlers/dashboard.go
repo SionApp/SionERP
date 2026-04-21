@@ -201,16 +201,17 @@ func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]models.RoleDis
 }
 
 func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentActivity, error) {
+	// Usar LEFT JOIN para capturar registros donde changed_by es NULL (ej: seed data)
 	query := `
 		SELECT
 			a.id,
 			a.action,
 			a.table_name,
-			u.email as user_email,
-			u.first_name || ' ' || u.last_name as user_name,
+			COALESCE(u.email, 'Sistema') as user_email,
+			COALESCE(u.first_name || ' ' || u.last_name, 'Sistema') as user_name,
 			a.changed_at
 		FROM audit_logs a
-		JOIN users u ON a.changed_by = u.id
+		LEFT JOIN users u ON a.changed_by = u.id
 		ORDER BY a.changed_at DESC
 		LIMIT 10
 	`
@@ -233,14 +234,17 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentAct
 
 		timeAgo := formatTimeAgo(changedAt)
 
+		// Mapear tipos: Go usa "info", "success", "warning", "danger" / "error"
 		activityType := "info"
 		switch action {
-		case "INSERT":
+		case "INSERT", "create":
 			activityType = "success"
-		case "UPDATE":
+		case "UPDATE", "update", "edit":
 			activityType = "warning"
-		case "DELETE":
-			activityType = "danger"
+		case "DELETE", "delete", "remove":
+			activityType = "error"
+		default:
+			activityType = "info"
 		}
 		formattedAction := formatAction(action, tableName)
 		activities = append(activities, models.RecentActivity{

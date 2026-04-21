@@ -19,6 +19,7 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   Area,
   AreaChart,
@@ -37,14 +38,16 @@ import {
 } from 'recharts';
 
 interface DiscipleshipAnalyticsSectionProps {
-  discipleshipStats: DiscipleshipDashboardStats;
+  // Ya no necesita props ya que usa el hook directamente
+  discipleshipStats?: DiscipleshipDashboardStats;
 }
 
 export const DiscipleshipAnalyticsSection = ({
-  discipleshipStats,
+  discipleshipStats: _discipleshipStats,
 }: DiscipleshipAnalyticsSectionProps) => {
   const { analytics, zoneStats, groupPerformance, alerts, multiplications, weeklyTrends, loading } =
     useDiscipleshipAnalytics();
+  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -80,6 +83,10 @@ export const DiscipleshipAnalyticsSection = ({
     crecimiento: Math.max(0, zone.growthRate / 2),
   }));
 
+  const redirectTo = () => {
+    navigate('/dashboard/discipleship');
+  };
+
   return (
     <div className="space-y-8">
       {/* Header con resumen ejecutivo */}
@@ -87,9 +94,7 @@ export const DiscipleshipAnalyticsSection = ({
         <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
           Analytics de Discipulado
         </h2>
-        <p className="text-muted-foreground">
-          Trazabilidad completa del ministerio de células - Pastor David Martínez
-        </p>
+        <p className="text-muted-foreground">Trazabilidad completa del ministerio de células</p>
       </div>
 
       {/* Cards de métricas principales con efectos glassmorphism */}
@@ -97,7 +102,7 @@ export const DiscipleshipAnalyticsSection = ({
         {[
           {
             title: 'Grupos Activos',
-            value: discipleshipStats.totalGroups,
+            value: analytics.totalGroups,
             change: analytics.growthRate,
             icon: Users,
             color: 'from-blue-500 to-cyan-500',
@@ -105,24 +110,24 @@ export const DiscipleshipAnalyticsSection = ({
           },
           {
             title: 'Miembros Totales',
-            value: discipleshipStats.totalMembers,
-            change: discipleshipStats.monthlyGrowth,
+            value: analytics.totalMembers,
+            change: analytics.growthRate,
             icon: UserCheck,
             color: 'from-emerald-500 to-green-500',
             description: 'Personas en discipulado',
           },
           {
             title: 'Asistencia Promedio',
-            value: `${discipleshipStats.avgAttendance}%`,
-            change: 5.2,
+            value: `${Math.round(analytics.averageAttendance)}%`,
+            change: analytics.growthRate,
             icon: Activity,
             color: 'from-purple-500 to-pink-500',
             description: 'Consistencia semanal',
           },
           {
             title: 'Temperatura Espiritual',
-            value: `${discipleshipStats.spiritualHealth}/10`,
-            change: 0.8,
+            value: `${analytics.spiritualHealth.toFixed(1)}/10`,
+            change: analytics.spiritualHealth,
             icon: Heart,
             color: 'from-orange-500 to-red-500',
             description: 'Salud del ministerio',
@@ -287,13 +292,19 @@ export const DiscipleshipAnalyticsSection = ({
               className="h-[300px]"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={zoneStats}>
+                <BarChart data={zoneStats} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="zoneName" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis
+                    type="category"
+                    dataKey="zoneName"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    width={80}
+                  />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="groups" fill="hsl(var(--primary))" />
-                  <Bar dataKey="members" fill="hsl(220 70% 50%)" />
+                  <Bar dataKey="totalGroups" fill="hsl(var(--primary))" />
+                  <Bar dataKey="totalMembers" fill="hsl(220 70% 50%)" />
                   <Legend />
                 </BarChart>
               </ResponsiveContainer>
@@ -379,7 +390,7 @@ export const DiscipleshipAnalyticsSection = ({
               ))}
             </div>
 
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => redirectTo()}>
               <Calendar className="h-4 w-4 mr-2" />
               Ver Panel Completo de Discipulado
             </Button>

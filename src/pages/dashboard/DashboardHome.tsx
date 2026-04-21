@@ -207,7 +207,9 @@ const DashboardHome = () => {
                               ? 'bg-green-500'
                               : activity.type === 'warning'
                                 ? 'bg-orange-500'
-                                : 'bg-blue-500'
+                                : activity.type === 'error' || activity.type === 'danger'
+                                  ? 'bg-red-500'
+                                  : 'bg-blue-500'
                           } shadow-lg`}
                         ></div>
                         <div className="flex-1 min-w-0">
@@ -231,7 +233,7 @@ const DashboardHome = () => {
         {/* Sección de Analytics de Discipulado - Visible para Admin y Pastor Y si el módulo está instalado */}
         {['admin', 'pastor'].includes(currentUserRole || '') &&
           installedModules.includes('discipleship') && (
-            <DiscipleshipAnalyticsSection discipleshipStats={discipleshipStats} />
+            <DiscipleshipAnalyticsSection />
           )}
       </div>
 

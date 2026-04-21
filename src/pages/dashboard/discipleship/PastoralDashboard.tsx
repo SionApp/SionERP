@@ -77,7 +77,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
   // Usar hook compartido para evitar consultas duplicadas
   const { loading, stats, zoneStats, weeklyTrends, goals, alerts, pendingReports, refetch } =
     useDiscipleshipData({ level: 5 });
-  console.log(user, 'user');
+  console.log(zoneStats, 'zoneStats', user, 'users');
   const handleApproveReport = async (reportId: string) => {
     try {
       await DiscipleshipService.approveReport(reportId);
