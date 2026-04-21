@@ -85,8 +85,13 @@ export class ZonesService {
     return ApiService.put(`/zones/${zoneId}/groups/${groupId}`);
   }
 
-  static async assignUserToZone(zoneId: string, userId: string): Promise<{ message: string }> {
-    return ApiService.put(`/zones/${zoneId}/users/${userId}`);
+  static async assignUserToZone(
+    zoneId: string,
+    userId: string,
+    discipleshipLevel?: number
+  ): Promise<{ message: string }> {
+    const body = discipleshipLevel ? { discipleship_level: discipleshipLevel } : {};
+    return ApiService.put(`/zones/${zoneId}/users/${userId}`, body);
   }
 
   static async getAvailableSupervisors(): Promise<User[]> {
@@ -97,5 +102,7 @@ export class ZonesService {
     if (Array.isArray(response)) return response;
     if (response && typeof response === 'object' && 'users' in response)
       return response.users || [];
+
+    return [];
   }
 }

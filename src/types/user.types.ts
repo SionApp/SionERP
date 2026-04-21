@@ -11,6 +11,8 @@ export interface User {
   role: UserRole;
   birth_date?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   baptized?: boolean;

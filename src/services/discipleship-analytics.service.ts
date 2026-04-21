@@ -29,6 +29,7 @@ export interface ZoneStats {
   totalGroups: number;
   totalMembers: number;
   avgAttendance: number;
+  isActive: boolean;
   growthRate: number;
   healthIndex: number;
 }
@@ -151,13 +152,16 @@ export class DiscipleshipAnalyticsService {
   static async getZoneStats(): Promise<ZoneStats[]> {
     const data = await ApiService.get(`/discipleship/analytics/zones`);
 
-    return (data as ZoneStats[]).map((zone: ZoneStats) => ({
-      zoneName: zone.zoneName || 'Sin zona',
-      totalGroups: zone.totalGroups || 0,
-      totalMembers: zone.totalMembers || 0,
-      avgAttendance: zone.avgAttendance || 0,
-      growthRate: zone.growthRate || 0,
-      healthIndex: zone.healthIndex || 0,
+    // El backend devuelve snake_case + is_active (basado en grupos activos)
+    return (data as any[]).map((zone: any) => ({
+      zoneName: zone.zone_name || 'Sin zona',
+      zoneID: zone.zone_id,
+      totalGroups: zone.total_groups || 0,
+      totalMembers: zone.total_members || 0,
+      avgAttendance: zone.avg_attendance || 0,
+      isActive: zone.is_active || false,
+      growthRate: 0,
+      healthIndex: 0,
     }));
   }
 
