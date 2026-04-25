@@ -1,12 +1,13 @@
 {
-  "name": "Iglesia Vida Nueva",
-  "short_name": "Vida Nueva",
-  "description": "Comunidad Cristiana Evangélica - Iglesia Vida Nueva",
+  "name": "SionERP - Gestión Eclesiástica",
+  "short_name": "SionERP",
+  "description": "Sistema de gestión eclesiástica - Iglesia Sion",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#1a1a2e",
   "theme_color": "#6366f1",
-  "orientation": "portrait-primary",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/icon-192x192.png",
@@ -19,6 +20,21 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable any"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Registrar Asistencia",
+      "short_name": "Asistencia",
+      "description": "Registrar asistencia a culto",
+      "url": "/dashboard/attendance"
+    },
+    {
+      "name": "Mi Perfil",
+      "short_name": "Perfil",
+      "description": "Ver mi perfil",
+      "url": "/dashboard/profile"
     }
   ]
 }
