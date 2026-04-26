@@ -384,15 +384,26 @@ func (h *ZonesHandler) GetZoneStats(c echo.Context) error {
 			z.name,
 			z.id,
 			COALESCE(COUNT(DISTINCT g.id), 0) as total_groups,
-			COALESCE(SUM(g.member_count), 0) as total_members,
-			COALESCE(AVG(m.attendance), 0) as avg_attendance,
+			COALESCE(
+				(SELECT COUNT(*) FROM discipleship_group_members gm 
+				 JOIN discipleship_groups g2 ON gm.group_id = g2.id 
+				 WHERE g2.zone_id = z.id AND gm.is_active = true),
+				0
+			) as total_members,
+			COALESCE(
+				(SELECT ROUND(AVG(CASE WHEN present THEN 100.0 ELSE 0.0 END), 2)
+				 FROM discipleship_attendance a
+				 JOIN discipleship_groups g3 ON a.group_id = g3.id
+				 WHERE g3.zone_id = z.id
+				 AND a.meeting_date >= CURRENT_DATE - INTERVAL '30 days'),
+				0
+			) as avg_attendance,
 			COALESCE(
 				(SELECT COUNT(DISTINCT g2.leader_id) FROM discipleship_groups g2 WHERE g2.zone_id = z.id),
 				0
 			) as active_leaders
 		FROM zones z
 		LEFT JOIN discipleship_groups g ON g.zone_id = z.id AND g.status = 'active'
-		LEFT JOIN discipleship_metrics m ON m.group_id = g.id
 		WHERE z.id = $1
 		GROUP BY z.id, z.name
 		`
@@ -421,7 +432,6 @@ func (h *ZonesHandler) GetZoneStats(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, stats)
-
 }
 
 // GetZoneGroups obtiene los grupos de una zona
@@ -651,6 +661,11 @@ func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 	zoneID := c.Param("id")
 	userID := c.Param("userId")
 
+	var req struct {
+		DiscipleshipLevel *int `json:"discipleship_level"`
+	}
+	c.Bind(&req)
+
 	db, err := validateDB(c)
 	if err != nil {
 		return err
@@ -669,13 +684,24 @@ func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 		})
 	}
 
-	_, err = db.DB.Exec(`
-		UPDATE users
-		SET zone_id = $1, updated_at = NOW()
-		WHERE id = $2
-	`, zoneID, userID)
+	query := `UPDATE users SET zone_id = $1, updated_at = NOW()`
+	args := []interface{}{zoneID}
+	argCount := 1
+
+	if req.DiscipleshipLevel != nil {
+		argCount++
+		query += fmt.Sprintf(", discipleship_level = $%d", argCount)
+		args = append(args, *req.DiscipleshipLevel)
+	}
+
+	argCount++
+	query += fmt.Sprintf(" WHERE id = $%d", argCount)
+	args = append(args, userID)
+
+	_, err = db.DB.Exec(query, args...)
 
 	if err != nil {
+		c.Logger().Error("Error assigning user to zone:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error al asignar usuario a zona",
 		})

@@ -30,27 +30,31 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	
+
 	roleParam := c.QueryParam("role")
-	
+
 	query := `
-		SELECT 
+		SELECT
 			u.id, u.first_name, u.last_name, u.id_number, u.email, u.phone, u.address,
 			u.birth_date, u.marital_status, u.occupation, u.education_level,
 			u.how_found_church, u.ministry_interest, u.first_visit_date,
 			u.baptized, u.baptism_date, u.is_active_member, u.membership_date,
 			u.cell_group, u.cell_leader_id, u.role, u.pastoral_notes, u.is_active,
+			u.discipleship_level,
 			u.whatsapp, u.created_at, u.updated_at,
-			i.status as invitation_status
+			i.status as invitation_status,
+			COALESCE(u.zone_id::text, '') as zone_id,
+			COALESCE(z.name, '') as zone_name
 		FROM users u
-		LEFT JOIN user_invitations i ON u.email = i.email 
+		LEFT JOIN user_invitations i ON u.email = i.email
 			AND i.status IN ('pending', 'accepted')
+		LEFT JOIN zones z ON u.zone_id = z.id
 		WHERE u.is_active = true
 	`
-	
+
 	args := []interface{}{}
 	argCount := 0
-	
+
 	// Filtrar por roles si viene el parámetro
 	if roleParam != "" {
 		rolesStr := strings.Split(roleParam, ",")
@@ -72,7 +76,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			query += fmt.Sprintf(" AND u.role IN (%s)", strings.Join(inPlaceholders, ","))
 		}
 	}
-	
+
 	query += " ORDER BY u.created_at DESC"
 
 	rows, err := db.DB.Query(query, args...)
@@ -96,8 +100,10 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
 			&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
 			&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
-			&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
+			&user.IsActive, &user.DiscipleshipLevel, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
 			&user.InvitationStatus,
+			&user.ZoneID,
+			&user.ZoneName,
 		)
 		if err != nil {
 			c.Logger().Error("Row scan error in GetUsers: ", err)

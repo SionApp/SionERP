@@ -99,11 +99,14 @@ export default function LeaderDashboard() {
           </p>
         </div>
         <div>
-          <Button disabled={hasCurrentWeekReport || !myGroup} onClick={() => setShowReportModal(true)}>
+          <Button
+            disabled={hasCurrentWeekReport || !myGroup}
+            onClick={() => setShowReportModal(true)}
+          >
             <Plus className="h-4 w-4 mr-2" />
             {hasCurrentWeekReport ? 'Reporte enviado' : 'Nuevo Reporte Semanal'}
           </Button>
-          
+
           {myGroup && (
             <LeaderReportModal
               isOpen={showReportModal}

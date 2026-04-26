@@ -56,6 +56,8 @@ export const registerUserSchema = z.object({
     errorMap: () => ({ message: 'Rol inválido' }),
   }),
   address: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   birth_date: z.string().optional(),
   baptism_date: z.string().optional(),
   emergency_contact_name: z.string().optional(),
