@@ -7,13 +7,25 @@ import type {
   DiscipleshipAnalytics,
   DiscipleshipGroup,
   DiscipleshipHierarchy,
+  DiscipleshipLevel,
   DiscipleshipMetrics,
   DiscipleshipReport,
   GroupFilters,
   GroupPerformance,
+  GroupMember,
+  GroupMemberWithDetails,
+  AddGroupMemberRequest,
+  UpdateGroupMemberRequest,
+  Attendance,
+  AttendanceWithDetails,
+  RecordAttendanceRequest,
+  BulkAttendanceRequest,
+  MemberAttendanceStats,
   PaginatedResponse,
   UpdateGroupRequest,
   ZoneStats,
+  CreateDiscipleshipLevelRequest,
+  UpdateDiscipleshipLevelRequest,
 } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
 
@@ -238,5 +250,95 @@ export class DiscipleshipService {
 
   static async generateAutomaticAlerts(): Promise<{ alerts_created: number; message: string }> {
     return ApiService.post(`${this.baseUrl}/alerts/generate`, {});
+  }
+
+  // =====================================================
+  // NIVELES DE DISCIPULADO
+  // =====================================================
+
+  static async getLevels(): Promise<DiscipleshipLevel[]> {
+    return ApiService.get(`${this.baseUrl}/levels`);
+  }
+
+  static async getLevel(id: string): Promise<DiscipleshipLevel> {
+    return ApiService.get(`${this.baseUrl}/levels/${id}`);
+  }
+
+  static async createLevel(data: CreateDiscipleshipLevelRequest): Promise<DiscipleshipLevel> {
+    return ApiService.post(`${this.baseUrl}/levels`, data);
+  }
+
+  static async updateLevel(
+    id: string,
+    data: UpdateDiscipleshipLevelRequest
+  ): Promise<{ message: string }> {
+    return ApiService.put(`${this.baseUrl}/levels/${id}`, data);
+  }
+
+  static async deleteLevel(id: string): Promise<{ message: string }> {
+    return ApiService.delete(`${this.baseUrl}/levels/${id}`);
+  }
+
+  // =====================================================
+  // MIEMBROS DE GRUPO
+  // =====================================================
+
+  static async getGroupMembers(groupId: string): Promise<GroupMemberWithDetails[]> {
+    return ApiService.get(`${this.baseUrl}/groups/${groupId}/members`);
+  }
+
+  static async addGroupMember(
+    groupId: string,
+    data: AddGroupMemberRequest
+  ): Promise<{ message: string; member_id: string }> {
+    return ApiService.post(`${this.baseUrl}/groups/${groupId}/members`, data);
+  }
+
+  static async updateGroupMember(
+    groupId: string,
+    memberId: string,
+    data: UpdateGroupMemberRequest
+  ): Promise<{ message: string }> {
+    return ApiService.put(`${this.baseUrl}/groups/${memberId}/members`, data);
+  }
+
+  static async removeGroupMember(memberId: string): Promise<{ message: string }> {
+    return ApiService.delete(`${this.baseUrl}/groups/${memberId}/members`);
+  }
+
+  // =====================================================
+  // ASISTENCIA
+  // =====================================================
+
+  static async getGroupAttendance(
+    groupId: string,
+    date?: string
+  ): Promise<AttendanceWithDetails[]> {
+    const params = date ? `?date=${date}` : '';
+    return ApiService.get(`${this.baseUrl}/groups/${groupId}/attendance${params}`);
+  }
+
+  static async recordAttendance(
+    groupId: string,
+    data: RecordAttendanceRequest,
+    date?: string
+  ): Promise<{ message: string; attendance_id: string }> {
+    const queryDate = date ? `?date=${date}` : '';
+    return ApiService.post(`${this.baseUrl}/groups/${groupId}/attendance${queryDate}`, data);
+  }
+
+  static async bulkRecordAttendance(
+    groupId: string,
+    data: BulkAttendanceRequest
+  ): Promise<{ message: string; count: number; meeting_date: string }> {
+    return ApiService.post(`${this.baseUrl}/groups/${groupId}/attendance/bulk`, data);
+  }
+
+  static async getMemberAttendanceStats(
+    userId: string,
+    groupId?: string
+  ): Promise<MemberAttendanceStats> {
+    const params = groupId ? `?group_id=${groupId}` : '';
+    return ApiService.get(`${this.baseUrl}/attendance/stats/${userId}${params}`);
   }
 }

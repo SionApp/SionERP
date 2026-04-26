@@ -24,10 +24,35 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ApiService } from '@/services/api.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateGroupRequest, DiscipleshipGroup } from '@/types/discipleship.types';
-import { GeolocationInput, type GeolocationResult } from '@/components/ui/geolocation-input';
-import { Calendar, Edit, Loader2, MapPin, Plus, Search, Trash2, Users } from 'lucide-react';
+import { useZones } from '@/hooks/useZones';
+import {
+  GeolocationInput,
+  type GeolocationResult,
+  type TypeGeolocalization,
+} from '@/components/ui/geolocation-input';
+import {
+  Calendar,
+  ChevronLeft,
+  Edit,
+  Loader2,
+  MapPin,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  UserCog,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+
+import { GroupMembers } from './GroupMembers';
+
+const getNumericCoord = (val: number | TypeGeolocalization | undefined): number | undefined => {
+  if (val === undefined || val === null) return undefined;
+  if (typeof val === 'number') return val;
+  if (typeof val === 'object' && 'Float64' in val) return val.Float64;
+  return undefined;
+};
 
 interface User {
   id: string;
@@ -39,7 +64,7 @@ interface User {
 
 const DAYS_OF_WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-const ZONES = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste', 'Zona Centro'];
+// const ZONES = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste', 'Zona Centro'];
 
 // Helper para normalizar valores sql.NullString que vienen como {String, Valid}
 const normalizeNullString = (value: unknown): string | null => {
@@ -53,6 +78,7 @@ const normalizeNullString = (value: unknown): string | null => {
 };
 
 const GroupManagement = () => {
+  const { zones } = useZones();
   const [groups, setGroups] = useState<DiscipleshipGroup[]>([]);
   const [allGroups, setAllGroups] = useState<DiscipleshipGroup[]>([]); // Todos los grupos sin filtrar
   const [leaders, setLeaders] = useState<User[]>([]);
@@ -65,6 +91,7 @@ const GroupManagement = () => {
   const [filterZone, setFilterZone] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isFiltering, setIsFiltering] = useState(false);
+  const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<CreateGroupRequest>({
@@ -177,6 +204,7 @@ const GroupManagement = () => {
         leader_id: String(normalizeNullString(group.leader_id) || ''),
         supervisor_id: String(normalizeNullString(group.supervisor_id) || ''),
         zone_name: String(normalizeNullString(group.zone_name) || ''),
+        zone_id: String(normalizeNullString(group.zone_id) || ''),
         meeting_day: String(normalizeNullString(group.meeting_day) || ''),
         meeting_time: String(normalizeNullString(group.meeting_time) || ''),
         meeting_location: String(normalizeNullString(group.meeting_location) || ''),
@@ -187,7 +215,11 @@ const GroupManagement = () => {
       // Cargar geolocalización si existe
       if (group.latitude && group.longitude) {
         setGeolocation({
-          address: String(normalizeNullString(group.meeting_address) || normalizeNullString(group.meeting_location) || ''),
+          address: String(
+            normalizeNullString(group.meeting_address) ||
+              normalizeNullString(group.meeting_location) ||
+              ''
+          ),
           latitude: group.latitude,
           longitude: group.longitude,
         });
@@ -219,13 +251,18 @@ const GroupManagement = () => {
 
     try {
       setSaving(true);
+      const matchedZone = zones.find(
+        z => z.name === formData.zone_name || z.id === formData.zone_name
+      );
 
       // Preparar datos con geolocalización
       const submitData: CreateGroupRequest = {
         ...formData,
+        zone_id: matchedZone?.id || undefined,
+        zone_name: matchedZone?.name || formData.zone_name || '',
         meeting_address: geolocation?.address || formData.meeting_address || '',
-        latitude: geolocation?.latitude,
-        longitude: geolocation?.longitude,
+        latitude: getNumericCoord(geolocation?.latitude) || formData.latitude,
+        longitude: getNumericCoord(geolocation?.longitude) || formData.longitude,
         meeting_location: geolocation?.address || formData.meeting_location || '',
       };
 
@@ -379,7 +416,10 @@ const GroupManagement = () => {
 
   // Acciones para cada grupo
   const groupActions = (group: DiscipleshipGroup) => (
-    <div className="flex justify-end gap-2">
+    <div className="flex justify-end gap-1">
+      <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(group.id)}>
+        <UserCog className="w-4 h-4" />
+      </Button>
       <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(group)}>
         <Edit className="w-4 h-4" />
       </Button>
@@ -521,7 +561,7 @@ const GroupManagement = () => {
               </DialogHeader>
 
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="group_name">Nombre del Grupo *</Label>
                     <Input
@@ -542,9 +582,9 @@ const GroupManagement = () => {
                         <SelectValue placeholder="Seleccionar zona" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ZONES.map(zone => (
-                          <SelectItem key={zone} value={zone}>
-                            {zone}
+                        {zones.map(z => (
+                          <SelectItem key={z.id} value={z.name}>
+                            {z.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -552,7 +592,7 @@ const GroupManagement = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="leader_id">Líder *</Label>
                     <Select
@@ -594,9 +634,26 @@ const GroupManagement = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Estado</Label>
+                    <Select
+                      value={formData.status || 'active'}
+                      onValueChange={value => setFormData({ ...formData, status: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Activo</SelectItem>
+                        <SelectItem value="inactive">Inactivo</SelectItem>
+                        <SelectItem value="multiplying">Multiplicando</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="meeting_day">Día de Reunión</Label>
                     <Select
@@ -625,20 +682,19 @@ const GroupManagement = () => {
                       onChange={e => setFormData({ ...formData, meeting_time: e.target.value })}
                     />
                   </div>
-
                 </div>
 
                 <div className="space-y-2">
                   <GeolocationInput
                     value={geolocation || undefined}
-                    onChange={(value) => {
+                    onChange={value => {
                       setGeolocation(value);
                       if (value) {
                         setFormData({
                           ...formData,
                           meeting_address: value.address,
-                          latitude: value.latitude,
-                          longitude: value.longitude,
+                          latitude: getNumericCoord(value.latitude),
+                          longitude: getNumericCoord(value.longitude),
                           meeting_location: value.address,
                         });
                       } else {
@@ -696,9 +752,9 @@ const GroupManagement = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas las zonas</SelectItem>
-              {ZONES.map(zone => (
-                <SelectItem key={zone} value={zone}>
-                  {zone}
+              {zones.map(zone => (
+                <SelectItem key={zone.id} value={zone.name}>
+                  {zone.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -728,6 +784,21 @@ const GroupManagement = () => {
           searchable={false}
           mobileCardRender={mobileCardRender}
         />
+
+        {selectedGroupForMembers && (
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(null)}>
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Volver a grupos
+              </Button>
+            </div>
+            <GroupMembers
+              groupId={selectedGroupForMembers}
+              groupName={groups.find(g => g.id === selectedGroupForMembers)?.group_name || ''}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

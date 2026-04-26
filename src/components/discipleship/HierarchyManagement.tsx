@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { UserService } from '@/services/user.service';
 import type { AssignHierarchyRequest, DiscipleshipHierarchy } from '@/types/discipleship.types';
+import { useZones } from '@/hooks/useZones';
 import { User } from '@/types/user.types';
 import { Edit, Loader2, Search, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -35,7 +36,7 @@ const HIERARCHY_LEVELS = [
   { value: 5, label: 'Nivel 5 - Pastoral' },
 ];
 
-const ZONES = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste', 'Zona Centro'];
+// const ZONES = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste', 'Zona Centro'];
 
 // Helper para normalizar valores sql.NullString que vienen como {String, Valid}
 const normalizeNullString = (value: unknown): string | null => {
@@ -53,6 +54,7 @@ interface UserWithHierarchy extends User {
 }
 
 const HierarchyManagement = () => {
+  const { zones } = useZones();
   const [users, setUsers] = useState<UserWithHierarchy[]>([]);
   const [hierarchies, setHierarchies] = useState<DiscipleshipHierarchy[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,12 +185,15 @@ const HierarchyManagement = () => {
     try {
       setIsSaving(true);
 
+      const selectedZone = zones.find(z => z.name === formData.zone_name);
+
       // Preparar datos para enviar (solo enviar campos no vacíos)
       const dataToSend: AssignHierarchyRequest = {
         user_id: formData.user_id,
         hierarchy_level: formData.hierarchy_level,
         supervisor_id: formData.supervisor_id || undefined,
         zone_name: formData.zone_name || undefined,
+        zone_id: selectedZone?.id || undefined,
         territory: formData.territory || undefined,
       };
 
@@ -345,7 +350,7 @@ const HierarchyManagement = () => {
                   return (
                     <div
                       key={user.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors gap-3"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
@@ -477,9 +482,9 @@ const HierarchyManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Sin zona</SelectItem>
-                  {ZONES.map(zone => (
-                    <SelectItem key={zone} value={zone}>
-                      {zone}
+                  {zones.map(zone => (
+                    <SelectItem key={zone.id} value={zone.name}>
+                      {zone.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

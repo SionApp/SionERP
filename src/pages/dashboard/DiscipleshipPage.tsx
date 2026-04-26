@@ -64,7 +64,7 @@ const DiscipleshipPage = () => {
     };
 
     loadUserAndAccess();
-  }, [authUser]);
+  }, [authUser?.id]);
 
   const getDiscipleshipLevel = (): number => {
     if (!discipleshipAccess) return 1;
@@ -105,8 +105,8 @@ const DiscipleshipPage = () => {
 
     // Si es acceso completo (pastor/staff), mostrar dashboard pastoral
     if (discipleshipAccess.isFullAccess) {
-      return PastoralDashboard;
-      // return CoordinatorDashboard;
+      // return PastoralDashboard;
+      return GeneralSupervisorDashboard; // Para pruebas, mostrar dashboard de líder incluso con acceso completo
     }
 
     // Si no, usar el nivel de jerarquía

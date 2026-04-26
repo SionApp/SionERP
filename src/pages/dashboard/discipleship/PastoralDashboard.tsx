@@ -77,7 +77,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
   // Usar hook compartido para evitar consultas duplicadas
   const { loading, stats, zoneStats, weeklyTrends, goals, alerts, pendingReports, refetch } =
     useDiscipleshipData({ level: 5 });
-  console.log(user, 'user');
+  console.log(zoneStats, 'zoneStats', user, 'users');
   const handleApproveReport = async (reportId: string) => {
     try {
       await DiscipleshipService.approveReport(reportId);
@@ -314,11 +314,11 @@ const PastoralDashboard: React.FC = React.memo(() => {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={zoneStats}>
                           <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="zone_name" />
+                          <XAxis dataKey="zoneName" />
                           <YAxis />
                           <Tooltip />
-                          <Bar dataKey="total_groups" fill="#3b82f6" name="Grupos" />
-                          <Bar dataKey="total_members" fill="#22c55e" name="Miembros" />
+                          <Bar dataKey="totalGroups" fill="#3b82f6" name="Grupos" />
+                          <Bar dataKey="totalMembers" fill="#22c55e" name="Miembros" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
