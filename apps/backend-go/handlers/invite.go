@@ -3,16 +3,18 @@ package handlers
 
 import (
 	"backend-sion/config"
+	"backend-sion/emails"
 	"backend-sion/models"
 	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
 )
 
-type InviteHandler struct{
+type InviteHandler struct {
 	supabase *config.SupabaseClient
 }
 
@@ -72,7 +74,13 @@ func (h *InviteHandler) InviteUser(c echo.Context) error {
 		"role":          req.Role,
 	}
 
-	redirectURL := "http://localhost:8080/dashboard" //"https://tu-dominio.com/onboarding" // Página de bienvenida
+	// Usar FRONTEND_URL del header o variable de entorno
+	// Por defecto usa la URL de Supabase redirect para manejo del callback
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173" // Puerto por defecto de Vite
+	}
+	redirectURL := frontendURL
 
 	magicLink, err := h.supabase.GenerateMagicLink(req.Email, redirectURL, userData)
 	if err != nil {
@@ -97,6 +105,43 @@ func (h *InviteHandler) InviteUser(c echo.Context) error {
 			"error": "Failed to save magic link hash. Invitation created but magic link may not be valid.",
 		})
 	}
+
+	// ==========================================
+	// ENVIAR EMAIL CON RESEND
+	// ==========================================
+	emailConfig := config.GetEmailConfig()
+	
+	// Solo enviar email si está configurado
+	if emailConfig.IsEmailEnabled() {
+		emailService := emails.NewEmailService(
+			emailConfig.APIKey,
+			emailConfig.FromEmail,
+			emailConfig.FrontendURL,
+		)
+		
+		// Enviar email
+		emailErr := emailService.SendInvitationEmail(emails.InvitationEmailData{
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
+			Email:     req.Email,
+			Role:      getRoleDisplayName(req.Role),
+			MagicLink: magicLink.HashedToken, // Usamos el token como parte del link
+			ExpiresIn: "7 días",
+		})
+		
+		if emailErr != nil {
+			c.Logger().Errorf("Failed to send invitation email: %v", emailErr)
+			// No fallamos la invitación por error de email
+		}
+	} else {
+		// Si no está configurado, logs el link para desarrollo
+		devLink := fmt.Sprintf("%s/?token=%s", emailConfig.FrontendURL, magicLink.HashedToken)
+		fmt.Printf("\n========== MAGIC LINK PARA DESARROLLO ==========\n")
+		fmt.Printf("Email: %s\n", req.Email)
+		fmt.Printf("Link: %s\n", devLink)
+		fmt.Printf("==================================================\n\n")
+	}
+
 	return c.JSON(http.StatusOK, &models.InviteResponse{
 		InvitationID: invitationID,
 		Email:        req.Email,
@@ -311,4 +356,24 @@ func (h *InviteHandler) AcceptInvitation(c echo.Context) error {
 			"expires_at": expiresAt.Format(time.RFC3339),
 		},
 	})
+}
+
+// Helper para obtener el nombre display del rol en español
+func getRoleDisplayName(role string) string {
+	switch role {
+	case "admin":
+		return "Administrador"
+	case "pastor":
+		return "Pastor"
+	case "staff":
+		return "Staff"
+	case "supervisor":
+		return "Supervisor"
+	case "server":
+		return "Servidor"
+	case "member":
+		return "Miembro"
+	default:
+		return role
+	}
 }

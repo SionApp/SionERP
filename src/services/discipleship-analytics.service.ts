@@ -26,9 +26,14 @@ export interface DiscipleshipAnalytics {
 
 export interface ZoneStats {
   zoneName: string;
+  zone_name?: string; // Alias para compatibilidad
+  zoneID?: string;
   totalGroups: number;
+  total_groups?: number; // Alias para compatibilidad
   totalMembers: number;
+  total_members?: number; // Alias para compatibilidad
   avgAttendance: number;
+  avg_attendance?: number; // Alias para compatibilidad
   isActive: boolean;
   growthRate: number;
   healthIndex: number;
@@ -153,12 +158,16 @@ export class DiscipleshipAnalyticsService {
     const data = await ApiService.get(`/discipleship/analytics/zones`);
 
     // El backend devuelve snake_case + is_active (basado en grupos activos)
+    // Devolver ambos formatos para compatibilidad
     return (data as any[]).map((zone: any) => ({
       zoneName: zone.zone_name || 'Sin zona',
-      zoneID: zone.zone_id,
+      zone_name: zone.zone_name || 'Sin zona', // Alias para compatibilidad
+      zoneID: zone.zone_id || zone.zoneId,
       totalGroups: zone.total_groups || 0,
+      total_members: zone.total_groups || 0, // Alias para compatibilidad
       totalMembers: zone.total_members || 0,
       avgAttendance: zone.avg_attendance || 0,
+      avg_attendance: zone.avg_attendance || 0, // Alias para compatibilidad
       isActive: zone.is_active || false,
       growthRate: 0,
       healthIndex: 0,

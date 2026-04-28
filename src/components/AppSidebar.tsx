@@ -73,7 +73,7 @@ export function AppSidebar() {
       className="border-r border-border/50 backdrop-blur-lg bg-[var(--glass-background)]"
     >
       <SidebarContent className="bg-transparent">
-        <div className="p-4 border-b border-border/30">
+        <div className="p-3 sm:p-4 border-b border-border/30">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
               <Sparkles className="h-4 w-4 text-primary-foreground" />
@@ -87,7 +87,7 @@ export function AppSidebar() {
           </div>
         </div>
 
-        <SidebarGroup className="px-2 py-4">
+        <SidebarGroup className="px-2 py-3 sm:py-4">
           {state !== 'collapsed' && (
             <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground mb-2 px-2">
               NAVEGACIÓN

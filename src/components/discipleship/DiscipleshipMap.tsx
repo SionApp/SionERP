@@ -1,11 +1,11 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { ZonesService } from '@/services/zones.service';
 import { ApiService } from '@/services/api.service';
+import { ZonesService } from '@/services/zones.service';
 import type {
   DiscipleshipGroup,
   GeoJSONMultiPolygon,
@@ -13,6 +13,7 @@ import type {
   ZoneMapData,
   ZoneMapGroup,
 } from '@/types/discipleship.types';
+import { Calendar, Layers, MapPin, Search, User as UserIcon, Users } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Map, {
@@ -376,11 +377,11 @@ export default function DiscipleshipMap({
   }, [internalSelectedZoneId]);
 
   return (
-    <div className="grid gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
       {/* ── Mapa ── */}
-      <Card className="overflow-hidden border-border bg-card">
-        <CardContent className="p-0">
-          <div className={cn('w-full', heightClassName)}>
+      <Card className="overflow-hidden border-border bg-card shadow-xl rounded-2xl relative group border-none lg:border-solid">
+        <CardContent className="p-0 relative">
+          <div className={cn('w-full transition-all duration-500', heightClassName)}>
             <Map
               ref={mapRef}
               initialViewState={{
@@ -392,16 +393,25 @@ export default function DiscipleshipMap({
             >
               <NavigationControl position="top-right" />
 
-              {/* Leyenda */}
-              <div className="absolute top-2 left-2 bg-background/95 backdrop-blur-sm rounded-lg border border-border p-2 shadow-sm z-10">
-                <div className="flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1">
-                    <HouseIcon color="#3b82f6" size={14} />
-                    <span>Grupos</span>
+              {/* Floating Toolbar Top Left */}
+              <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
+                <div className="bg-background/80 backdrop-blur-md rounded-xl border border-border/50 p-2.5 shadow-lg flex items-center gap-4 transition-all hover:bg-background/90">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-blue-500/10 rounded-lg">
+                      <HouseIcon color="#3b82f6" size={16} />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Grupos
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <PersonIcon size={14} />
-                    <span>Personas</span>
+                  <div className="h-4 w-[1px] bg-border" />
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-indigo-500/10 rounded-lg">
+                      <PersonIcon size={16} />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Personas
+                    </span>
                   </div>
                 </div>
               </div>
@@ -477,25 +487,49 @@ export default function DiscipleshipMap({
                   closeOnClick={false}
                   className="z-50"
                 >
-                  <div className="p-1 min-w-[180px]">
-                    <p className="font-semibold text-sm">{selectedGroup.group_name}</p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      <strong>Líder:</strong> {selectedGroup.leader_name || 'Sin asignar'}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      <strong>Miembros:</strong> {selectedGroup.active_members || 0}/
-                      {selectedGroup.member_count || 0}
-                    </p>
-                    {selectedGroup.meeting_location && (
-                      <p className="text-xs text-gray-600">
-                        <strong>Ubicación:</strong> {selectedGroup.meeting_location}
+                  <div className="p-3 min-w-[220px] bg-background rounded-xl shadow-2xl border border-border overflow-hidden">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
+                      <div className="p-1.5 bg-blue-500/10 rounded-lg">
+                        <HouseIcon color="#3b82f6" size={18} />
+                      </div>
+                      <p className="font-bold text-sm tracking-tight truncate">
+                        {selectedGroup.group_name}
                       </p>
-                    )}
-                    {selectedGroup.meeting_day && (
-                      <p className="text-xs text-gray-600">
-                        <strong>Reunión:</strong> {selectedGroup.meeting_day}
-                      </p>
-                    )}
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <UserIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-semibold text-foreground">Líder:</span>{' '}
+                          {selectedGroup.leader_name || 'Sin asignar'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-semibold text-foreground">Miembros:</span>{' '}
+                          {selectedGroup.active_members || 0}/{selectedGroup.member_count || 0}
+                        </p>
+                      </div>
+                      {selectedGroup.meeting_location && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            <span className="font-semibold text-foreground">Ubicación:</span>{' '}
+                            {selectedGroup.meeting_location}
+                          </p>
+                        </div>
+                      )}
+                      {selectedGroup.meeting_day && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-semibold text-foreground">Reunión:</span>{' '}
+                            {selectedGroup.meeting_day}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </Popup>
               )}
@@ -510,18 +544,30 @@ export default function DiscipleshipMap({
                   closeOnClick={false}
                   className="z-50"
                 >
-                  <div className="p-1 min-w-[160px]">
-                    <p className="font-semibold text-sm">
-                      {selectedPerson.first_name} {selectedPerson.last_name}
-                    </p>
-                    {selectedPerson.email && (
-                      <p className="text-xs text-gray-600">{selectedPerson.email}</p>
-                    )}
-                    {selectedPerson.zone_name && (
-                      <p className="text-xs text-gray-600">
-                        <strong>Zona:</strong> {selectedPerson.zone_name}
+                  <div className="p-3 min-w-[180px] bg-background rounded-xl shadow-2xl border border-border">
+                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
+                      <div className="p-1.5 bg-indigo-500/10 rounded-lg">
+                        <PersonIcon size={16} />
+                      </div>
+                      <p className="font-bold text-sm tracking-tight truncate">
+                        {selectedPerson.first_name} {selectedPerson.last_name}
                       </p>
-                    )}
+                    </div>
+                    <div className="space-y-1.5">
+                      {selectedPerson.email && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {selectedPerson.email}
+                        </p>
+                      )}
+                      {selectedPerson.zone_name && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <MapPin className="w-3 h-3 text-muted-foreground" />
+                          <p className="text-[10px] font-medium text-muted-foreground">
+                            {selectedPerson.zone_name}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </Popup>
               )}
@@ -531,38 +577,63 @@ export default function DiscipleshipMap({
       </Card>
 
       {/* ── Sidebar ── */}
-      <Card className="border-border bg-card">
-        <CardHeader className="space-y-2 pb-3">
-          <CardTitle className="text-lg">Zonas y grupos</CardTitle>
-          {internalSelectedZoneId ? (
-            <Badge variant="secondary">
-              {selectedZone?.zone.name} · {selectedZone?.groups.length || 0} grupos
-            </Badge>
-          ) : (
-            <Badge variant="outline">Mostrando todas las zonas</Badge>
-          )}
-
-          {/* Toggles de capas */}
-          <div className="space-y-2 pt-2 border-t border-border">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="show-groups" className="text-sm flex items-center gap-2">
-                <HouseIcon color="#3b82f6" size={16} />
-                Grupos
-              </Label>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{visibleGroups.length}</span>
-                <Switch id="show-groups" checked={showGroups} onCheckedChange={setShowGroups} />
-              </div>
+      <Card className="border-border bg-card shadow-xl rounded-2xl flex flex-col overflow-hidden border-none lg:border-solid">
+        <CardHeader className="space-y-4 pb-4 bg-muted/30 border-b border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-500" />
+              <CardTitle className="text-xl font-bold tracking-tight">Capas</CardTitle>
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="show-people" className="text-sm flex items-center gap-2">
-                <PersonIcon size={16} />
-                Personas
+            {internalSelectedZoneId ? (
+              <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800 hover:bg-blue-500/20 transition-colors">
+                {selectedZone?.zone.name}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground">
+                Global
+              </Badge>
+            )}
+          </div>
+
+          {/* Toggles de capas - Rediseñados */}
+          <div className="grid grid-cols-2 gap-2">
+            <div
+              className={cn(
+                'flex items-center justify-between p-2 rounded-xl border transition-all',
+                showGroups
+                  ? 'bg-blue-500/5 border-blue-200 dark:border-blue-800 shadow-sm'
+                  : 'bg-muted/50 border-transparent'
+              )}
+            >
+              <Label htmlFor="show-groups" className="cursor-pointer flex items-center gap-2">
+                <HouseIcon color={showGroups ? '#3b82f6' : '#94a3b8'} size={14} />
+                <span className="text-xs font-medium">Grupos</span>
               </Label>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{visiblePeople.length}</span>
-                <Switch id="show-people" checked={showPeople} onCheckedChange={setShowPeople} />
-              </div>
+              <Switch
+                id="show-groups"
+                checked={showGroups}
+                onCheckedChange={setShowGroups}
+                className="scale-75"
+              />
+            </div>
+            <div
+              className={cn(
+                'flex items-center justify-between p-2 rounded-xl border transition-all',
+                showPeople
+                  ? 'bg-indigo-500/5 border-indigo-200 dark:border-indigo-800 shadow-sm'
+                  : 'bg-muted/50 border-transparent'
+              )}
+            >
+              <Label htmlFor="show-people" className="cursor-pointer flex items-center gap-2">
+                <PersonIcon size={14} />
+                <span className="text-xs font-medium">Personas</span>
+              </Label>
+              <Switch
+                id="show-people"
+                checked={showPeople}
+                onCheckedChange={setShowPeople}
+                className="scale-75"
+              />
             </div>
           </div>
         </CardHeader>
@@ -575,17 +646,44 @@ export default function DiscipleshipMap({
                 type="button"
                 onClick={() => handleSelectZone(null)}
                 className={cn(
-                  'w-full rounded-md border border-border p-3 text-left transition-colors',
-                  !internalSelectedZoneId && 'bg-accent text-accent-foreground'
+                  'w-full rounded-2xl border p-4 text-left transition-all duration-300 relative overflow-hidden group/all',
+                  !internalSelectedZoneId
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
+                    : 'bg-card border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
                 )}
               >
-                <p className="font-medium text-sm">Todas las zonas</p>
-                <p className="text-xs text-muted-foreground">
-                  {zoneData.reduce((acc, item) => acc + item.groups.length, 0)} grupos
-                </p>
+                {!internalSelectedZoneId && (
+                  <div className="absolute -right-4 -top-4 w-16 h-16 bg-white/10 rounded-full blur-2xl" />
+                )}
+                <div className="flex items-center justify-between relative z-10">
+                  <div>
+                    <p className="font-bold text-sm tracking-tight">Todas las zonas</p>
+                    <p
+                      className={cn(
+                        'text-xs mt-0.5 font-medium',
+                        !internalSelectedZoneId ? 'text-blue-100' : 'text-muted-foreground'
+                      )}
+                    >
+                      {zoneData.reduce((acc, item) => acc + item.groups.length, 0)} grupos totales
+                    </p>
+                  </div>
+                  <div
+                    className={cn(
+                      'p-2 rounded-xl transition-colors',
+                      !internalSelectedZoneId ? 'bg-white/20' : 'bg-muted'
+                    )}
+                  >
+                    <Search className="w-4 h-4" />
+                  </div>
+                </div>
               </button>
 
-              {loading && <p className="text-sm text-muted-foreground">Cargando mapa...</p>}
+              {loading && (
+                <div className="space-y-2 p-4">
+                  <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+                  <div className="h-3 w-1/2 bg-muted animate-pulse rounded" />
+                </div>
+              )}
 
               {/* Lista de zonas */}
               {zoneData.map(item => {
@@ -594,24 +692,39 @@ export default function DiscipleshipMap({
                   <div
                     key={item.zone.id}
                     className={cn(
-                      'rounded-md border border-border p-3 transition-colors',
-                      isSelected && 'bg-accent text-accent-foreground'
+                      'rounded-2xl border transition-all duration-300 group/item overflow-hidden',
+                      isSelected
+                        ? 'bg-blue-500/5 border-blue-200 dark:border-blue-900 shadow-md ring-1 ring-blue-500/20'
+                        : 'border-border/50 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-muted/30 hover:shadow-sm'
                     )}
                   >
                     <button
                       type="button"
                       onClick={() => handleSelectZone(item)}
-                      className="w-full text-left"
+                      className="w-full text-left p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-sm">{item.zone.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.groups.length} grupos · {item.zone.total_members || 0} miembros
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm tracking-tight group-hover/item:text-blue-600 transition-colors">
+                            {item.zone.name}
                           </p>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <div className="flex items-center gap-1">
+                              <HouseIcon color={isSelected ? '#3b82f6' : '#94a3b8'} size={12} />
+                              <span className="text-[10px] font-bold text-muted-foreground">
+                                {item.groups.length}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Users className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-[10px] font-bold text-muted-foreground">
+                                {item.zone.total_members || 0}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <span
-                          className="mt-1 h-3 w-3 rounded-full border border-border flex-shrink-0"
+                        <div
+                          className="h-4 w-4 rounded-full border-2 border-white dark:border-gray-800 shadow-sm flex-shrink-0 mt-0.5"
                           style={{ backgroundColor: item.zone.color }}
                         />
                       </div>
@@ -619,30 +732,39 @@ export default function DiscipleshipMap({
 
                     {/* Grupos expandidos cuando la zona está seleccionada */}
                     {isSelected && item.groups.length > 0 && (
-                      <div className="mt-3 space-y-2 border-t border-border pt-3">
+                      <div className="px-3 pb-3 space-y-2">
+                        <div className="border-t border-blue-200/50 dark:border-blue-800/50 pt-3 flex items-center gap-2 mb-1 px-1">
+                          <div className="h-1 w-1 rounded-full bg-blue-500" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600/70">
+                            Células en zona
+                          </span>
+                        </div>
                         {item.groups.map(group => (
                           <button
                             type="button"
                             key={group.id}
-                            className="w-full text-left rounded-md border border-border/60 p-2 hover:bg-accent/50 transition-colors"
+                            className="w-full text-left rounded-xl border border-blue-200/30 dark:border-blue-800/30 p-2.5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all group/cell"
                             onClick={() => {
                               if (group.latitude && group.longitude) {
                                 setSelectedGroup(group);
                                 mapRef.current?.flyTo({
                                   center: [Number(group.longitude), Number(group.latitude)],
-                                  zoom: 16,
-                                  duration: 800,
+                                  zoom: 17,
+                                  duration: 1000,
                                 });
                               }
                             }}
                           >
-                            <div className="flex items-center gap-2">
-                              <HouseIcon color={item.zone.color} size={16} />
+                            <div className="flex items-center gap-3">
+                              <div className="p-1.5 bg-background rounded-lg shadow-sm border border-border/50 group-hover/cell:border-blue-500/30 transition-colors">
+                                <HouseIcon color={item.zone.color} size={14} />
+                              </div>
                               <div className="min-w-0">
-                                <p className="text-sm font-medium truncate">{group.group_name}</p>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {group.leader_name || 'Sin líder'} ·{' '}
-                                  {group.meeting_location || 'Sin ubicación'}
+                                <p className="text-xs font-bold truncate group-hover/cell:text-blue-600 transition-colors">
+                                  {group.group_name}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground truncate font-medium">
+                                  {group.leader_name || 'Sin líder'}
                                 </p>
                               </div>
                             </div>

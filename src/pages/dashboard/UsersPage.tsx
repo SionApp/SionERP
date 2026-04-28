@@ -369,14 +369,14 @@ const UsersPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div>
+      <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+        <div className="min-w-0">
           <span className="text-muted-foreground">Cédula:</span>
-          <p className="font-medium">{user.id_number}</p>
+          <p className="font-medium truncate">{user.id_number}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <span className="text-muted-foreground">Teléfono:</span>
-          <p className="font-medium">{user.phone}</p>
+          <p className="font-medium truncate">{user.phone}</p>
         </div>
       </div>
 
@@ -388,27 +388,29 @@ const UsersPage = () => {
         </div>
       )}
 
-      <div className="flex justify-between items-center pt-2 border-t">
-        <div className="text-xs text-muted-foreground">
+      <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t">
+        <div className="text-xs text-muted-foreground min-w-0">
           <span>Registrado: </span>
           <span className="font-medium">{new Date(user.created_at).toLocaleDateString()}</span>
         </div>
-        <div className="flex items-center gap-1">{actions}</div>
+        <div className="flex flex-wrap items-center gap-1">{actions}</div>
       </div>
     </div>
   );
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Usuarios
           </h1>
-          <p className="text-muted-foreground mt-1">Administra los usuarios registrados en el sistema</p>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            Administra los usuarios registrados en el sistema
+          </p>
         </div>
-        <Button onClick={() => navigate('/dashboard/register-user')} className="w-full sm:w-auto">
+        <Button onClick={() => navigate('/dashboard/register-user')} className="w-full sm:w-auto shrink-0">
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Usuario
         </Button>

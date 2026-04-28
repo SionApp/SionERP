@@ -61,24 +61,24 @@ export default function ModulesManagementPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Gestión de Módulos</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de Módulos</h2>
+        <p className="text-sm sm:text-base text-muted-foreground">
           Habilita o deshabilita módulos del sistema según tus necesidades.
         </p>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
         {modules.map(module => (
           <Card key={module.key}>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <CardTitle>{module.name}</CardTitle>
-                  <CardDescription>{module.description}</CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="space-y-1 min-w-0">
+                  <CardTitle className="text-base sm:text-lg">{module.name}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">{module.description}</CardDescription>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 shrink-0">
                   <Switch
                     id={`module-${module.key}`}
                     checked={module.is_installed}

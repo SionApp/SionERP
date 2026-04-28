@@ -135,35 +135,37 @@ const SettingsPage = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Configuración del Sistema
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Administra y personaliza la configuración de tu iglesia
           </p>
         </div>
-        <Button variant="outline" onClick={loadAllSettings} disabled={isLoading}>
+        <Button variant="outline" onClick={loadAllSettings} disabled={isLoading} className="w-full lg:w-auto">
           <RotateCcw className="w-4 h-4 mr-2" />
           Recargar
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="church">Iglesia</TabsTrigger>
-          <TabsTrigger value="zones">Zonas</TabsTrigger>
-          <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
-          <TabsTrigger value="security">Seguridad</TabsTrigger>
-          <TabsTrigger value="backup">Respaldos</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-6">
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-full lg:grid lg:grid-cols-6 h-auto min-w-max lg:min-w-0 gap-1 lg:gap-0">
+            <TabsTrigger value="general" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">General</TabsTrigger>
+            <TabsTrigger value="church" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Iglesia</TabsTrigger>
+            <TabsTrigger value="zones" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Zonas</TabsTrigger>
+<TabsTrigger value="notifications" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Notificaciones</TabsTrigger>
+            <TabsTrigger value="security" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Seguridad</TabsTrigger>
+            <TabsTrigger value="backup" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Respaldos</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ===== TAB: GENERAL ===== */}
-        <TabsContent value="general" className="space-y-6">
+        <TabsContent value="general" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -172,10 +174,10 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Configuraciones básicas del sistema</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               {systemSettings && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="site_name">Nombre del Sistema</Label>
                       <Input
@@ -332,7 +334,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: IGLESIA ===== */}
-        <TabsContent value="church" className="space-y-6">
+        <TabsContent value="church" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -341,10 +343,10 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Datos generales de tu congregación</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               {churchInfo && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="church_name">Nombre de la Iglesia</Label>
                       <Input
@@ -468,7 +470,7 @@ const SettingsPage = () => {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Logo y Branding</h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                       {/* Logo */}
                       <div className="space-y-2">
                         <Label>Logo Principal</Label>
@@ -558,7 +560,7 @@ const SettingsPage = () => {
                   {/* Redes Sociales */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Redes Sociales</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="social_facebook">Facebook</Label>
                         <Input
@@ -635,7 +637,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: ZONAS ===== */}
-        <TabsContent value="zones" className="space-y-6">
+        <TabsContent value="zones" className="space-y-3 sm:space-y-6">
           <ZoneManagement />
           <Card>
             <CardHeader>
@@ -652,7 +654,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: NOTIFICACIONES ===== */}
-        <TabsContent value="notifications" className="space-y-6">
+        <TabsContent value="notifications" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -661,7 +663,7 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Gestiona cómo y cuándo enviar notificaciones</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               {notificationConfig && (
                 <>
                   <div className="space-y-6">
@@ -807,7 +809,7 @@ const SettingsPage = () => {
 
                     <div>
                       <h3 className="text-lg font-semibold mb-4">Configuración SMTP</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="smtp_host">Servidor SMTP</Label>
                           <Input
@@ -932,7 +934,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: SEGURIDAD ===== */}
-        <TabsContent value="security" className="space-y-6">
+        <TabsContent value="security" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -941,7 +943,7 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Configuraciones de seguridad y acceso</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
@@ -1020,7 +1022,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: RESPALDOS ===== */}
-        <TabsContent value="backup" className="space-y-6">
+        <TabsContent value="backup" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1029,8 +1031,8 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Gestión de respaldos del sistema</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
                 <Card className="p-4 border-dashed">
                   <div className="text-center space-y-2">
                     <Database className="w-8 h-8 mx-auto text-muted-foreground" />
