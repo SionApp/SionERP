@@ -80,7 +80,7 @@ export function LeaderReportModal({
 
       setIsSubmitting(true);
       const createData: CreateReportRequest = {
-        report_type: 'weekly', // Reporte semanal base unificado
+        report_type: 'leader', // Reporte de líder de célula
         report_level: 1, // Jerarquía de Líder
         period_start: format(periodStart, 'yyyy-MM-dd'),
         period_end: format(periodEnd, 'yyyy-MM-dd'),

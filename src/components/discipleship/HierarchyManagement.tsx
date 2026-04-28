@@ -19,12 +19,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useZones } from '@/hooks/useZones';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { UserService } from '@/services/user.service';
 import type { AssignHierarchyRequest, DiscipleshipHierarchy } from '@/types/discipleship.types';
-import { useZones } from '@/hooks/useZones';
 import { User } from '@/types/user.types';
-import { Edit, Loader2, Search, Users } from 'lucide-react';
+import { Edit, Loader2, MapPin, Search, UserCheck, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -245,27 +245,20 @@ const HierarchyManagement = () => {
   const getLevelBadge = (level: number | undefined) => {
     if (!level) return <Badge variant="outline">Sin jerarquía</Badge>;
 
-    const colors = {
-      1: 'default',
-      2: 'secondary',
-      3: 'default',
-      4: 'secondary',
-      5: 'default',
+    const configs = {
+      1: { label: 'Líder', className: 'bg-emerald-500 hover:bg-emerald-600' },
+      2: { label: 'Sup. Auxiliar', className: 'bg-blue-500 hover:bg-blue-600' },
+      3: { label: 'Sup. General', className: 'bg-indigo-500 hover:bg-indigo-600' },
+      4: { label: 'Coordinador', className: 'bg-purple-500 hover:bg-purple-600' },
+      5: { label: 'Pastoral', className: 'bg-amber-500 hover:bg-amber-600 text-white' },
     } as const;
 
-    const labels = {
-      1: 'Líder',
-      2: 'Sup. Auxiliar',
-      3: 'Sup. General',
-      4: 'Coordinador',
-      5: 'Pastoral',
+    const config = configs[level as keyof typeof configs] || {
+      label: `Nivel ${level}`,
+      className: '',
     };
 
-    return (
-      <Badge variant={colors[level as keyof typeof colors] || 'outline'}>
-        {labels[level as keyof typeof labels] || `Nivel ${level}`}
-      </Badge>
-    );
+    return <Badge className={config.className}>{config.label}</Badge>;
   };
 
   if (loading) {
@@ -295,10 +288,10 @@ const HierarchyManagement = () => {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Gestión de Jerarquías</h2>
-          <p className="text-sm text-muted-foreground">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Gestión de Jerarquías</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">
             Asigna y gestiona los niveles de jerarquía en el módulo de discipulado
           </p>
         </div>
@@ -350,38 +343,84 @@ const HierarchyManagement = () => {
                   return (
                     <div
                       key={user.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors gap-3"
+                      className="group relative flex flex-col gap-4 p-4 sm:p-5 border border-border/50 rounded-2xl bg-card hover:bg-accent/5 transition-all duration-300 shadow-sm hover:shadow-md"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <p className="font-medium">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-base sm:text-lg truncate">
                               {user.first_name || ''} {user.last_name || ''}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{user.email || ''}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
+                            </h3>
                             {getLevelBadge(hierarchy?.hierarchy_level)}
-                            {hierarchy?.zone_name && (
-                              <Badge variant="outline">{hierarchy.zone_name}</Badge>
-                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {user.email || ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-xl opacity-0 group-hover:opacity-100 sm:opacity-0 transition-opacity bg-accent/50"
+                            onClick={() => handleEditHierarchy(user)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-accent/30 border border-border/30">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                            <MapPin className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                              Zona
+                            </p>
+                            <p className="text-sm font-medium truncate">
+                              {hierarchy?.zone_name || 'Sin zona'}
+                            </p>
                           </div>
                         </div>
+
                         {supervisor && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Supervisor: {supervisor.first_name || ''} {supervisor.last_name || ''}
-                          </p>
-                        )}
-                        {!hierarchy && (
-                          <p className="text-xs text-amber-600 mt-1">
-                            Sin jerarquía asignada - No tiene acceso al módulo de discipulado
-                          </p>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                              <UserCheck className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                                Supervisor
+                              </p>
+                              <p className="text-sm font-medium truncate">
+                                {supervisor.first_name || ''} {supervisor.last_name || ''}
+                              </p>
+                            </div>
+                          </div>
                         )}
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => handleEditHierarchy(user)}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        {hierarchy ? 'Editar' : 'Asignar'}
-                      </Button>
+
+                      {!hierarchy && (
+                        <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                            Pendiente de asignación
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="sm:hidden">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="w-full rounded-xl gap-2 font-semibold"
+                          onClick={() => handleEditHierarchy(user)}
+                        >
+                          <Edit className="h-4 w-4" />
+                          {hierarchy ? 'Editar Jerarquía' : 'Asignar Jerarquía'}
+                        </Button>
+                      </div>
                     </div>
                   );
                 })

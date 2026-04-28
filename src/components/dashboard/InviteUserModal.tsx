@@ -122,8 +122,8 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+    <Dialog open={isOpen} onClose={onClose}>
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
@@ -135,8 +135,8 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4">
+          <div className="grid gap-3 md:gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="email">Email *</Label>
               <Input
@@ -195,11 +195,11 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || disabled}>
+            <Button type="submit" disabled={loading || disabled} className="w-full sm:w-auto">
               {loading ? 'Enviando...' : 'Enviar Invitación'}
             </Button>
           </div>

@@ -192,13 +192,16 @@ const DashboardHome = () => {
       <div className="relative overflow-hidden rounded-b-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-lg bg-gradient-to-r from-primary/90 via-blue-600/80 to-purple-600/80 border border-primary/20 backdrop-blur-md">
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
         <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl md:text-4xl font-extrabold text-white drop-shadow-md truncate">
+        <div className="relative z-10 flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg sm:text-xl md:text-4xl font-extrabold text-white drop-shadow-md truncate">
               Bienvenido, {user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Admin'}
             </h1>
-            <p className="text-white/80 text-sm md:text-lg font-medium mt-1 truncate">
+            <p className="text-white/80 text-xs sm:text-sm md:text-lg font-medium mt-1 truncate">
               Sistema de Gestión Sion
+            </p>
+            <p className="text-[10px] text-white/60 mt-1 lg:hidden truncate">
+              Último acceso: {lastLogin}
             </p>
           </div>
           <div className="hidden lg:flex items-center space-x-4">

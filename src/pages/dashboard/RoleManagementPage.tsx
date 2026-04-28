@@ -267,7 +267,7 @@ const RoleManagementPage = () => {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             <div className="space-y-2">
               <Label htmlFor="role-name">Nombre del Rol *</Label>
               <Input id="role-name" placeholder="Ej: Coordinador de Eventos" />
@@ -349,34 +349,44 @@ const RoleManagementPage = () => {
   );
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Roles
           </h1>
-          <p className="text-muted-foreground mt-1">Administra roles y permisos del sistema</p>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            Administra roles y permisos del sistema
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsAssignRoleOpen(true)}>
+        <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+          <Button
+            variant="outline"
+            onClick={() => setIsAssignRoleOpen(true)}
+            className="w-full sm:w-auto"
+          >
             <UserPlus className="w-4 h-4 mr-2" />
             Asignar Rol
           </Button>
-          <Button onClick={() => setIsCreateRoleOpen(true)}>
+          <Button onClick={() => setIsCreateRoleOpen(true)} className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Crear Rol
           </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="system" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-          <TabsTrigger value="system">Roles del Sistema</TabsTrigger>
-          <TabsTrigger value="custom">Roles Personalizados</TabsTrigger>
+      <Tabs defaultValue="system" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] h-auto">
+          <TabsTrigger value="system" className="text-xs sm:text-sm whitespace-nowrap">
+            Roles del Sistema
+          </TabsTrigger>
+          <TabsTrigger value="custom" className="text-xs sm:text-sm whitespace-nowrap">
+            Roles Personalizados
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="system" className="space-y-6">
+        <TabsContent value="system" className="space-y-4 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -436,30 +446,30 @@ const RoleManagementPage = () => {
       </Tabs>
 
       {/* Role Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         <Card>
-          <CardContent className="p-6 text-center">
+          <CardContent className="p-3 sm:p-4 md:p-6 text-center">
             <div className="text-2xl font-bold text-primary">6</div>
             <div className="text-sm text-muted-foreground">Total de roles</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6 text-center">
+          <CardContent className="p-3 sm:p-4 md:p-6 text-center">
             <div className="text-2xl font-bold text-green-600">65</div>
             <div className="text-sm text-muted-foreground">Usuarios asignados</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6 text-center">
+          <CardContent className="p-3 sm:p-4 md:p-6 text-center">
             <div className="text-2xl font-bold text-orange-600">2</div>
             <div className="text-sm text-muted-foreground">Roles personalizados</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6 text-center">
+          <CardContent className="p-3 sm:p-4 md:p-6 text-center">
             <div className="text-2xl font-bold text-purple-600">20</div>
             <div className="text-sm text-muted-foreground">Permisos únicos</div>
           </CardContent>

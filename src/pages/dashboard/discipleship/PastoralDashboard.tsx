@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useDiscipleshipData } from '@/hooks/useDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
@@ -12,6 +13,9 @@ import {
   Clock,
   Crown,
   Loader2,
+  Map,
+  Plus,
+  Settings,
   Target,
   TrendingUp,
   Users,
@@ -72,6 +76,7 @@ interface PendingReport {
 
 const PastoralDashboard: React.FC = React.memo(() => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState('overview');
 
   // Usar hook compartido para evitar consultas duplicadas
@@ -125,7 +130,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-4 md:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 md:gap-4">
         <div>
@@ -134,8 +139,8 @@ const PastoralDashboard: React.FC = React.memo(() => {
             {user?.first_name} {user?.last_name} - Vista Ejecutiva General
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Badge variant="default" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <Badge variant="default" className="text-xs sm:text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
             <Crown className="mr-2 h-3 w-3 md:h-4 md:w-4" />
             <span className="hidden sm:inline">Nivel 5 - Pastor</span>
             <span className="sm:hidden">N5</span>
@@ -188,6 +193,42 @@ const PastoralDashboard: React.FC = React.memo(() => {
             <p className="text-xs text-muted-foreground">Promedio general</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Acciones Rápidas */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <Button
+          variant="outline"
+          className="h-auto py-4 flex-col gap-2"
+          onClick={() => navigate('/dashboard/zones')}
+        >
+          <Map className="h-5 w-5" />
+          <span className="text-sm">Ver Zonas</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-4 flex-col gap-2"
+          onClick={() => navigate('/dashboard/discipleship')}
+        >
+          <Users className="h-5 w-5" />
+          <span className="text-sm">Discipulado</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-4 flex-col gap-2"
+          onClick={() => toast.info('Alertas automáticas - Funcionalidad próximamente')}
+        >
+          <AlertTriangle className="h-5 w-5" />
+          <span className="text-sm">Generar Alertas</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-4 flex-col gap-2"
+          onClick={() => navigate('/dashboard/settings')}
+        >
+          <Settings className="h-5 w-5" />
+          <span className="text-sm">Configuración</span>
+        </Button>
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
@@ -382,7 +423,11 @@ const PastoralDashboard: React.FC = React.memo(() => {
                 <div className="text-center py-8">
                   <Target className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No hay objetivos definidos</p>
-                  <Button variant="outline" className="mt-4">
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => toast.info('Crear objetivos - Funcionalidad próximamente')}
+                  >
                     Crear Objetivo
                   </Button>
                 </div>
