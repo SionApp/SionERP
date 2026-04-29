@@ -3,7 +3,6 @@ import { SetupModal } from '@/components/SetupModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { useAuth } from '@/contexts/AuthContext';
 import { useSetupShortcut } from '@/hooks/useSetupShortcut';
 import { UserService } from '@/services/user.service';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,18 +12,48 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+const PROFILE_PATH = '/dashboard/profile';
+const ONBOARDING_ALLOWED = [PROFILE_PATH, '/dashboard'];
+
 const DashboardLayout = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { refreshCurrentUser } = useAuth();
   const { isOpen: isSetupOpen, setIsOpen: setSetupOpen } = useSetupShortcut();
 
   useEffect(() => {
     getUser();
   }, []);
+
+  // Onboarding guard: re-check on every route change if onboarding was needed
+  useEffect(() => {
+    if (loading) return;
+
+    const checkAndRedirect = async () => {
+      try {
+        const userData = await UserService.getCurrentUser();
+
+        // User completed onboarding — clear the flag
+        if (userData.onboarding_completed) {
+          setNeedsOnboarding(false);
+          return;
+        }
+
+        // Still needs onboarding — redirect to profile if on restricted route
+        setNeedsOnboarding(true);
+        const currentPath = location.pathname;
+        if (!ONBOARDING_ALLOWED.some(p => currentPath === p || currentPath.startsWith(p + '/'))) {
+          navigate(PROFILE_PATH, { replace: true });
+        }
+      } catch {
+        // If we can't check, don't block the user
+      }
+    };
+
+    checkAndRedirect();
+  }, [loading, location.pathname, navigate]);
 
   const getUser = async () => {
     try {
@@ -39,10 +68,6 @@ const DashboardLayout = () => {
           const userData = await UserService.getCurrentUser();
           if (!userData.onboarding_completed) {
             setNeedsOnboarding(true);
-            // Redirect to profile if not already there
-            if (location.pathname !== '/dashboard/profile') {
-              navigate('/dashboard/profile', { replace: true });
-            }
           }
         } catch (err) {
           console.error('Error checking onboarding status:', err);
