@@ -79,7 +79,7 @@ const RegistrationModal = () => {
         password_hash: passwordHash,
       };
 
-      const { error } = await supabase.from('users').insert([dataToInsert]);
+      const { error } = await (supabase.from('users' as any).insert([dataToInsert]) as any);
 
       if (error) {
         if (error.message.includes('duplicate') || error.code === '23505') {
