@@ -187,4 +187,36 @@ export class UserService {
       throw error;
     }
   }
+
+  static async completeOnboarding(data: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    address?: string;
+    id_number?: string;
+  }): Promise<{ message: string; user_id: string }> {
+    try {
+      return await ApiService.put('/users/me/onboarding', data);
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      throw error;
+    }
+  }
+
+  static async createUserDirect(userData: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+    phone?: string;
+    id_number?: string;
+  }): Promise<{ message: string; user_id: string; email: string }> {
+    try {
+      return await ApiService.post('/users/direct', userData);
+    } catch (error) {
+      console.error('Error creating user directly:', error);
+      throw error;
+    }
+  }
 }

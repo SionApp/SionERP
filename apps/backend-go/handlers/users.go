@@ -44,7 +44,8 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			u.whatsapp, u.created_at, u.updated_at,
 			i.status as invitation_status,
 			COALESCE(u.zone_id::text, '') as zone_id,
-			COALESCE(z.name, '') as zone_name
+			COALESCE(z.name, '') as zone_name,
+			u.onboarding_completed
 		FROM users u
 		LEFT JOIN user_invitations i ON u.email = i.email
 			AND i.status IN ('pending', 'accepted')
@@ -104,6 +105,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			&user.InvitationStatus,
 			&user.ZoneID,
 			&user.ZoneName,
+			&user.OnboardingCompleted,
 		)
 		if err != nil {
 			c.Logger().Error("Row scan error in GetUsers: ", err)
@@ -397,7 +399,8 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
 			   whatsapp, created_at, updated_at, emergency_contact_name, emergency_contact_phone,
-			   territory, zone_name, active_groups_count, discipleship_level
+			   territory, zone_name, active_groups_count, discipleship_level,
+			   onboarding_completed
 		FROM users
 		WHERE id = $1
 	`
@@ -411,6 +414,7 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
 		&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt, &user.EmergencyContactName, &user.EmergencyContactPhone,
 		&user.Territory, &user.ZoneName, &user.ActiveGroupsCount, &user.DiscipleshipLevel,
+		&user.OnboardingCompleted,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -478,5 +482,178 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		"message": "Profile updated successfully",
 		"user_id": userID,
 		"user":    req,
+	})
+}
+
+// CompleteOnboarding marks the user as having completed their onboarding
+func (h *UserHandler) CompleteOnboarding(c echo.Context) error {
+	userID, ok := c.Get("user_id").(string)
+	if !ok {
+		c.Logger().Error("Invalid user_id in context")
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error":   "Unauthorized",
+			"message": "User ID not found in authentication context",
+		})
+	}
+
+	var req struct {
+		FirstName *string `json:"first_name,omitempty"`
+		LastName  *string `json:"last_name,omitempty"`
+		Phone     *string `json:"phone,omitempty"`
+		Address   *string `json:"address,omitempty"`
+		IdNumber  *string `json:"id_number,omitempty"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid request body",
+			"message": err.Error(),
+		})
+	}
+
+	// Build dynamic update query with onboarding_completed
+	updates := []string{"onboarding_completed = true", "updated_at = NOW()"}
+	args := []interface{}{}
+	argIdx := 1
+
+	if req.FirstName != nil && *req.FirstName != "" {
+		updates = append(updates, fmt.Sprintf("first_name = $%d", argIdx))
+		args = append(args, *req.FirstName)
+		argIdx++
+	}
+	if req.LastName != nil && *req.LastName != "" {
+		updates = append(updates, fmt.Sprintf("last_name = $%d", argIdx))
+		args = append(args, *req.LastName)
+		argIdx++
+	}
+	if req.Phone != nil && *req.Phone != "" {
+		updates = append(updates, fmt.Sprintf("phone = $%d", argIdx))
+		args = append(args, *req.Phone)
+		argIdx++
+	}
+	if req.Address != nil && *req.Address != "" {
+		updates = append(updates, fmt.Sprintf("address = $%d", argIdx))
+		args = append(args, *req.Address)
+		argIdx++
+	}
+	if req.IdNumber != nil && *req.IdNumber != "" {
+		updates = append(updates, fmt.Sprintf("id_number = $%d", argIdx))
+		args = append(args, *req.IdNumber)
+		argIdx++
+	}
+
+	args = append(args, userID)
+
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(updates, ", "), argIdx)
+
+	result, err := config.GetDB().DB.Exec(query, args...)
+	if err != nil {
+		c.Logger().Error(fmt.Sprintf("Database error in CompleteOnboarding for user %s: %v", userID, err))
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error completing onboarding",
+			"message": err.Error(),
+		})
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error":   "User not found",
+			"message": fmt.Sprintf("User with ID %s does not exist", userID),
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Onboarding completed successfully",
+		"user_id": userID,
+	})
+}
+
+// CreateUserDirect creates a user with a password directly (no invitation link)
+// Used by admins to create users without email/SMTP
+func (h *UserHandler) CreateUserDirect(c echo.Context) error {
+	currentUserID := c.Get("user_id").(string)
+
+	var currentUserRole string
+	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error":   "User not found",
+			"message": "You must be a valid user to perform this action",
+		})
+	}
+
+	if currentUserRole != utils.RolePastor && currentUserRole != utils.RoleStaff && currentUserRole != "admin" {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "Only admin, pastor, or staff can create users directly",
+		})
+	}
+
+	var req struct {
+		Email     string `json:"email" validate:"required,email"`
+		Password  string `json:"password" validate:"required,min=6"`
+		FirstName string `json:"first_name" validate:"required,min=2"`
+		LastName  string `json:"last_name" validate:"required,min=2"`
+		Role      string `json:"role" validate:"required"`
+		Phone     string `json:"phone,omitempty"`
+		IdNumber  string `json:"id_number,omitempty"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid request body",
+			"message": err.Error(),
+		})
+	}
+
+	if err := validate.Struct(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Validation error",
+			"message": err.Error(),
+		})
+	}
+
+	// Create user in Supabase Auth
+	supabase := config.NewSupabaseClient()
+	authUser, err := supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
+		"first_name": req.FirstName,
+		"last_name":  req.LastName,
+		"role":       req.Role,
+	})
+	if err != nil {
+		c.Logger().Error("Failed to create user in Supabase Auth:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error creating user",
+			"message": "Failed to create authentication account",
+		})
+	}
+
+	// Create user profile in users table (onboarding_completed = true since admin filled data)
+	query := `
+		INSERT INTO users (
+			id, email, first_name, last_name, role, phone, id_number,
+			onboarding_completed, is_active, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, NOW(), NOW())
+		RETURNING id
+	`
+
+	var userID string
+	err = config.GetDB().DB.QueryRow(
+		query, authUser.ID, req.Email, req.FirstName, req.LastName, req.Role, req.Phone, req.IdNumber,
+	).Scan(&userID)
+	if err != nil {
+		c.Logger().Error("Database error in CreateUserDirect:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error creating user profile",
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"message":            "User created successfully",
+		"user_id":            userID,
+		"email":              req.Email,
+		"onboarding_completed": true,
 	})
 }

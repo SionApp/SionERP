@@ -44,6 +44,9 @@ type User struct {
 
 	// Invitation status (from LEFT JOIN with user_invitations)
 	InvitationStatus *string `json:"invitation_status,omitempty" db:"invitation_status"`
+
+	// Onboarding
+	OnboardingCompleted *bool `json:"onboarding_completed" db:"onboarding_completed"`
 }
 
 type UpdateUserRequest struct {
