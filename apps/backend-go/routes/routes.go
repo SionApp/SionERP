@@ -40,9 +40,13 @@ func SetupRoutes(e *echo.Echo) {
 		users.PUT("/:id", userHandler.UpdateUser)    // PUT /api/v1/users/:id - Update specific user
 		users.DELETE("/:id", userHandler.DeleteUser) // DELETE /api/v1/users/:id - Delete user
 
+		// Direct user creation (admin creates user with password)
+		users.POST("/direct", userHandler.CreateUserDirect) // POST /api/v1/users/direct - Create user with password
+
 		// Profile endpoints (accessible by user themselves)
-		users.GET("/me", userHandler.GetCurrentUser)    // GET /api/v1/users/me - Get current user profile
-		users.PUT("/me", userHandler.UpdateCurrentUser) // PUT /api/v1/users/me - Update current user profile
+		users.GET("/me", userHandler.GetCurrentUser)              // GET /api/v1/users/me - Get current user profile
+		users.PUT("/me", userHandler.UpdateCurrentUser)           // PUT /api/v1/users/me - Update current user profile
+		users.PUT("/me/onboarding", userHandler.CompleteOnboarding) // PUT /api/v1/users/me/onboarding - Complete onboarding
 	}
 
 	// Dashboard routes

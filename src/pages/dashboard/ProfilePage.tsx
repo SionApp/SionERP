@@ -14,6 +14,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/contexts/AuthContext';
 import { usePreferences } from '@/hooks/usePreferences';
 import { ProfileUpdateFormData, profileUpdateSchema } from '@/schemas/user.schemas';
 import { UserService } from '@/services/user.service';
@@ -41,6 +42,7 @@ import { toast } from 'sonner';
 const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
   const { preferences, loading: preferencesLoading, updatePreference } = usePreferences();
+  const { refreshCurrentUser } = useAuth();
   const {
     register,
     handleSubmit,
@@ -116,6 +118,25 @@ const ProfilePage = () => {
     try {
       setLoading(true);
       await UserService.updateProfile(data);
+
+      // If user hasn't completed onboarding, mark it now
+      if (userData && !userData.onboarding_completed) {
+        try {
+          await UserService.completeOnboarding({
+            first_name: data.first_name,
+            last_name: data.last_name,
+            phone: data.phone,
+            address: data.address,
+            id_number: data.id_number,
+          });
+          // Refresh user data so onboarding_completed is updated
+          await refreshCurrentUser();
+        } catch (err) {
+          console.error('Error completing onboarding:', err);
+          // Don't fail the profile save if onboarding fails
+        }
+      }
+
       toast.success('Perfil actualizado exitosamente');
     } catch (error) {
       toast.error('Error al actualizar el perfil');
