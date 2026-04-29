@@ -247,7 +247,7 @@ const ProfilePage = () => {
                     </Badge>
                     <Badge variant="outline">
                       Miembro desde{' '}
-                      {safeFormatDate(userData.membership_date, 'MMMM yyyy')}
+                      {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
                     </Badge>
                   </div>
                 </div>
@@ -378,7 +378,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Bautizado</h4>
                       <p className="text-sm text-muted-foreground">
-                          {safeFormatDate(userData.baptism_date, 'MMMM yyyy')}
+                          {safeFormatDate(userData?.baptism_date, 'MMMM yyyy')}
                       </p>
                     </div>
                     <Badge variant="default">Sí</Badge>
@@ -388,7 +388,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Miembro Activo</h4>
                       <p className="text-sm text-muted-foreground">
-                          {safeFormatDate(userData.membership_date, 'MMMM yyyy')}
+                          {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
                       </p>
                     </div>
                     <Badge variant="default">Activo</Badge>
@@ -419,7 +419,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Primera Visita</h4>
                       <p className="text-sm text-muted-foreground">
-                          {safeFormatDate(userData.first_visit_date, 'MMMM yyyy')}
+                          {safeFormatDate(userData?.first_visit_date, 'MMMM yyyy')}
                       </p>
                     </div>
                   </div>
