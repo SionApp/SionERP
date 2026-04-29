@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useRecentDiscipleshipActivity } from '@/hooks/useRecentDiscipleshipActivity';
 import { UserService } from '@/services/user.service';
 import { User as UserType } from '@/types/user.types';
 import {
@@ -22,12 +24,75 @@ import GeneralSupervisorDashboard from './discipleship/GeneralSupervisorDashboar
 import LeaderDashboard from './discipleship/LeaderDashboard';
 import PastoralDashboard from './discipleship/PastoralDashboard';
 
+function formatTimestamp(timestamp: { Time: string }): string {
+  const now = new Date();
+  const date = new Date(timestamp.Time);
+  const diffMs = now.getTime() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffHours < 1) return 'Hace minutos';
+  if (diffHours < 24) return `Hace ${diffHours}h`;
+  if (diffDays < 7) return `Hace ${diffDays}d`;
+  return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+}
+
+function NoAccessCard({
+  module,
+  requiredLevel,
+}: {
+  module: string;
+  requiredLevel: number;
+}) {
+  const levelNames: Record<number, string> = {
+    2: 'Supervisor Auxiliar',
+    3: 'Supervisor General',
+    4: 'Coordinador',
+    5: 'Pastoral',
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4 md:p-6">
+        <div className="text-center space-y-4">
+          <AlertCircle className="w-10 h-10 md:w-12 md:h-12 mx-auto text-muted-foreground" />
+          <div>
+            <h3 className="text-base md:text-lg font-semibold mb-2">
+              Acceso Restringido — {module}
+            </h3>
+            <p className="text-sm md:text-base text-muted-foreground">
+              Este módulo requiere nivel{' '}
+              <span className="font-medium text-foreground">
+                {levelNames[requiredLevel] || requiredLevel}
+              </span>
+              <br />
+              Contacta a un administrador para que te asigne el nivel adecuado.
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 const DiscipleshipPage = () => {
   const authUser = useAuth().user;
   const [activeTab, setActiveTab] = useState('overview');
   const [user, setUser] = useState<UserType | null>(null);
   const [discipleshipAccess, setDiscipleshipAccess] = useState<DiscipleshipAccess | null>(null);
   const [loading, setLoading] = useState(true);
+  const { activities: recentActivities, loading: activityLoading } =
+    useRecentDiscipleshipActivity(8);
+  const { discipleshipStats, loading: statsLoading } = useDashboardStats();
+
+  useEffect(() => {
+    if (discipleshipAccess) {
+      const defaultTab = discipleshipAccess.canAccess
+        ? (getDiscipleshipLevel() >= 2 ? 'dashboard' : 'overview')
+        : 'overview';
+      setActiveTab(defaultTab);
+    }
+  }, [discipleshipAccess]);
 
   useEffect(() => {
     const loadUserAndAccess = async () => {
@@ -105,8 +170,7 @@ const DiscipleshipPage = () => {
 
     // Si es acceso completo (pastor/staff), mostrar dashboard pastoral
     if (discipleshipAccess.isFullAccess) {
-      // return PastoralDashboard;
-      return GeneralSupervisorDashboard; // Para pruebas, mostrar dashboard de líder incluso con acceso completo
+      return PastoralDashboard;
     }
 
     // Si no, usar el nivel de jerarquía
@@ -116,9 +180,9 @@ const DiscipleshipPage = () => {
       case 5:
         return PastoralDashboard;
       case 4:
-        return GeneralSupervisorDashboard;
-      case 3:
         return CoordinatorDashboard;
+      case 3:
+        return GeneralSupervisorDashboard;
       case 2:
         return AuxiliarySupervisorDashboard;
       case 1:
@@ -161,6 +225,21 @@ const DiscipleshipPage = () => {
     (discipleshipAccess?.level && discipleshipAccess.level >= 3) ||
     false;
 
+  const canManageHierarchy =
+    discipleshipAccess?.isFullAccess ||
+    (discipleshipAccess?.level && discipleshipAccess.level >= 4) ||
+    false;
+
+  const canViewZones =
+    discipleshipAccess?.isFullAccess ||
+    (discipleshipAccess?.level && discipleshipAccess.level >= 2) ||
+    false;
+
+  const canViewMap =
+    discipleshipAccess?.isFullAccess ||
+    (discipleshipAccess?.level && discipleshipAccess.level >= 2) ||
+    false;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -198,7 +277,13 @@ const DiscipleshipPage = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
         {/* Mobile: Scroll horizontal, Desktop: Grid */}
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <TabsList className="inline-flex w-full md:grid md:grid-cols-6 h-auto min-w-max md:min-w-0 gap-1 md:gap-0">
+          <TabsList className="inline-flex w-full md:grid h-auto min-w-max md:min-w-0 gap-1 md:gap-0"
+            style={{
+              gridTemplateColumns: `repeat(${
+                2 + (canManageGroups ? 1 : 0) + (canManageHierarchy ? 1 : 0) + (canViewZones ? 1 : 0) + (canViewMap ? 1 : 0)
+              }, minmax(0, 1fr))`
+            }}
+          >
             <TabsTrigger
               value="overview"
               className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
@@ -211,42 +296,70 @@ const DiscipleshipPage = () => {
             >
               Dashboard
             </TabsTrigger>
-            <TabsTrigger
-              value="manage"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              Gestión
-            </TabsTrigger>
-            <TabsTrigger
-              value="hierarchy"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              Jerarquías
-            </TabsTrigger>
-            <TabsTrigger
-              value="zones"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              Zonas
-            </TabsTrigger>
-            <TabsTrigger
-              value="map"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              Mapa
-            </TabsTrigger>
+            {canManageGroups && (
+              <TabsTrigger
+                value="manage"
+                className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+              >
+                Gestión
+              </TabsTrigger>
+            )}
+            {canManageHierarchy && (
+              <TabsTrigger
+                value="hierarchy"
+                className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+              >
+                Jerarquías
+              </TabsTrigger>
+            )}
+            {canViewZones && (
+              <TabsTrigger
+                value="zones"
+                className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+              >
+                Zonas
+              </TabsTrigger>
+            )}
+            {canViewMap && (
+              <TabsTrigger
+                value="map"
+                className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
+              >
+                Mapa
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4 md:space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          {!discipleshipAccess?.canAccess ? (
+            <Card>
+              <CardContent className="p-4 md:p-6">
+                <div className="text-center space-y-4">
+                  <AlertCircle className="w-10 h-10 md:w-12 md:h-12 mx-auto text-muted-foreground" />
+                  <div>
+                    <h3 className="text-base md:text-lg font-semibold mb-2">
+                      Sin Acceso al Módulo de Discipulado
+                    </h3>
+                    <p className="text-sm md:text-base text-muted-foreground">
+                      No tienes un nivel jerárquico asignado en el sistema de discipulado.
+                      <br />
+                      Contacta a un administrador (Pastor o Staff) para que te asigne un nivel.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center gap-2">
                   <Users className="w-8 h-8 text-primary" />
                   <div>
-                    <p className="text-2xl font-bold">45</p>
+                    <p className="text-2xl font-bold">{discipleshipStats.totalGroups}</p>
                     <p className="text-sm text-muted-foreground">Grupos Activos</p>
                   </div>
                 </div>
@@ -258,7 +371,7 @@ const DiscipleshipPage = () => {
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-8 h-8 text-green-600" />
                   <div>
-                    <p className="text-2xl font-bold">540</p>
+                    <p className="text-2xl font-bold">{discipleshipStats.totalMembers}</p>
                     <p className="text-sm text-muted-foreground">Miembros Activos</p>
                   </div>
                 </div>
@@ -270,7 +383,7 @@ const DiscipleshipPage = () => {
                 <div className="flex items-center gap-2">
                   <Target className="w-8 h-8 text-blue-600" />
                   <div>
-                    <p className="text-2xl font-bold">8</p>
+                    <p className="text-2xl font-bold">{discipleshipStats.multiplications}</p>
                     <p className="text-sm text-muted-foreground">Multiplicando</p>
                   </div>
                 </div>
@@ -282,7 +395,7 @@ const DiscipleshipPage = () => {
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-8 h-8 text-orange-600" />
                   <div>
-                    <p className="text-2xl font-bold">3</p>
+                    <p className="text-2xl font-bold">{discipleshipStats.alertsCount}</p>
                     <p className="text-sm text-muted-foreground">Necesitan Atención</p>
                   </div>
                 </div>
@@ -322,41 +435,46 @@ const DiscipleshipPage = () => {
 
           {/* Recent Activity */}
           <Card>
-            <CardHeader>
-              <CardTitle>Actividad Reciente</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Actividad Reciente</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      Grupo "Juventud Victoriosa" reportó multiplicación
-                    </p>
-                    <p className="text-xs text-muted-foreground">Hace 2 horas</p>
+              {activityLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center space-y-2">
+                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+                    <p className="text-sm text-muted-foreground">Cargando actividad...</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      Nuevo reporte semanal de "Célula Esperanza"
-                    </p>
-                    <p className="text-xs text-muted-foreground">Hace 5 horas</p>
-                  </div>
+              ) : recentActivities.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground">No hay actividad reciente</p>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      Grupo "Nueva Vida" necesita atención - baja asistencia
-                    </p>
-                    <p className="text-xs text-muted-foreground">Hace 1 día</p>
-                  </div>
+              ) : (
+                <div className="space-y-2">
+                  {recentActivities.map(activity => (
+                    <div
+                      key={activity.id}
+                      className="flex items-start gap-3 rounded-lg p-3 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${activity.color}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium leading-none">{activity.title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                          {activity.description}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatTimestamp(activity.timestamp as unknown as { Time: string })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
+            </>
+          )}
         </TabsContent>
 
         {/* Dashboard Tab */}
@@ -364,22 +482,38 @@ const DiscipleshipPage = () => {
 
         {/* Group Management Tab */}
         <TabsContent value="manage">
-          <GroupManagement />
+          {canManageGroups ? (
+            <GroupManagement />
+          ) : (
+            <NoAccessCard module="Gestión de Grupos" requiredLevel={3} />
+          )}
         </TabsContent>
 
         {/* Hierarchy Management Tab */}
         <TabsContent value="hierarchy">
-          <HierarchyManagement />
+          {canManageHierarchy ? (
+            <HierarchyManagement />
+          ) : (
+            <NoAccessCard module="Jerarquías" requiredLevel={4} />
+          )}
         </TabsContent>
 
         {/* Zones Tab */}
         <TabsContent value="zones">
-          <ZoneManagement />
+          {canViewZones ? (
+            <ZoneManagement />
+          ) : (
+            <NoAccessCard module="Zonas" requiredLevel={2} />
+          )}
         </TabsContent>
 
         {/* Map Tab */}
         <TabsContent value="map">
-          <DiscipleshipMap />
+          {canViewMap ? (
+            <DiscipleshipMap />
+          ) : (
+            <NoAccessCard module="Mapa" requiredLevel={2} />
+          )}
         </TabsContent>
       </Tabs>
     </div>
