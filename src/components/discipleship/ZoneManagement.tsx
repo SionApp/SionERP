@@ -36,8 +36,8 @@ import {
   CreateZoneRequest,
   UpdateZoneRequest,
   Zone,
-  ZoneGeometry,
   ZoneBoundaries,
+  ZoneGeometry,
 } from '@/types/discipleship.types';
 import {
   AlertCircle,
@@ -221,24 +221,30 @@ const ZoneManagement: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="w-5 h-5" />
-                Gestión de Zonas Geográficas
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg md:text-xl">
+                <MapPin className="w-5 h-5 flex-shrink-0 text-blue-500" />
+                <span>Gestión de Zonas Geográficas</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Administra las zonas donde operan las células de discipulado
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refetch}
+                disabled={loading}
+                className="flex-1 md:flex-none"
+              >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Actualizar
               </Button>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={resetForm}>
+                  <Button onClick={resetForm} size="sm" className="flex-1 md:flex-none">
                     <Plus className="w-4 h-4 mr-2" />
                     Nueva Zona
                   </Button>
@@ -370,51 +376,85 @@ const ZoneManagement: React.FC = () => {
                 const stats = getZoneStatsById(zone.id);
 
                 return (
-                  <div key={zone.id} className="border rounded-lg p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                      <div className="flex flex-wrap items-center gap-3">
+                  <div
+                    key={zone.id}
+                    className="p-4 border rounded-xl hover:bg-accent/50 transition-all space-y-4 shadow-sm"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className="w-4 h-4 rounded-full flex-shrink-0"
+                          className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm"
                           style={{ backgroundColor: zone.color }}
                         />
-                        <h3 className="font-semibold">{zone.name}</h3>
-                        <Badge variant="secondary">{getSupervisorName(zone.supervisor_id)}</Badge>
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-base sm:text-lg truncate">{zone.name}</h3>
+                          <Badge
+                            variant="secondary"
+                            className="mt-1 font-normal text-[10px] sm:text-xs"
+                          >
+                            {getSupervisorName(zone.supervisor_id)}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(zone)}>
+                      <div className="flex items-center gap-1 ml-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleEdit(zone)}
+                        >
                           <Edit2 className="w-4 h-4" />
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleDeleteClick(zone)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteClick(zone)}
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
 
                     {normalizeNullString(zone.description) && (
-                      <p className="text-sm text-muted-foreground mb-3">
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
                         {normalizeNullString(zone.description)}
                       </p>
                     )}
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                      <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2">
-                        <Building className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">
-                          {stats?.total_groups ?? zone.total_groups ?? 0} Células
-                        </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="flex items-center gap-3 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100/50 dark:border-blue-800/30 rounded-xl p-3">
+                        <Building className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                            Células
+                          </p>
+                          <p className="text-base font-bold text-blue-700 dark:text-blue-300">
+                            {stats?.total_groups ?? zone.total_groups ?? 0}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2">
-                        <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">
-                          {stats?.total_members ?? zone.total_members ?? 0} Miembros
-                        </span>
+                      <div className="flex items-center gap-3 bg-emerald-50/50 dark:bg-emerald-900/20 border border-emerald-100/50 dark:border-emerald-800/30 rounded-xl p-3">
+                        <Users className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            Miembros
+                          </p>
+                          <p className="text-base font-bold text-emerald-700 dark:text-emerald-300">
+                            {stats?.total_members ?? zone.total_members ?? 0}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 bg-accent/20 rounded-md p-2 col-span-2 sm:col-span-1">
-                        <Target className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">
-                          {(stats?.avg_attendance ?? zone.avg_attendance ?? 0).toFixed(0)}%
-                          Asistencia
-                        </span>
+                      <div className="flex items-center gap-3 bg-amber-50/50 dark:bg-amber-900/20 border border-amber-100/50 dark:border-amber-800/30 rounded-xl p-3">
+                        <Target className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                            Asistencia
+                          </p>
+                          <p className="text-base font-bold text-amber-700 dark:text-amber-300">
+                            {(stats?.avg_attendance ?? zone.avg_attendance ?? 0).toFixed(0)}%
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>

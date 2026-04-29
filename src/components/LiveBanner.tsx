@@ -34,13 +34,13 @@ const LiveBanner = () => {
 
   const checkLiveStatus = async () => {
     try {
-      const { data } = await supabase
-        .from('live_streams')
+      const { data } = await (supabase
+        .from('live_streams' as any)
         .select('*')
         .eq('is_live', true)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .single() as any);
 
       if (data?.youtube_video_id) {
         setIsLive(true);

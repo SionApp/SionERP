@@ -105,21 +105,21 @@ const ReportsPage = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Centro de Reportes
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Genera reportes detallados y analiza el crecimiento de la congregación
           </p>
         </div>
         <Button
           onClick={handleGenerateReport}
           disabled={!selectedReport || isGenerating}
-          className="w-full lg:w-auto"
+          className="w-full lg:w-auto shrink-0"
         >
           {isGenerating ? (
             <>
@@ -135,15 +135,15 @@ const ReportsPage = () => {
         </Button>
       </div>
 
-      <Tabs defaultValue="generator" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-          <TabsTrigger value="generator">Generar Reportes</TabsTrigger>
-          <TabsTrigger value="history">Historial</TabsTrigger>
+      <Tabs defaultValue="generator" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] h-auto">
+          <TabsTrigger value="generator" className="text-xs sm:text-sm">Generar Reportes</TabsTrigger>
+          <TabsTrigger value="history" className="text-xs sm:text-sm">Historial</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="generator" className="space-y-6">
+        <TabsContent value="generator" className="space-y-4 sm:space-y-6">
           {/* Report Types */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {reportTypes.map(report => {
               const Icon = report.icon;
               return (
@@ -180,8 +180,8 @@ const ReportsPage = () => {
                 </CardTitle>
                 <CardDescription>Personaliza los parámetros para tu reporte</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="date-range">Rango de Fechas</Label>
                     <DatePickerWithRange date={dateRange} onDateChange={setDateRange} />
@@ -294,7 +294,7 @@ const ReportsPage = () => {
           <div className="grid gap-4">
             {recentReports.map(report => (
               <Card key={report.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
+                <CardContent className="p-2 sm:p-3 md:p-6">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">

@@ -200,13 +200,13 @@ const RegisterUserPage = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             {isEditMode ? 'Editar Usuario' : 'Registro de Usuarios'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             {isEditMode
               ? 'Modifica los datos del usuario seleccionado'
               : 'Registra un nuevo usuario en el sistema'}
@@ -226,12 +226,12 @@ const RegisterUserPage = () => {
               : 'Completa todos los campos requeridos para registrar un nuevo usuario'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
+        <CardContent className="p-3 sm:p-4 md:p-6">
+          <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4 sm:space-y-6">
             {/* Información Personal */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Información Personal</h3>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-3 md:gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">Nombre *</Label>
                   <Input

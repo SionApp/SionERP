@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { AppSidebar } from '@/components/AppSidebar';
+import { SetupModal } from '@/components/SetupModal';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Button } from '@/components/ui/button';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { useSetupShortcut } from '@/hooks/useSetupShortcut';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { toast } from 'sonner';
 import { LogOut } from 'lucide-react';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/AppSidebar';
-import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { SetupModal } from '@/components/SetupModal';
-import { useSetupShortcut } from '@/hooks/useSetupShortcut';
+import { useEffect, useState } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const DashboardLayout = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -58,26 +58,28 @@ const DashboardLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-to-br from-background via-background to-accent/5">
+      <div className="h-[100dvh] flex flex-col w-full bg-gradient-to-br from-background via-background to-accent/5 overflow-hidden fixed inset-0">
         {/* Header Glass Morphism */}
-        <header className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center justify-between bg-[var(--glass-background)] backdrop-blur-lg border-b border-border/30 px-6 shadow-[var(--shadow-glass)]">
+        <header className="h-14 sm:h-16 flex items-center justify-between bg-[var(--glass-background)] backdrop-blur-lg border-b border-border/30 px-2 sm:px-4 md:px-6 shadow-[var(--shadow-glass)] gap-2 shrink-0 z-50">
           <div className="flex items-center gap-4">
-            <SidebarTrigger className="p-2 rounded-lg hover:bg-accent/50 transition-colors" />
+            <SidebarTrigger className="p-2 rounded-xl hover:bg-accent/50 transition-colors" />
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
                 <span className="text-primary-foreground font-bold text-sm">S</span>
               </div>
               <div>
                 <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                   Sistema Sion
                 </h1>
-                <p className="hidden sm:block text-xs text-muted-foreground">Panel de Administración</p>
+                <p className="hidden sm:block text-xs text-muted-foreground">
+                  Panel de Administración
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl bg-accent/30 backdrop-blur-sm border border-border/30">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-2xl bg-accent/30 backdrop-blur-sm border border-border/30">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md">
                 <span className="text-primary-foreground font-semibold text-xs">
                   {user?.user_metadata?.first_name?.[0] || user?.email?.[0] || 'U'}
@@ -113,9 +115,9 @@ const DashboardLayout = () => {
           </div>
         </header>
 
-        <div className="flex w-full pt-16">
+        <div className="flex flex-1 w-full overflow-hidden">
           <AppSidebar />
-          <main className="flex-1 overflow-hidden">
+          <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-24 sm:pb-8">
             <Outlet />
           </main>
         </div>

@@ -60,9 +60,9 @@ export default function LeaderDashboard() {
   // Loading state
   if (loading) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6">
         <Skeleton className="h-8 w-64" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
@@ -89,22 +89,25 @@ export default function LeaderDashboard() {
   const myGroup = groups[0]; // El líder generalmente tiene un grupo asignado
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Mi Célula</h1>
-          <p className="text-muted-foreground">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">Mi Célula</h1>
+          <p className="text-sm sm:text-base text-muted-foreground truncate">
             {myGroup ? myGroup.group_name : 'Dashboard de líder de célula'}
           </p>
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <Button
             disabled={hasCurrentWeekReport || !myGroup}
             onClick={() => setShowReportModal(true)}
+            className="w-full sm:w-auto"
           >
             <Plus className="h-4 w-4 mr-2" />
-            {hasCurrentWeekReport ? 'Reporte enviado' : 'Nuevo Reporte Semanal'}
+            <span className="truncate">
+              {hasCurrentWeekReport ? 'Reporte enviado' : 'Nuevo Reporte'}
+            </span>
           </Button>
 
           {myGroup && (
@@ -121,7 +124,7 @@ export default function LeaderDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Miembros</CardTitle>
