@@ -362,18 +362,18 @@ const EventsPage = () => {
   );
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Eventos
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Crea y administra eventos para tu congregación
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
+        <Button onClick={() => setIsCreateDialogOpen(true)} className="w-full lg:w-auto">
           <Plus className="w-4 h-4 mr-2" />
           Crear Evento
         </Button>
@@ -381,18 +381,18 @@ const EventsPage = () => {
 
       {/* Filters and Search */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
+        <CardContent className="p-3 sm:p-4 md:p-6">
+          <div className="flex flex-col md:flex-row gap-3 md:gap-4">
+            <div className="flex-1 min-w-0">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input placeholder="Buscar eventos..." className="pl-10" />
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Select defaultValue="all">
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <Filter className="w-4 h-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
@@ -407,7 +407,7 @@ const EventsPage = () => {
               </Select>
 
               <Select defaultValue="upcoming">
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-full sm:w-[150px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -423,39 +423,39 @@ const EventsPage = () => {
       </Card>
 
       {/* Events Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
         {sampleEvents.map(event => (
           <EventCard key={event.id} event={event} />
         ))}
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-primary">12</div>
-            <div className="text-sm text-muted-foreground">Eventos este mes</div>
+          <CardContent className="p-2 sm:p-3 md:p-6 text-center">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">12</div>
+            <div className="text-xs sm:text-sm text-muted-foreground">Eventos este mes</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-green-600">850</div>
-            <div className="text-sm text-muted-foreground">Total asistentes</div>
+          <CardContent className="p-2 sm:p-3 md:p-6 text-center">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold text-green-600">850</div>
+            <div className="text-xs sm:text-sm text-muted-foreground">Total asistentes</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-orange-600">3</div>
-            <div className="text-sm text-muted-foreground">Próximos eventos</div>
+          <CardContent className="p-2 sm:p-3 md:p-6 text-center">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold text-orange-600">3</div>
+            <div className="text-xs sm:text-sm text-muted-foreground">Próximos eventos</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-purple-600">8</div>
-            <div className="text-sm text-muted-foreground">Eventos publicados</div>
+          <CardContent className="p-2 sm:p-3 md:p-6 text-center">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold text-purple-600">8</div>
+            <div className="text-xs sm:text-sm text-muted-foreground">Eventos publicados</div>
           </CardContent>
         </Card>
       </div>
@@ -465,7 +465,7 @@ const EventsPage = () => {
       {/* Event Detail Modal */}
       {selectedEvent && (
         <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between">
                 {selectedEvent.title}

@@ -74,7 +74,7 @@ export function SupervisionReportModal({
     try {
       setIsSubmitting(true);
       const createData: CreateReportRequest = {
-        report_type: 'weekly', // Unificado a Semanal
+        report_type: 'supervision', // Reporte de supervisión
         report_level: hierarchyLevel,
         period_start: format(periodStart, 'yyyy-MM-dd'),
         period_end: format(periodEnd, 'yyyy-MM-dd'),

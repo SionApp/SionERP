@@ -139,22 +139,22 @@ const RolesPage = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Roles
           </h1>
-          <p className="text-muted-foreground">Administra los roles y permisos del sistema</p>
+          <p className="text-sm sm:text-base text-muted-foreground">Administra los roles y permisos del sistema</p>
         </div>
-        <Button onClick={loadRoleStats}>
+        <Button onClick={loadRoleStats} className="w-full sm:w-auto">
           <Shield className="h-4 w-4 mr-2" />
           Actualizar
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Roles</CardTitle>
@@ -196,15 +196,15 @@ const RolesPage = () => {
         {roles.map(roleData => (
           <Card key={roleData.role}>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <Badge variant={getRoleColor(roleData.role)}>{getRoleName(roleData.role)}</Badge>
                   <div>
-                    <CardTitle className="text-lg">{getRoleName(roleData.role)}</CardTitle>
-                    <CardDescription>{roleData.description}</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">{getRoleName(roleData.role)}</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">{roleData.description}</CardDescription>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-left sm:text-right shrink-0">
                   <p className="text-2xl font-bold">{roleData.count}</p>
                   <p className="text-sm text-muted-foreground">usuarios</p>
                 </div>

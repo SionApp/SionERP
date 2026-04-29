@@ -125,34 +125,34 @@ const ProfilePage = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 sm:gap-6">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Mi Perfil
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             Gestiona tu información personal y preferencias de la cuenta
           </p>
         </div>
 
         {/* Profile Quick Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:min-w-[400px]">
-          <Card className="text-center p-4">
-            <div className="text-lg font-bold text-primary">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:min-w-[400px]">
+          <Card className="text-center p-3 sm:p-4">
+            <div className="text-base sm:text-lg font-bold text-primary">
               {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
             </div>
             <div className="text-xs text-muted-foreground">Rol Actual</div>
           </Card>
-          <Card className="text-center p-4">
-            <div className="text-lg font-bold text-green-600">
+          <Card className="text-center p-3 sm:p-4">
+            <div className="text-base sm:text-lg font-bold text-green-600">
               {userData?.is_active ? 'Activo' : 'Inactivo'}
             </div>
             <div className="text-xs text-muted-foreground">Estado</div>
           </Card>
-          <Card className="text-center p-4">
-            <div className="text-lg font-bold text-blue-600">
+          <Card className="text-center p-3 sm:p-4">
+            <div className="text-base sm:text-lg font-bold text-blue-600">
               {userData?.membership_date ? format(parseISO(userData.membership_date), 'yyyy') : ''}
             </div>
             <div className="text-xs text-muted-foreground">Miembro desde</div>
@@ -166,33 +166,33 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="personal" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="personal" className="flex items-center gap-2">
+      <Tabs defaultValue="personal" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1 sm:gap-0">
+          <TabsTrigger value="personal" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
             <User className="w-4 h-4" />
             Personal
           </TabsTrigger>
-          <TabsTrigger value="church" className="flex items-center gap-2">
+          <TabsTrigger value="church" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
             <Heart className="w-4 h-4" />
             Iglesia
           </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
+          <TabsTrigger value="security" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
             <Lock className="w-4 h-4" />
             Seguridad
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="flex items-center gap-2">
+          <TabsTrigger value="preferences" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
             <Settings className="w-4 h-4" />
             Preferencias
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="personal" className="space-y-6">
+        <TabsContent value="personal" className="space-y-4 sm:space-y-6">
           {/* Profile Header Card */}
           <Card className="border-0 bg-gradient-to-r from-primary/10 to-accent/10">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-6">
-                <div className="relative">
-                  <Avatar className="w-24 h-24">
+            <CardContent className="p-3 sm:p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6">
+                <div className="relative shrink-0">
+                  <Avatar className="w-20 h-20 sm:w-24 sm:h-24">
                     <AvatarImage src="" alt="Profile" />
                     <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-primary to-accent text-white">
                       {initialWordName()}
@@ -206,12 +206,12 @@ const ProfilePage = () => {
                     <Camera className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xl sm:text-2xl font-bold truncate">
                     {userData?.first_name} {userData?.last_name}
                   </h3>
-                  <p className="text-muted-foreground">{userData?.email}</p>
-                  <div className="flex items-center gap-4 mt-2">
+                  <p className="text-sm sm:text-base text-muted-foreground truncate">{userData?.email}</p>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-4 mt-2">
                     <Badge variant="default">
                       {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
                     </Badge>
@@ -223,7 +223,7 @@ const ProfilePage = () => {
                     </Badge>
                   </div>
                 </div>
-                <Button variant="outline">
+                <Button variant="outline" className="w-full sm:w-auto">
                   <Edit className="w-4 h-4 mr-2" />
                   Editar Foto
                 </Button>

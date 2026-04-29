@@ -1,25 +1,11 @@
+import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuxiliarySupervisorData } from '@/hooks/useAuxiliarySupervisorData';
-import { DiscipleshipService } from '@/services/discipleship.service';
-import type { CreateReportRequest } from '@/types/discipleship.types';
-import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
 import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -28,8 +14,6 @@ import {
   FileText,
   Loader2,
   Plus,
-  RefreshCw,
-  Send,
   TrendingUp,
   UserCheck,
   Users,
@@ -99,30 +83,36 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-4 md:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 md:gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Dashboard Supervisor Auxiliar
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
+            <span className="block sm:inline">Dashboard</span>{' '}
+            <span className="block sm:inline">Supervisor Auxiliar</span>
           </h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            {user?.email} - {(user as any)?.zone_name || 'Zona no asignada'}
+          <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate">
+            {user?.email} -{' '}
+            {(user as unknown as { zone_name: string })?.zone_name || 'Zona no asignada'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <Badge
+            variant="secondary"
+            className="text-xs sm:text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2 self-start sm:self-auto"
+          >
+            <span className="hidden sm:inline">Nivel 2 - Supervisor Auxiliar</span>
+            <span className="sm:hidden">Nivel 2</span>
+          </Badge>
           <Button
             onClick={() => setShowReportModal(true)}
             disabled={hasCurrentPeriodReport}
             variant={hasCurrentPeriodReport ? 'outline' : 'default'}
+            className="w-full sm:w-auto"
           >
             <Plus className="h-4 w-4 mr-2" />
             {hasCurrentPeriodReport ? 'Reporte enviado' : 'Nuevo Reporte'}
           </Button>
-          <Badge variant="secondary" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
-            <span className="hidden sm:inline">Nivel 2 - Supervisor Auxiliar</span>
-            <span className="sm:hidden">N2</span>
-          </Badge>
         </div>
       </div>
 
@@ -197,20 +187,35 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 md:gap-0">
-          <TabsTrigger value="overview" className="text-xs md:text-sm">
-            Resumen
-          </TabsTrigger>
-          <TabsTrigger value="groups" className="text-xs md:text-sm">
-            Grupos
-          </TabsTrigger>
-          <TabsTrigger value="biweekly-report" className="text-xs md:text-sm">
-            Reporte Semanal
-          </TabsTrigger>
-          <TabsTrigger value="leaders" className="text-xs md:text-sm">
-            Líderes
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-4 h-auto min-w-max sm:min-w-0 gap-1">
+            <TabsTrigger
+              value="overview"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Resumen
+            </TabsTrigger>
+            <TabsTrigger
+              value="groups"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Grupos
+            </TabsTrigger>
+            <TabsTrigger
+              value="biweekly-report"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              <span className="hidden sm:inline">Reporte Semanal</span>
+              <span className="sm:hidden">Reporte</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="leaders"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Líderes
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-4">
           {/* Goals Progress */}
@@ -309,7 +314,11 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                           <span className="font-medium">{group.avg_attendance}%</span>
                         </div>
                         <div>
-                          <Button size="sm" variant="outline">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => toast.info(`Detalles del grupo: ${group.group_name}`)}
+                          >
                             Ver Detalles
                           </Button>
                         </div>
@@ -336,7 +345,8 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                 <div className="space-y-3">
                   {myReports.slice(0, 5).map(report => {
                     const reportData = report.report_data as {
-                      new_disciples_care?: number; visited_groups?: number;
+                      new_disciples_care?: number;
+                      visited_groups?: number;
                     };
                     return (
                       <div
@@ -345,10 +355,12 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                       >
                         <div>
                           <p className="font-medium">
-                            Semana del {format(new Date(report.period_start), 'dd MMM', { locale: es })}
+                            Semana del{' '}
+                            {format(new Date(report.period_start), 'dd MMM', { locale: es })}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Atención Nvos: {reportData?.new_disciples_care || 0} • VD: {reportData?.visited_groups || 0}
+                            Atención Nvos: {reportData?.new_disciples_care || 0} • VD:{' '}
+                            {reportData?.visited_groups || 0}
                           </p>
                         </div>
                         <Badge
@@ -380,8 +392,8 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="min-w-0">
                   <CardTitle>Reporte Semanal</CardTitle>
                   <CardDescription>
                     Período: {format(periodStart, 'dd MMM', { locale: es })} -{' '}
@@ -392,6 +404,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                   onClick={() => setShowReportModal(true)}
                   disabled={hasCurrentPeriodReport}
                   variant={hasCurrentPeriodReport ? 'outline' : 'default'}
+                  className="w-full sm:w-auto"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   {hasCurrentPeriodReport ? 'Reporte enviado' : 'Nuevo Reporte'}

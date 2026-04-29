@@ -29,6 +29,7 @@ import { ApiService } from './services/api.service';
 import { setLoadingCallbacks } from './services/api.service';
 import { setDashboardLoadingCallbacks } from './services/dashboard.service';
 import ZonesPage from './pages/dashboard/ZonesPage';
+import { useMagicLinkCallback } from './hooks/useMagicLinkCallback';
 
 const queryClient = new QueryClient();
 
@@ -105,6 +106,9 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
 
 const AppContent = () => {
   const { isFetching, isSubmitting, setFetching, setSubmitting } = useLoadingContext();
+
+  // Manejar callback del magic link de Supabase
+  useMagicLinkCallback();
 
   useEffect(() => {
     // Configurar callbacks de loading para los servicios

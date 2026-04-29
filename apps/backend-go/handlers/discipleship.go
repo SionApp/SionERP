@@ -1236,7 +1236,14 @@ func (h *DiscipleshipHandler) GetZoneStats(c echo.Context) error {
 			(SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_groups,
 			(SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_members,
 			true as is_active,
-			0.0 as avg_attendance
+			COALESCE(
+				(SELECT AVG(m.attendance) 
+				FROM discipleship_metrics m 
+				JOIN discipleship_groups g ON m.group_id = g.id 
+				WHERE g.zone_id = z.id AND g.status = 'active'
+				AND m.week_date >= CURRENT_DATE - INTERVAL '28 days'),
+				0
+			) as avg_attendance
 		FROM zones z
 		ORDER BY (SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') DESC
 	`)
