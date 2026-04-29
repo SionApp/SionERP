@@ -77,9 +77,18 @@ const ProfilePage = () => {
     );
   };
 
-  const formatDateForInput = (dateString: string) => {
-    const date = dateString ? format(parseISO(dateString), 'yyyy-MM-dd') : '';
-    return date;
+  const formatDateForInput = (dateString: string | null | undefined) => {
+    if (!dateString) return '';
+    const parsed = parseISO(dateString);
+    if (isNaN(parsed.getTime())) return '';
+    return format(parsed, 'yyyy-MM-dd');
+  };
+
+  const safeFormatDate = (dateString: string | null | undefined, fmt: string) => {
+    if (!dateString) return '';
+    const parsed = parseISO(dateString);
+    if (isNaN(parsed.getTime())) return '';
+    return format(parsed, fmt);
   };
 
   const loadUserData = async () => {
@@ -174,7 +183,7 @@ const ProfilePage = () => {
           </Card>
           <Card className="text-center p-3 sm:p-4">
             <div className="text-base sm:text-lg font-bold text-blue-600">
-              {userData?.membership_date ? format(parseISO(userData.membership_date), 'yyyy') : ''}
+              {userData?.membership_date ? safeFormatDate(userData.membership_date, 'yyyy') : ''}
             </div>
             <div className="text-xs text-muted-foreground">Miembro desde</div>
           </Card>
@@ -238,9 +247,7 @@ const ProfilePage = () => {
                     </Badge>
                     <Badge variant="outline">
                       Miembro desde{' '}
-                      {userData?.membership_date
-                        ? format(parseISO(userData.membership_date), 'MMMM yyyy')
-                        : ''}
+                      {safeFormatDate(userData.membership_date, 'MMMM yyyy')}
                     </Badge>
                   </div>
                 </div>
@@ -371,9 +378,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Bautizado</h4>
                       <p className="text-sm text-muted-foreground">
-                        {userData?.baptism_date
-                          ? format(parseISO(userData.baptism_date), 'MMMM yyyy')
-                          : ''}
+                          {safeFormatDate(userData.baptism_date, 'MMMM yyyy')}
                       </p>
                     </div>
                     <Badge variant="default">Sí</Badge>
@@ -383,9 +388,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Miembro Activo</h4>
                       <p className="text-sm text-muted-foreground">
-                        {userData?.membership_date
-                          ? format(parseISO(userData.membership_date), 'MMMM yyyy')
-                          : ''}
+                          {safeFormatDate(userData.membership_date, 'MMMM yyyy')}
                       </p>
                     </div>
                     <Badge variant="default">Activo</Badge>
@@ -416,9 +419,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Primera Visita</h4>
                       <p className="text-sm text-muted-foreground">
-                        {userData?.first_visit_date
-                          ? format(parseISO(userData.first_visit_date), 'MMMM yyyy')
-                          : ''}
+                          {safeFormatDate(userData.first_visit_date, 'MMMM yyyy')}
                       </p>
                     </div>
                   </div>
