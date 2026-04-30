@@ -19,6 +19,7 @@ const DashboardLayout = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [userRole, setUserRole] = useState<string>('');
   const navigate = useNavigate();
   const location = useLocation();
   const { isOpen: isSetupOpen, setIsOpen: setSetupOpen } = useSetupShortcut();
@@ -66,6 +67,7 @@ const DashboardLayout = () => {
       if (user) {
         try {
           const userData = await UserService.getCurrentUser();
+          setUserRole(userData.role || '');
           if (!userData.onboarding_completed) {
             setNeedsOnboarding(true);
           }
@@ -146,7 +148,9 @@ const DashboardLayout = () => {
                 <p className="text-sm font-medium">
                   {user?.user_metadata?.first_name || user?.email?.split('@')[0]}
                 </p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
+                <p className="text-xs text-muted-foreground">
+                  {userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : 'Cargando...'}
+                </p>
               </div>
             </div>
 
