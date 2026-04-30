@@ -31,6 +31,7 @@ export interface User {
   discipleship_level?: number;
   is_active_member?: boolean;
   is_active: boolean;
+  onboarding_completed?: boolean;
   created_at: string;
   updated_at: string;
   invitation_status?: string;

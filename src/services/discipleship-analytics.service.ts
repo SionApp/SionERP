@@ -139,8 +139,8 @@ export class DiscipleshipAnalyticsService {
       ? `/discipleship/analytics?zone_name=${zoneName}`
       : `/discipleship/analytics`;
 
-    const data = await ApiService.get(url);
-    console.log(data);
+    const data = (await ApiService.get(url)) as Record<string, number>;
+
     return {
       totalGroups: data.total_groups || 0,
       totalMembers: data.total_members || 0,
@@ -256,9 +256,9 @@ export class DiscipleshipAnalyticsService {
         const week = weeklyMap.get(weekKey);
         week.total_attendance += metric.attendance || 0;
         week.total_visitors += (metric.new_visitors || 0) + (metric.returning_visitors || 0);
-        week.conversions += metric.conversions || 0;
-        week.spiritualTemp += metric.spiritual_temperature || 0;
-        week.groupsReporting++;
+        week.total_conversions += metric.conversions || 0;
+        week.avg_spiritual_temp += metric.spiritual_temperature || 0;
+        week.count++;
       });
 
       // Calcular promedios y convertir a array

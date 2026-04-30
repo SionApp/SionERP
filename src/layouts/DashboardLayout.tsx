@@ -4,48 +4,85 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { useSetupShortcut } from '@/hooks/useSetupShortcut';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
-import { LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { UserService } from '@/services/user.service';
+import { AlertCircle, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { invalidatePermissionsCache } from '@/lib/permissions';
+
+const PROFILE_PATH = '/dashboard/profile';
+const ONBOARDING_ALLOWED = [PROFILE_PATH, '/dashboard'];
 
 const DashboardLayout = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, logout: authLogout } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [userRole, setUserRole] = useState<string>('');
   const navigate = useNavigate();
+  const location = useLocation();
   const { isOpen: isSetupOpen, setIsOpen: setSetupOpen } = useSetupShortcut();
 
+  // Fetch user role from API — re-runs whenever the auth user changes
   useEffect(() => {
-    getUser();
-  }, []);
-
-  const getUser = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    } finally {
+    if (!user) {
       setLoading(false);
+      return;
     }
-  };
+
+    const fetchUserRole = async () => {
+      try {
+        const userData = await UserService.getCurrentUser();
+        setUserRole(userData.role || '');
+        if (!userData.onboarding_completed) {
+          setNeedsOnboarding(true);
+        }
+      } catch (err) {
+        console.error('Error checking onboarding status:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, [user?.id]);
+
+  // Onboarding guard: re-check on every route change if onboarding was needed
+  useEffect(() => {
+    if (loading) return;
+
+    const checkAndRedirect = async () => {
+      try {
+        const userData = await UserService.getCurrentUser();
+
+        // User completed onboarding — clear the flag
+        if (userData.onboarding_completed) {
+          setNeedsOnboarding(false);
+          return;
+        }
+
+        // Still needs onboarding — redirect to profile if on restricted route
+        setNeedsOnboarding(true);
+        const currentPath = location.pathname;
+        if (!ONBOARDING_ALLOWED.some(p => currentPath === p || currentPath.startsWith(p + '/'))) {
+          navigate(PROFILE_PATH, { replace: true });
+        }
+      } catch {
+        // If we can't check, don't block the user
+      }
+    };
+
+    checkAndRedirect();
+  }, [loading, location.pathname, navigate]);
 
   const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        toast.error('Error al cerrar sesión');
-      } else {
-        toast.success('Sesión cerrada exitosamente');
-        navigate('/login');
-      }
-    } catch (error) {
-      toast.error('Error al cerrar sesión');
-    }
+    // Clear ALL caches on logout
+    invalidatePermissionsCache();
+    await authLogout();
+    // Hard reload to clear ALL React state, module caches, and service worker caches
+    // This ensures the next user gets a completely fresh app state
+    window.location.href = '/login';
   };
 
   if (loading) {
@@ -59,6 +96,17 @@ const DashboardLayout = () => {
   return (
     <SidebarProvider>
       <div className="h-[100dvh] flex flex-col w-full bg-gradient-to-br from-background via-background to-accent/5 overflow-hidden fixed inset-0">
+        {/* Onboarding Banner */}
+        {needsOnboarding && location.pathname === '/dashboard/profile' && (
+          <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              <strong>Completá tu perfil</strong> para acceder al sistema. Los campos marcados con *
+              son obligatorios.
+            </p>
+          </div>
+        )}
+
         {/* Header Glass Morphism */}
         <header className="h-14 sm:h-16 flex items-center justify-between bg-[var(--glass-background)] backdrop-blur-lg border-b border-border/30 px-2 sm:px-4 md:px-6 shadow-[var(--shadow-glass)] gap-2 shrink-0 z-50">
           <div className="flex items-center gap-4">
@@ -89,7 +137,9 @@ const DashboardLayout = () => {
                 <p className="text-sm font-medium">
                   {user?.user_metadata?.first_name || user?.email?.split('@')[0]}
                 </p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
+                <p className="text-xs text-muted-foreground">
+                  {userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : 'Cargando...'}
+                </p>
               </div>
             </div>
 

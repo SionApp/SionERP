@@ -24,48 +24,92 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useAuth } from '@/contexts/AuthContext';
 import { useSystem } from '@/contexts/SystemContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { ROLE_LEVELS } from '@/lib/permissions';
 
-const menuItems = [
-  { title: 'Inicio', url: '/dashboard', icon: Home, requiredModule: 'base' },
-  { title: 'Mi Perfil', url: '/dashboard/profile', icon: UserCog, requiredModule: 'base' },
-  { title: 'Usuarios', url: '/dashboard/users', icon: Users, requiredModule: 'base' },
-  { title: 'Registro', url: '/dashboard/register-user', icon: UserPlus, requiredModule: 'base' },
-  { title: 'Roles', url: '/dashboard/roles', icon: Shield, requiredModule: 'base' },
+interface MenuItemConfig {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  requiredModule?: string;
+  minRole: number; // Minimum role level required (0=member, 5=admin)
+}
+
+const menuItems: MenuItemConfig[] = [
+  { title: 'Inicio', url: '/dashboard', icon: Home, minRole: ROLE_LEVELS.member },
+  { title: 'Mi Perfil', url: '/dashboard/profile', icon: UserCog, minRole: ROLE_LEVELS.member },
+  { title: 'Usuarios', url: '/dashboard/users', icon: Users, minRole: ROLE_LEVELS.staff },
+  {
+    title: 'Registro',
+    url: '/dashboard/register-user',
+    icon: UserPlus,
+    minRole: ROLE_LEVELS.staff,
+  },
+  { title: 'Roles', url: '/dashboard/roles', icon: Shield, minRole: ROLE_LEVELS.admin },
   {
     title: 'Discipulado',
     url: '/dashboard/discipleship',
     icon: Heart,
     requiredModule: 'discipleship',
+    minRole: ROLE_LEVELS.member,
   },
-  { title: 'Zonas', url: '/dashboard/zones', icon: MapPin, requiredModule: 'zones' },
-  { title: 'Eventos', url: '/dashboard/events', icon: Calendar, requiredModule: 'events' },
-  { title: 'Reportes', url: '/dashboard/reports', icon: BarChart3, requiredModule: 'reports' },
-  { title: 'Configuración', url: '/dashboard/settings', icon: Settings, requiredModule: 'base' },
+  {
+    title: 'Zonas',
+    url: '/dashboard/zones',
+    icon: MapPin,
+    requiredModule: 'zones',
+    minRole: ROLE_LEVELS.member,
+  },
+  {
+    title: 'Eventos',
+    url: '/dashboard/events',
+    icon: Calendar,
+    requiredModule: 'events',
+    minRole: ROLE_LEVELS.member,
+  },
+  {
+    title: 'Reportes',
+    url: '/dashboard/reports',
+    icon: BarChart3,
+    requiredModule: 'reports',
+    minRole: ROLE_LEVELS.supervisor,
+  },
+  {
+    title: 'Configuración',
+    url: '/dashboard/settings',
+    icon: Settings,
+    minRole: ROLE_LEVELS.admin,
+  },
 ];
 
 export function AppSidebar() {
   const { state, setOpenMobile } = useSidebar();
   const location = useLocation();
   const { isModuleInstalled } = useSystem();
-  const { user } = useAuth();
+  const { permissions, hasAccess } = usePermissions();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath === path;
 
-  // Filter items based on installed modules
+  // Filter items based on role level AND installed modules
   const filteredItems = menuItems.filter(item => {
-    // Always show items for base module
+    // Check role level
+    if (!hasAccess(item.minRole)) return false;
+
+    // Always show items for no module requirement
     if (!item.requiredModule || item.requiredModule === 'base') return true;
 
     // Check if module is installed
     return isModuleInstalled(item.requiredModule);
   });
 
-  // Add Setup link for admins
-  const adminItems =
-    user?.role === 'admin' ? [{ title: 'Gestión de Módulos', url: '/setup', icon: Sparkles }] : [];
+  // Add Setup link for admin-level users
+  const isAdmin =
+    permissions?.role_level !== undefined && permissions.role_level >= ROLE_LEVELS.admin;
+  const adminItems = isAdmin
+    ? [{ title: 'Gestión de Módulos', url: '/setup', icon: Sparkles }]
+    : [];
 
   return (
     <Sidebar

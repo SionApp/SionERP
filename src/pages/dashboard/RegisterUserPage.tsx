@@ -403,8 +403,8 @@ const RegisterUserPage = () => {
               </div>
             </div>
 
-            {/* Role and Configuration - Solo visible para staff y pastor */}
-            {!isLoadingPermissions && canManageRoles && (
+            {/* Role and Configuration - Staff+ can create users, but only assign roles below their level */}
+            {!isLoadingPermissions && canManageUsers && (
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Rol y Configuración</h3>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -420,10 +420,14 @@ const RegisterUserPage = () => {
                       <SelectContent>
                         <SelectItem value="member">Miembro</SelectItem>
                         <SelectItem value="server">Servidor</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="staff">Personal Administrativo</SelectItem>
-                        <SelectItem value="pastor">Pastor</SelectItem>
-                        <SelectItem value="admin">Administrador</SelectItem>
+                        {canManageRoles && (
+                          <>
+                            <SelectItem value="supervisor">Supervisor</SelectItem>
+                            <SelectItem value="staff">Personal Administrativo</SelectItem>
+                            <SelectItem value="pastor">Pastor</SelectItem>
+                            <SelectItem value="admin">Administrador</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                     {errors.role && (
