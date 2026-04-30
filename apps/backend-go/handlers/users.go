@@ -633,8 +633,8 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 	query := `
 		INSERT INTO users (
 			id, email, first_name, last_name, role, phone, id_number,
-			onboarding_completed, is_active, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, NOW(), NOW())
+			address, onboarding_completed, is_active, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, '', true, true, NOW(), NOW())
 		RETURNING id
 	`
 
