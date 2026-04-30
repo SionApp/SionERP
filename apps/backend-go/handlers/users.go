@@ -35,7 +35,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 
 	query := `
 		SELECT
-			u.id, u.first_name, u.last_name, u.id_number, u.email, u.phone, u.address,
+			u.id, u.auth_id, u.first_name, u.last_name, u.id_number, u.email, u.phone, u.address,
 			u.birth_date, u.marital_status, u.occupation, u.education_level,
 			u.how_found_church, u.ministry_interest, u.first_visit_date,
 			u.baptized, u.baptism_date, u.is_active_member, u.membership_date,
@@ -95,7 +95,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	for rows.Next() {
 		var user models.User
 		err := rows.Scan(
-			&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
+			&user.ID, &user.AuthID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 			&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 			&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
 			&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
@@ -392,8 +392,9 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		})
 	}
 
+	// Query by auth_id (JWT sub), fallback to id for backward compatibility
 	query := `
-		SELECT id, first_name, last_name, id_number, email, phone, address,
+		SELECT id, auth_id, first_name, last_name, id_number, email, phone, address,
 			   birth_date, marital_status, occupation, education_level,
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
@@ -402,11 +403,11 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 			   territory, zone_name, active_groups_count, discipleship_level,
 			   onboarding_completed
 		FROM users
-		WHERE id = $1
+		WHERE auth_id = $1 OR id = $1
 	`
 	var user models.User
 	err := config.GetDB().DB.QueryRow(query, userID).Scan(
-		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
+		&user.ID, &user.AuthID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
 		&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
@@ -634,7 +635,7 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		}
 
 		// User exists in public.users but has NO auth access — grant them access
-		// Create auth account
+		// Create auth account (Supabase will assign a new auth ID)
 		authUser, err = supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
 			"first_name": req.FirstName,
 			"last_name":  req.LastName,
@@ -648,13 +649,13 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 			})
 		}
 
-		// Update existing profile with auth ID and new role
+		// Update existing profile (set auth_id so login works)
 		_, err = config.GetDB().DB.Exec(
-			`UPDATE users SET id = $1, role = $2, first_name = $3, last_name = $4,
+			`UPDATE users SET auth_id = $1, role = $2, first_name = $3, last_name = $4,
 			 phone = COALESCE(NULLIF($5, ''), phone), id_number = COALESCE(NULLIF($6, ''), id_number),
 			 onboarding_completed = true, updated_at = NOW()
-			 WHERE email = $7`,
-			authUser.ID, req.Role, req.FirstName, req.LastName, req.Phone, req.IdNumber, req.Email,
+			 WHERE id = $7`,
+			authUser.ID, req.Role, req.FirstName, req.LastName, req.Phone, req.IdNumber, existingUserID,
 		)
 		if err != nil {
 			c.Logger().Error("Failed to update existing user profile:", err)
@@ -689,9 +690,9 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 	// Create user profile in users table (onboarding_completed = true since admin filled data)
 	query := `
 		INSERT INTO users (
-			id, email, first_name, last_name, role, phone, id_number,
+			id, auth_id, email, first_name, last_name, role, phone, id_number,
 			address, onboarding_completed, is_active, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, '', true, true, NOW(), NOW())
+		) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, '', true, true, NOW(), NOW())
 		RETURNING id
 	`
 
