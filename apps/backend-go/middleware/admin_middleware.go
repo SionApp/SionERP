@@ -1,12 +1,13 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 )
 
-// RequireAdmin middleware ensures only users with 'admin' role can access the route
+// RequireAdmin middleware ensures only users with 'admin' or 'owner' role can access the route
 func RequireAdmin(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		// Check if has_admin_access flag is set (from auth middleware)
@@ -30,6 +31,14 @@ func RequireAdmin(next echo.HandlerFunc) echo.HandlerFunc {
 		email, _ := userEmail.(string)
 
 		if !hasAdminAccessHelper(email, role) {
+			log.Printf("🚫 ADMIN DENIED: user_id=%v email=%v role=%s tried to access %s %s",
+				c.Get("user_id"), email, role, c.Request().Method, c.Request().URL.Path)
+
+			LogAccessDeniedSimple(c,
+				c.Get("user_id").(string), email, role, 0, 5,
+				"insufficient_role", "Admin access required",
+			)
+
 			return echo.NewHTTPError(http.StatusForbidden, "Admin access required")
 		}
 
@@ -38,16 +47,7 @@ func RequireAdmin(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 // hasAdminAccessHelper checks if a user has admin access
-// Returns true if:
-//   - role == "admin" OR
-//   - email == "boanegro4@yopmail.com" (special admin access)
-func hasAdminAccessHelper(email, role string) bool {
-	if role == "admin" {
-		return true
-	}
-	// Special admin access for specific email
-	if email == "boanegro4@yopmail.com" {
-		return true
-	}
-	return false
+// Returns true if role == "admin" or "owner"
+func hasAdminAccessHelper(_, role string) bool {
+	return role == "admin" || role == "owner"
 }

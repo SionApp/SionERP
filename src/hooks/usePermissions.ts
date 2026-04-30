@@ -1,25 +1,36 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
-import { fetchPermissions, invalidatePermissionsCache, UserPermissions } from '@/lib/permissions';
+import { fetchPermissions, invalidatePermissionsCache, ROLE_LEVELS, UserPermissions } from '@/lib/permissions';
 
 interface UsePermissionsReturn {
   permissions: UserPermissions | null;
   loading: boolean;
+  /** Alias for loading — for backwards compatibility */
+  isLoading: boolean;
   hasAccess: (requiredLevel: number, requiredModule?: string) => boolean;
+  /** Convenience: can the user manage roles (admin only) */
+  canManageRoles: boolean;
+  /** Convenience: can the user manage users (staff+) */
+  canManageUsers: boolean;
   refresh: () => void;
 }
 
-/**
- * Hook to access current user permissions.
- * Fetches role level and installed modules from the API.
- */
 export function usePermissions(): UsePermissionsReturn {
+  const { user } = useAuth();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) {
+      invalidatePermissionsCache();
+      setPermissions(null);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
-    fetchPermissions().then(data => {
+    fetchPermissions(user.id).then(data => {
       if (!cancelled) {
         setPermissions(data);
         setLoading(false);
@@ -29,7 +40,7 @@ export function usePermissions(): UsePermissionsReturn {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   const hasAccess = (requiredLevel: number, requiredModule?: string): boolean => {
     if (!permissions) return false;
@@ -42,11 +53,21 @@ export function usePermissions(): UsePermissionsReturn {
     invalidatePermissionsCache();
     setPermissions(null);
     setLoading(true);
-    fetchPermissions().then(data => {
-      setPermissions(data);
-      setLoading(false);
-    });
+    if (user) {
+      fetchPermissions(user.id).then(data => {
+        setPermissions(data);
+        setLoading(false);
+      });
+    }
   };
 
-  return { permissions, loading, hasAccess, refresh };
+  return {
+    permissions,
+    loading,
+    isLoading: loading,
+    hasAccess,
+    canManageRoles: hasAccess(ROLE_LEVELS.admin),
+    canManageUsers: hasAccess(ROLE_LEVELS.staff),
+    refresh,
+  };
 }

@@ -4,9 +4,8 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { useSetupShortcut } from '@/hooks/useSetupShortcut';
+import { useAuth } from '@/contexts/AuthContext';
 import { UserService } from '@/services/user.service';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
 import { AlertCircle, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -17,7 +16,7 @@ const PROFILE_PATH = '/dashboard/profile';
 const ONBOARDING_ALLOWED = [PROFILE_PATH, '/dashboard'];
 
 const DashboardLayout = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, logout: authLogout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
@@ -25,9 +24,29 @@ const DashboardLayout = () => {
   const location = useLocation();
   const { isOpen: isSetupOpen, setIsOpen: setSetupOpen } = useSetupShortcut();
 
+  // Fetch user role from API — re-runs whenever the auth user changes
   useEffect(() => {
-    getUser();
-  }, []);
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchUserRole = async () => {
+      try {
+        const userData = await UserService.getCurrentUser();
+        setUserRole(userData.role || '');
+        if (!userData.onboarding_completed) {
+          setNeedsOnboarding(true);
+        }
+      } catch (err) {
+        console.error('Error checking onboarding status:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, [user?.id]);
 
   // Onboarding guard: re-check on every route change if onboarding was needed
   useEffect(() => {
@@ -57,46 +76,13 @@ const DashboardLayout = () => {
     checkAndRedirect();
   }, [loading, location.pathname, navigate]);
 
-  const getUser = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-
-      // Check onboarding status
-      if (user) {
-        try {
-          const userData = await UserService.getCurrentUser();
-          setUserRole(userData.role || '');
-          if (!userData.onboarding_completed) {
-            setNeedsOnboarding(true);
-          }
-        } catch (err) {
-          console.error('Error checking onboarding status:', err);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      // Clear ALL caches on logout
-      invalidatePermissionsCache();
-      if (error) {
-        toast.error('Error al cerrar sesión');
-      } else {
-        toast.success('Sesión cerrada exitosamente');
-        navigate('/login');
-      }
-    } catch (error) {
-      toast.error('Error al cerrar sesión');
-    }
+    // Clear ALL caches on logout
+    invalidatePermissionsCache();
+    await authLogout();
+    // Hard reload to clear ALL React state, module caches, and service worker caches
+    // This ensures the next user gets a completely fresh app state
+    window.location.href = '/login';
   };
 
   if (loading) {

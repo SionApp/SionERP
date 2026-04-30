@@ -83,11 +83,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // El trigger handle_new_user() actualiza automáticamente el estado de la invitación
-      // cuando se crea un usuario, así que no necesitamos hacer nada aquí
-      // Esto evita cargar todas las invitaciones en cada SIGNED_IN event
+      // Clear permissions cache on ANY auth state change
+      // This ensures no stale data leaks between users
+      invalidatePermissionsCache();
 
-      // Solo resetear el estado del usuario actual, no cargar automáticamente
       if (!session?.user) {
         setCurrentUser(null);
         setCurrentUserLoaded(false);
@@ -100,7 +99,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // No cargar automáticamente el usuario actual
       if (!session?.user) {
         setCurrentUser(null);
         setCurrentUserLoaded(false);

@@ -206,18 +206,9 @@ func validateSupabaseToken(tokenString string) (*Claims, error) {
 }
 
 // hasAdminAccess checks if a user has admin access
-// Returns true if:
-//   - dbRole == "admin" OR
-//   - email == "boanegro4@yopmail.com" (special admin access)
-func hasAdminAccess(email, dbRole string) bool {
-	if dbRole == "admin" {
-		return true
-	}
-	// Special admin access for specific email
-	if email == "boanegro4@yopmail.com" {
-		return true
-	}
-	return false
+// Returns true ONLY if dbRole == "admin" or "owner"
+func hasAdminAccess(_, dbRole string) bool {
+	return dbRole == "admin" || dbRole == "owner"
 }
 
 // OptionalAuth middleware attempts to validate Supabase JWT token if present
