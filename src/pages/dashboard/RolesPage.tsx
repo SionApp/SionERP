@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Users, Settings, Plus, Loader2 } from 'lucide-react';
+import { Can } from '@/components/Can';
+import { Shield, Users, Settings, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { ROLE_LEVELS } from '@/lib/permissions';
 
 interface RoleData {
   role: string;
@@ -231,13 +233,15 @@ const RolesPage = () => {
                   >
                     Ver Usuarios con este Rol
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toast.info('Funcionalidad en desarrollo')}
-                  >
-                    Gestionar Permisos
-                  </Button>
+                  <Can I={ROLE_LEVELS.admin}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toast.info('Funcionalidad en desarrollo')}
+                    >
+                      Gestionar Permisos
+                    </Button>
+                  </Can>
                 </div>
               </div>
             </CardContent>

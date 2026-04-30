@@ -7,7 +7,6 @@ import (
 	"backend-sion/models"
 	"backend-sion/utils"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -24,14 +23,40 @@ func NewUserHandler() *UserHandler {
 	return &UserHandler{}
 }
 
+// getUserRoleLevel returns the role level for a given user ID, or -1 if not found
+func getUserRoleLevel(userID string) int {
+	var role string
+	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&role)
+	if err != nil {
+		return -1
+	}
+	return utils.GetRoleLevel(role)
+}
+
 // GetUsers obtiene la lista de usuarios con su estado de invitación
+// Applies resource-level filtering based on the requesting user's role:
+//   - admin/pastor: all users
+//   - staff: all users except admin/owner
+//   - supervisor: only users assigned to them (same cell_leader_id or zone)
+//   - server/member: only their own profile
 func (h *UserHandler) GetUsers(c echo.Context) error {
 	db, err := validateDB(c)
 	if err != nil {
 		return err
 	}
 
-	roleParam := c.QueryParam("role")
+	// Get requesting user's role for resource-level filtering
+	requestingUserID := c.Get("user_id").(string)
+	var requestingRole string
+	err = db.DB.QueryRow("SELECT role FROM users WHERE id = $1", requestingUserID).Scan(&requestingRole)
+	if err != nil {
+		c.Logger().Error("Error fetching requesting user role:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Error verifying permissions",
+		})
+	}
+
+	requestingRoleLevel := utils.GetRoleLevel(requestingRole)
 
 	query := `
 		SELECT
@@ -56,7 +81,29 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	args := []interface{}{}
 	argCount := 0
 
-	// Filtrar por roles si viene el parámetro
+	// ── Resource-level filtering ──
+	switch requestingRoleLevel {
+	case 5, 4: // admin, pastor → see all users
+		// No additional filter
+	case 3: // staff → cannot see admin/owner
+		argCount++
+		query += fmt.Sprintf(" AND u.role NOT IN ($%d)", argCount)
+		args = append(args, "admin")
+		argCount++
+		query += fmt.Sprintf(" AND u.role NOT IN ($%d)", argCount)
+		args = append(args, "owner")
+	case 2: // supervisor → only see their subordinates (cell_leader_id = their ID or same zone)
+		argCount++
+		query += fmt.Sprintf(" AND (u.cell_leader_id = $%d OR u.zone_id = (SELECT zone_id FROM users WHERE id = $1))", argCount)
+		args = append(args, requestingUserID)
+	default: // server/member → only their own profile
+		argCount++
+		query += fmt.Sprintf(" AND u.id = $%d", argCount)
+		args = append(args, requestingUserID)
+	}
+
+	// Optional role filter (only applies within the resource-level constraint)
+	roleParam := c.QueryParam("role")
 	if roleParam != "" {
 		rolesStr := strings.Split(roleParam, ",")
 		roles := make([]string, 0, len(rolesStr))
@@ -67,7 +114,6 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			}
 		}
 		if len(roles) > 0 {
-			// Construir la query con múltiples placeholders para IN clause
 			inPlaceholders := make([]string, len(roles))
 			for i := range roles {
 				argCount++
@@ -134,6 +180,46 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 
 func (h *UserHandler) GetUser(c echo.Context) error {
 	userID := c.Param("id")
+	currentUserID := c.Get("user_id").(string)
+
+	// Get requesting user's role for resource-level filtering
+	var requestingRole string
+	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&requestingRole)
+	if err != nil {
+		c.Logger().Error("Error fetching requesting user role:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Error verifying permissions",
+		})
+	}
+	requestingRoleLevel := utils.GetRoleLevel(requestingRole)
+
+	// Enforce resource-level access
+	if requestingRoleLevel < 3 && currentUserID != userID {
+		// server/member can only see themselves; supervisor can only see their subordinates
+		if requestingRoleLevel <= 1 {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"error":   "Access denied",
+				"message": "You can only view your own profile",
+			})
+		}
+		// Check if supervisor has access to this user
+		var cellLeaderID, userZoneID sql.NullString
+		err = config.GetDB().DB.QueryRow(
+			"SELECT cell_leader_id, zone_id FROM users WHERE id = $1", userID,
+		).Scan(&cellLeaderID, &userZoneID)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, map[string]interface{}{
+				"error":   "User not found",
+				"message": "The requested user does not exist",
+			})
+		}
+		if cellLeaderID.String != currentUserID {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"error":   "Access denied",
+				"message": "You can only view users assigned to you",
+			})
+		}
+	}
 
 	query := `
 		SELECT id, first_name, last_name, id_number, email, phone, address,
@@ -146,7 +232,7 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 		WHERE id = $1
 	`
 	var user models.User
-	err := config.GetDB().DB.QueryRow(query, userID).Scan(
+	err = config.GetDB().DB.QueryRow(query, userID).Scan(
 		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
@@ -241,6 +327,39 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
+	// ── Resource-level: cannot edit users above your level ──
+	currentUserRoleLevel := utils.GetRoleLevel(currentUserRole)
+	targetRoleLevel := getUserRoleLevel(userID)
+
+	if currentUserRoleLevel < targetRoleLevel {
+		c.Logger().Error("Unauthorized update attempt:", currentUserID, "role_level", currentUserRoleLevel,
+			"trying to edit user", userID, "role_level", targetRoleLevel)
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "You cannot edit users with a higher role level than yours",
+		})
+	}
+
+	// server/member can only edit themselves
+	if currentUserRoleLevel <= 1 && currentUserID != userID {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "You can only edit your own profile",
+		})
+	}
+
+	// supervisor can only edit their subordinates
+	if currentUserRoleLevel == 2 && currentUserID != userID {
+		var cellLeaderID sql.NullString
+		config.GetDB().DB.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
+		if cellLeaderID.String != currentUserID {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"error":   "Forbidden",
+				"message": "You can only edit users assigned to you",
+			})
+		}
+	}
+
 	var req models.UpdateUserRequest
 	if err := c.Bind(&req); err != nil {
 		c.Logger().Error("Bind error in UpdateUser:", err)
@@ -308,49 +427,53 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 
 func (h *UserHandler) DeleteUser(c echo.Context) error {
 	userID := c.Param("id")
-	userToDelete := c.Get("user_id").(string)
+	currentUserID := c.Get("user_id").(string)
 
-	var currentUserRole string
-
-	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", userToDelete).Scan(&currentUserRole)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			c.Logger().Error("User not found in database:", err)
-			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-				"error":   "User not found",
-				"message": "You must be a valid user to perform this action. User not found in database",
-			})
-		}
-		c.Logger().Error("Database error fetching user role:", err)
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error":   "Database error",
-			"message": err.Error(),
+	// Cannot delete yourself
+	if currentUserID == userID {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid operation",
+			"message": "You cannot delete your own account",
 		})
 	}
 
-	if currentUserRole != utils.RolePastor && currentUserRole != utils.RoleStaff {
-		c.Logger().Error("Unauthorized delete attempt:", currentUserRole, "is not allowed to delete user", userID)
-		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-			"error":   "Unauthorized",
-			"message": "You are not allowed to delete this user",
-		})
-	}
+	// ── Resource-level: cannot delete users above your level ──
+	currentUserRoleLevel := getUserRoleLevel(currentUserID)
+	targetRoleLevel := getUserRoleLevel(userID)
 
-	var exists bool
-	err = config.GetDB().DB.QueryRow("SELECT EXISTS(SELECT FROM users WHERE id = $1", userToDelete).Scan(&exists)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-				"error":   "Database error",
-				"message": "You must be a valid user to perform this action",
-			})
-		}
-	}
-
-	if !exists {
+	if targetRoleLevel == -1 {
 		return c.JSON(http.StatusNotFound, map[string]interface{}{
 			"error":   "User not found",
 			"message": fmt.Sprintf("User with ID %s does not exist", userID),
+		})
+	}
+
+	if currentUserRoleLevel < targetRoleLevel {
+		c.Logger().Error("Unauthorized delete attempt:", currentUserID, "role_level", currentUserRoleLevel,
+			"trying to delete user", userID, "role_level", targetRoleLevel)
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "You cannot delete users with a higher role level than yours",
+		})
+	}
+
+	// supervisor can only delete their subordinates
+	if currentUserRoleLevel == 2 {
+		var cellLeaderID sql.NullString
+		config.GetDB().DB.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
+		if cellLeaderID.String != currentUserID {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"error":   "Forbidden",
+				"message": "You can only delete users assigned to you",
+			})
+		}
+	}
+
+	// server/member cannot delete anyone
+	if currentUserRoleLevel <= 1 {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "You do not have permission to delete users",
 		})
 	}
 
@@ -375,7 +498,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 		})
 	}
 
-	c.Logger().Info(fmt.Sprintf("User deleted successfully with ID: %s and userToDelete: %s", userID, userToDelete))
+	c.Logger().Info(fmt.Sprintf("User deleted successfully: target=%s by=%s", userID, currentUserID))
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "User deleted successfully",
 		"user_id": userID,

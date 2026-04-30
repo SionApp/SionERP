@@ -6,6 +6,7 @@ import { Column, DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Can } from '@/components/Can';
 import { UserService } from '@/services/user.service';
 import { Invitation } from '@/types/invitation.types';
 import { User } from '@/types/user.types';
@@ -13,6 +14,7 @@ import { Calendar, Edit, Eye, Mail, Plus, SendHorizontal, Trash2 } from 'lucide-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ROLE_LEVELS } from '@/lib/permissions';
 
 const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -293,15 +295,17 @@ const UsersPage = () => {
             </Badge>
 
             {invitation.status === 'pending' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleResendInvitation(invitation.id)}
-                className="h-6 w-6 p-0"
-                title="Reenviar invitación"
-              >
-                <SendHorizontal className="h-3 w-3" />
-              </Button>
+              <Can I={ROLE_LEVELS.staff}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleResendInvitation(invitation.id)}
+                  className="h-6 w-6 p-0"
+                  title="Reenviar invitación"
+                >
+                  <SendHorizontal className="h-3 w-3" />
+                </Button>
+              </Can>
             )}
           </div>
         );
@@ -321,35 +325,37 @@ const UsersPage = () => {
       >
         <Eye className="h-3 w-3" />
       </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => handleEditUser(user)}
-        title="Editar usuario"
-        className="h-8 w-8 p-0"
-      >
-        <Edit className="h-3 w-3" />
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => handleDeleteUser(user)}
-        title="Eliminar usuario"
-        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
-      {user.invitation_status !== 'accepted' && (
+      <Can I={ROLE_LEVELS.staff}>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setShowInviteModalUser(user)}
-          title="Invitar usuario"
+          onClick={() => handleEditUser(user)}
+          title="Editar usuario"
           className="h-8 w-8 p-0"
         >
-          <Mail className="h-3 w-3" />
+          <Edit className="h-3 w-3" />
         </Button>
-      )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleDeleteUser(user)}
+          title="Eliminar usuario"
+          className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+        {user.invitation_status !== 'accepted' && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowInviteModalUser(user)}
+            title="Invitar usuario"
+            className="h-8 w-8 p-0"
+          >
+            <Mail className="h-3 w-3" />
+          </Button>
+        )}
+      </Can>
     </div>
   );
 
@@ -410,10 +416,12 @@ const UsersPage = () => {
             Administra los usuarios registrados en el sistema
           </p>
         </div>
-        <Button onClick={() => navigate('/dashboard/register-user')} className="w-full sm:w-auto shrink-0">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Usuario
-        </Button>
+        <Can I={ROLE_LEVELS.staff}>
+          <Button onClick={() => navigate('/dashboard/register-user')} className="w-full sm:w-auto shrink-0">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Usuario
+          </Button>
+        </Can>
       </div>
 
       <DynamicFilter
