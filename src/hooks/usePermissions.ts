@@ -1,43 +1,52 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { UserRole } from '@/types/user.types';
+import { fetchPermissions, invalidatePermissionsCache, UserPermissions } from '@/lib/permissions';
 
-interface PermissionState {
-  canManageRoles: boolean;
-  canViewPastoralNotes: boolean;
-  isLoading: boolean;
+interface UsePermissionsReturn {
+  permissions: UserPermissions | null;
+  loading: boolean;
+  hasAccess: (requiredLevel: number, requiredModule?: string) => boolean;
+  refresh: () => void;
 }
 
-export const usePermissions = () => {
-  const { currentUser, isLoadingCurrentUser, currentUserLoaded, ensureCurrentUserLoaded } =
-    useAuth();
-  const [permissions, setPermissions] = useState<PermissionState>({
-    canManageRoles: false,
-    canViewPastoralNotes: false,
-    isLoading: true,
-  });
+/**
+ * Hook to access current user permissions.
+ * Fetches role level and installed modules from the API.
+ */
+export function usePermissions(): UsePermissionsReturn {
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadPermissions = async () => {
-      // Si no tenemos datos del usuario actual, cargarlos
-      if (!currentUserLoaded && !isLoadingCurrentUser) {
-        await ensureCurrentUserLoaded();
-        return; // El efecto se ejecutará de nuevo cuando se actualice currentUser
+    let cancelled = false;
+
+    fetchPermissions().then(data => {
+      if (!cancelled) {
+        setPermissions(data);
+        setLoading(false);
       }
+    });
 
-      // Calcular permisos basados en el rol del usuario
-      const canManageRoles = currentUser?.role === 'staff' || currentUser?.role === 'pastor';
-      const canViewPastoralNotes = currentUser?.role === 'staff' || currentUser?.role === 'pastor';
-
-      setPermissions({
-        canManageRoles,
-        canViewPastoralNotes,
-        isLoading: isLoadingCurrentUser,
-      });
+    return () => {
+      cancelled = true;
     };
+  }, []);
 
-    loadPermissions();
-  }, [currentUser, currentUserLoaded, isLoadingCurrentUser, ensureCurrentUserLoaded]);
+  const hasAccess = (requiredLevel: number, requiredModule?: string): boolean => {
+    if (!permissions) return false;
+    if (permissions.role_level < requiredLevel) return false;
+    if (requiredModule && !permissions.installed_modules.includes(requiredModule)) return false;
+    return true;
+  };
 
-  return permissions;
-};
+  const refresh = () => {
+    invalidatePermissionsCache();
+    setPermissions(null);
+    setLoading(true);
+    fetchPermissions().then(data => {
+      setPermissions(data);
+      setLoading(false);
+    });
+  };
+
+  return { permissions, loading, hasAccess, refresh };
+}

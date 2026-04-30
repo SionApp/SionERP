@@ -140,7 +140,7 @@ export class DiscipleshipAnalyticsService {
       : `/discipleship/analytics`;
 
     const data = await ApiService.get(url);
-    console.log(data);
+    console.log(data, 'analytics data');
     return {
       totalGroups: data.total_groups || 0,
       totalMembers: data.total_members || 0,

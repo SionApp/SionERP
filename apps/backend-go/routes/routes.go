@@ -97,6 +97,10 @@ func SetupRoutes(e *echo.Echo) {
 		preferences.PUT("", preferencesHandler.UpdateUserPreferences) // PUT /api/v1/preferences - Update user preferences
 	}
 
+	// Permissions routes
+	permissionsHandler := handlers.NewPermissionsHandler()
+	protected.GET("/permissions/me", permissionsHandler.GetMyPermissions) // GET /api/v1/permissions/me
+
 	discipleshipHandler := handlers.NewDiscipleshipHandler()
 	reportsHandler := handlers.NewDiscipleshipReportsHandler()
 	alertsHandler := handlers.NewDiscipleshipAlertsHandler()
