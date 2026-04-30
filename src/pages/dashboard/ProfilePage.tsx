@@ -198,19 +198,31 @@ const ProfilePage = () => {
 
       <Tabs defaultValue="personal" className="space-y-4 sm:space-y-6">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1 sm:gap-0">
-          <TabsTrigger value="personal" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="personal"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          >
             <User className="w-4 h-4" />
             Personal
           </TabsTrigger>
-          <TabsTrigger value="church" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="church"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          >
             <Heart className="w-4 h-4" />
             Iglesia
           </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="security"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          >
             <Lock className="w-4 h-4" />
             Seguridad
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="preferences"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          >
             <Settings className="w-4 h-4" />
             Preferencias
           </TabsTrigger>
@@ -240,14 +252,15 @@ const ProfilePage = () => {
                   <h3 className="text-xl sm:text-2xl font-bold truncate">
                     {userData?.first_name} {userData?.last_name}
                   </h3>
-                  <p className="text-sm sm:text-base text-muted-foreground truncate">{userData?.email}</p>
+                  <p className="text-sm sm:text-base text-muted-foreground truncate">
+                    {userData?.email}
+                  </p>
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-4 mt-2">
                     <Badge variant="default">
                       {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
                     </Badge>
                     <Badge variant="outline">
-                      Miembro desde{' '}
-                      {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
+                      Miembro desde {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
                     </Badge>
                   </div>
                 </div>
@@ -378,7 +391,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Bautizado</h4>
                       <p className="text-sm text-muted-foreground">
-                          {safeFormatDate(userData?.baptism_date, 'MMMM yyyy')}
+                        {safeFormatDate(userData?.baptism_date, 'MMMM yyyy')}
                       </p>
                     </div>
                     <Badge variant="default">Sí</Badge>
@@ -388,7 +401,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Miembro Activo</h4>
                       <p className="text-sm text-muted-foreground">
-                          {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
+                        {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
                       </p>
                     </div>
                     <Badge variant="default">Activo</Badge>
@@ -419,7 +432,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Primera Visita</h4>
                       <p className="text-sm text-muted-foreground">
-                          {safeFormatDate(userData?.first_visit_date, 'MMMM yyyy')}
+                        {safeFormatDate(userData?.first_visit_date, 'MMMM yyyy')}
                       </p>
                     </div>
                   </div>
