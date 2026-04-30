@@ -11,6 +11,7 @@ import { AlertCircle, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { invalidatePermissionsCache } from '@/lib/permissions';
 
 const PROFILE_PATH = '/dashboard/profile';
 const ONBOARDING_ALLOWED = [PROFILE_PATH, '/dashboard'];
@@ -85,6 +86,8 @@ const DashboardLayout = () => {
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
+      // Clear ALL caches on logout
+      invalidatePermissionsCache();
       if (error) {
         toast.error('Error al cerrar sesión');
       } else {

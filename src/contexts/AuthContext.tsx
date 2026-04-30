@@ -3,6 +3,7 @@ import { UserService } from '@/services/user.service';
 import { User as UserType } from '@/types/user.types';
 import { AuthError, Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { invalidatePermissionsCache } from '@/lib/permissions';
 
 interface AuthContextType {
   user: User | null;
@@ -133,6 +134,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    invalidatePermissionsCache();
     setCurrentUser(null);
     setCurrentUserLoaded(false);
   };
