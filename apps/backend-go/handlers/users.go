@@ -625,7 +625,7 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		c.Logger().Error("Failed to create user in Supabase Auth:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Error creating user",
-			"message": "Failed to create authentication account",
+			"message": fmt.Sprintf("Failed to create authentication account: %v", err),
 		})
 	}
 

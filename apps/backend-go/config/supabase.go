@@ -104,9 +104,10 @@ func (s *SupabaseClient) GenerateMagicLink(email string, redirectTo string, data
 
 // CreateUserWithEmailPassword creates a user directly with email and password using the Supabase Admin API
 type CreateUserRequest struct {
-	Email    string                 `json:"email"`
-	Password string                 `json:"password"`
-	UserMeta map[string]interface{} `json:"user_metadata,omitempty"`
+	Email         string                 `json:"email"`
+	Password      string                 `json:"password"`
+	UserMeta      map[string]interface{} `json:"user_metadata,omitempty"`
+	EmailConfirm  bool                   `json:"email_confirm"`
 }
 
 type CreateUserResponse struct {
@@ -126,9 +127,10 @@ func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, use
 	}
 
 	requestBody := CreateUserRequest{
-		Email:    email,
-		Password: password,
-		UserMeta: userMeta,
+		Email:        email,
+		Password:     password,
+		UserMeta:     userMeta,
+		EmailConfirm: true,
 	}
 
 	jsonData, err := json.Marshal(requestBody)
