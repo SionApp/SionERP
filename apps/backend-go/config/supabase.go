@@ -102,6 +102,51 @@ func (s *SupabaseClient) GenerateMagicLink(email string, redirectTo string, data
 
 }
 
+// GetUserByEmail looks up a user by email using the Supabase Admin API
+func (s *SupabaseClient) GetUserByEmail(email string) (*CreateUserResponse, error) {
+	url := fmt.Sprintf("%s/auth/v1/admin/users?email=%s", s.ProjectURL, email)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("apikey", s.ServiceKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.ServiceKey))
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Supabase returns a list of users for email search
+	var users []CreateUserResponse
+	if err := json.Unmarshal(bodyBytes, &users); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(users) == 0 {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return &users[0], nil
+}
+
 // CreateUserWithEmailPassword creates a user directly with email and password using the Supabase Admin API
 type CreateUserRequest struct {
 	Email         string                 `json:"email"`

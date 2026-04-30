@@ -614,18 +614,65 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		})
 	}
 
-	// Check if email already exists in users table
-	var existingCount int
-	checkErr := config.GetDB().DB.QueryRow("SELECT COUNT(*) FROM users WHERE email = $1", req.Email).Scan(&existingCount)
-	if checkErr == nil && existingCount > 0 {
-		return c.JSON(http.StatusConflict, map[string]interface{}{
-			"error":   "Email already exists",
-			"message": fmt.Sprintf("Ya existe un usuario con el email %s", req.Email),
+	supabase := config.NewSupabaseClient()
+
+	// Check if user already exists in public.users (data without login access)
+	var existingUserID, existingRole string
+	err = config.GetDB().DB.QueryRow(
+		"SELECT id, role FROM users WHERE email = $1", req.Email,
+	).Scan(&existingUserID, &existingRole)
+
+	if err == nil {
+		// User exists in public.users — check if they already have auth access
+		authUser, authErr := supabase.GetUserByEmail(req.Email)
+		if authErr == nil && authUser != nil {
+			// User already has login access
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error":   "User already has access",
+				"message": fmt.Sprintf("%s ya tiene acceso al sistema. Podés cambiar su rol desde la gestión de usuarios.", req.Email),
+			})
+		}
+
+		// User exists in public.users but has NO auth access — grant them access
+		// Create auth account
+		authUser, err = supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
+			"first_name": req.FirstName,
+			"last_name":  req.LastName,
+			"role":       req.Role,
+		})
+		if err != nil {
+			c.Logger().Error("Failed to create auth for existing user:", err)
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error":   "Error creating user",
+				"message": fmt.Sprintf("Failed to create authentication account: %v", err),
+			})
+		}
+
+		// Update existing profile with auth ID and new role
+		_, err = config.GetDB().DB.Exec(
+			`UPDATE users SET id = $1, role = $2, first_name = $3, last_name = $4,
+			 phone = COALESCE(NULLIF($5, ''), phone), id_number = COALESCE(NULLIF($6, ''), id_number),
+			 onboarding_completed = true, updated_at = NOW()
+			 WHERE email = $7`,
+			authUser.ID, req.Role, req.FirstName, req.LastName, req.Phone, req.IdNumber, req.Email,
+		)
+		if err != nil {
+			c.Logger().Error("Failed to update existing user profile:", err)
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error":   "Error updating user profile",
+				"message": err.Error(),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"message":              "User granted access successfully",
+			"user_id":              authUser.ID,
+			"email":                req.Email,
+			"onboarding_completed": true,
 		})
 	}
 
-	// Create user in Supabase Auth
-	supabase := config.NewSupabaseClient()
+	// User doesn't exist anywhere — create from scratch
 	authUser, err := supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
 		"first_name": req.FirstName,
 		"last_name":  req.LastName,
@@ -661,9 +708,9 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"message":            "User created successfully",
-		"user_id":            userID,
-		"email":              req.Email,
+		"message":              "User created successfully",
+		"user_id":              userID,
+		"email":                req.Email,
 		"onboarding_completed": true,
 	})
 }
