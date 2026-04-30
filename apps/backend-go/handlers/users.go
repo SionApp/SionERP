@@ -614,6 +614,16 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		})
 	}
 
+	// Check if email already exists in users table
+	var existingCount int
+	checkErr := config.GetDB().DB.QueryRow("SELECT COUNT(*) FROM users WHERE email = $1", req.Email).Scan(&existingCount)
+	if checkErr == nil && existingCount > 0 {
+		return c.JSON(http.StatusConflict, map[string]interface{}{
+			"error":   "Email already exists",
+			"message": fmt.Sprintf("Ya existe un usuario con el email %s", req.Email),
+		})
+	}
+
 	// Create user in Supabase Auth
 	supabase := config.NewSupabaseClient()
 	authUser, err := supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
