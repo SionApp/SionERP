@@ -30,19 +30,25 @@ func SetupRoutes(e *echo.Echo) {
 	protected := api.Group("")
 	protected.Use(middleware.SupabaseAuth())
 
-	// User routes
-	users := protected.Group("/users")
+	// User routes — grouped by permission level
+	// Staff+ (level 3): Admin CRUD operations
+	usersAdmin := protected.Group("/users")
+	usersAdmin.Use(middleware.RequireRole(3)) // staff, supervisor, pastor, admin
 	{
-		// Admin endpoints (require pastor/staff role)
-		users.GET("", userHandler.GetUsers)          // GET /api/v1/users - List all users
-		users.POST("", userHandler.CreateUser)       // POST /api/v1/users - Create new user
-		users.GET("/:id", userHandler.GetUser)       // GET /api/v1/users/:id - Get specific user
-		users.PUT("/:id", userHandler.UpdateUser)    // PUT /api/v1/users/:id - Update specific user
-		users.DELETE("/:id", userHandler.DeleteUser) // DELETE /api/v1/users/:id - Delete user
+		usersAdmin.GET("", userHandler.GetUsers)          // GET /api/v1/users
+		usersAdmin.POST("", userHandler.CreateUser)       // POST /api/v1/users
+		usersAdmin.GET("/:id", userHandler.GetUser)       // GET /api/v1/users/:id
+		usersAdmin.PUT("/:id", userHandler.UpdateUser)    // PUT /api/v1/users/:id
+		usersAdmin.DELETE("/:id", userHandler.DeleteUser) // DELETE /api/v1/users/:id
+		usersAdmin.POST("/direct", userHandler.CreateUserDirect) // POST /api/v1/users/direct
+	}
 
-		// Profile endpoints (accessible by user themselves)
-		users.GET("/me", userHandler.GetCurrentUser)    // GET /api/v1/users/me - Get current user profile
-		users.PUT("/me", userHandler.UpdateCurrentUser) // PUT /api/v1/users/me - Update current user profile
+	// Member+ (level 0): Profile access (any authenticated user)
+	usersSelf := protected.Group("/users")
+	{
+		usersSelf.GET("/me", userHandler.GetCurrentUser)               // GET /api/v1/users/me
+		usersSelf.PUT("/me", userHandler.UpdateCurrentUser)            // PUT /api/v1/users/me
+		usersSelf.PUT("/me/onboarding", userHandler.CompleteOnboarding) // PUT /api/v1/users/me/onboarding
 	}
 
 	// Dashboard routes
@@ -61,29 +67,33 @@ func SetupRoutes(e *echo.Echo) {
 		setup.POST("", setupHandler.PerformSetup)
 	}
 
-	// Module management routes (protected)
+	// Module management routes (admin only - level 5)
 	modules := protected.Group("/modules")
+	modules.Use(middleware.RequireRole(5))
 	{
 		modules.PUT("/:key", setupHandler.UpdateModuleStatus)
 	}
 
-	// Invitation routes
+	// Invitation routes (staff+ level 3)
 	invitations := protected.Group("/invitations")
+	invitations.Use(middleware.RequireRole(3))
 	{
-		invitations.GET("", handlers.NewInviteHandler().GetInvitations)               // GET /api/v1/invitations - List all invitations
-		invitations.POST("", handlers.NewInviteHandler().InviteUser)                  // POST /api/v1/invitations - Invite a user
-		invitations.POST("/:id/resend", handlers.NewInviteHandler().ResendInvitation) // POST /api/v1/invitations/:id/resend - Resend an invitation
-		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation) // POST /api/v1/invitations/:id/accept - Accept an invitation
+		invitations.GET("", handlers.NewInviteHandler().GetInvitations)
+		invitations.POST("", handlers.NewInviteHandler().InviteUser)
+		invitations.POST("/:id/resend", handlers.NewInviteHandler().ResendInvitation)
+		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation)
 	}
-	// Settings routes
+
+	// Settings routes (admin only - level 5)
 	settings := protected.Group("/settings")
+	settings.Use(middleware.RequireRole(5))
 	{
-		settings.GET("/system", handlers.NewSettingsHandler().GetSystemSettings)               // GET /api/v1/settings/system - Get system settings
-		settings.PUT("/system", handlers.NewSettingsHandler().UpdateSystemSettings)            // PUT /api/v1/settings/system - Update system settings
-		settings.GET("/church", handlers.NewSettingsHandler().GetChurchInfo)                   // GET /api/v1/settings/church - Get church info
-		settings.PUT("/church", handlers.NewSettingsHandler().UpdateChurchInfo)                // PUT /api/v1/settings/church - Update church info
-		settings.GET("/notifications", handlers.NewSettingsHandler().GetNotificationConfig)    // GET /api/v1/settings/notifications - Get notification config
-		settings.PUT("/notifications", handlers.NewSettingsHandler().UpdateNotificationConfig) // PUT /api/v1/settings/notifications - Update notification config
+		settings.GET("/system", handlers.NewSettingsHandler().GetSystemSettings)
+		settings.PUT("/system", handlers.NewSettingsHandler().UpdateSystemSettings)
+		settings.GET("/church", handlers.NewSettingsHandler().GetChurchInfo)
+		settings.PUT("/church", handlers.NewSettingsHandler().UpdateChurchInfo)
+		settings.GET("/notifications", handlers.NewSettingsHandler().GetNotificationConfig)
+		settings.PUT("/notifications", handlers.NewSettingsHandler().UpdateNotificationConfig)
 	}
 
 	preferencesHandler := handlers.NewPreferencesHandler()
@@ -92,6 +102,10 @@ func SetupRoutes(e *echo.Echo) {
 		preferences.GET("", preferencesHandler.GetUserPreferences)    // GET /api/v1/preferences - Get user preferences
 		preferences.PUT("", preferencesHandler.UpdateUserPreferences) // PUT /api/v1/preferences - Update user preferences
 	}
+
+	// Permissions routes
+	permissionsHandler := handlers.NewPermissionsHandler()
+	protected.GET("/permissions/me", permissionsHandler.GetMyPermissions) // GET /api/v1/permissions/me
 
 	discipleshipHandler := handlers.NewDiscipleshipHandler()
 	reportsHandler := handlers.NewDiscipleshipReportsHandler()

@@ -3,6 +3,7 @@ import { UserService } from '@/services/user.service';
 import { User as UserType } from '@/types/user.types';
 import { AuthError, Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { invalidatePermissionsCache } from '@/lib/permissions';
 
 interface AuthContextType {
   user: User | null;
@@ -82,11 +83,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // El trigger handle_new_user() actualiza automáticamente el estado de la invitación
-      // cuando se crea un usuario, así que no necesitamos hacer nada aquí
-      // Esto evita cargar todas las invitaciones en cada SIGNED_IN event
+      // Clear permissions cache on ANY auth state change
+      // This ensures no stale data leaks between users
+      invalidatePermissionsCache();
 
-      // Solo resetear el estado del usuario actual, no cargar automáticamente
       if (!session?.user) {
         setCurrentUser(null);
         setCurrentUserLoaded(false);
@@ -99,7 +99,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // No cargar automáticamente el usuario actual
       if (!session?.user) {
         setCurrentUser(null);
         setCurrentUserLoaded(false);
@@ -133,6 +132,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    invalidatePermissionsCache();
     setCurrentUser(null);
     setCurrentUserLoaded(false);
   };

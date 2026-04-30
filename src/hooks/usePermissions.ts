@@ -1,43 +1,73 @@
-import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserRole } from '@/types/user.types';
+import { useEffect, useState } from 'react';
+import { fetchPermissions, invalidatePermissionsCache, ROLE_LEVELS, UserPermissions } from '@/lib/permissions';
 
-interface PermissionState {
-  canManageRoles: boolean;
-  canViewPastoralNotes: boolean;
+interface UsePermissionsReturn {
+  permissions: UserPermissions | null;
+  loading: boolean;
+  /** Alias for loading — for backwards compatibility */
   isLoading: boolean;
+  hasAccess: (requiredLevel: number, requiredModule?: string) => boolean;
+  /** Convenience: can the user manage roles (admin only) */
+  canManageRoles: boolean;
+  /** Convenience: can the user manage users (staff+) */
+  canManageUsers: boolean;
+  refresh: () => void;
 }
 
-export const usePermissions = () => {
-  const { currentUser, isLoadingCurrentUser, currentUserLoaded, ensureCurrentUserLoaded } =
-    useAuth();
-  const [permissions, setPermissions] = useState<PermissionState>({
-    canManageRoles: false,
-    canViewPastoralNotes: false,
-    isLoading: true,
-  });
+export function usePermissions(): UsePermissionsReturn {
+  const { user } = useAuth();
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadPermissions = async () => {
-      // Si no tenemos datos del usuario actual, cargarlos
-      if (!currentUserLoaded && !isLoadingCurrentUser) {
-        await ensureCurrentUserLoaded();
-        return; // El efecto se ejecutará de nuevo cuando se actualice currentUser
+    if (!user) {
+      invalidatePermissionsCache();
+      setPermissions(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchPermissions(user.id).then(data => {
+      if (!cancelled) {
+        setPermissions(data);
+        setLoading(false);
       }
+    });
 
-      // Calcular permisos basados en el rol del usuario
-      const canManageRoles = currentUser?.role === 'staff' || currentUser?.role === 'pastor';
-      const canViewPastoralNotes = currentUser?.role === 'staff' || currentUser?.role === 'pastor';
-
-      setPermissions({
-        canManageRoles,
-        canViewPastoralNotes,
-        isLoading: isLoadingCurrentUser,
-      });
+    return () => {
+      cancelled = true;
     };
+  }, [user?.id]);
 
-    loadPermissions();
-  }, [currentUser, currentUserLoaded, isLoadingCurrentUser, ensureCurrentUserLoaded]);
+  const hasAccess = (requiredLevel: number, requiredModule?: string): boolean => {
+    if (!permissions) return false;
+    if (permissions.role_level < requiredLevel) return false;
+    if (requiredModule && !permissions.installed_modules.includes(requiredModule)) return false;
+    return true;
+  };
 
-  return permissions;
-};
+  const refresh = () => {
+    invalidatePermissionsCache();
+    setPermissions(null);
+    setLoading(true);
+    if (user) {
+      fetchPermissions(user.id).then(data => {
+        setPermissions(data);
+        setLoading(false);
+      });
+    }
+  };
+
+  return {
+    permissions,
+    loading,
+    isLoading: loading,
+    hasAccess,
+    canManageRoles: hasAccess(ROLE_LEVELS.admin),
+    canManageUsers: hasAccess(ROLE_LEVELS.staff),
+    refresh,
+  };
+}

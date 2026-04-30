@@ -14,6 +14,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/contexts/AuthContext';
 import { usePreferences } from '@/hooks/usePreferences';
 import { ProfileUpdateFormData, profileUpdateSchema } from '@/schemas/user.schemas';
 import { UserService } from '@/services/user.service';
@@ -41,6 +42,7 @@ import { toast } from 'sonner';
 const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
   const { preferences, loading: preferencesLoading, updatePreference } = usePreferences();
+  const { refreshCurrentUser } = useAuth();
   const {
     register,
     handleSubmit,
@@ -75,9 +77,18 @@ const ProfilePage = () => {
     );
   };
 
-  const formatDateForInput = (dateString: string) => {
-    const date = dateString ? format(parseISO(dateString), 'yyyy-MM-dd') : '';
-    return date;
+  const formatDateForInput = (dateString: string | null | undefined) => {
+    if (!dateString) return '';
+    const parsed = parseISO(dateString);
+    if (isNaN(parsed.getTime())) return '';
+    return format(parsed, 'yyyy-MM-dd');
+  };
+
+  const safeFormatDate = (dateString: string | null | undefined, fmt: string) => {
+    if (!dateString) return '';
+    const parsed = parseISO(dateString);
+    if (isNaN(parsed.getTime())) return '';
+    return format(parsed, fmt);
   };
 
   const loadUserData = async () => {
@@ -116,6 +127,25 @@ const ProfilePage = () => {
     try {
       setLoading(true);
       await UserService.updateProfile(data);
+
+      // If user hasn't completed onboarding, mark it now
+      if (userData && !userData.onboarding_completed) {
+        try {
+          await UserService.completeOnboarding({
+            first_name: data.first_name,
+            last_name: data.last_name,
+            phone: data.phone,
+            address: data.address,
+            id_number: data.id_number,
+          });
+          // Refresh user data so onboarding_completed is updated
+          await refreshCurrentUser();
+        } catch (err) {
+          console.error('Error completing onboarding:', err);
+          // Don't fail the profile save if onboarding fails
+        }
+      }
+
       toast.success('Perfil actualizado exitosamente');
     } catch (error) {
       toast.error('Error al actualizar el perfil');
@@ -153,7 +183,7 @@ const ProfilePage = () => {
           </Card>
           <Card className="text-center p-3 sm:p-4">
             <div className="text-base sm:text-lg font-bold text-blue-600">
-              {userData?.membership_date ? format(parseISO(userData.membership_date), 'yyyy') : ''}
+              {userData?.membership_date ? safeFormatDate(userData.membership_date, 'yyyy') : ''}
             </div>
             <div className="text-xs text-muted-foreground">Miembro desde</div>
           </Card>
@@ -168,19 +198,31 @@ const ProfilePage = () => {
 
       <Tabs defaultValue="personal" className="space-y-4 sm:space-y-6">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1 sm:gap-0">
-          <TabsTrigger value="personal" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="personal"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          >
             <User className="w-4 h-4" />
             Personal
           </TabsTrigger>
-          <TabsTrigger value="church" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="church"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          >
             <Heart className="w-4 h-4" />
             Iglesia
           </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="security"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          >
             <Lock className="w-4 h-4" />
             Seguridad
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+          <TabsTrigger
+            value="preferences"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          >
             <Settings className="w-4 h-4" />
             Preferencias
           </TabsTrigger>
@@ -210,16 +252,15 @@ const ProfilePage = () => {
                   <h3 className="text-xl sm:text-2xl font-bold truncate">
                     {userData?.first_name} {userData?.last_name}
                   </h3>
-                  <p className="text-sm sm:text-base text-muted-foreground truncate">{userData?.email}</p>
+                  <p className="text-sm sm:text-base text-muted-foreground truncate">
+                    {userData?.email}
+                  </p>
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-4 mt-2">
                     <Badge variant="default">
                       {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
                     </Badge>
                     <Badge variant="outline">
-                      Miembro desde{' '}
-                      {userData?.membership_date
-                        ? format(parseISO(userData.membership_date), 'MMMM yyyy')
-                        : ''}
+                      Miembro desde {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
                     </Badge>
                   </div>
                 </div>
@@ -350,9 +391,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Bautizado</h4>
                       <p className="text-sm text-muted-foreground">
-                        {userData?.baptism_date
-                          ? format(parseISO(userData.baptism_date), 'MMMM yyyy')
-                          : ''}
+                        {safeFormatDate(userData?.baptism_date, 'MMMM yyyy')}
                       </p>
                     </div>
                     <Badge variant="default">Sí</Badge>
@@ -362,9 +401,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Miembro Activo</h4>
                       <p className="text-sm text-muted-foreground">
-                        {userData?.membership_date
-                          ? format(parseISO(userData.membership_date), 'MMMM yyyy')
-                          : ''}
+                        {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
                       </p>
                     </div>
                     <Badge variant="default">Activo</Badge>
@@ -395,9 +432,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Primera Visita</h4>
                       <p className="text-sm text-muted-foreground">
-                        {userData?.first_visit_date
-                          ? format(parseISO(userData.first_visit_date), 'MMMM yyyy')
-                          : ''}
+                        {safeFormatDate(userData?.first_visit_date, 'MMMM yyyy')}
                       </p>
                     </div>
                   </div>

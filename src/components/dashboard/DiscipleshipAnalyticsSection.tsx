@@ -51,7 +51,20 @@ const formatWeekLabel = (dateStr: string): string => {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
     const day = date.getDate();
-    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const months = [
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ];
     return `${day} ${months[date.getMonth()]}`;
   } catch {
     return dateStr;
@@ -174,7 +187,9 @@ export const DiscipleshipAnalyticsSection = ({
               <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground leading-tight">
                 {stat.title}
               </CardTitle>
-              <div className={`p-1.5 md:p-2 rounded-lg bg-gradient-to-br ${stat.color} shadow-lg flex-shrink-0`}>
+              <div
+                className={`p-1.5 md:p-2 rounded-lg bg-gradient-to-br ${stat.color} shadow-lg flex-shrink-0`}
+              >
                 <stat.icon className="h-3 w-3 md:h-4 md:w-4 text-white" />
               </div>
             </CardHeader>
@@ -185,7 +200,9 @@ export const DiscipleshipAnalyticsSection = ({
               <div className="flex items-center gap-1 mt-1 md:mt-2 flex-wrap">
                 <div className="flex items-center gap-0.5">
                   {getTrendIcon(stat.change)}
-                  <span className={`text-[10px] md:text-xs font-medium ${getTrendColor(stat.change)}`}>
+                  <span
+                    className={`text-[10px] md:text-xs font-medium ${getTrendColor(stat.change)}`}
+                  >
                     {stat.change > 0 ? '+' : ''}
                     {formatPercent(stat.change)}%
                   </span>
@@ -222,7 +239,10 @@ export const DiscipleshipAnalyticsSection = ({
               className="h-[180px] sm:h-[200px] lg:h-[300px] w-full"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={formattedWeeklyTrends} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <AreaChart
+                  data={formattedWeeklyTrends}
+                  margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="weekLabel"
@@ -319,9 +339,7 @@ export const DiscipleshipAnalyticsSection = ({
                     fillOpacity={0.3}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Legend
-                    wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
-                  />
+                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }} />
                 </RadarChart>
               </ResponsiveContainer>
             </ChartContainer>
@@ -349,7 +367,11 @@ export const DiscipleshipAnalyticsSection = ({
               className="h-[180px] sm:h-[200px] lg:h-[300px] w-full"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={zoneStats} layout="vertical" margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <BarChart
+                  data={zoneStats}
+                  layout="vertical"
+                  margin={{ top: 5, right: 5, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     type="number"
@@ -364,7 +386,9 @@ export const DiscipleshipAnalyticsSection = ({
                     fontSize={9}
                     tick={{ fontSize: 9 }}
                     width={70}
-                    tickFormatter={(value: string) => value.length > 10 ? value.substring(0, 10) + '…' : value}
+                    tickFormatter={(value: string) =>
+                      value.length > 10 ? value.substring(0, 10) + '…' : value
+                    }
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar dataKey="totalGroups" fill="hsl(var(--primary))" name="Grupos" />
@@ -441,7 +465,9 @@ export const DiscipleshipAnalyticsSection = ({
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 md:p-3 rounded-lg bg-green-500/10 border border-green-500/20"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs md:text-sm font-medium truncate">{mult.parentGroupName}</p>
+                    <p className="text-xs md:text-sm font-medium truncate">
+                      {mult.parentGroupName}
+                    </p>
                     <p className="text-[10px] md:text-xs text-muted-foreground truncate">
                       {mult.newGroupName || 'En planificación'} • {mult.initialMembers} miembros
                     </p>
@@ -460,7 +486,12 @@ export const DiscipleshipAnalyticsSection = ({
               ))}
             </div>
 
-            <Button variant="outline" size="sm" className="w-full text-xs md:text-sm" onClick={() => redirectTo()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs md:text-sm"
+              onClick={() => redirectTo()}
+            >
               <Calendar className="h-3.5 w-3.5 md:h-4 md:w-4 mr-2" />
               Ver Panel Completo de Discipulado
             </Button>
@@ -502,7 +533,10 @@ export const DiscipleshipAnalyticsSection = ({
                       <p className="text-xs md:text-sm font-medium truncate max-w-[120px] md:max-w-none">
                         {leader.leaderName}
                       </p>
-                      <Badge variant="outline" className="text-[10px] md:text-xs truncate max-w-[80px] md:max-w-none">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] md:text-xs truncate max-w-[80px] md:max-w-none"
+                      >
                         {leader.groupName}
                       </Badge>
                     </div>
@@ -523,7 +557,9 @@ export const DiscipleshipAnalyticsSection = ({
                       </div>
                       <div className="flex items-center gap-0.5">
                         <TrendingUp className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                        <span className={`text-[10px] md:text-xs whitespace-nowrap ${getTrendColor(leader.growthRate)}`}>
+                        <span
+                          className={`text-[10px] md:text-xs whitespace-nowrap ${getTrendColor(leader.growthRate)}`}
+                        >
                           {leader.growthRate > 0 ? '+' : ''}
                           {formatPercent(leader.growthRate)}%
                         </span>
