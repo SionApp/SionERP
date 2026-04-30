@@ -1,71 +1,56 @@
-import type { User } from '@/types/user.types';
+import { ApiService } from '@/services/api.service';
 
-export type Resource = 'users' | 'reports' | 'discipleship' | 'livestreams';
-export type Action = 'view' | 'create' | 'edit' | 'delete';
+/**
+ * Role hierarchy levels.
+ * Higher numbers = more permissions.
+ */
+export const ROLE_LEVELS: Record<string, number> = {
+  admin: 5,
+  pastor: 4,
+  staff: 3,
+  supervisor: 2,
+  server: 1,
+  member: 0,
+} as const;
 
-const PERMISSIONS_MATRIX: Record<string, Record<Resource, Action[]>> = {
-  pastor: {
-    users: ['view', 'create', 'edit', 'delete'],
-    reports: ['view', 'create', 'edit', 'delete'],
-    discipleship: ['view', 'create', 'edit', 'delete'],
-    livestreams: ['view', 'create', 'edit', 'delete'],
-  },
-  staff: {
-    users: ['view', 'create', 'edit'],
-    reports: ['view', 'create', 'edit'],
-    discipleship: ['view', 'create', 'edit'],
-    livestreams: ['view', 'create', 'edit'],
-  },
-  supervisor: {
-    users: ['view', 'edit'],
-    reports: ['view'],
-    discipleship: ['view', 'edit'],
-    livestreams: ['view'],
-  },
-  server: {
-    users: ['view'],
-    reports: [],
-    discipleship: ['view'],
-    livestreams: ['view'],
-  },
+/** Display names for roles */
+export const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  admin: 'Administrador',
+  pastor: 'Pastor',
+  staff: 'Staff',
+  supervisor: 'Supervisor',
+  server: 'Servidor',
+  member: 'Miembro',
 };
 
-export function hasPermission(user: User | null, resource: Resource, action: Action): boolean {
-  if (!user) return false;
-
-  const userPermissions = PERMISSIONS_MATRIX[user.role];
-  if (!userPermissions) return false;
-
-  const resourcePermissions = userPermissions[resource];
-  if (!resourcePermissions) return false;
-
-  return resourcePermissions.includes(action);
+export interface UserPermissions {
+  role: string;
+  role_level: number;
+  installed_modules: string[];
 }
 
-export function canAccessRoute(user: User | null, route: string): boolean {
-  // Public routes
-  const publicRoutes = ['/', '/about', '/services', '/contact', '/gallery'];
-  if (publicRoutes.includes(route)) return true;
+let cachedPermissions: UserPermissions | null = null;
 
-  // Require authentication for dashboard routes
-  if (route.startsWith('/dashboard')) {
-    if (!user) return false;
+/**
+ * Fetch current user permissions from the API.
+ * Uses in-memory cache to avoid repeated calls.
+ */
+export async function fetchPermissions(): Promise<UserPermissions> {
+  if (cachedPermissions) return cachedPermissions;
 
-    // Basic dashboard access for all authenticated users
-    if (route === '/dashboard' || route === '/dashboard/profile') return true;
-
-    // Admin routes
-    if (route.includes('/users') || route.includes('/reports')) {
-      return hasPermission(user, 'users', 'view') || hasPermission(user, 'reports', 'view');
-    }
-
-    // Discipleship routes
-    if (route.includes('/discipleship')) {
-      return hasPermission(user, 'discipleship', 'view');
-    }
-
-    return true; // Allow other dashboard routes for authenticated users
+  try {
+    const data = await ApiService.get('/permissions/me');
+    cachedPermissions = data as UserPermissions;
+    return cachedPermissions;
+  } catch {
+    // Fallback for when API is not available
+    return { role: 'member', role_level: 0, installed_modules: [] };
   }
+}
 
-  return true; // Allow other routes by default
+/**
+ * Invalidate the permissions cache (e.g., after role change).
+ */
+export function invalidatePermissionsCache() {
+  cachedPermissions = null;
 }
