@@ -33,7 +33,7 @@ interface MenuItemConfig {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   requiredModule?: string;
-  minRole: number; // Minimum role level required (0=member, 5=admin)
+  minRole: number; // Minimum role level required (0=member, 500=admin)
 }
 
 const menuItems: MenuItemConfig[] = [
