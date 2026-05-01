@@ -238,7 +238,11 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 	}
 	alertsCreated := 0
 
-	// 1. Grupos sin reportes en las últimas 2 semanas
+	// =====================================================
+	// ALERTAS CRÍTICAS / DE ATENCIÓN
+	// =====================================================
+
+	// 1. Grupos sin reportes en las últimas 2 semanas (crítica)
 	rows, err := db.DB.Query(`
 		SELECT g.id, g.group_name, g.leader_id, g.zone_id
 		FROM discipleship_groups g
@@ -295,7 +299,7 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 	}
 	rows.Close()
 
-	// 2. Grupos con baja asistencia (menos del 50% de miembros)
+	// 2. Grupos con baja asistencia (menos del 50% de miembros por 4 semanas)
 	rows, err = db.DB.Query(`
 		SELECT g.id, g.group_name, g.leader_id, g.zone_id, g.member_count, 
 			   COALESCE((
@@ -334,47 +338,383 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 	`)
 	if err != nil {
 		c.Logger().Error("Error querying groups for attendance alerts:", err)
+	} else {
+		for rows.Next() {
+			var groupID, groupName, leaderID string
+			var zoneID sql.NullString
+			var memberCount int
+			var avgAttendance float64
+			err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID, &memberCount, &avgAttendance)
+			if err != nil {
+				continue
+			}
+
+			var zoneIDValue interface{}
+			if zoneID.Valid {
+				zoneIDValue = zoneID.String
+			} else {
+				zoneIDValue = nil
+			}
+
+			_, _ = db.DB.Exec(`
+				INSERT INTO discipleship_alerts (
+					alert_type, title, message, priority,
+					related_group_id, related_user_id, zone_id, action_required
+				) VALUES (
+					'low_attendance',
+					'Baja asistencia',
+					$1,
+					3,
+					$2, $3, $4, true
+				)
+			`, fmt.Sprintf("El grupo '%s' tiene asistencia promedio de %.0f de %d miembros", 
+				groupName, avgAttendance, memberCount),
+				groupID, leaderID, zoneIDValue)
+			alertsCreated++
+		}
 		rows.Close()
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"message":        "Algunas alertas generadas",
-			"alerts_created": alertsCreated,
-		})
 	}
 
-	for rows.Next() {
-		var groupID, groupName, leaderID string
-		var zoneID sql.NullString
-		var memberCount int
-		var avgAttendance float64
-		err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID, &memberCount, &avgAttendance)
-		if err != nil {
-			continue
-		}
-
-		var zoneIDValue interface{}
-		if zoneID.Valid {
-			zoneIDValue = zoneID.String
-		} else {
-			zoneIDValue = nil
-		}
-
-		_, _ = db.DB.Exec(`
-			INSERT INTO discipleship_alerts (
-				alert_type, title, message, priority,
-				related_group_id, related_user_id, zone_id, action_required
-			) VALUES (
-				'low_attendance',
-				'Baja asistencia',
-				$1,
-				3,
-				$2, $3, $4, true
+	// 3. Declive espiritual — temperatura calculada < 5 por 4 semanas seguidas
+	rows, err = db.DB.Query(`
+		SELECT g.id, g.group_name, g.leader_id, g.zone_id,
+			COALESCE((
+				SELECT AVG(
+					CASE WHEN COALESCE((r.report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+				)
+				FROM discipleship_reports r
+				WHERE (r.report_data->>'group_id')::uuid = g.id
+				AND r.report_type = 'leader'
+				AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			), 0) as avg_temp
+		FROM discipleship_groups g
+		WHERE g.status = 'active'
+		AND COALESCE((
+			SELECT AVG(
+				CASE WHEN COALESCE((r.report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
 			)
-		`, fmt.Sprintf("El grupo '%s' tiene una asistencia promedio de %.0f de %d miembros", 
-			groupName, avgAttendance, memberCount),
-			groupID, leaderID, zoneIDValue)
-		alertsCreated++
+			FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.report_type = 'leader'
+			AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+		), 0) < 5
+		AND NOT EXISTS (
+			SELECT 1 FROM discipleship_alerts a
+			WHERE a.related_group_id = g.id
+			AND a.alert_type = 'spiritual_decline'
+			AND a.resolved = false
+			AND a.created_at >= CURRENT_DATE - INTERVAL '7 days'
+		)
+	`)
+	if err != nil {
+		c.Logger().Error("Error querying groups for spiritual decline:", err)
+	} else {
+		for rows.Next() {
+			var groupID, groupName, leaderID string
+			var zoneID sql.NullString
+			var avgTemp float64
+			err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID, &avgTemp)
+			if err != nil {
+				continue
+			}
+
+			var zoneIDValue interface{}
+			if zoneID.Valid {
+				zoneIDValue = zoneID.String
+			} else {
+				zoneIDValue = nil
+			}
+
+			_, _ = db.DB.Exec(`
+				INSERT INTO discipleship_alerts (
+					alert_type, title, message, priority,
+					related_group_id, related_user_id, zone_id, action_required
+				) VALUES (
+					'spiritual_decline',
+					'Declive espiritual',
+					$1,
+					2,
+					$2, $3, $4, true
+				)
+			`, fmt.Sprintf("El grupo '%s' tiene temperatura espiritual baja (%.1f/13) en las últimas 4 semanas", 
+				groupName, avgTemp),
+				groupID, leaderID, zoneIDValue)
+			alertsCreated++
+		}
+		rows.Close()
 	}
-	rows.Close()
+
+	// 4. Sin evangelismo ni discipulados por 8 semanas (no_growth)
+	rows, err = db.DB.Query(`
+		SELECT g.id, g.group_name, g.leader_id, g.zone_id
+		FROM discipleship_groups g
+		WHERE g.status = 'active'
+		AND NOT EXISTS (
+			SELECT 1 FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.report_type = 'leader'
+			AND r.period_end >= CURRENT_DATE - INTERVAL '56 days'
+			AND (
+				COALESCE((r.report_data->>'group_evangelism')::int, 0) > 0
+				OR COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0
+				OR COALESCE((r.report_data->>'group_discipleships')::int, 0) > 0
+			)
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM discipleship_alerts a
+			WHERE a.related_group_id = g.id
+			AND a.alert_type = 'no_growth'
+			AND a.resolved = false
+			AND a.created_at >= CURRENT_DATE - INTERVAL '7 days'
+		)
+	`)
+	if err != nil {
+		c.Logger().Error("Error querying groups for no growth:", err)
+	} else {
+		for rows.Next() {
+			var groupID, groupName, leaderID string
+			var zoneID sql.NullString
+			err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID)
+			if err != nil {
+				continue
+			}
+
+			var zoneIDValue interface{}
+			if zoneID.Valid {
+				zoneIDValue = zoneID.String
+			} else {
+				zoneIDValue = nil
+			}
+
+			_, _ = db.DB.Exec(`
+				INSERT INTO discipleship_alerts (
+					alert_type, title, message, priority,
+					related_group_id, related_user_id, zone_id, action_required
+				) VALUES (
+					'no_growth',
+					'Sin crecimiento',
+					$1,
+					3,
+					$2, $3, $4, true
+				)
+			`, fmt.Sprintf("El grupo '%s' no ha reportado evangelismo ni discipulados en 8 semanas", groupName),
+				groupID, leaderID, zoneIDValue)
+			alertsCreated++
+		}
+		rows.Close()
+	}
+
+	// =====================================================
+	// ALERTAS DE CELEBRACIÓN
+	// =====================================================
+
+	// 5. Consistencia — 12 semanas consecutivas con reportes
+	rows, err = db.DB.Query(`
+		SELECT g.id, g.group_name, g.leader_id, g.zone_id
+		FROM discipleship_groups g
+		WHERE g.status = 'active'
+		AND (
+			SELECT COUNT(*) FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.report_type = 'leader'
+			AND r.period_end >= CURRENT_DATE - INTERVAL '84 days'
+		) >= 12
+		AND NOT EXISTS (
+			SELECT 1 FROM discipleship_alerts a
+			WHERE a.related_group_id = g.id
+			AND a.alert_type = 'consistency_milestone'
+			AND a.resolved = false
+			AND a.created_at >= CURRENT_DATE - INTERVAL '14 days'
+		)
+	`)
+	if err != nil {
+		c.Logger().Error("Error querying groups for consistency:", err)
+	} else {
+		for rows.Next() {
+			var groupID, groupName, leaderID string
+			var zoneID sql.NullString
+			err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID)
+			if err != nil {
+				continue
+			}
+
+			var zoneIDValue interface{}
+			if zoneID.Valid {
+				zoneIDValue = zoneID.String
+			} else {
+				zoneIDValue = nil
+			}
+
+			_, _ = db.DB.Exec(`
+				INSERT INTO discipleship_alerts (
+					alert_type, title, message, priority,
+					related_group_id, related_user_id, zone_id, action_required
+				) VALUES (
+					'consistency_milestone',
+					'¡12 semanas consecutivas!',
+					$1,
+					5,
+					$2, $3, $4, false
+				)
+			`, fmt.Sprintf("El grupo '%s' lleva 12 semanas reportando consistentemente. ¡Excelente compromiso!", groupName),
+				groupID, leaderID, zoneIDValue)
+			alertsCreated++
+		}
+		rows.Close()
+	}
+
+	// 6. Evangelismo activo — group_evangelism + leader_evangelism > 0 por 4 semanas
+	rows, err = db.DB.Query(`
+		SELECT g.id, g.group_name, g.leader_id, g.zone_id
+		FROM discipleship_groups g
+		WHERE g.status = 'active'
+		AND (
+			SELECT COUNT(*) FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.report_type = 'leader'
+			AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			AND (
+				COALESCE((r.report_data->>'group_evangelism')::int, 0) > 0
+				OR COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0
+			)
+		) >= 4
+		AND NOT EXISTS (
+			SELECT 1 FROM discipleship_alerts a
+			WHERE a.related_group_id = g.id
+			AND a.alert_type = 'evangelism_champion'
+			AND a.resolved = false
+			AND a.created_at >= CURRENT_DATE - INTERVAL '14 days'
+		)
+	`)
+	if err != nil {
+		c.Logger().Error("Error querying groups for evangelism:", err)
+	} else {
+		for rows.Next() {
+			var groupID, groupName, leaderID string
+			var zoneID sql.NullString
+			err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID)
+			if err != nil {
+				continue
+			}
+
+			var zoneIDValue interface{}
+			if zoneID.Valid {
+				zoneIDValue = zoneID.String
+			} else {
+				zoneIDValue = nil
+			}
+
+			_, _ = db.DB.Exec(`
+				INSERT INTO discipleship_alerts (
+					alert_type, title, message, priority,
+					related_group_id, related_user_id, zone_id, action_required
+				) VALUES (
+					'evangelism_champion',
+					'¡Campeón de evangelismo!',
+					$1,
+					5,
+					$2, $3, $4, false
+				)
+			`, fmt.Sprintf("El grupo '%s' ha evangelizado activamente durante 4 semanas seguidas", groupName),
+				groupID, leaderID, zoneIDValue)
+			alertsCreated++
+		}
+		rows.Close()
+	}
+
+	// 7. Grupo sólido — temperatura >= 8 por 12 semanas
+	rows, err = db.DB.Query(`
+		SELECT g.id, g.group_name, g.leader_id, g.zone_id
+		FROM discipleship_groups g
+		WHERE g.status = 'active'
+		AND (
+			SELECT COUNT(*) FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.report_type = 'leader'
+			AND r.period_end >= CURRENT_DATE - INTERVAL '84 days'
+			AND (
+				CASE WHEN COALESCE((r.report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+			) >= 8
+		) >= 12
+		AND NOT EXISTS (
+			SELECT 1 FROM discipleship_alerts a
+			WHERE a.related_group_id = g.id
+			AND a.alert_type = 'solid_group'
+			AND a.resolved = false
+			AND a.created_at >= CURRENT_DATE - INTERVAL '14 days'
+		)
+	`)
+	if err != nil {
+		c.Logger().Error("Error querying groups for solid status:", err)
+	} else {
+		for rows.Next() {
+			var groupID, groupName, leaderID string
+			var zoneID sql.NullString
+			err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID)
+			if err != nil {
+				continue
+			}
+
+			var zoneIDValue interface{}
+			if zoneID.Valid {
+				zoneIDValue = zoneID.String
+			} else {
+				zoneIDValue = nil
+			}
+
+			_, _ = db.DB.Exec(`
+				INSERT INTO discipleship_alerts (
+					alert_type, title, message, priority,
+					related_group_id, related_user_id, zone_id, action_required
+				) VALUES (
+					'solid_group',
+					'¡Grupo sólido!',
+					$1,
+					5,
+					$2, $3, $4, false
+				)
+			`, fmt.Sprintf("El grupo '%s' mantiene alta salud espiritual (≥8/13) durante 12 semanas. ¡Es columna vertebral del ministerio!", groupName),
+				groupID, leaderID, zoneIDValue)
+			alertsCreated++
+		}
+		rows.Close()
+	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message":        "Alertas automáticas generadas",

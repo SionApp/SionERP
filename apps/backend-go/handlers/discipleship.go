@@ -1384,10 +1384,80 @@ func (h *DiscipleshipHandler) GetGroupPerformance(c echo.Context) error {
 		if err != nil {
 			continue
 		}
+		// Calcular fase del grupo
+		p.Phase = calculateGroupPhase(db, p.GroupID, p.SpiritualTemp)
 		performance = append(performance, p)
 	}
 
 	return c.JSON(http.StatusOK, performance)
+}
+
+// calculateGroupPhase determina la fase actual de un grupo basada en sus reportes
+func calculateGroupPhase(db *config.Database, groupID string, spiritualTemp float64) string {
+	// 1. Verificar si tiene alertas activas → at_risk
+	var hasActiveAlerts int
+	db.DB.QueryRow(`
+		SELECT COUNT(*) FROM discipleship_alerts 
+		WHERE related_group_id = $1 
+		AND resolved = false 
+		AND (expires_at IS NULL OR expires_at > NOW())
+	`, groupID).Scan(&hasActiveAlerts)
+	if hasActiveAlerts > 0 {
+		return "at_risk"
+	}
+
+	// 2. Verificar si está multiplicando (is_multiplying = true en 2+ reportes seguidos)
+	var multiplyingCount int
+	db.DB.QueryRow(`
+		SELECT COUNT(*) FROM discipleship_reports
+		WHERE (report_data->>'group_id')::uuid = $1
+		AND report_type = 'leader'
+		AND (report_data->>'is_multiplying')::boolean = true
+		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
+	`, groupID).Scan(&multiplyingCount)
+	if multiplyingCount >= 2 {
+		return "multiplying"
+	}
+
+	// 3. Contar reportes totales y calcular semanas activas
+	var totalReports int
+	db.DB.QueryRow(`
+		SELECT COUNT(*) FROM discipleship_reports
+		WHERE (report_data->>'group_id')::uuid = $1
+		AND report_type = 'leader'
+	`, groupID).Scan(&totalReports)
+
+	// 4. Calcular semanas con temp alta (>= 8)
+	var solidWeeks int
+	db.DB.QueryRow(`
+		SELECT COUNT(*) FROM discipleship_reports
+		WHERE (report_data->>'group_id')::uuid = $1
+		AND report_type = 'leader'
+		AND (
+			CASE WHEN COALESCE((report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+		) >= 8
+	`, groupID).Scan(&solidWeeks)
+
+	// Determinar fase
+	if totalReports >= 24 && solidWeeks >= 12 && spiritualTemp >= 8 {
+		return "solid"
+	}
+	if totalReports >= 4 {
+		return "growing"
+	}
+	return "germinating"
 }
 
 // Helper function

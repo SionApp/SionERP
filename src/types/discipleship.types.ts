@@ -94,6 +94,7 @@ export interface DiscipleshipGroup {
   member_count: number;
   active_members: number;
   status: 'active' | 'inactive' | 'multiplying';
+  phase?: string;
   created_at: string;
   updated_at: string;
   leader_name?: string;
@@ -278,6 +279,11 @@ export interface DiscipleshipAlert {
   alert_type:
     | 'no_reports'
     | 'low_attendance'
+    | 'spiritual_decline'
+    | 'no_growth'
+    | 'consistency_milestone'
+    | 'evangelism_champion'
+    | 'solid_group'
     | 'multiplication_ready'
     | 'needs_attention'
     | 'custom';

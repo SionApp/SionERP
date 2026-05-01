@@ -213,6 +213,7 @@ type GroupPerformance struct {
 	GrowthRate     float64 `json:"growth_rate"`
 	SpiritualTemp  float64 `json:"spiritual_temp"`
 	Status         string  `json:"status"`
+	Phase          string  `json:"phase"`
 	LastReportDate string  `json:"last_report_date"`
 }
 
