@@ -43,7 +43,7 @@ const RegisterUserPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { canManageRoles, isLoading: isLoadingPermissions } = usePermissions();
+  const { canManageRoles, canManageUsers, isLoading: isLoadingPermissions } = usePermissions();
 
   const userId = location.state?.userId;
 

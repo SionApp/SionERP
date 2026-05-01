@@ -1,21 +1,20 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import { Save, Search, Trash2 } from 'lucide-react';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import Map, { MapRef, NavigationControl, Source, Layer } from 'react-map-gl/maplibre';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { MapContainer, TileLayer, useMap, ZoomControl } from 'react-leaflet';
 import {
   TerraDraw,
   TerraDrawPolygonMode,
-  TerraDrawRenderMode,
   TerraDrawSelectMode,
+  TerraDrawRenderMode,
 } from 'terra-draw';
-import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter';
+import { TerraDrawLeafletAdapter } from 'terra-draw-leaflet-adapter';
 
 interface ZoneEditorProps {
   initialBoundaries?: GeoJSON.Polygon | GeoJSON.MultiPolygon | null;
-  existingZones?: { id: string; name: string; boundaries?: unknown | null; color: string }[];
-  editingZoneId?: string;
   onSave: (boundaries: GeoJSON.Polygon) => void;
   onCancel: () => void;
 }
@@ -26,52 +25,146 @@ interface NominatimResult {
   lon: string;
 }
 
+// ── Map helper to access Leaflet map instance for TerraDraw ──
+function TerraDrawInit({
+  initialBoundaries,
+  drawRef,
+  onHasPolygon,
+}: {
+  initialBoundaries?: GeoJSON.Polygon | GeoJSON.MultiPolygon | null;
+  drawRef: React.MutableRefObject<TerraDraw | null>;
+  onHasPolygon: (has: boolean) => void;
+}) {
+  const map = useMap();
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (initializedRef.current || !map) return;
+
+    // Leaflet inside Dialog: container might have 0 dimensions on first render.
+    // invalidateSize() forces Leaflet to recalculate its size.
+    map.invalidateSize();
+
+    // Wait for the container to have real dimensions before initializing TerraDraw
+    const container = map.getContainer();
+    if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) {
+      // Try again after a short delay (Dialog animation)
+      const retryTimeout = setTimeout(() => {
+        map.invalidateSize();
+        initTerraDraw();
+      }, 300);
+      return () => clearTimeout(retryTimeout);
+    }
+
+    initTerraDraw();
+
+    function initTerraDraw() {
+      if (initializedRef.current) return;
+      initializedRef.current = true;
+
+      let draw: TerraDraw | null = null;
+
+      try {
+        draw = new TerraDraw({
+          adapter: new TerraDrawLeafletAdapter({
+            lib: L,
+            map,
+          }),
+          modes: [
+            new TerraDrawPolygonMode(),
+            new TerraDrawSelectMode({
+              flags: {
+                polygon: {
+                  feature: {
+                    draggable: true,
+                    coordinates: { midpoints: true, draggable: true, deletable: true },
+                  },
+                },
+              },
+            }),
+            new TerraDrawRenderMode({
+              modeName: 'render',
+              styles: {
+                polygonFillColor: '#3b82f6',
+                polygonFillOpacity: 0.4,
+                polygonOutlineColor: '#2563eb',
+                polygonOutlineWidth: 2,
+              },
+            }),
+          ],
+        });
+
+        draw.start();
+        draw.setMode('polygon');
+
+        // Si hay boundaries iniciales, cargarlas
+        if (initialBoundaries && initialBoundaries.type === 'Polygon') {
+          draw.addFeatures([
+            {
+              type: 'Feature' as const,
+              geometry: initialBoundaries,
+              properties: { mode: 'render' },
+            },
+          ]);
+          draw.setMode('select');
+          onHasPolygon(true);
+        }
+
+        draw.on('finish', () => onHasPolygon(true));
+
+        drawRef.current = draw;
+      } catch (err) {
+        console.error('TerraDraw init error:', err);
+      }
+    }
+
+    return () => {
+      if (drawRef.current) {
+        drawRef.current.stop();
+        drawRef.current = null;
+      }
+    };
+  }, [map]); // Only depends on map instance — stable after mount
+
+  return null;
+}
+
+// ── Map search fly-to helper ──
+function MapFlyTo({ position, zoom, onDone }: { position: [number, number]; zoom: number; onDone: () => void }) {
+  const map = useMap();
+
+  useEffect(() => {
+    // Ensure map has correct dimensions (important inside Dialog)
+    map.invalidateSize();
+    map.flyTo(position, zoom, { duration: 1.5 });
+    const timer = setTimeout(onDone, 1600);
+    return () => clearTimeout(timer);
+  }, [map, position, zoom, onDone]);
+
+  return null;
+}
+
 export function ZoneEditor({
   initialBoundaries,
-  existingZones,
-  editingZoneId,
   onSave,
   onCancel,
-}: ZoneEditorProps) {
-  const mapRef = useRef<MapRef>(null);
+}: Omit<ZoneEditorProps, 'existingZones' | 'editingZoneId'>) {
   const drawRef = useRef<TerraDraw | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasPolygon, setHasPolygon] = useState(!!initialBoundaries);
+  const [flyTo, setFlyTo] = useState<{ position: [number, number]; zoom: number } | null>(null);
 
-  const backgroundFeatures = useMemo(() => {
-    if (!existingZones) return { type: 'FeatureCollection', features: [] };
+  // Stable callback to clear flyTo state after animation completes
+  const handleFlyToDone = useCallback(() => {
+    setFlyTo(null);
+  }, []);
 
-    const features = existingZones
-      .filter(z => z.id !== editingZoneId && z.boundaries)
-      .map(z => {
-        let bounds = z.boundaries;
-        if (typeof bounds === 'string') {
-          try {
-            bounds = JSON.parse(bounds);
-          } catch {
-            return null;
-          }
-        }
-        if (
-          typeof bounds === 'object' &&
-          bounds !== null &&
-          'type' in bounds &&
-          (bounds.type === 'Polygon' || bounds.type === 'MultiPolygon')
-        ) {
-          return {
-            type: 'Feature',
-            geometry: bounds as GeoJSON.Polygon | GeoJSON.MultiPolygon,
-            properties: { color: z.color || '#888888', name: z.name },
-          };
-        }
-        return null;
-      })
-      .filter(Boolean);
-
-    return { type: 'FeatureCollection', features };
-  }, [existingZones, editingZoneId]);
+  // Stable callback to avoid re-rendering TerraDrawInit
+  const handleHasPolygon = useCallback((has: boolean) => {
+    setHasPolygon(has);
+  }, []);
 
   // Geocoding con Nominatim (gratis, OpenStreetMap)
   const searchAddress = useCallback(async (query: string) => {
@@ -102,68 +195,16 @@ export function ZoneEditor({
   const handleSelectAddress = (result: NominatimResult) => {
     const lng = parseFloat(result.lon);
     const lat = parseFloat(result.lat);
-    mapRef.current?.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
+    setFlyTo({ position: [lat, lng], zoom: 15 });
     setSuggestions([]);
     setSearchQuery(result.display_name);
   };
-
-  // Inicializar TerraDraw cuando el mapa carga
-  const handleMapLoad = useCallback(() => {
-    const map = mapRef.current?.getMap();
-    if (!map || drawRef.current) return;
-
-    const draw = new TerraDraw({
-      adapter: new TerraDrawMapLibreGLAdapter({ map }),
-      modes: [
-        new TerraDrawPolygonMode(),
-        new TerraDrawSelectMode({
-          flags: {
-            polygon: {
-              feature: {
-                draggable: true,
-                coordinates: { midpoints: true, draggable: true, deletable: true },
-              },
-            },
-          },
-        }),
-        new TerraDrawRenderMode({
-          modeName: 'render',
-          styles: {
-            polygonFillColor: '#3b82f6',
-            polygonFillOpacity: 0.4,
-            polygonOutlineColor: '#2563eb',
-            polygonOutlineWidth: 2,
-          },
-        }),
-      ],
-    });
-
-    draw.start();
-    draw.setMode('polygon');
-
-    // Si hay boundaries iniciales, cargarlas
-    if (initialBoundaries && initialBoundaries.type === 'Polygon') {
-      draw.addFeatures([
-        {
-          type: 'Feature' as const,
-          geometry: initialBoundaries,
-          properties: { mode: 'render' },
-        },
-      ]);
-      draw.setMode('select');
-      setHasPolygon(true);
-    }
-
-    draw.on('finish', () => setHasPolygon(true));
-
-    drawRef.current = draw;
-  }, [initialBoundaries]);
 
   const handleClear = () => {
     const draw = drawRef.current;
     if (!draw) return;
     const snapshot = draw.getSnapshot();
-    snapshot.forEach(f => draw.removeFeatures([f.id as string]));
+    snapshot.forEach((f) => draw.removeFeatures([f.id as string]));
     draw.setMode('polygon');
     setHasPolygon(false);
   };
@@ -172,7 +213,7 @@ export function ZoneEditor({
     const draw = drawRef.current;
     if (!draw) return;
     const snapshot = draw.getSnapshot();
-    const polygon = snapshot.find(f => f.geometry.type === 'Polygon');
+    const polygon = snapshot.find((f) => f.geometry.type === 'Polygon');
     if (polygon) {
       onSave(polygon.geometry as GeoJSON.Polygon);
     }
@@ -187,7 +228,7 @@ export function ZoneEditor({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar dirección para centrar el mapa..."
               className="pl-9"
             />
@@ -201,7 +242,7 @@ export function ZoneEditor({
         </div>
 
         {suggestions.length > 0 && (
-          <ul className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+          <ul className="absolute z-[9999] top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
             {suggestions.map((s, i) => (
               <li
                 key={i}
@@ -217,31 +258,25 @@ export function ZoneEditor({
 
       {/* Mapa con dibujo */}
       <div className="flex-1 rounded-md overflow-hidden border">
-        <Map
-          ref={mapRef}
-          onLoad={handleMapLoad}
-          initialViewState={{ latitude: 11.4045, longitude: -69.6734, zoom: 13 }}
-          mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
-          style={{ width: '100%', height: '100%' }}
+        <MapContainer
+          center={[11.4045, -69.6734]}
+          zoom={13}
+          className="h-full w-full"
+          zoomControl={false}
         >
-          <NavigationControl position="top-right" />
-          <Source
-            id="background-zones"
-            type="geojson"
-            data={backgroundFeatures as GeoJSON.FeatureCollection}
-          >
-            <Layer
-              id="zones-fill"
-              type="fill"
-              paint={{ 'fill-color': ['get', 'color'], 'fill-opacity': 0.35 }}
-            />
-            <Layer
-              id="zones-border"
-              type="line"
-              paint={{ 'line-color': ['get', 'color'], 'line-width': 2 }}
-            />
-          </Source>
-        </Map>
+          <ZoomControl position="topright" />
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          />
+
+          <TerraDrawInit
+            initialBoundaries={initialBoundaries}
+            drawRef={drawRef}
+            onHasPolygon={handleHasPolygon}
+          />
+          {flyTo && <MapFlyTo position={flyTo.position} zoom={flyTo.zoom} onDone={handleFlyToDone} />}
+        </MapContainer>
       </div>
 
       <p className="text-xs text-muted-foreground">

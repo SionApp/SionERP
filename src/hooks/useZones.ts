@@ -111,6 +111,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         const result = await ZonesService.createZone(data);
         toast.success('Zona creada exitosamente');
         await loadZones();
+        window.dispatchEvent(new CustomEvent('zones-updated'));
         return result.zone_id;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al crear zona';
@@ -130,6 +131,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         await ZonesService.updateZone(zoneId, data);
         toast.success('Zona actualizada exitosamente');
         await loadZones();
+        window.dispatchEvent(new CustomEvent('zones-updated'));
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al actualizar zona';
@@ -149,6 +151,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         await ZonesService.deleteZone(zoneId);
         toast.success('Zona eliminada exitosamente');
         await loadZones();
+        window.dispatchEvent(new CustomEvent('zones-updated'));
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al eliminar zona';
@@ -209,6 +212,13 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
     if (autoLoad) {
       loadZones();
     }
+
+    // Listen for zones update events from other components
+    const handleZonesUpdate = () => {
+      loadZones();
+    };
+    window.addEventListener('zones-updated', handleZonesUpdate);
+    return () => window.removeEventListener('zones-updated', handleZonesUpdate);
   }, [autoLoad, loadZones]);
 
   return {

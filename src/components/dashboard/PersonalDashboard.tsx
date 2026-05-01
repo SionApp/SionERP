@@ -18,7 +18,31 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { NotificationCenter } from '@/components/ui/notifications';
-import { mockNotifications } from '@/mocks/discipleship/data.mock';
+
+// Notification type for the personal dashboard
+interface DashboardNotification {
+  id: string;
+  type: 'success' | 'warning' | 'info' | 'error';
+  title: string;
+  message: string;
+  actionText?: string;
+  actionUrl?: string;
+  createdAt: string;
+  read: boolean;
+}
+
+const initialNotifications: DashboardNotification[] = [
+  {
+    id: 'notif-001',
+    type: 'success',
+    title: '¡Nuevo Grupo Asignado!',
+    message: 'Has sido asignado como líder del grupo "Célula Esperanza".',
+    actionText: 'Ver Dashboard',
+    actionUrl: '/dashboard/discipleship',
+    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    read: false,
+  },
+];
 
 interface PersonalDashboardProps {
   title?: string;
@@ -46,7 +70,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
     nextMeeting: '2024-09-25',
   };
 
-  const [notifications, setNotifications] = React.useState(mockNotifications);
+  const [notifications, setNotifications] = React.useState<DashboardNotification[]>(initialNotifications);
 
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));

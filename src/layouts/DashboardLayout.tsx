@@ -97,15 +97,6 @@ const DashboardLayout = () => {
     <SidebarProvider>
       <div className="h-[100dvh] flex flex-col w-full bg-gradient-to-br from-background via-background to-accent/5 overflow-hidden fixed inset-0">
         {/* Onboarding Banner */}
-        {needsOnboarding && location.pathname === '/dashboard/profile' && (
-          <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-            <p className="text-sm text-amber-600 dark:text-amber-400">
-              <strong>Completá tu perfil</strong> para acceder al sistema. Los campos marcados con *
-              son obligatorios.
-            </p>
-          </div>
-        )}
 
         {/* Header Glass Morphism */}
         <header className="h-14 sm:h-16 flex items-center justify-between bg-[var(--glass-background)] backdrop-blur-lg border-b border-border/30 px-2 sm:px-4 md:px-6 shadow-[var(--shadow-glass)] gap-2 shrink-0 z-50">
