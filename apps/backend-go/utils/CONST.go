@@ -13,17 +13,17 @@ const (
 
 // AllRoles returns all valid user_role enum values.
 func AllRoles() []string {
-	return []string{RolePastor, RoleStaff, RoleSupervisor, RoleServer}
+	return []string{RoleAdmin, RolePastor, RoleStaff, RoleSupervisor, RoleServer}
 }
 
-// AdminRoles returns roles that have admin-level access (pastor + staff).
+// AdminRoles returns roles that have admin-level access (admin, pastor + staff).
 func AdminRoles() []string {
-	return []string{RolePastor, RoleStaff}
+	return []string{RoleAdmin, RolePastor, RoleStaff}
 }
 
 // IsAdminRole returns true if the role has admin-level access.
 func IsAdminRole(role string) bool {
-	return role == RolePastor || role == RoleStaff
+	return role == RoleAdmin || role == RolePastor || role == RoleStaff
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,6 +50,8 @@ const (
 // Higher number = higher privilege.
 func GetRoleLevel(role string) int {
 	switch role {
+	case RoleAdmin:
+		return LevelAdmin
 	case RolePastor:
 		return LevelPastor
 	case RoleStaff:
@@ -59,7 +61,7 @@ func GetRoleLevel(role string) int {
 	case RoleServer:
 		return LevelServer
 	default:
-		return 0
+		return 0 // member/guest = no special power
 	}
 }
 

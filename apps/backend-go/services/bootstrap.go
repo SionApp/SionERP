@@ -28,7 +28,7 @@ func BootstrapSuperAdmin(db *sql.DB) error {
 
 	adminRole := os.Getenv("SION_ADMIN_ROLE")
 	if adminRole == "" {
-		adminRole = utils.RolePastor
+		adminRole = utils.RoleAdmin
 	}
 
 	supabase := config.NewSupabaseClient()
