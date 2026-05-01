@@ -1003,14 +1003,15 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 		// Crear nuevo
 		query = `
 			INSERT INTO discipleship_hierarchy (
-				user_id, hierarchy_level, supervisor_id, zone_id, territory
-			) VALUES ($1, $2, $3, $4, $5)
+				user_id, hierarchy_level, supervisor_id, zone_id, zone_name, territory
+			) VALUES ($1, $2, $3, $4, $5, $6)
 			RETURNING id
 		`
 		args = []interface{}{
 			req.UserID, req.HierarchyLevel,
 			nullIfEmpty(req.SupervisorID),
 			zoneID,
+			nullIfEmpty(req.ZoneName),
 			nullIfEmpty(req.Territory),
 		}
 	} else {
@@ -1020,7 +1021,8 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 				hierarchy_level = $2,
 				supervisor_id = $3,
 				zone_id = $4,
-				territory = $5,
+				zone_name = $5,
+				territory = $6,
 				updated_at = NOW()
 			WHERE user_id = $1
 		`
@@ -1028,6 +1030,7 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 			req.UserID, req.HierarchyLevel,
 			nullIfEmpty(req.SupervisorID),
 			zoneID,
+			nullIfEmpty(req.ZoneName),
 			nullIfEmpty(req.Territory),
 		}
 	}
