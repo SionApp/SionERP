@@ -157,7 +157,7 @@ export class DiscipleshipAnalyticsService {
 
     // El backend devuelve snake_case + is_active (basado en grupos activos)
     // Devolver ambos formatos para compatibilidad
-    return (data as any[]).map((zone: any) => ({
+    return ((data as any[]) || []).map((zone: any) => ({
       zoneName: zone.zone_name || 'Sin zona',
       zone_name: zone.zone_name || 'Sin zona', // Alias para compatibilidad
       zoneID: zone.zone_id || zone.zoneId,
@@ -176,7 +176,7 @@ export class DiscipleshipAnalyticsService {
   static async getGroupPerformance(): Promise<GroupPerformance[]> {
     const data = await ApiService.get(`/discipleship/analytics/performance`);
 
-    return (data as GroupPerformance[]).map((group: GroupPerformance) => ({
+    return ((data as GroupPerformance[]) || []).map((group: GroupPerformance) => ({
       groupId: group.groupId || '',
       groupName: group.groupName || 'Sin nombre',
       leaderName: group.leaderName || 'Sin líder',
@@ -192,7 +192,7 @@ export class DiscipleshipAnalyticsService {
   static async getAlerts(resolved = false): Promise<DiscipleshipAlert[]> {
     const data = await ApiService.get(`/discipleship/alerts?resolved=${resolved}`);
 
-    return (data as DiscipleshipAlert[]).map((alert: DiscipleshipAlert) => ({
+    return ((data as DiscipleshipAlert[]) || []).map((alert: DiscipleshipAlert) => ({
       id: alert.id || '',
       type: this.mapAlertPriorityToType(alert.priority),
       title: alert.title || '',
@@ -210,7 +210,7 @@ export class DiscipleshipAnalyticsService {
   static async getMultiplications(): Promise<MultiplicationTracker[]> {
     const data = await ApiService.get(`/discipleship/multiplications`);
 
-    return (data as MultiplicationTracker[]).map((mult: MultiplicationTracker) => ({
+    return ((data as MultiplicationTracker[]) || []).map((mult: MultiplicationTracker) => ({
       id: mult.id || '',
       parentGroupName: mult.parentGroupName || '',
       newGroupName: mult.newGroupName,

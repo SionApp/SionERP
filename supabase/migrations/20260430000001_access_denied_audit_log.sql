@@ -35,7 +35,7 @@ CREATE POLICY "Admins can view access denied logs" ON access_denied_logs
         EXISTS (
             SELECT 1 FROM users 
             WHERE users.auth_id = auth.uid() 
-            AND users.role IN ('admin', 'owner')
+            AND users.role IN ('pastor', 'staff')
         )
     );
 

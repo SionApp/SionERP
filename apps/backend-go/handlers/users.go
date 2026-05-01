@@ -312,7 +312,8 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	currentUserID := c.Get("user_id").(string)
 
 	var currentUserRole string
-	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole)
+	var isCurrentUserSuperAdmin bool
+	err := config.GetDB().DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole, &isCurrentUserSuperAdmin)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
@@ -331,6 +332,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	currentUserRoleLevel := utils.GetRoleLevel(currentUserRole)
 	targetRoleLevel := getUserRoleLevel(userID)
 
+	// Higher level = more power. If my level is LOWER (less power) than target, I can't edit.
 	if currentUserRoleLevel < targetRoleLevel {
 		c.Logger().Error("Unauthorized update attempt:", currentUserID, "role_level", currentUserRoleLevel,
 			"trying to edit user", userID, "role_level", targetRoleLevel)
@@ -340,8 +342,18 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
-	// server/member can only edit themselves
-	if currentUserRoleLevel <= 1 && currentUserID != userID {
+	// ── System super admin is protected ──
+	var isTargetSuperAdmin bool
+	config.GetDB().DB.QueryRow("SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&isTargetSuperAdmin)
+	if isTargetSuperAdmin && !isCurrentUserSuperAdmin {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "Cannot modify the system administrator account",
+		})
+	}
+
+	// server can only edit themselves (lowest role with permissions)
+	if currentUserRoleLevel <= utils.LevelServer && currentUserID != userID {
 		return c.JSON(http.StatusForbidden, map[string]interface{}{
 			"error":   "Forbidden",
 			"message": "You can only edit your own profile",
@@ -349,7 +361,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	}
 
 	// supervisor can only edit their subordinates
-	if currentUserRoleLevel == 2 && currentUserID != userID {
+	if currentUserRoleLevel == utils.LevelSupervisor && currentUserID != userID {
 		var cellLeaderID sql.NullString
 		config.GetDB().DB.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
 		if cellLeaderID.String != currentUserID {
@@ -369,7 +381,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
-	if currentUserID != userID && (currentUserRole != "pastor" && currentUserRole != "staff") {
+	if currentUserID != userID && !utils.IsAdminRole(currentUserRole) {
 		c.Logger().Error("Unauthorized access in UpdateUser:", currentUserID, "is not allowed to update user", userID)
 		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"error":   "Unauthorized",
@@ -457,8 +469,18 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 		})
 	}
 
+	// ── System super admin is protected ──
+	var isTargetSuperAdmin bool
+	config.GetDB().DB.QueryRow("SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&isTargetSuperAdmin)
+	if isTargetSuperAdmin {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "Cannot delete the system administrator account",
+		})
+	}
+
 	// supervisor can only delete their subordinates
-	if currentUserRoleLevel == 2 {
+	if currentUserRoleLevel == utils.LevelSupervisor {
 		var cellLeaderID sql.NullString
 		config.GetDB().DB.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
 		if cellLeaderID.String != currentUserID {
@@ -470,7 +492,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 	}
 
 	// server/member cannot delete anyone
-	if currentUserRoleLevel <= 1 {
+	if currentUserRoleLevel <= utils.LevelServer {
 		return c.JSON(http.StatusForbidden, map[string]interface{}{
 			"error":   "Forbidden",
 			"message": "You do not have permission to delete users",

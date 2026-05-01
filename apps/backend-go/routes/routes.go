@@ -3,6 +3,7 @@ package routes
 import (
 	"backend-sion/handlers"
 	"backend-sion/middleware"
+	"backend-sion/utils"
 	"github.com/labstack/echo/v4"
 )
 
@@ -31,9 +32,9 @@ func SetupRoutes(e *echo.Echo) {
 	protected.Use(middleware.SupabaseAuth())
 
 	// User routes — grouped by permission level
-	// Staff+ (level 3): Admin CRUD operations
+	// Staff+ (level 300): Admin CRUD operations
 	usersAdmin := protected.Group("/users")
-	usersAdmin.Use(middleware.RequireRole(3)) // staff, supervisor, pastor, admin
+	usersAdmin.Use(middleware.RequireRole(utils.LevelStaff)) // staff, pastor, admin
 	{
 		usersAdmin.GET("", userHandler.GetUsers)          // GET /api/v1/users
 		usersAdmin.POST("", userHandler.CreateUser)       // POST /api/v1/users
@@ -67,16 +68,17 @@ func SetupRoutes(e *echo.Echo) {
 		setup.POST("", setupHandler.PerformSetup)
 	}
 
-	// Module management routes (admin only - level 5)
+	// Module management routes (admin only)
+	// Requires admin access: pastor/staff (via has_admin_access bypass) or super_admin
 	modules := protected.Group("/modules")
-	modules.Use(middleware.RequireRole(5))
+	modules.Use(middleware.RequireRole(utils.LevelAdmin))
 	{
 		modules.PUT("/:key", setupHandler.UpdateModuleStatus)
 	}
 
-	// Invitation routes (staff+ level 3)
+	// Invitation routes (staff+ level 300)
 	invitations := protected.Group("/invitations")
-	invitations.Use(middleware.RequireRole(3))
+	invitations.Use(middleware.RequireRole(utils.LevelStaff))
 	{
 		invitations.GET("", handlers.NewInviteHandler().GetInvitations)
 		invitations.POST("", handlers.NewInviteHandler().InviteUser)
@@ -84,9 +86,10 @@ func SetupRoutes(e *echo.Echo) {
 		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation)
 	}
 
-	// Settings routes (admin only - level 5)
+	// Settings routes (admin only)
+	// Requires admin access: pastor/staff (via has_admin_access bypass) or super_admin
 	settings := protected.Group("/settings")
-	settings.Use(middleware.RequireRole(5))
+	settings.Use(middleware.RequireRole(utils.LevelAdmin))
 	{
 		settings.GET("/system", handlers.NewSettingsHandler().GetSystemSettings)
 		settings.PUT("/system", handlers.NewSettingsHandler().UpdateSystemSettings)
@@ -111,7 +114,7 @@ func SetupRoutes(e *echo.Echo) {
 	reportsHandler := handlers.NewDiscipleshipReportsHandler()
 	alertsHandler := handlers.NewDiscipleshipAlertsHandler()
 	discipleship := protected.Group("/discipleship")
-	discipleship.Use(middleware.RequireModule("discipleship")) // Enforce Discipleship Module
+	discipleship.Use(middleware.RequireModule(utils.ModuleDiscipleship)) // Enforce Discipleship Module
 	{
 		// Grupos
 		discipleship.GET("/groups", discipleshipHandler.GetGroups)
@@ -174,7 +177,7 @@ func SetupRoutes(e *echo.Echo) {
 	// Zones routes
 	zonesHandler := handlers.NewZonesHandler()
 	zones := protected.Group("/zones")
-	zones.Use(middleware.RequireModule("zones")) // Enforce Zones Module
+	zones.Use(middleware.RequireModule(utils.ModuleZones)) // Enforce Zones Module
 	{
 		zones.GET("", zonesHandler.GetZones)
 		zones.GET("/map", zonesHandler.GetMapData)

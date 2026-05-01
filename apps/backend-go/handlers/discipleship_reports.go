@@ -3,6 +3,7 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/models"
+	"backend-sion/utils"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -91,7 +92,7 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	argCount := 0
 
 	// Si no es pastor/staff, solo puede ver sus propios reportes o los de sus subordinados
-	if userRole != "pastor" && userRole != "staff" {
+	if !utils.IsAdminRole(userRole) {
 		argCount++
 		query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
 		args = append(args, userID)
@@ -171,19 +172,19 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 	var userRole string
 	db.DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&userRole)
 
-	if supervisorID != userID && userRole != "pastor" && userRole != "staff" {
+	if supervisorID != userID && !utils.IsAdminRole(userRole) {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes permisos para aprobar este reporte",
 		})
 	}
 
-	_, err = db.DB.Exec(`
+	_, err = db.DB.Exec(fmt.Sprintf(`
 		UPDATE discipleship_reports SET
-			status = 'approved',
+			status = '%s',
 			approved_at = NOW(),
 			updated_at = NOW()
 		WHERE id = $1
-	`, reportID)
+	`, utils.ReportStatusApproved), reportID)
 
 	if err != nil {
 		c.Logger().Error("Error approving report:", err)

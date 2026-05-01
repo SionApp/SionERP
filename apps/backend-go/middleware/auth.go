@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"backend-sion/config"
+	"backend-sion/utils"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
@@ -126,19 +127,20 @@ func SupabaseAuth() echo.MiddlewareFunc {
 					"error": "Invalid token: " + err.Error(),
 				})
 			}
-			var dbRole string
 
-			// Obtener la conexión a la base de datos de forma segura
+			// Get the database connection safely
+			var dbRole string
+			var isSuperAdmin bool
 			db := config.GetDB()
 			if db != nil && db.DB != nil {
-				err = db.DB.QueryRow("SELECT role FROM users WHERE id = $1", claims.Sub).Scan(&dbRole)
+				err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
 				if err != nil {
 					fmt.Printf("Could not fetch user role for %s: %v\n", claims.Sub, err)
-					dbRole = "guest" // valor por defecto si falla
+					dbRole = utils.RoleGuest // default value if fails
 				}
 			} else {
 				fmt.Printf("⚠️  Database connection not available, using default role\n")
-				dbRole = "guest"
+				dbRole = utils.RoleGuest
 			}
 
 			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", claims.Sub, claims.Email, claims.Role)
@@ -149,8 +151,8 @@ func SupabaseAuth() echo.MiddlewareFunc {
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
 			c.Set("db_role", dbRole)
-			// Set admin_access flag for special email
-			c.Set("has_admin_access", hasAdminAccess(claims.Email, dbRole))
+			// Set admin_access flag for roles with admin privileges
+			c.Set("has_admin_access", HasAdminAccess(dbRole, isSuperAdmin))
 			return next(c)
 		}
 	}
@@ -205,10 +207,14 @@ func validateSupabaseToken(tokenString string) (*Claims, error) {
 	return nil, fmt.Errorf("invalid token claims")
 }
 
-// hasAdminAccess checks if a user has admin access
-// Returns true ONLY if dbRole == "admin" or "owner"
-func hasAdminAccess(_, dbRole string) bool {
-	return dbRole == "admin" || dbRole == "owner"
+// HasAdminAccess checks if a user has admin access
+// Uses utils.IsAdminRole (pastor or staff) — super admins always have access
+// HasAdminAccess checks if a user has admin-level access (pastor, staff, or super admin).
+func HasAdminAccess(dbRole string, isSuperAdmin bool) bool {
+	if isSuperAdmin {
+		return true
+	}
+	return utils.IsAdminRole(dbRole)
 }
 
 // OptionalAuth middleware attempts to validate Supabase JWT token if present
@@ -240,15 +246,16 @@ func OptionalAuth() echo.MiddlewareFunc {
 			}
 
 			var dbRole string
+			var isSuperAdmin bool
 			db := config.GetDB()
 			if db != nil && db.DB != nil {
-				err = db.DB.QueryRow("SELECT role FROM users WHERE id = $1", claims.Sub).Scan(&dbRole)
+				err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
 				if err != nil {
 					fmt.Printf("OptionalAuth: Could not fetch user role for %s: %v\n", claims.Sub, err)
-					dbRole = "guest"
+					dbRole = utils.RoleGuest
 				}
 			} else {
-				dbRole = "guest"
+				dbRole = utils.RoleGuest
 			}
 
 			fmt.Printf("✅ OptionalAuth: Token valid - Role: %s\n", claims.Role)
@@ -259,8 +266,8 @@ func OptionalAuth() echo.MiddlewareFunc {
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
 			c.Set("db_role", dbRole)
-			// Set admin_access flag for special email
-			c.Set("has_admin_access", hasAdminAccess(claims.Email, dbRole))
+			// Set admin_access flag for roles with admin privileges
+			c.Set("has_admin_access", HasAdminAccess(dbRole, isSuperAdmin))
 
 			return next(c)
 		}
