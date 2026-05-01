@@ -244,9 +244,10 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 		FROM discipleship_groups g
 		WHERE g.status = 'active'
 		AND NOT EXISTS (
-			SELECT 1 FROM discipleship_metrics m
-			WHERE m.group_id = g.id
-			AND m.week_date >= CURRENT_DATE - INTERVAL '14 days'
+			SELECT 1 FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.report_type = 'leader'
+			AND r.period_end >= CURRENT_DATE - INTERVAL '14 days'
 		)
 		AND NOT EXISTS (
 			SELECT 1 FROM discipleship_alerts a
@@ -297,13 +298,32 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 	// 2. Grupos con baja asistencia (menos del 50% de miembros)
 	rows, err = db.DB.Query(`
 		SELECT g.id, g.group_name, g.leader_id, g.zone_id, g.member_count, 
-			   COALESCE(AVG(m.attendance), 0) as avg_attendance
+			   COALESCE((
+			   	SELECT AVG(
+			   		COALESCE((r.report_data->>'attendance_nd')::int, 0) +
+			   		COALESCE((r.report_data->>'attendance_dm')::int, 0) +
+			   		COALESCE((r.report_data->>'attendance_friends')::int, 0) +
+			   		COALESCE((r.report_data->>'attendance_kids')::int, 0)
+			   	)
+			   	FROM discipleship_reports r
+			   	WHERE (r.report_data->>'group_id')::uuid = g.id
+			   	AND r.report_type = 'leader'
+			   	AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			   ), 0) as avg_attendance
 		FROM discipleship_groups g
-		LEFT JOIN discipleship_metrics m ON g.id = m.group_id 
-			AND m.week_date >= CURRENT_DATE - INTERVAL '28 days'
 		WHERE g.status = 'active' AND g.member_count > 0
-		GROUP BY g.id, g.group_name, g.leader_id, g.zone_id, g.member_count
-		HAVING COALESCE(AVG(m.attendance), 0) < (g.member_count * 0.5)
+		AND COALESCE((
+			SELECT AVG(
+				COALESCE((r.report_data->>'attendance_nd')::int, 0) +
+				COALESCE((r.report_data->>'attendance_dm')::int, 0) +
+				COALESCE((r.report_data->>'attendance_friends')::int, 0) +
+				COALESCE((r.report_data->>'attendance_kids')::int, 0)
+			)
+			FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.report_type = 'leader'
+			AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+		), 0) < (g.member_count * 0.5)
 		AND NOT EXISTS (
 			SELECT 1 FROM discipleship_alerts a
 			WHERE a.related_group_id = g.id

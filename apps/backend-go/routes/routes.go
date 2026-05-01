@@ -149,10 +149,6 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.GET("/analytics/zones", discipleshipHandler.GetZoneStats)
 		discipleship.GET("/analytics/performance", discipleshipHandler.GetGroupPerformance)
 
-		// Métricas
-		discipleship.GET("/metrics", reportsHandler.GetMetrics)
-		discipleship.POST("/metrics", reportsHandler.CreateMetrics)
-
 		// Reportes
 		discipleship.GET("/reports", reportsHandler.GetReports)
 		discipleship.POST("/reports", reportsHandler.CreateReport)

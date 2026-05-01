@@ -19,7 +19,7 @@ export function useGeneralSupervisorData() {
     subordinates,
     zoneStats,
     refetch: refetchBase,
-  } = useDiscipleshipData({ level: 3, enabled: !!user });
+  } = useDiscipleshipData({ userId: user?.id, level: 3, enabled: !!user });
 
   // Estados adicionales específicos del supervisor general
   const [myReports, setMyReports] = useState<DiscipleshipReport[]>([]);

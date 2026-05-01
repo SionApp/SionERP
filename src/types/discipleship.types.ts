@@ -112,6 +112,7 @@ export interface CreateGroupRequest {
   meeting_address?: string;
   latitude?: number;
   longitude?: number;
+  status?: string;
 }
 
 export interface UpdateGroupRequest {
@@ -158,45 +159,6 @@ export interface AssignHierarchyRequest {
   zone_id?: string;
   zone_name?: string;
   territory?: string;
-}
-
-// =====================================================
-// MÉTRICAS
-// =====================================================
-
-export interface DiscipleshipMetrics {
-  id: string;
-  group_id: string;
-  week_date: string;
-  week_number?: number;
-  attendance: number;
-  new_visitors: number;
-  returning_visitors: number;
-  conversions: number;
-  baptisms: number;
-  spiritual_temperature: number;
-  testimonies_count: number;
-  prayer_requests: number;
-  offering_amount: number;
-  leader_notes: string | null;
-  created_at: string;
-  updated_at: string;
-  group_name?: string;
-}
-
-export interface CreateMetricsRequest {
-  group_id: string;
-  week_date: string;
-  attendance: number;
-  new_visitors?: number;
-  returning_visitors?: number;
-  conversions?: number;
-  baptisms?: number;
-  spiritual_temperature: number;
-  testimonies_count?: number;
-  prayer_requests?: number;
-  offering_amount?: number;
-  leader_notes?: string;
 }
 
 // =====================================================
