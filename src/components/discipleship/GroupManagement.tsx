@@ -103,6 +103,7 @@ const GroupManagement = () => {
     meeting_time: '',
     meeting_location: '',
     meeting_address: '',
+    status: 'active',
   });
   const [geolocation, setGeolocation] = useState<GeolocationResult | null>(null);
 
@@ -209,6 +210,7 @@ const GroupManagement = () => {
         meeting_time: String(normalizeNullString(group.meeting_time) || ''),
         meeting_location: String(normalizeNullString(group.meeting_location) || ''),
         meeting_address: String(normalizeNullString(group.meeting_address) || ''),
+        status: group.status || 'active',
         latitude: group.latitude || undefined,
         longitude: group.longitude || undefined,
       });
@@ -237,6 +239,7 @@ const GroupManagement = () => {
         meeting_time: '',
         meeting_location: '',
         meeting_address: '',
+        status: 'active',
       });
       setGeolocation(null);
     }

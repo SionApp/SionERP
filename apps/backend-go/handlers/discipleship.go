@@ -1159,11 +1159,18 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 		c.Logger().Error("Error counting members in analytics:", err)
 	}
 
-	// Promedio de asistencia (últimas 4 semanas)
+	// Promedio de asistencia (últimas 4 semanas) — leer de discipleship_reports
+	// Attendance total = attendance_nd + attendance_dm + attendance_friends + attendance_kids
 	db.DB.QueryRow(`
-		SELECT COALESCE(AVG(attendance), 0)
-		FROM discipleship_metrics
-		WHERE week_date >= CURRENT_DATE - INTERVAL '28 days'
+		SELECT COALESCE(AVG(
+			COALESCE((report_data->>'attendance_nd')::int, 0) +
+			COALESCE((report_data->>'attendance_dm')::int, 0) +
+			COALESCE((report_data->>'attendance_friends')::int, 0) +
+			COALESCE((report_data->>'attendance_kids')::int, 0)
+		), 0)
+		FROM discipleship_reports
+		WHERE report_type = 'leader'
+		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
 	`).Scan(&analytics.AverageAttendance)
 
 	// Líderes activos
@@ -1181,11 +1188,27 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 		AND success_status = 'successful'
 	`).Scan(&analytics.Multiplications)
 
-	// Salud espiritual promedio
+	// Salud espiritual promedio (calculada de métricas objetivas)
+	// Cada métrica > 0 = 1 punto (10 numéricas + 3 booleanas = max 13 por reporte)
 	db.DB.QueryRow(`
-		SELECT COALESCE(AVG(spiritual_temperature), 0)
-		FROM discipleship_metrics
-		WHERE week_date >= CURRENT_DATE - INTERVAL '28 days'
+		SELECT COALESCE(AVG(
+			CASE WHEN COALESCE((report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+		), 0)
+		FROM discipleship_reports
+		WHERE report_type = 'leader'
+		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
 	`).Scan(&analytics.SpiritualHealth)
 
 	// Alertas pendientes
@@ -1195,17 +1218,29 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 		WHERE resolved = false AND (expires_at IS NULL OR expires_at > NOW())
 	`).Scan(&analytics.PendingAlerts)
 
-	// Calcular tasa de crecimiento
+	// Calcular tasa de crecimiento (usando discipleship_reports)
 	var currentMembers, previousMembers float64
 	db.DB.QueryRow(`
-		SELECT COALESCE(AVG(attendance), 0)
-		FROM discipleship_metrics
-		WHERE week_date >= CURRENT_DATE - INTERVAL '30 days'
+		SELECT COALESCE(AVG(
+			COALESCE((report_data->>'attendance_nd')::int, 0) +
+			COALESCE((report_data->>'attendance_dm')::int, 0) +
+			COALESCE((report_data->>'attendance_friends')::int, 0) +
+			COALESCE((report_data->>'attendance_kids')::int, 0)
+		), 0)
+		FROM discipleship_reports
+		WHERE report_type = 'leader'
+		AND period_end >= CURRENT_DATE - INTERVAL '30 days'
 	`).Scan(&currentMembers)
 	db.DB.QueryRow(`
-		SELECT COALESCE(AVG(attendance), 0)
-		FROM discipleship_metrics
-		WHERE week_date BETWEEN CURRENT_DATE - INTERVAL '60 days' AND CURRENT_DATE - INTERVAL '30 days'
+		SELECT COALESCE(AVG(
+			COALESCE((report_data->>'attendance_nd')::int, 0) +
+			COALESCE((report_data->>'attendance_dm')::int, 0) +
+			COALESCE((report_data->>'attendance_friends')::int, 0) +
+			COALESCE((report_data->>'attendance_kids')::int, 0)
+		), 0)
+		FROM discipleship_reports
+		WHERE report_type = 'leader'
+		AND period_end BETWEEN CURRENT_DATE - INTERVAL '60 days' AND CURRENT_DATE - INTERVAL '30 days'
 	`).Scan(&previousMembers)
 
 	if previousMembers > 0 {
@@ -1240,11 +1275,17 @@ func (h *DiscipleshipHandler) GetZoneStats(c echo.Context) error {
 			(SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_members,
 			true as is_active,
 			COALESCE(
-				(SELECT AVG(m.attendance) 
-				FROM discipleship_metrics m 
-				JOIN discipleship_groups g ON m.group_id = g.id 
+				(SELECT AVG(
+					COALESCE((r.report_data->>'attendance_nd')::int, 0) +
+					COALESCE((r.report_data->>'attendance_dm')::int, 0) +
+					COALESCE((r.report_data->>'attendance_friends')::int, 0) +
+					COALESCE((r.report_data->>'attendance_kids')::int, 0)
+				) 
+				FROM discipleship_reports r
+				JOIN discipleship_groups g ON (r.report_data->>'group_id')::uuid = g.id
 				WHERE g.zone_id = z.id AND g.status = 'active'
-				AND m.week_date >= CURRENT_DATE - INTERVAL '28 days'),
+				AND r.report_type = 'leader'
+				AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'),
 				0
 			) as avg_attendance
 		FROM zones z
@@ -1284,15 +1325,45 @@ func (h *DiscipleshipHandler) GetGroupPerformance(c echo.Context) error {
 			g.id,
 			g.group_name,
 			COALESCE(u.first_name || ' ' || u.last_name, 'Sin líder') as leader_name,
-			COALESCE(AVG(m.attendance), 0) as avg_attendance,
-			COALESCE(AVG(m.spiritual_temperature), 0) as spiritual_temp,
+			COALESCE((
+				SELECT AVG(
+					COALESCE((r.report_data->>'attendance_nd')::int, 0) +
+					COALESCE((r.report_data->>'attendance_dm')::int, 0) +
+					COALESCE((r.report_data->>'attendance_friends')::int, 0) +
+					COALESCE((r.report_data->>'attendance_kids')::int, 0)
+				)
+				FROM discipleship_reports r
+				WHERE (r.report_data->>'group_id')::uuid = g.id
+				AND r.report_type = 'leader'
+				AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			), 0) as avg_attendance,
+			COALESCE((
+				SELECT AVG(
+					CASE WHEN COALESCE((r.report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+				)
+				FROM discipleship_reports r
+				WHERE (r.report_data->>'group_id')::uuid = g.id
+				AND r.report_type = 'leader'
+				AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			), 0) as spiritual_temp,
 			g.status,
-			COALESCE(MAX(m.week_date)::text, '') as last_report_date
+			COALESCE((SELECT MAX(r.submitted_at)::text FROM discipleship_reports r 
+				WHERE (r.report_data->>'group_id')::uuid = g.id AND r.report_type = 'leader'), '') as last_report_date
 		FROM discipleship_groups g
 		LEFT JOIN users u ON g.leader_id = u.id
-		LEFT JOIN discipleship_metrics m ON g.id = m.group_id
 		WHERE g.status = 'active'
-		GROUP BY g.id, g.group_name, u.first_name, u.last_name, g.status
 		ORDER BY avg_attendance DESC
 	`)
 	if err != nil {
@@ -1442,15 +1513,19 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 
 	query := `
 		SELECT 
-			DATE_TRUNC('week', week_date)::date as week_start,
-			SUM(attendance) as total_attendance,
-			SUM(new_visitors) as total_visitors,
-			SUM(conversions) as total_conversions,
-			AVG(spiritual_temperature) as avg_spiritual_temp,
-			COUNT(DISTINCT group_id) as groups_reporting
-		FROM discipleship_metrics
-		WHERE week_date >= CURRENT_DATE - ($1 || ' weeks')::interval
-		GROUP BY DATE_TRUNC('week', week_date)
+			period_start::date as week_start,
+			SUM(
+				COALESCE((report_data->>'attendance_nd')::int, 0) +
+				COALESCE((report_data->>'attendance_dm')::int, 0) +
+				COALESCE((report_data->>'attendance_friends')::int, 0) +
+				COALESCE((report_data->>'attendance_kids')::int, 0)
+			) as total_attendance,
+			SUM(COALESCE((report_data->>'attendance_friends')::int, 0)) as total_visitors,
+			COUNT(DISTINCT reporter_id) as groups_reporting
+		FROM discipleship_reports
+		WHERE report_type = 'leader'
+		AND period_start >= CURRENT_DATE - ($1 || ' weeks')::interval
+		GROUP BY period_start
 		ORDER BY week_start ASC
 	`
 
@@ -1464,12 +1539,10 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 	defer rows.Close()
 
 	type WeeklyTrend struct {
-		WeekStart        string  `json:"week_start"`
-		TotalAttendance  int     `json:"total_attendance"`
-		TotalVisitors    int     `json:"total_visitors"`
-		TotalConversions int     `json:"total_conversions"`
-		AvgSpiritualTemp float64 `json:"avg_spiritual_temp"`
-		GroupsReporting  int     `json:"groups_reporting"`
+		WeekStart       string  `json:"week_start"`
+		TotalAttendance int     `json:"total_attendance"`
+		TotalVisitors   int     `json:"total_visitors"`
+		GroupsReporting int     `json:"groups_reporting"`
 	}
 
 	var trends []WeeklyTrend
@@ -1477,7 +1550,7 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 		var t WeeklyTrend
 		err := rows.Scan(
 			&t.WeekStart, &t.TotalAttendance, &t.TotalVisitors,
-			&t.TotalConversions, &t.AvgSpiritualTemp, &t.GroupsReporting,
+			&t.GroupsReporting,
 		)
 		if err != nil {
 			continue
@@ -1582,15 +1655,37 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		`).Scan(&stats.Multiplications)
 	}
 
-	// Estadísticas comunes
+	// Estadísticas comunes — leer de discipleship_reports
 	db.DB.QueryRow(`
-		SELECT COALESCE(AVG(attendance), 0) FROM discipleship_metrics 
-		WHERE week_date >= CURRENT_DATE - INTERVAL '28 days'
+		SELECT COALESCE(AVG(
+			COALESCE((report_data->>'attendance_nd')::int, 0) +
+			COALESCE((report_data->>'attendance_dm')::int, 0) +
+			COALESCE((report_data->>'attendance_friends')::int, 0) +
+			COALESCE((report_data->>'attendance_kids')::int, 0)
+		), 0) FROM discipleship_reports
+		WHERE report_type = 'leader'
+		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
 	`).Scan(&stats.AverageAttendance)
 
 	db.DB.QueryRow(`
-		SELECT COALESCE(AVG(spiritual_temperature), 0) FROM discipleship_metrics 
-		WHERE week_date >= CURRENT_DATE - INTERVAL '28 days'
+		SELECT COALESCE(AVG(
+			CASE WHEN COALESCE((report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN COALESCE((report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+		), 0)
+		FROM discipleship_reports
+		WHERE report_type = 'leader'
+		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
 	`).Scan(&stats.SpiritualHealth)
 
 	db.DB.QueryRow(`
@@ -1628,16 +1723,60 @@ func (h *DiscipleshipHandler) GetLeaderGroupStats(c echo.Context) error {
 	rows, err := db.DB.Query(`
 		SELECT 
 			g.id, g.group_name, g.member_count, g.active_members,
-			COALESCE(AVG(m.attendance), 0) as avg_attendance,
-			COALESCE(AVG(m.spiritual_temperature), 0) as avg_spiritual_temp,
-			COALESCE(SUM(m.new_visitors + m.returning_visitors), 0) as total_visitors,
-			COALESCE(SUM(m.conversions), 0) as total_conversions,
-			COALESCE(MAX(m.week_date)::text, '') as last_report_date
+			COALESCE((
+				SELECT AVG(
+					COALESCE((r.report_data->>'attendance_nd')::int, 0) +
+					COALESCE((r.report_data->>'attendance_dm')::int, 0) +
+					COALESCE((r.report_data->>'attendance_friends')::int, 0) +
+					COALESCE((r.report_data->>'attendance_kids')::int, 0)
+				)
+				FROM discipleship_reports r
+				WHERE (r.report_data->>'group_id')::uuid = g.id
+				AND r.report_type = 'leader'
+				AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			), 0) as avg_attendance,
+			COALESCE((
+				SELECT AVG(
+					CASE WHEN COALESCE((r.report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+					CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+				)
+				FROM discipleship_reports r
+				WHERE (r.report_data->>'group_id')::uuid = g.id
+				AND r.report_type = 'leader'
+				AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			), 0) as avg_spiritual_temp,
+			COALESCE((
+				SELECT SUM(COALESCE((r.report_data->>'attendance_friends')::int, 0))
+				FROM discipleship_reports r
+				WHERE (r.report_data->>'group_id')::uuid = g.id
+				AND r.report_type = 'leader'
+				AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			), 0) as total_visitors,
+			COALESCE((
+				SELECT SUM(
+					COALESCE((r.report_data->>'group_evangelism')::int, 0) +
+					COALESCE((r.report_data->>'leader_evangelism')::int, 0)
+				)
+				FROM discipleship_reports r
+				WHERE (r.report_data->>'group_id')::uuid = g.id
+				AND r.report_type = 'leader'
+				AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+			), 0) as total_conversions,
+			COALESCE((SELECT MAX(r.submitted_at)::text FROM discipleship_reports r 
+				WHERE (r.report_data->>'group_id')::uuid = g.id AND r.report_type = 'leader'), '') as last_report_date
 		FROM discipleship_groups g
-		LEFT JOIN discipleship_metrics m ON g.id = m.group_id 
-			AND m.week_date >= CURRENT_DATE - INTERVAL '28 days'
 		WHERE g.leader_id = $1 AND g.status = 'active'
-		GROUP BY g.id, g.group_name, g.member_count, g.active_members
 	`, leaderID)
 
 	if err != nil {
@@ -1695,10 +1834,16 @@ func (h *DiscipleshipHandler) GetSupervisorSubordinates(c echo.Context) error {
 			h.active_groups_assigned,
 			COALESCE((SELECT SUM(member_count) FROM discipleship_groups g 
 				WHERE g.leader_id = h.user_id OR g.supervisor_id = h.user_id), 0) as total_members,
-			COALESCE((SELECT AVG(m.attendance) FROM discipleship_metrics m 
-				JOIN discipleship_groups g ON m.group_id = g.id
-				WHERE (g.leader_id = h.user_id OR g.supervisor_id = h.user_id)
-				AND m.week_date >= CURRENT_DATE - INTERVAL '28 days'), 0) as avg_attendance,
+			COALESCE((SELECT AVG(
+				COALESCE((r.report_data->>'attendance_nd')::int, 0) +
+				COALESCE((r.report_data->>'attendance_dm')::int, 0) +
+				COALESCE((r.report_data->>'attendance_friends')::int, 0) +
+				COALESCE((r.report_data->>'attendance_kids')::int, 0)
+			) FROM discipleship_reports r
+			JOIN discipleship_groups g ON (r.report_data->>'group_id')::uuid = g.id
+			WHERE (g.leader_id = h.user_id OR g.supervisor_id = h.user_id)
+			AND r.report_type = 'leader'
+			AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'), 0) as avg_attendance,
 			COALESCE((SELECT MAX(r.submitted_at)::text FROM discipleship_reports r 
 				WHERE r.reporter_id = h.user_id), '') as last_report_date
 		FROM discipleship_hierarchy h

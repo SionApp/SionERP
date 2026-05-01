@@ -20,7 +20,7 @@ export function useCoordinatorData() {
     weeklyTrends,
     subordinates,
     refetch: refetchBase,
-  } = useDiscipleshipData({ level: 4, enabled: !!user });
+  } = useDiscipleshipData({ userId: user?.id, level: 4, enabled: !!user });
 
   // Estados adicionales específicos del coordinador
   const [myReports, setMyReports] = useState<DiscipleshipReport[]>([]);

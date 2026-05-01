@@ -1,6 +1,4 @@
-import { DiscipleshipMetrics } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
-import { DiscipleshipService } from './discipleship.service';
 
 // =====================================================
 // TIPOS
@@ -225,61 +223,7 @@ export class DiscipleshipAnalyticsService {
   }
 
   // Obtener tendencias semanales agregadas (para dashboards)
-  // Si necesitas métricas individuales de un grupo, usa DiscipleshipService.getMetrics()
-  static async getWeeklyTrends(weeks: number = 12, groupId?: string): Promise<WeeklyTrend[]> {
-    // Si se especifica un group_id, usar el endpoint de metrics y procesar
-    if (groupId) {
-      const metrics = await DiscipleshipService.getMetrics({ group_id: groupId });
-
-      // Agrupar métricas por semana
-      const weeklyMap = new Map<string, any>();
-      console.log(weeklyMap);
-      console.log(metrics);
-
-      metrics.forEach((metric: DiscipleshipMetrics) => {
-        const weekStart = new Date(metric.week_date);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Lunes de esa semana
-        const weekKey = weekStart.toISOString().split('T')[0];
-
-        if (!weeklyMap.has(weekKey)) {
-          weeklyMap.set(weekKey, {
-            week_start: weekKey,
-            total_attendance: 0,
-            total_visitors: 0,
-            total_conversions: 0,
-            avg_spiritual_temp: 0,
-            groups_reporting: 1,
-            count: 0,
-          });
-        }
-
-        const week = weeklyMap.get(weekKey);
-        week.total_attendance += metric.attendance || 0;
-        week.total_visitors += (metric.new_visitors || 0) + (metric.returning_visitors || 0);
-        week.total_conversions += metric.conversions || 0;
-        week.avg_spiritual_temp += metric.spiritual_temperature || 0;
-        week.count++;
-      });
-
-      // Calcular promedios y convertir a array
-      return Array.from(weeklyMap.values())
-        .map(week => ({
-          week: week.week_start,
-          week_start: week.week_start,
-          attendance: week.total_attendance,
-          total_attendance: week.total_attendance,
-          visitors: week.total_visitors,
-          total_visitors: week.total_visitors,
-          conversions: week.total_conversions,
-          total_conversions: week.total_conversions,
-          spiritualTemp: week.count > 0 ? week.avg_spiritual_temp / week.count : 5,
-          groups_reporting: week.groups_reporting,
-        }))
-        .sort((a, b) => a.week_start.localeCompare(b.week_start))
-        .slice(-weeks); // Últimas N semanas
-    }
-
-    // Para tendencias generales, usar el endpoint específico de weekly-trends
+  static async getWeeklyTrends(weeks: number = 12): Promise<WeeklyTrend[]> {
     const url = `/discipleship/weekly-trends?weeks=${weeks}`;
     const data = await ApiService.get(url);
 

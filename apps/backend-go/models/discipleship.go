@@ -100,44 +100,6 @@ type AssignHierarchyRequest struct {
 }
 
 // =====================================================
-// MÉTRICAS DE DISCIPULADO
-// =====================================================
-
-type DiscipleshipMetrics struct {
-	ID                   string         `json:"id"`
-	GroupID              string         `json:"group_id"`
-	WeekDate             string         `json:"week_date"`
-	WeekNumber           sql.NullInt32  `json:"week_number"`
-	Attendance           int            `json:"attendance"`
-	NewVisitors          int            `json:"new_visitors"`
-	ReturningVisitors    int            `json:"returning_visitors"`
-	Conversions          int            `json:"conversions"`
-	Baptisms             int            `json:"baptisms"`
-	SpiritualTemperature int            `json:"spiritual_temperature"`
-	TestimoniesCount     int            `json:"testimonies_count"`
-	PrayerRequests       int            `json:"prayer_requests"`
-	OfferingAmount       float64        `json:"offering_amount"`
-	LeaderNotes          sql.NullString `json:"leader_notes"`
-	CreatedAt            time.Time      `json:"created_at"`
-	UpdatedAt            time.Time      `json:"updated_at"`
-}
-
-type CreateMetricsRequest struct {
-	GroupID              string  `json:"group_id" validate:"required,uuid"`
-	WeekDate             string  `json:"week_date" validate:"required"`
-	Attendance           int     `json:"attendance" validate:"min=0"`
-	NewVisitors          int     `json:"new_visitors" validate:"min=0"`
-	ReturningVisitors    int     `json:"returning_visitors" validate:"min=0"`
-	Conversions          int     `json:"conversions" validate:"min=0"`
-	Baptisms             int     `json:"baptisms" validate:"min=0"`
-	SpiritualTemperature int     `json:"spiritual_temperature" validate:"min=1,max=10"`
-	TestimoniesCount     int     `json:"testimonies_count" validate:"min=0"`
-	PrayerRequests       int     `json:"prayer_requests" validate:"min=0"`
-	OfferingAmount       float64 `json:"offering_amount" validate:"min=0"`
-	LeaderNotes          string  `json:"leader_notes,omitempty"`
-}
-
-// =====================================================
 // REPORTES DE DISCIPULADO
 // =====================================================
 
