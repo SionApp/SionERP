@@ -107,6 +107,25 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
     loadUsers();
   }, [loadUsers]);
 
+  // Refresh users when zones are updated (deleted, created, etc.)
+  useEffect(() => {
+    const handleZonesUpdated = () => {
+      loadUsers();
+    };
+    window.addEventListener('zones-updated', handleZonesUpdated);
+    return () => window.removeEventListener('zones-updated', handleZonesUpdated);
+  }, [loadUsers]);
+
+  // Reset selected zone filter if it references a deleted zone
+  useEffect(() => {
+    if (selectedZone !== 'all' && selectedZone !== 'sin-zona') {
+      const zoneExists = zones.some(z => z.name === selectedZone);
+      if (!zoneExists) {
+        setSelectedZone('all');
+      }
+    }
+  }, [zones, selectedZone]);
+
   const filteredUsers = useMemo(() => {
     let result = users;
 

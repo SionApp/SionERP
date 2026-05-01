@@ -14,33 +14,33 @@ import type {
   ZoneMapGroup,
 } from '@/types/discipleship.types';
 import { Calendar, Layers, MapPin, Search, User as UserIcon, Users } from 'lucide-react';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import Map, {
-  Layer,
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  MapContainer,
+  TileLayer,
   Marker,
-  NavigationControl,
   Popup,
-  Source,
-  type MapRef,
-} from 'react-map-gl/maplibre';
+  Polygon,
+  useMap,
+  ZoomControl,
+} from 'react-leaflet';
 
 // ── Tipos internos ──────────────────────────────────────────
 
-type LayerProps = React.ComponentProps<typeof Layer>;
-
-type FeatureProperties = {
+interface FeatureProperties {
   zoneId: string;
   zoneName: string;
   color: string;
   totalGroups: number;
-};
+}
 
-type ZoneFeature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, FeatureProperties>;
-type ZoneFeatureCollection = GeoJSON.FeatureCollection<
-  GeoJSON.Polygon | GeoJSON.MultiPolygon,
-  FeatureProperties
->;
+interface ZoneFeature {
+  type: 'Feature';
+  geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+  properties: FeatureProperties;
+}
 
 interface MapUser {
   id: string;
@@ -60,90 +60,43 @@ interface DiscipleshipMapProps {
 
 // ── Constantes ──────────────────────────────────────────────
 
-const DEFAULT_CENTER = { latitude: 11.4045, longitude: -69.6734 };
+const DEFAULT_CENTER: [number, number] = [11.4045, -69.6734];
 const DEFAULT_ZOOM = 13;
 
-const fillLayer: LayerProps = {
-  id: 'zones-fill',
-  type: 'fill',
-  paint: {
-    'fill-color': ['get', 'color'],
-    'fill-opacity': 0.22,
-  },
-};
+// ── SVG Markers (as HTML strings for divIcon) ──────────────
 
-const borderLayer: LayerProps = {
-  id: 'zones-border',
-  type: 'line',
-  paint: {
-    'line-color': ['get', 'color'],
-    'line-width': 2,
-  },
-};
-
-const selectedBorderLayer: LayerProps = {
-  id: 'zones-selected-border',
-  type: 'line',
-  filter: ['==', ['get', 'zoneId'], ''],
-  paint: {
-    'line-color': ['get', 'color'],
-    'line-width': 4,
-  },
-};
-
-// ── SVG Markers ─────────────────────────────────────────────
-
-function HouseIcon({ color = '#3b82f6', size = 28 }: { color?: string; size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
-        fill={color}
-        fillOpacity="0.85"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M9 21V13H15V21"
-        fill="white"
-        fillOpacity="0.9"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+function houseIconHtml(color: string, size: number): string {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill="${color}" fill-opacity="0.85" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M9 21V13H15V21" fill="white" fill-opacity="0.9" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
 }
 
-function PersonIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5" />
-      <path
-        d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21"
-        fill="#6366f1"
-        fillOpacity="0.6"
-        stroke="#4f46e5"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+function personIconHtml(size: number): string {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" stroke-width="1.5"/>
+    <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fill-opacity="0.6" stroke="#4f46e5" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function createHouseIcon(color: string, size: number): L.DivIcon {
+  return L.divIcon({
+    html: houseIconHtml(color, size),
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -size],
+  });
+}
+
+function createPersonIcon(size: number): L.DivIcon {
+  return L.divIcon({
+    html: personIconHtml(size),
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -size],
+  });
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -192,33 +145,86 @@ function normalizeZoneFeature(zoneData: ZoneMapData): ZoneFeature | null {
   return null;
 }
 
-function getBoundsFromCoordinates(
-  coords: number[][],
-  bounds: [[number, number], [number, number]]
-) {
-  coords.forEach(([lng, lat]) => {
-    bounds[0][0] = Math.min(bounds[0][0], lng);
-    bounds[0][1] = Math.min(bounds[0][1], lat);
-    bounds[1][0] = Math.max(bounds[1][0], lng);
-    bounds[1][1] = Math.max(bounds[1][1], lat);
-  });
+/** Convert GeoJSON [lng, lat] to Leaflet [lat, lng] */
+function geojsonToLatLng(coords: [number, number]): [number, number] {
+  return [coords[1], coords[0]];
 }
 
-function getFeatureBounds(feature: ZoneFeature): [[number, number], [number, number]] | null {
-  const bounds: [[number, number], [number, number]] = [
-    [Infinity, Infinity],
-    [-Infinity, -Infinity],
-  ];
+/** Extract all Leaflet-ready polygon position arrays from a zone feature */
+function getZonePolyPositions(
+  feature: ZoneFeature,
+  selectedZoneId: string | null
+): {
+  positions: [number, number][][];
+  isMulti: boolean;
+  isSelected: boolean;
+  color: string;
+}[] {
+  const isSelected = feature.properties.zoneId === selectedZoneId;
+  const color = feature.properties.color;
+
   if (feature.geometry.type === 'Polygon') {
-    feature.geometry.coordinates.forEach(ring => getBoundsFromCoordinates(ring, bounds));
+    return feature.geometry.coordinates.map((ring) => ({
+      positions: ring.map(geojsonToLatLng),
+      isMulti: false,
+      isSelected,
+      color,
+    }));
   }
-  if (feature.geometry.type === 'MultiPolygon') {
-    feature.geometry.coordinates.forEach(polygon =>
-      polygon.forEach(ring => getBoundsFromCoordinates(ring, bounds))
+
+  // MultiPolygon: each polygon is its own array of rings
+  return feature.geometry.coordinates.flatMap((polygon) =>
+    polygon.map((ring) => ({
+      positions: ring.map(geojsonToLatLng),
+      isMulti: true,
+      isSelected,
+      color,
+    }))
+  );
+}
+
+/** Calculate bounding box from a zone feature for fitBounds */
+function getFeatureLatLngBounds(feature: ZoneFeature): L.LatLngBounds | null {
+  const allPoints: [number, number][] = [];
+
+  const extract = (coords: number[]) => {
+    allPoints.push([coords[1], coords[0]]);
+  };
+
+  if (feature.geometry.type === 'Polygon') {
+    feature.geometry.coordinates.forEach((ring) => ring.forEach(extract));
+  } else {
+    feature.geometry.coordinates.forEach((polygon) =>
+      polygon.forEach((ring) => ring.forEach(extract))
     );
   }
-  if (!isFinite(bounds[0][0])) return null;
-  return bounds;
+
+  if (allPoints.length === 0) return null;
+  return L.latLngBounds(allPoints);
+}
+
+// ── Map helper components ───────────────────────────────────
+
+function FitToBounds({ bounds, trigger }: { bounds: L.LatLngBounds | null; trigger: unknown }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (bounds) {
+      map.fitBounds(bounds, { padding: [40, 40], duration: 800 });
+    }
+  }, [map, bounds, trigger]);
+
+  return null;
+}
+
+function FlyTo({ position, zoom, trigger }: { position: [number, number]; zoom: number; trigger: unknown }) {
+  const map = useMap();
+
+  useEffect(() => {
+    map.flyTo(position, zoom, { duration: 1 });
+  }, [map, position, zoom, trigger]);
+
+  return null;
 }
 
 // ── Componente principal ────────────────────────────────────
@@ -228,7 +234,7 @@ export default function DiscipleshipMap({
   onZoneSelect,
   heightClassName = 'h-[620px]',
 }: DiscipleshipMapProps) {
-  const mapRef = useRef<MapRef | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const [zoneData, setZoneData] = useState<ZoneMapData[]>([]);
   const [mapUsers, setMapUsers] = useState<MapUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,6 +249,12 @@ export default function DiscipleshipMap({
   // Popups
   const [selectedGroup, setSelectedGroup] = useState<ZoneMapGroup | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<MapUser | null>(null);
+
+  // Map navigation state
+  const [fitToBounds, setFitToBounds] = useState<{ bounds: L.LatLngBounds; key: string } | null>(
+    null
+  );
+  const [flyTo, setFlyTo] = useState<{ position: [number, number]; zoom: number; key: string } | null>(null);
 
   useEffect(() => {
     setInternalSelectedZoneId(selectedZoneId ?? null);
@@ -271,7 +283,7 @@ export default function DiscipleshipMap({
           ? response
           : (response as { users?: MapUser[] })?.users || [];
         const usersWithCoords: MapUser[] = (rawUsers as MapUser[])
-          .filter(u => {
+          .filter((u) => {
             const lat = Number(u.latitude);
             const lng = Number(u.longitude);
             return (
@@ -283,7 +295,7 @@ export default function DiscipleshipMap({
               lng !== 0
             );
           })
-          .map(u => ({
+          .map((u) => ({
             id: String(u.id),
             first_name: String(u.first_name || ''),
             last_name: String(u.last_name || ''),
@@ -300,13 +312,12 @@ export default function DiscipleshipMap({
     void loadUsers();
   }, []);
 
-  const zoneFeatures = useMemo<ZoneFeatureCollection>(() => {
-    const features = zoneData.map(normalizeZoneFeature).filter((f): f is ZoneFeature => f !== null);
-    return { type: 'FeatureCollection', features };
+  const zoneFeatures = useMemo<ZoneFeature[]>(() => {
+    return zoneData.map(normalizeZoneFeature).filter((f): f is ZoneFeature => f !== null);
   }, [zoneData]);
 
   const selectedZone = useMemo(
-    () => zoneData.find(item => item.zone.id === internalSelectedZoneId) ?? null,
+    () => zoneData.find((item) => item.zone.id === internalSelectedZoneId) ?? null,
     [zoneData, internalSelectedZoneId]
   );
 
@@ -325,11 +336,11 @@ export default function DiscipleshipMap({
       );
     };
     if (!internalSelectedZoneId) {
-      return zoneData.flatMap(item => item.groups).filter(hasValidCoords);
+      return zoneData.flatMap((item) => item.groups).filter(hasValidCoords);
     }
     return (
       zoneData
-        .find(item => item.zone.id === internalSelectedZoneId)
+        .find((item) => item.zone.id === internalSelectedZoneId)
         ?.groups.filter(hasValidCoords) || []
     );
   }, [zoneData, internalSelectedZoneId]);
@@ -337,44 +348,57 @@ export default function DiscipleshipMap({
   // Personas visibles (filtradas por zona si hay seleccion)
   const visiblePeople = useMemo<MapUser[]>(() => {
     if (!internalSelectedZoneId) return mapUsers;
-    const zoneName = zoneData.find(z => z.zone.id === internalSelectedZoneId)?.zone.name;
+    const zoneName = zoneData.find((z) => z.zone.id === internalSelectedZoneId)?.zone.name;
     if (!zoneName) return mapUsers;
-    return mapUsers.filter(u => u.zone_name === zoneName);
+    return mapUsers.filter((u) => u.zone_name === zoneName);
   }, [mapUsers, internalSelectedZoneId, zoneData]);
 
   // Obtener color de zona para un grupo
-  const getGroupZoneColor = (group: ZoneMapGroup): string => {
-    for (const zd of zoneData) {
-      if (zd.groups.some(g => g.id === group.id)) {
-        return zd.zone.color || '#3b82f6';
+  const getGroupZoneColor = useCallback(
+    (group: ZoneMapGroup): string => {
+      for (const zd of zoneData) {
+        if (zd.groups.some((g) => g.id === group.id)) {
+          return zd.zone.color || '#3b82f6';
+        }
       }
-    }
-    return '#3b82f6';
-  };
+      return '#3b82f6';
+    },
+    [zoneData]
+  );
 
-  const fitToZone = (zoneId: string) => {
-    const feature = zoneFeatures.features.find(item => item.properties.zoneId === zoneId);
-    if (!feature || !mapRef.current) return;
-    const bounds = getFeatureBounds(feature);
-    if (!bounds) return;
-    mapRef.current.fitBounds(bounds, { padding: 40, duration: 800 });
-  };
+  const fitToZone = useCallback(
+    (zoneId: string) => {
+      const feature = zoneFeatures.find((item) => item.properties.zoneId === zoneId);
+      if (!feature) return;
+      const bounds = getFeatureLatLngBounds(feature);
+      if (!bounds) return;
+      setFitToBounds({ bounds, key: zoneId });
+    },
+    [zoneFeatures]
+  );
 
-  const handleSelectZone = (zone: ZoneMapData | null) => {
-    const nextZoneId = zone?.zone.id ?? null;
-    setInternalSelectedZoneId(nextZoneId);
-    setSelectedGroup(null);
-    setSelectedPerson(null);
-    onZoneSelect?.(nextZoneId, zone?.groups ?? []);
-    if (nextZoneId) fitToZone(nextZoneId);
-  };
+  const flyToGroup = useCallback((lat: number, lng: number) => {
+    setFlyTo({ position: [lat, lng], zoom: 17, key: `${lat}-${lng}` });
+  }, []);
 
-  const selectedBorder = useMemo<LayerProps>(() => {
-    return {
-      ...selectedBorderLayer,
-      filter: ['==', ['get', 'zoneId'], internalSelectedZoneId ?? ''],
-    };
-  }, [internalSelectedZoneId]);
+  const handleSelectZone = useCallback(
+    (zone: ZoneMapData | null) => {
+      const nextZoneId = zone?.zone.id ?? null;
+      setInternalSelectedZoneId(nextZoneId);
+      setSelectedGroup(null);
+      setSelectedPerson(null);
+      onZoneSelect?.(nextZoneId, zone?.groups ?? []);
+      if (nextZoneId) fitToZone(nextZoneId);
+    },
+    [onZoneSelect, fitToZone]
+  );
+
+  // Pre-compute all polygon data for rendering
+  const allZonePolygons = useMemo(() => {
+    return zoneFeatures.flatMap((feature) =>
+      getZonePolyPositions(feature, internalSelectedZoneId)
+    );
+  }, [zoneFeatures, internalSelectedZoneId]);
 
   return (
     <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -382,23 +406,30 @@ export default function DiscipleshipMap({
       <Card className="overflow-hidden border-border bg-card shadow-xl rounded-2xl relative group border-none lg:border-solid">
         <CardContent className="p-0 relative">
           <div className={cn('w-full transition-all duration-500', heightClassName)}>
-            <Map
-              ref={mapRef}
-              initialViewState={{
-                longitude: DEFAULT_CENTER.longitude,
-                latitude: DEFAULT_CENTER.latitude,
-                zoom: DEFAULT_ZOOM,
+            <MapContainer
+              center={DEFAULT_CENTER}
+              zoom={DEFAULT_ZOOM}
+              className="w-full h-full"
+              zoomControl={false}
+              ref={(map) => {
+                mapRef.current = map;
               }}
-              mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
             >
-              <NavigationControl position="top-right" />
+              <ZoomControl position="topright" />
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              />
 
               {/* Floating Toolbar Top Left */}
-              <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
+              <div className="leaflet-top leaflet-left" style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000 }}>
                 <div className="bg-background/80 backdrop-blur-md rounded-xl border border-border/50 p-2.5 shadow-lg flex items-center gap-4 transition-all hover:bg-background/90">
                   <div className="flex items-center gap-2">
                     <div className="p-1 bg-blue-500/10 rounded-lg">
-                      <HouseIcon color="#3b82f6" size={16} />
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill="#3b82f6" fillOpacity="0.85" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Grupos
@@ -407,7 +438,10 @@ export default function DiscipleshipMap({
                   <div className="h-4 w-[1px] bg-border" />
                   <div className="flex items-center gap-2">
                     <div className="p-1 bg-indigo-500/10 rounded-lg">
-                      <PersonIcon size={16} />
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
+                        <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Personas
@@ -416,16 +450,31 @@ export default function DiscipleshipMap({
                 </div>
               </div>
 
-              {/* Zonas poligonales */}
-              <Source id="zones-source" type="geojson" data={zoneFeatures}>
-                <Layer {...fillLayer} />
-                <Layer {...borderLayer} />
-                <Layer {...selectedBorder} />
-              </Source>
+              {/* Zona polygons (fill + border) */}
+              {allZonePolygons.map((poly, idx) => (
+                <Polygon
+                  key={`zone-poly-${idx}`}
+                  positions={poly.positions}
+                  pathOptions={{
+                    color: poly.isSelected ? poly.color : poly.color,
+                    fillColor: poly.color,
+                    fillOpacity: 0.22,
+                    weight: poly.isSelected ? 4 : 2,
+                  }}
+                />
+              ))}
+
+              {/* FitToBounds helper */}
+              {fitToBounds && (
+                <FitToBounds bounds={fitToBounds.bounds} trigger={fitToBounds.key} />
+              )}
+              {flyTo && (
+                <FlyTo position={flyTo.position} zoom={flyTo.zoom} trigger={flyTo.key} />
+              )}
 
               {/* Marcadores de Grupos (casitas) */}
               {showGroups &&
-                visibleGroups.map(group => {
+                visibleGroups.map((group) => {
                   const lat = Number(group.latitude);
                   const lng = Number(group.longitude);
                   if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return null;
@@ -433,64 +482,50 @@ export default function DiscipleshipMap({
                   return (
                     <Marker
                       key={`group-${group.id}`}
-                      longitude={lng}
-                      latitude={lat}
-                      anchor="bottom"
-                      onClick={e => {
-                        e.originalEvent.stopPropagation();
-                        setSelectedPerson(null);
-                        setSelectedGroup(group);
+                      position={[lat, lng]}
+                      icon={createHouseIcon(zoneColor, 28)}
+                      eventHandlers={{
+                        click: () => {
+                          setSelectedPerson(null);
+                          setSelectedGroup(group);
+                        },
                       }}
-                    >
-                      <button
-                        type="button"
-                        title={group.group_name}
-                        className="cursor-pointer hover:scale-110 transition-transform drop-shadow-md"
-                      >
-                        <HouseIcon color={zoneColor} size={28} />
-                      </button>
-                    </Marker>
+                    />
                   );
                 })}
 
               {/* Marcadores de Personas */}
               {showPeople &&
-                visiblePeople.map(person => (
+                visiblePeople.map((person) => (
                   <Marker
                     key={`person-${person.id}`}
-                    longitude={person.longitude}
-                    latitude={person.latitude}
-                    anchor="bottom"
-                    onClick={e => {
-                      e.originalEvent.stopPropagation();
-                      setSelectedGroup(null);
-                      setSelectedPerson(person);
+                    position={[person.latitude, person.longitude]}
+                    icon={createPersonIcon(18)}
+                    eventHandlers={{
+                      click: () => {
+                        setSelectedGroup(null);
+                        setSelectedPerson(person);
+                      },
                     }}
-                  >
-                    <button
-                      type="button"
-                      title={`${person.first_name} ${person.last_name}`}
-                      className="cursor-pointer hover:scale-110 transition-transform drop-shadow-sm"
-                    >
-                      <PersonIcon size={18} />
-                    </button>
-                  </Marker>
+                  />
                 ))}
 
               {/* Popup de Grupo */}
               {selectedGroup && selectedGroup.latitude && selectedGroup.longitude && (
                 <Popup
-                  longitude={Number(selectedGroup.longitude)}
-                  latitude={Number(selectedGroup.latitude)}
-                  anchor="top"
+                  position={[Number(selectedGroup.latitude), Number(selectedGroup.longitude)]}
                   onClose={() => setSelectedGroup(null)}
                   closeOnClick={false}
-                  className="z-50"
+                  autoClose={false}
+                  maxWidth={300}
                 >
                   <div className="p-3 min-w-[220px] bg-background rounded-xl shadow-2xl border border-border overflow-hidden">
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
                       <div className="p-1.5 bg-blue-500/10 rounded-lg">
-                        <HouseIcon color="#3b82f6" size={18} />
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                          <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill="#3b82f6" fillOpacity="0.85" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
                       </div>
                       <p className="font-bold text-sm tracking-tight truncate">
                         {selectedGroup.group_name}
@@ -537,17 +572,19 @@ export default function DiscipleshipMap({
               {/* Popup de Persona */}
               {selectedPerson && (
                 <Popup
-                  longitude={selectedPerson.longitude}
-                  latitude={selectedPerson.latitude}
-                  anchor="top"
+                  position={[selectedPerson.latitude, selectedPerson.longitude]}
                   onClose={() => setSelectedPerson(null)}
                   closeOnClick={false}
-                  className="z-50"
+                  autoClose={false}
+                  maxWidth={260}
                 >
                   <div className="p-3 min-w-[180px] bg-background rounded-xl shadow-2xl border border-border">
                     <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
                       <div className="p-1.5 bg-indigo-500/10 rounded-lg">
-                        <PersonIcon size={16} />
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
+                          <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
                       </div>
                       <p className="font-bold text-sm tracking-tight truncate">
                         {selectedPerson.first_name} {selectedPerson.last_name}
@@ -571,7 +608,7 @@ export default function DiscipleshipMap({
                   </div>
                 </Popup>
               )}
-            </Map>
+            </MapContainer>
           </div>
         </CardContent>
       </Card>
@@ -606,7 +643,10 @@ export default function DiscipleshipMap({
               )}
             >
               <Label htmlFor="show-groups" className="cursor-pointer flex items-center gap-2">
-                <HouseIcon color={showGroups ? '#3b82f6' : '#94a3b8'} size={14} />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={showGroups ? '#3b82f6' : '#94a3b8'} fillOpacity="0.85" stroke={showGroups ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={showGroups ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
                 <span className="text-xs font-medium">Grupos</span>
               </Label>
               <Switch
@@ -625,7 +665,10 @@ export default function DiscipleshipMap({
               )}
             >
               <Label htmlFor="show-people" className="cursor-pointer flex items-center gap-2">
-                <PersonIcon size={14} />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
+                  <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
                 <span className="text-xs font-medium">Personas</span>
               </Label>
               <Switch
@@ -686,7 +729,7 @@ export default function DiscipleshipMap({
               )}
 
               {/* Lista de zonas */}
-              {zoneData.map(item => {
+              {zoneData.map((item) => {
                 const isSelected = item.zone.id === internalSelectedZoneId;
                 return (
                   <div
@@ -710,7 +753,10 @@ export default function DiscipleshipMap({
                           </p>
                           <div className="flex items-center gap-3 mt-1.5">
                             <div className="flex items-center gap-1">
-                              <HouseIcon color={isSelected ? '#3b82f6' : '#94a3b8'} size={12} />
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={isSelected ? '#3b82f6' : '#94a3b8'} fillOpacity="0.85" stroke={isSelected ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={isSelected ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
                               <span className="text-[10px] font-bold text-muted-foreground">
                                 {item.groups.length}
                               </span>
@@ -739,7 +785,7 @@ export default function DiscipleshipMap({
                             Células en zona
                           </span>
                         </div>
-                        {item.groups.map(group => (
+                        {item.groups.map((group) => (
                           <button
                             type="button"
                             key={group.id}
@@ -747,17 +793,16 @@ export default function DiscipleshipMap({
                             onClick={() => {
                               if (group.latitude && group.longitude) {
                                 setSelectedGroup(group);
-                                mapRef.current?.flyTo({
-                                  center: [Number(group.longitude), Number(group.latitude)],
-                                  zoom: 17,
-                                  duration: 1000,
-                                });
+                                flyToGroup(Number(group.latitude), Number(group.longitude));
                               }
                             }}
                           >
                             <div className="flex items-center gap-3">
                               <div className="p-1.5 bg-background rounded-lg shadow-sm border border-border/50 group-hover/cell:border-blue-500/30 transition-colors">
-                                <HouseIcon color={item.zone.color} size={14} />
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                  <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={item.zone.color} fillOpacity="0.85" stroke={item.zone.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={item.zone.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
                               </div>
                               <div className="min-w-0">
                                 <p className="text-xs font-bold truncate group-hover/cell:text-blue-600 transition-colors">

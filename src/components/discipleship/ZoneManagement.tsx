@@ -77,6 +77,7 @@ const ZoneManagement: React.FC = () => {
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [zoneToDelete, setZoneToDelete] = useState<Zone | null>(null);
   const [isMapEditorOpen, setIsMapEditorOpen] = useState(false);
+  const [mapEditorKey, setMapEditorKey] = useState(0);
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState<{
@@ -330,7 +331,10 @@ const ZoneManagement: React.FC = () => {
                         type="button"
                         variant="outline"
                         className="w-full justify-start"
-                        onClick={() => setIsMapEditorOpen(true)}
+                        onClick={() => {
+                          setIsMapEditorOpen(true);
+                          setMapEditorKey(prev => prev + 1);
+                        }}
                       >
                         <MapPin className="w-4 h-4 mr-2" />
                         {formData.boundaries
@@ -487,15 +491,13 @@ const ZoneManagement: React.FC = () => {
       </AlertDialog>
 
       <Dialog open={isMapEditorOpen} onOpenChange={setIsMapEditorOpen}>
-        <DialogContent className="sm:max-w-[700px] p-0 w-full">
+        <DialogContent key={`zone-editor-${mapEditorKey}`} className="sm:max-w-[700px] p-0 w-full">
           <div className="p-4 bg-muted/40 border-b">
             <DialogTitle>Dibujar área de la zona</DialogTitle>
           </div>
           <div className="p-4">
             <ZoneEditor
               initialBoundaries={formData.boundaries as GeoJSON.Polygon | null}
-              existingZones={zones}
-              editingZoneId={editingZone?.id}
               onSave={boundaries => {
                 setFormData(prev => ({ ...prev, boundaries }));
                 setIsMapEditorOpen(false);
