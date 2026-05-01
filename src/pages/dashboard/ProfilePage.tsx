@@ -14,6 +14,11 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  GeolocationInput,
+  TypeGeolocalization,
+  GeolocationResult,
+} from '@/components/ui/geolocation-input';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePreferences } from '@/hooks/usePreferences';
 import { ProfileUpdateFormData, profileUpdateSchema } from '@/schemas/user.schemas';
@@ -43,6 +48,7 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(false);
   const { preferences, loading: preferencesLoading, updatePreference } = usePreferences();
   const { refreshCurrentUser } = useAuth();
+  const [geolocation, setGeolocation] = useState<GeolocationResult | null>(null);
   const {
     register,
     handleSubmit,
@@ -117,16 +123,42 @@ const ProfilePage = () => {
         emergency_contact_name: userData.emergency_contact_name || '',
         emergency_contact_phone: userData.emergency_contact_phone || '',
       });
+
+      // Populate geolocation state if user has coordinates
+      const lat = getCoordValue((userData as any)?.latitude);
+      const lng = getCoordValue((userData as any)?.longitude);
+      if (lat !== undefined && lng !== undefined && userData.address) {
+        setGeolocation({
+          address: userData.address,
+          latitude: lat,
+          longitude: lng,
+        });
+      }
+
       setUserData(userData);
     } catch (error) {
       toast.error('Error al cargar los datos del usuario');
     }
   };
 
+  const getCoordValue = (coord?: TypeGeolocalization | number): number | undefined => {
+    if (typeof coord === 'number') return coord;
+    if (coord && typeof coord === 'object' && coord.Valid) return coord.Float64;
+    return undefined;
+  };
+
   const onSubmit = async (data: ProfileUpdateFormData) => {
     try {
       setLoading(true);
-      await UserService.updateProfile(data);
+      const payload: Record<string, unknown> = { ...data };
+
+      // Include latitude and longitude from geolocation state
+      if (geolocation) {
+        payload.latitude = geolocation.latitude;
+        payload.longitude = geolocation.longitude;
+      }
+
+      await UserService.updateProfile(payload);
 
       // If user hasn't completed onboarding, mark it now
       if (userData && !userData.onboarding_completed) {
@@ -333,7 +365,27 @@ const ProfilePage = () => {
                       <MapPin className="w-4 h-4" />
                       Dirección
                     </Label>
-                    <Input id="address" {...register('address')} />
+                    <GeolocationInput
+                      value={geolocation || undefined}
+                      onChange={(value) => {
+                        setGeolocation(value);
+                        if (value) {
+                          setValue('address', value.address, { shouldValidate: true });
+                          setValue('latitude', getCoordValue(value.latitude), { shouldValidate: true });
+                          setValue('longitude', getCoordValue(value.longitude), { shouldValidate: true });
+                        } else {
+                          setValue('address', '', { shouldValidate: true });
+                          setValue('latitude', undefined);
+                          setValue('longitude', undefined);
+                        }
+                      }}
+                      label="Ubicación en el mapa (opcional)"
+                      placeholder="Buscar dirección o seleccionar en el mapa..."
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Busca una dirección o haz clic en el mapa para seleccionar tu ubicación.
+                      Esto permite verte en el mapa de discipulado.
+                    </p>
                   </div>
                 </div>
 
