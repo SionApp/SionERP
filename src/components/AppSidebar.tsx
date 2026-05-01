@@ -105,8 +105,7 @@ export function AppSidebar() {
   });
 
   // Add Setup link for admin-level users
-  const isAdmin =
-    permissions?.role_level !== undefined && permissions.role_level >= ROLE_LEVELS.admin;
+  const isAdmin = permissions?.has_admin_access ?? false;
   const adminItems = isAdmin
     ? [{ title: 'Gestión de Módulos', url: '/setup', icon: Sparkles }]
     : [];

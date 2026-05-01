@@ -3,6 +3,7 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/models"
+	"backend-sion/utils"
 	"fmt"
 	"net/http"
 	"time"
@@ -140,16 +141,16 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 
 func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]models.RoleDistribution, error) {
 	roleColors := map[string]string{
-		"pastor":     "#ff7c7c",
-		"staff":      "#ffc658",
-		"supervisor": "#82ca9d",
-		"server":     "#8884d8",
+		utils.RolePastor:     "#ff7c7c",
+		utils.RoleStaff:      "#ffc658",
+		utils.RoleSupervisor: "#82ca9d",
+		utils.RoleServer:     "#8884d8",
 	}
 	roleNames := map[string]string{
-		"pastor":     "Pastor",
-		"staff":      "Personal",
-		"supervisor": "Supervisor",
-		"server":     "Servidor",
+		utils.RolePastor:     "Pastor",
+		utils.RoleStaff:      "Personal",
+		utils.RoleSupervisor: "Supervisor",
+		utils.RoleServer:     "Servidor",
 	}
 
 	query := `

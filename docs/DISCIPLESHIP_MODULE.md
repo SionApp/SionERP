@@ -325,14 +325,15 @@ Si estos campos son consistentemente > 0 en los reportes, el discipulado 1-1 est
 
 ## 11. PENDIENTES / POR HACER
 
-- [ ] Agregar campo `is_multiplying` al reporte semanal del líder (LeaderReportModal)
-- [ ] Implementar cálculo de temperatura espiritual objetiva en backend
-- [ ] Crear vista/materialized view de temperatura trimestral por grupo
-- [ ] Implementar cálculo automático de fase del grupo
-- [ ] Crear sistema de alertas automáticas (críticas + celebración)
-- [ ] Dashboard: mostrar fases del grupo con badges equitativos
+- [x] Agregar campo `is_multiplying` al reporte semanal del líder (LeaderReportModal) ✅
+- [x] Implementar cálculo de temperatura espiritual objetiva en backend ✅
+- [x] Crear vista/materialized view de temperatura trimestral por grupo ✅ (calculado en queries)
+- [x] Implementar cálculo automático de fase del grupo ✅
+- [x] Crear sistema de alertas automáticas (críticas + celebración) ✅
+- [ ] Dashboard: mostrar fases del grupo con badges equitativos (parcial — GroupManagement tiene badge, dashboards pending)
 - [ ] Dashboard: métricas de grupos sólidos TANTO como multiplicaciones
 - [ ] Migrar dashboards para usar `discipleship_reports` en vez de `discipleship_metrics`
+- [ ] Ejecutar migration SQL para droppear `discipleship_metrics` (pendiente de confirmación)
 
 ---
 
@@ -345,3 +346,9 @@ Si estos campos son consistentemente > 0 en los reportes, el discipulado 1-1 est
 | 2026-05-01 | Documentado flujo de multiplicación: señal del líder → decisión del pastor |
 | 2026-05-01 | Documentadas alertas automáticas (críticas + celebración) |
 | 2026-05-01 | Principio fundamental: medimos acciones, no sentimientos |
+| 2026-05-01 | ✅ IMPLEMENTADO: Migración completa de analytics de `discipleship_metrics` a `discipleship_reports` |
+| 2026-05-01 | ✅ IMPLEMENTADO: Campo `is_multiplying` en LeaderReportModal |
+| 2026-05-01 | ✅ IMPLEMENTADO: 7 alertas automáticas (no_reports, low_attendance, spiritual_decline, no_growth, consistency_milestone, evangelism_champion, solid_group) |
+| 2026-05-01 | ✅ IMPLEMENTADO: Cálculo de fases del grupo (calculateGroupPhase) |
+| 2026-05-01 | ✅ IMPLEMENTADO: Badges de fase en GroupManagement (mobile + desktop) |
+| 2026-05-01 | ✅ IMPLEMENTADO: Migration SQL para droppear `discipleship_metrics` |

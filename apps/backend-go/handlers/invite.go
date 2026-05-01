@@ -5,6 +5,7 @@ import (
 	"backend-sion/config"
 	"backend-sion/emails"
 	"backend-sion/models"
+	"backend-sion/utils"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -145,7 +146,7 @@ func (h *InviteHandler) InviteUser(c echo.Context) error {
 	return c.JSON(http.StatusOK, &models.InviteResponse{
 		InvitationID: invitationID,
 		Email:        req.Email,
-		Status:       "pending",
+		Status:       utils.InvitePending,
 		ExpiresAt:    expiresAt,
 		Message:      "Invitación enviada exitosamente. El usuario recibirá un email con el magic link.",
 	})
@@ -213,7 +214,7 @@ func (h *InviteHandler) ResendInvitation(c echo.Context) error {
 	return c.JSON(http.StatusOK, &models.InviteResponse{
 		InvitationID: invitationID,
 		Email:        inv.Email,
-		Status:       "pending",
+		Status:       utils.InvitePending,
 		ExpiresAt:    newExpiresAt,
 		Message:      "Invitación reenviada exitosamente",
 	})
@@ -361,18 +362,14 @@ func (h *InviteHandler) AcceptInvitation(c echo.Context) error {
 // Helper para obtener el nombre display del rol en español
 func getRoleDisplayName(role string) string {
 	switch role {
-	case "admin":
-		return "Administrador"
-	case "pastor":
+	case utils.RolePastor:
 		return "Pastor"
-	case "staff":
+	case utils.RoleStaff:
 		return "Staff"
-	case "supervisor":
+	case utils.RoleSupervisor:
 		return "Supervisor"
-	case "server":
+	case utils.RoleServer:
 		return "Servidor"
-	case "member":
-		return "Miembro"
 	default:
 		return role
 	}

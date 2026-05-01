@@ -3,6 +3,7 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/models"
+	"backend-sion/utils"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -28,7 +29,7 @@ func getDiscipleshipAccessInfo(c echo.Context, db *config.Database) (userID stri
 	userRole, _ := c.Get("db_role").(string)
 
 	// Pastor y Staff tienen acceso completo
-	if userRole == "pastor" || userRole == "staff" {
+	if utils.IsAdminRole(userRole) {
 		return userID, nil, nil, true
 	}
 
@@ -1403,7 +1404,7 @@ func calculateGroupPhase(db *config.Database, groupID string, spiritualTemp floa
 		AND (expires_at IS NULL OR expires_at > NOW())
 	`, groupID).Scan(&hasActiveAlerts)
 	if hasActiveAlerts > 0 {
-		return "at_risk"
+		return utils.PhaseStruggling
 	}
 
 	// 2. Verificar si está multiplicando (is_multiplying = true en 2+ reportes seguidos)
@@ -1416,7 +1417,7 @@ func calculateGroupPhase(db *config.Database, groupID string, spiritualTemp floa
 		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
 	`, groupID).Scan(&multiplyingCount)
 	if multiplyingCount >= 2 {
-		return "multiplying"
+		return utils.PhaseMultiplying
 	}
 
 	// 3. Contar reportes totales y calcular semanas activas
@@ -1452,12 +1453,12 @@ func calculateGroupPhase(db *config.Database, groupID string, spiritualTemp floa
 
 	// Determinar fase
 	if totalReports >= 24 && solidWeeks >= 12 && spiritualTemp >= 8 {
-		return "solid"
+		return utils.PhaseSolid
 	}
 	if totalReports >= 4 {
-		return "growing"
+		return utils.PhaseGrowing
 	}
-	return "germinating"
+	return utils.PhaseGerminating
 }
 
 // Helper function
@@ -2365,7 +2366,7 @@ func (h *DiscipleshipHandler) AddGroupMember(c echo.Context) error {
 		return err
 	}
 
-	roleInGroup := "member"
+	roleInGroup := utils.GroupRoleMember
 	if req.RoleInGroup != "" {
 		roleInGroup = req.RoleInGroup
 	}
@@ -2548,7 +2549,7 @@ func (h *DiscipleshipHandler) RecordAttendance(c echo.Context) error {
 		meetingDate = time.Now().Format("2006-01-02")
 	}
 
-	attendanceType := "regular"
+	attendanceType := utils.AttendanceRegular
 	if req.AttendanceType != "" {
 		attendanceType = req.AttendanceType
 	}
@@ -2619,7 +2620,7 @@ func (h *DiscipleshipHandler) BulkRecordAttendance(c echo.Context) error {
 	defer tx.Rollback()
 
 	for _, att := range req.Attendance {
-		attendanceType := "regular"
+		attendanceType := utils.AttendanceRegular
 		if att.AttendanceType != "" {
 			attendanceType = att.AttendanceType
 		}
