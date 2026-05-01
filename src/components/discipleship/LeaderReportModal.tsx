@@ -69,6 +69,9 @@ export function LeaderReportModal({
     service_attendance_prayer: false,
     service_attendance_sunday: false,
     doctrine_attendance: false,
+
+    // Estado del Grupo
+    is_multiplying: false,
   });
 
   const handleSubmit = async () => {
@@ -101,6 +104,8 @@ export function LeaderReportModal({
           service_attendance_prayer: reportData.service_attendance_prayer,
           service_attendance_sunday: reportData.service_attendance_sunday,
           doctrine_attendance: reportData.doctrine_attendance,
+          
+          is_multiplying: reportData.is_multiplying,
         },
       };
 
@@ -137,6 +142,7 @@ export function LeaderReportModal({
       service_attendance_prayer: false,
       service_attendance_sunday: false,
       doctrine_attendance: false,
+      is_multiplying: false,
     });
   };
 
@@ -426,6 +432,42 @@ export function LeaderReportModal({
                   </div>
               </label>
             </div>
+          </div>
+
+          {/* SECCIÓN 4: Estado del Grupo */}
+          <div className="p-5 border rounded-xl bg-card text-card-foreground shadow-sm space-y-5">
+            <div className="flex items-center gap-3 border-b pb-3">
+              <div className="p-2 bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 rounded-lg">
+                <Flame className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-semibold">Estado del Grupo</h3>
+            </div>
+
+            <label
+              htmlFor="is_multiplying"
+              className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
+                reportData.is_multiplying
+                  ? 'bg-amber-50/50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800'
+                  : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Checkbox 
+                id="is_multiplying" 
+                checked={reportData.is_multiplying}
+                onCheckedChange={(checked) => 
+                  setReportData({ ...reportData, is_multiplying: checked === true })
+                }
+              />
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Flame className="h-4 w-4 text-amber-500" />
+                  ¿Está este grupo en proceso de multiplicación?
+                </div>
+                <p className="text-xs text-muted-foreground ml-7">
+                  Marcar si están formando un nuevo líder y el grupo se dividirá pronto
+                </p>
+              </div>
+            </label>
           </div>
         </div>
         
