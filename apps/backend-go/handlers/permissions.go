@@ -37,10 +37,10 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 	// Get role level
 	roleLevel := utils.GetRoleLevel(role)
 
-	// Get installed modules
+	// Get installed modules from the `modules` table
 	var modules []string
 	rows, err := config.GetDB().DB.Query(`
-		SELECT module_key FROM installed_modules WHERE is_active = true ORDER BY module_key
+		SELECT key FROM modules WHERE is_installed = true ORDER BY key
 	`)
 	if err != nil {
 		// If table doesn't exist or error, return empty modules
