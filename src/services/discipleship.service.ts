@@ -1,14 +1,12 @@
 import type {
   AssignHierarchyRequest,
   CreateGroupRequest,
-  CreateMetricsRequest,
   CreateReportRequest,
   DiscipleshipAlert,
   DiscipleshipAnalytics,
   DiscipleshipGroup,
   DiscipleshipHierarchy,
   DiscipleshipLevel,
-  DiscipleshipMetrics,
   DiscipleshipReport,
   GroupFilters,
   GroupPerformance,
@@ -109,31 +107,6 @@ export class DiscipleshipService {
 
   static async getGroupPerformance(): Promise<GroupPerformance[]> {
     return ApiService.get(`${this.baseUrl}/analytics/performance`);
-  }
-
-  // =====================================================
-  // MÉTRICAS
-  // =====================================================
-
-  static async getMetrics(filters?: {
-    group_id?: string;
-    date_from?: string;
-    date_to?: string;
-  }): Promise<DiscipleshipMetrics[]> {
-    const params = new URLSearchParams();
-    if (filters?.group_id) params.append('group_id', filters.group_id);
-    if (filters?.date_from) params.append('date_from', filters.date_from);
-    if (filters?.date_to) params.append('date_to', filters.date_to);
-
-    const queryString = params.toString();
-    const url = `${this.baseUrl}/metrics${queryString ? `?${queryString}` : ''}`;
-    return ApiService.get(url);
-  }
-
-  static async createMetrics(
-    data: CreateMetricsRequest
-  ): Promise<{ metrics_id: string; message: string }> {
-    return ApiService.post(`${this.baseUrl}/metrics`, data);
   }
 
   // =====================================================

@@ -56,8 +56,9 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
           has_admin: boolean;
         }>('/setup/status');
 
-        // If system is not initialized, redirect to /setup
-        if (!data.is_initialized) {
+        // If system is not initialized AND there's no admin, redirect to /setup
+        // If there IS an admin, allow access (admin can initialize the system)
+        if (!data.is_initialized && !data.has_admin) {
           setShouldRedirect('/setup');
           return;
         }

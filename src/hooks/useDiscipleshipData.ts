@@ -1,6 +1,5 @@
 import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
-import { useAuth } from '@/hooks/useAuth';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -18,148 +17,143 @@ interface DashboardStats {
 }
 
 interface UseDiscipleshipDataOptions {
+  userId: string | undefined;
   level: number;
   enabled?: boolean;
 }
 
 /**
- * Hook para cargar datos de discipulado de forma optimizada
- * Evita consultas duplicadas y maneja el estado de carga
+ * Hook para cargar datos de discipulado de forma optimizada.
+ * Recibe userId como parámetro en vez de usar useAuth() internamente
+ * para evitar suscripciones duplicadas de auth.
+ * Agrupa todos los estados en un solo objeto para evitar re-renders múltiples.
  */
 export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
-  const { user } = useAuth();
-  const { level, enabled = true } = options;
-  
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<DashboardStats>({});
-  const [zoneStats, setZoneStats] = useState<any[]>([]);
-  const [weeklyTrends, setWeeklyTrends] = useState<any[]>([]);
-  const [goals, setGoals] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [pendingReports, setPendingReports] = useState<any[]>([]);
-  const [subordinates, setSubordinates] = useState<any[]>([]);
-  const [groups, setGroups] = useState<any[]>([]);
-  
+  const { userId, level, enabled = true } = options;
+
+  interface DataState {
+    loading: boolean;
+    stats: DashboardStats;
+    zoneStats: any[];
+    weeklyTrends: any[];
+    goals: any[];
+    alerts: any[];
+    pendingReports: any[];
+    subordinates: any[];
+    groups: any[];
+  }
+
+  const initialState: DataState = {
+    loading: false,
+    stats: {},
+    zoneStats: [],
+    weeklyTrends: [],
+    goals: [],
+    alerts: [],
+    pendingReports: [],
+    subordinates: [],
+    groups: [],
+  };
+
+  const [data, setData] = useState<DataState>(initialState);
+
   // Ref para evitar cargas duplicadas
   const loadingRef = useRef(false);
   const loadedRef = useRef(false);
 
   const loadData = useCallback(async () => {
-    if (!enabled || !user?.id || loadingRef.current) return;
-    
+    if (!enabled || !userId || loadingRef.current) return;
+
     try {
       loadingRef.current = true;
-      setLoading(true);
+      setData(prev => ({ ...prev, loading: true }));
 
-      // Cargar datos según el nivel
-      const promises: Promise<any>[] = [];
+      // Ejecutar todas las promesas en paralelo y acumular resultados
+      const statsPromise = DiscipleshipAnalyticsService.getDashboardStatsByLevel(level);
 
-      // Estadísticas del dashboard (siempre)
-      promises.push(
-        DiscipleshipAnalyticsService.getDashboardStatsByLevel(level).then(setStats)
-      );
+      const promises: Record<string, Promise<any>> = { stats: statsPromise };
 
-      // Datos específicos por nivel
       if (level >= 2) {
-        // Tendencias semanales para niveles 2+
         const weeks = level >= 5 ? 24 : 12;
-        promises.push(
-          DiscipleshipAnalyticsService.getWeeklyTrends(weeks).then(trends => {
-            setWeeklyTrends(
-              trends.map((t: any) => ({
-                name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
-                miembros: t.total_attendance,
-                asistencia: t.total_attendance,
-                visitantes: t.total_visitors,
-                conversiones: t.total_conversions,
-                grupos: t.groups_reporting,
-              }))
-            );
-          })
+        promises.weeklyTrends = DiscipleshipAnalyticsService.getWeeklyTrends(weeks).then(trends =>
+          trends.map((t: any) => ({
+            name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
+            miembros: t.total_attendance,
+            asistencia: t.total_attendance,
+            visitantes: t.total_visitors,
+            conversiones: t.total_conversions,
+            grupos: t.groups_reporting,
+          }))
         );
       }
 
       if (level >= 3) {
-        // Estadísticas por zona para niveles 3+
-        promises.push(
-          DiscipleshipAnalyticsService.getZoneStats().then(setZoneStats)
-        );
+        promises.zoneStats = DiscipleshipAnalyticsService.getZoneStats();
       }
 
       if (level >= 4) {
-        // Objetivos para niveles 4+
-        promises.push(
-          DiscipleshipAnalyticsService.getGoals().then(setGoals)
-        );
-        // Subordinados para niveles 4+
-        promises.push(
-          DiscipleshipAnalyticsService.getSupervisorSubordinates(user.id).then(setSubordinates)
-        );
+        promises.goals = DiscipleshipAnalyticsService.getGoals();
+        promises.subordinates = DiscipleshipAnalyticsService.getSupervisorSubordinates(userId);
       }
 
       if (level >= 5) {
-        // Alertas y reportes para nivel 5
-        promises.push(
-          DiscipleshipService.getAlerts({ resolved: false }).then(data => {
-            setAlerts(data.slice(0, 10));
-          })
-        );
-        promises.push(
-          DiscipleshipService.getReports({ status: 'submitted' }).then(data => {
-            setPendingReports(data.slice(0, 10));
-          })
-        );
+        promises.alerts = DiscipleshipService.getAlerts({ resolved: false }).then(data => data.slice(0, 10));
+        promises.pendingReports = DiscipleshipService.getReports({ status: 'submitted' }).then(data => data.slice(0, 10));
       }
 
       if (level === 2) {
-        // Grupos supervisados para nivel 2
-        promises.push(
-          DiscipleshipService.getGroups({
-            supervisor_id: user.id,
-            status: 'active',
-          }).then(response => {
-            const groupsWithStats =
-              response.data?.map((g: any) => ({
-                id: g.id,
-                group_name: g.group_name,
-                leader_name: g.leader_name || 'Sin asignar',
-                member_count: g.member_count || 0,
-                avg_attendance: g.active_members || 0,
-                status: g.status,
-              })) || [];
-            setGroups(groupsWithStats);
-          })
+        promises.groups = DiscipleshipService.getGroups({
+          supervisor_id: userId,
+          status: 'active',
+        }).then(response =>
+          response.data?.map((g: any) => ({
+            id: g.id,
+            group_name: g.group_name,
+            leader_name: g.leader_name || 'Sin asignar',
+            member_count: g.member_count || 0,
+            avg_attendance: g.active_members || 0,
+            status: g.status,
+          })) || []
         );
       }
 
-      // Ejecutar todas las promesas en paralelo
-      await Promise.all(promises);
+      // Esperar TODAS las promesas y actualizar el estado UNA sola vez
+      const results = await Promise.all(
+        Object.entries(promises).map(async ([key, promise]) => {
+          try {
+            return [key, await promise] as [string, any];
+          } catch {
+            return [key, null] as [string, any];
+          }
+        })
+      );
+
+      const updates: Partial<DataState> = { loading: false };
+      for (const [key, value] of results) {
+        if (value !== null) {
+          (updates as Record<string, any>)[key] = value;
+        }
+      }
+
+      setData(prev => ({ ...prev, ...updates }));
       loadedRef.current = true;
     } catch (error) {
       console.error('Error loading discipleship data:', error);
       toast.error('Error al cargar los datos');
+      setData(prev => ({ ...prev, loading: false }));
     } finally {
-      setLoading(false);
       loadingRef.current = false;
     }
-  }, [user?.id, level, enabled]);
+  }, [userId, level, enabled]);
 
   useEffect(() => {
-    if (enabled && user?.id && !loadedRef.current) {
+    if (enabled && userId && !loadedRef.current) {
       loadData();
     }
-  }, [loadData, enabled, user?.id]);
+  }, [loadData, enabled, userId]);
 
   return {
-    loading,
-    stats,
-    zoneStats,
-    weeklyTrends,
-    goals,
-    alerts,
-    pendingReports,
-    subordinates,
-    groups,
+    ...data,
     refetch: loadData,
   };
 }

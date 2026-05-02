@@ -103,6 +103,7 @@ const GroupManagement = () => {
     meeting_time: '',
     meeting_location: '',
     meeting_address: '',
+    status: 'active',
   });
   const [geolocation, setGeolocation] = useState<GeolocationResult | null>(null);
 
@@ -209,6 +210,7 @@ const GroupManagement = () => {
         meeting_time: String(normalizeNullString(group.meeting_time) || ''),
         meeting_location: String(normalizeNullString(group.meeting_location) || ''),
         meeting_address: String(normalizeNullString(group.meeting_address) || ''),
+        status: group.status || 'active',
         latitude: group.latitude || undefined,
         longitude: group.longitude || undefined,
       });
@@ -237,6 +239,7 @@ const GroupManagement = () => {
         meeting_time: '',
         meeting_location: '',
         meeting_address: '',
+        status: 'active',
       });
       setGeolocation(null);
     }
@@ -312,6 +315,23 @@ const GroupManagement = () => {
         return <Badge variant="secondary">Inactivo</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
+    }
+  }, []);
+
+  const getPhaseBadge = useCallback((phase: string) => {
+    switch (phase) {
+      case 'germinating':
+        return <Badge className="bg-sky-500 text-white">🌱 Germinando</Badge>;
+      case 'growing':
+        return <Badge className="bg-emerald-500 text-white">🌿 Creciendo</Badge>;
+      case 'solid':
+        return <Badge className="bg-violet-500 text-white">💎 Sólido</Badge>;
+      case 'multiplying':
+        return <Badge className="bg-amber-500 text-white">🔥 Multiplicando</Badge>;
+      case 'at_risk':
+        return <Badge variant="destructive">⚠️ Necesita apoyo</Badge>;
+      default:
+        return <Badge variant="outline">{phase || '—'}</Badge>;
     }
   }, []);
 
@@ -412,6 +432,13 @@ const GroupManagement = () => {
       responsive: 'sm',
       sortable: true,
     },
+    {
+      key: 'phase',
+      label: 'Fase',
+      render: group => getPhaseBadge(group.phase),
+      responsive: 'md',
+      sortable: true,
+    },
   ];
 
   // Acciones para cada grupo
@@ -444,7 +471,10 @@ const GroupManagement = () => {
             Líder: {group.leader_name || 'Sin asignar'}
           </p>
         </div>
-        <div className="flex flex-col gap-1 ml-2">{getStatusBadge(group.status)}</div>
+        <div className="flex flex-col gap-1 ml-2">
+          {getStatusBadge(group.status)}
+          {group.phase && getPhaseBadge(group.phase)}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-sm">

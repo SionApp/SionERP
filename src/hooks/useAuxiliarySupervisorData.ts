@@ -17,7 +17,7 @@ export function useAuxiliarySupervisorData() {
     stats,
     groups,
     refetch: refetchBase,
-  } = useDiscipleshipData({ level: 2, enabled: !!user });
+  } = useDiscipleshipData({ userId: user?.id, level: 2, enabled: !!user });
 
   // Estados adicionales específicos del supervisor auxiliar
   const [myReports, setMyReports] = useState<DiscipleshipReport[]>([]);
