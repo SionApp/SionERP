@@ -82,17 +82,15 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	argCount := 0
 
 	// ── Resource-level filtering ──
-	switch requestingRoleLevel {
-	case 5, 4: // admin, pastor → see all users
+	// Use role level (int) for cleaner comparison with constants
+	switch {
+	case requestingRoleLevel >= utils.LevelPastor: // pastor (400) and above (admin 500) → see all users
 		// No additional filter
-	case 3: // staff → cannot see admin/owner
+	case requestingRoleLevel >= utils.LevelStaff: // staff → cannot see admin
 		argCount++
 		query += fmt.Sprintf(" AND u.role NOT IN ($%d)", argCount)
-		args = append(args, "admin")
-		argCount++
-		query += fmt.Sprintf(" AND u.role NOT IN ($%d)", argCount)
-		args = append(args, "owner")
-	case 2: // supervisor → only see their subordinates (cell_leader_id = their ID or same zone)
+		args = append(args, utils.RoleAdmin)
+	case requestingRoleLevel >= utils.LevelSupervisor: // supervisor → only see their subordinates
 		argCount++
 		query += fmt.Sprintf(" AND (u.cell_leader_id = $%d OR u.zone_id = (SELECT zone_id FROM users WHERE id = $1))", argCount)
 		args = append(args, requestingUserID)
