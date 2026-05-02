@@ -349,6 +349,32 @@ export class DiscipleshipAnalyticsService {
     return data as any[];
   }
 
+  static async createGoal(goalData: any): Promise<any> {
+    return await ApiService.post('/discipleship/goals', goalData);
+  }
+
+  static async updateGoal(id: string, data: any): Promise<any> {
+    return await ApiService.put(`/discipleship/goals/${id}`, data);
+  }
+
+  static async deleteGoal(id: string): Promise<void> {
+    return await ApiService.delete(`/discipleship/goals/${id}`);
+  }
+
+  static async extendGoal(id: string, newDeadline: string, reason: string): Promise<any> {
+    return await ApiService.post(`/discipleship/goals/${id}/extend`, {
+      new_deadline: newDeadline,
+      reason,
+    });
+  }
+
+  static async closeIncomplete(id: string, reason: string, achievedPercentage: number): Promise<any> {
+    return await ApiService.post(`/discipleship/goals/${id}/close-incomplete`, {
+      reason,
+      achieved_percentage: achievedPercentage,
+    });
+  }
+
   // Helper para mapear prioridad a tipo de alerta
   private static mapAlertPriorityToType(
     priority: number

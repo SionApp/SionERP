@@ -17,6 +17,7 @@ import SetupPage from './pages/SetupPage';
 import DashboardHome from './pages/dashboard/DashboardHome';
 import DiscipleshipPage from './pages/dashboard/DiscipleshipPage';
 import EventsPage from './pages/dashboard/EventsPage';
+import { GoalsDashboard } from './pages/dashboard/GoalsDashboard';
 import ModulesManagementPage from './pages/dashboard/ModulesManagementPage';
 import ProfilePage from './pages/dashboard/ProfilePage';
 import RegisterUserPage from './pages/dashboard/RegisterUserPage';
@@ -159,6 +160,7 @@ const AppContent = () => {
 
               {/* Module-based (member+ but requires module installed) */}
               <Route path="discipleship" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship"><DiscipleshipPage /></ProtectedRoute>} />
+              <Route path="discipleship/goals" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship"><GoalsDashboard /></ProtectedRoute>} />
               <Route path="zones" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="zones"><ZonesPage /></ProtectedRoute>} />
               <Route path="events" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="events"><EventsPage /></ProtectedRoute>} />
             </Route>

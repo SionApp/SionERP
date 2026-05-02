@@ -149,8 +149,9 @@ func SetupRoutes(e *echo.Echo) {
 
 		// Analytics
 		discipleship.GET("/analytics", discipleshipHandler.GetAnalytics)
-		discipleship.GET("/analytics/zones", discipleshipHandler.GetZoneStats)
-		discipleship.GET("/analytics/performance", discipleshipHandler.GetGroupPerformance)
+		// Las siguientes rutas se integraron en /analytics
+		// discipleship.GET("/analytics/zones", discipleshipHandler.GetZoneStats)
+		// discipleship.GET("/analytics/performance", discipleshipHandler.GetGroupPerformance)
 
 		// Reportes
 		discipleship.GET("/reports", reportsHandler.GetReports)
@@ -158,8 +159,18 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.PUT("/reports/:id/approve", reportsHandler.ApproveReport)
 		discipleship.PUT("/reports/:id/reject", reportsHandler.RejectReport)
 
-		// Alertas
-		discipleship.GET("/alerts", alertsHandler.GetAlerts)
+ 	// Objetivos Estratégicos (Goals)
+	goalsHandler := handlers.NewDiscipleshipGoalsHandler()
+	discipleship.GET("/goals", goalsHandler.GetGoals)
+	discipleship.POST("/goals", goalsHandler.CreateGoal)
+	discipleship.PUT("/goals/:id", goalsHandler.UpdateGoal)
+	discipleship.DELETE("/goals/:id", goalsHandler.DeleteGoal)
+	discipleship.POST("/goals/:id/extend", goalsHandler.ExtendDeadline)
+	discipleship.POST("/goals/:id/close-incomplete", goalsHandler.CloseIncomplete)
+	discipleship.POST("/goals/:id/auto-update", goalsHandler.AutoUpdateProgress)
+
+	// Alertas
+	discipleship.GET("/alerts", alertsHandler.GetAlerts)
 		discipleship.GET("/multiplications", discipleshipHandler.GetMultiplications)
 		discipleship.POST("/alerts", alertsHandler.CreateAlert)
 		discipleship.PUT("/alerts/:id/resolve", alertsHandler.ResolveAlert)
