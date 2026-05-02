@@ -128,20 +128,26 @@ func SupabaseAuth() echo.MiddlewareFunc {
 				})
 			}
 
-			// Get the database connection safely
-			var dbRole string
-			var isSuperAdmin bool
-			db := config.GetDB()
-			if db != nil && db.DB != nil {
+		// Get the database connection safely
+		var dbRole string
+		var isSuperAdmin bool
+		db := config.GetDB()
+		if db != nil && db.DB != nil {
+			// Buscar por auth_id (que es el ID de Supabase Auth que viene en el JWT)
+			err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE auth_id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
+			if err != nil {
+				fmt.Printf("Could not fetch user role for auth_id %s: %v\n", claims.Sub, err)
+				// Fallback: buscar por id (por si acaso)
 				err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
 				if err != nil {
-					fmt.Printf("Could not fetch user role for %s: %v\n", claims.Sub, err)
+					fmt.Printf("Could not fetch user role by id either: %v\n", err)
 					dbRole = utils.RoleGuest // default value if fails
 				}
-			} else {
-				fmt.Printf("⚠️  Database connection not available, using default role\n")
-				dbRole = utils.RoleGuest
 			}
+		} else {
+			fmt.Printf("⚠️  Database connection not available, using default role\n")
+			dbRole = utils.RoleGuest
+		}
 
 			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", claims.Sub, claims.Email, claims.Role)
 
@@ -245,14 +251,20 @@ func OptionalAuth() echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			var dbRole string
-			var isSuperAdmin bool
-			db := config.GetDB()
-			if db != nil && db.DB != nil {
-				err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
+		var dbRole string
+		var isSuperAdmin bool
+		db := config.GetDB()
+		if db != nil && db.DB != nil {
+				// Buscar por auth_id (que es el ID de Supabase Auth que viene en el JWT)
+				err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE auth_id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
 				if err != nil {
-					fmt.Printf("OptionalAuth: Could not fetch user role for %s: %v\n", claims.Sub, err)
-					dbRole = utils.RoleGuest
+					fmt.Printf("OptionalAuth: Could not fetch user role for auth_id %s: %v\n", claims.Sub, err)
+					// Fallback: buscar por id
+					err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
+					if err != nil {
+						fmt.Printf("OptionalAuth: Could not fetch user role by id either: %v\n", err)
+						dbRole = utils.RoleGuest
+					}
 				}
 			} else {
 				dbRole = utils.RoleGuest
