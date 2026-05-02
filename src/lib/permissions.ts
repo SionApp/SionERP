@@ -3,13 +3,14 @@ import { ApiService } from '@/services/api.service';
 /**
  * Role hierarchy levels.
  * Higher numbers = more permissions.
+ * Must match backend constants in apps/backend-go/utils/CONST.go
  */
 export const ROLE_LEVELS: Record<string, number> = {
-  admin: 5,
-  pastor: 4,
-  staff: 3,
-  supervisor: 2,
-  server: 1,
+  admin: 500,
+  pastor: 400,
+  staff: 300,
+  supervisor: 200,
+  server: 100,
   member: 0,
 } as const;
 
@@ -26,6 +27,7 @@ export const ROLE_DISPLAY_NAMES: Record<string, string> = {
 export interface UserPermissions {
   role: string;
   role_level: number;
+  has_admin_access: boolean;
   installed_modules: string[];
 }
 
@@ -50,9 +52,9 @@ export async function fetchPermissions(userId?: string): Promise<UserPermissions
     cachedPermissions = data as UserPermissions;
     cachedUserId = userId || null;
     return cachedPermissions;
-  } catch {
+  } catch (error) {
     // Fallback for when API is not available
-    return { role: 'member', role_level: 0, installed_modules: [] };
+    return { role: 'member', role_level: 0, has_admin_access: false, installed_modules: [] };
   }
 }
 

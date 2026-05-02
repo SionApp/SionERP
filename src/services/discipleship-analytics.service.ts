@@ -1,6 +1,4 @@
-import { DiscipleshipMetrics } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
-import { DiscipleshipService } from './discipleship.service';
 
 // =====================================================
 // TIPOS
@@ -159,7 +157,7 @@ export class DiscipleshipAnalyticsService {
 
     // El backend devuelve snake_case + is_active (basado en grupos activos)
     // Devolver ambos formatos para compatibilidad
-    return (data as any[]).map((zone: any) => ({
+    return ((data as any[]) || []).map((zone: any) => ({
       zoneName: zone.zone_name || 'Sin zona',
       zone_name: zone.zone_name || 'Sin zona', // Alias para compatibilidad
       zoneID: zone.zone_id || zone.zoneId,
@@ -178,7 +176,7 @@ export class DiscipleshipAnalyticsService {
   static async getGroupPerformance(): Promise<GroupPerformance[]> {
     const data = await ApiService.get(`/discipleship/analytics/performance`);
 
-    return (data as GroupPerformance[]).map((group: GroupPerformance) => ({
+    return ((data as GroupPerformance[]) || []).map((group: GroupPerformance) => ({
       groupId: group.groupId || '',
       groupName: group.groupName || 'Sin nombre',
       leaderName: group.leaderName || 'Sin líder',
@@ -194,7 +192,7 @@ export class DiscipleshipAnalyticsService {
   static async getAlerts(resolved = false): Promise<DiscipleshipAlert[]> {
     const data = await ApiService.get(`/discipleship/alerts?resolved=${resolved}`);
 
-    return (data as DiscipleshipAlert[]).map((alert: DiscipleshipAlert) => ({
+    return ((data as DiscipleshipAlert[]) || []).map((alert: DiscipleshipAlert) => ({
       id: alert.id || '',
       type: this.mapAlertPriorityToType(alert.priority),
       title: alert.title || '',
@@ -212,7 +210,7 @@ export class DiscipleshipAnalyticsService {
   static async getMultiplications(): Promise<MultiplicationTracker[]> {
     const data = await ApiService.get(`/discipleship/multiplications`);
 
-    return (data as MultiplicationTracker[]).map((mult: MultiplicationTracker) => ({
+    return ((data as MultiplicationTracker[]) || []).map((mult: MultiplicationTracker) => ({
       id: mult.id || '',
       parentGroupName: mult.parentGroupName || '',
       newGroupName: mult.newGroupName,
@@ -225,61 +223,7 @@ export class DiscipleshipAnalyticsService {
   }
 
   // Obtener tendencias semanales agregadas (para dashboards)
-  // Si necesitas métricas individuales de un grupo, usa DiscipleshipService.getMetrics()
-  static async getWeeklyTrends(weeks: number = 12, groupId?: string): Promise<WeeklyTrend[]> {
-    // Si se especifica un group_id, usar el endpoint de metrics y procesar
-    if (groupId) {
-      const metrics = await DiscipleshipService.getMetrics({ group_id: groupId });
-
-      // Agrupar métricas por semana
-      const weeklyMap = new Map<string, any>();
-      console.log(weeklyMap);
-      console.log(metrics);
-
-      metrics.forEach((metric: DiscipleshipMetrics) => {
-        const weekStart = new Date(metric.week_date);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Lunes de esa semana
-        const weekKey = weekStart.toISOString().split('T')[0];
-
-        if (!weeklyMap.has(weekKey)) {
-          weeklyMap.set(weekKey, {
-            week_start: weekKey,
-            total_attendance: 0,
-            total_visitors: 0,
-            total_conversions: 0,
-            avg_spiritual_temp: 0,
-            groups_reporting: 1,
-            count: 0,
-          });
-        }
-
-        const week = weeklyMap.get(weekKey);
-        week.total_attendance += metric.attendance || 0;
-        week.total_visitors += (metric.new_visitors || 0) + (metric.returning_visitors || 0);
-        week.total_conversions += metric.conversions || 0;
-        week.avg_spiritual_temp += metric.spiritual_temperature || 0;
-        week.count++;
-      });
-
-      // Calcular promedios y convertir a array
-      return Array.from(weeklyMap.values())
-        .map(week => ({
-          week: week.week_start,
-          week_start: week.week_start,
-          attendance: week.total_attendance,
-          total_attendance: week.total_attendance,
-          visitors: week.total_visitors,
-          total_visitors: week.total_visitors,
-          conversions: week.total_conversions,
-          total_conversions: week.total_conversions,
-          spiritualTemp: week.count > 0 ? week.avg_spiritual_temp / week.count : 5,
-          groups_reporting: week.groups_reporting,
-        }))
-        .sort((a, b) => a.week_start.localeCompare(b.week_start))
-        .slice(-weeks); // Últimas N semanas
-    }
-
-    // Para tendencias generales, usar el endpoint específico de weekly-trends
+  static async getWeeklyTrends(weeks: number = 12): Promise<WeeklyTrend[]> {
     const url = `/discipleship/weekly-trends?weeks=${weeks}`;
     const data = await ApiService.get(url);
 
@@ -327,6 +271,19 @@ export class DiscipleshipAnalyticsService {
       if (groups.length === 0) return null;
 
       const group = groups[0];
+      
+      // Obtener métricas recientes (últimas 4 semanas) para calcular temperatura espiritual promedio
+      const fourWeeksAgo = new Date();
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+      const metricsResponse = await ApiService.get(
+        `/discipleship/metrics?group_id=${group.id}&start_date=${fourWeeksAgo.toISOString().split('T')[0]}`
+      );
+      const metrics = metricsResponse.data || [];
+      
+      const avgSpiritualTemp = metrics.length > 0
+        ? metrics.reduce((sum: number, m: any) => sum + (m.spiritual_temperature || 0), 0) / metrics.length
+        : 0;
+
       return {
         groupId: group.id,
         groupName: group.group_name,
@@ -336,7 +293,7 @@ export class DiscipleshipAnalyticsService {
           group.active_members > 0
             ? Math.round((group.active_members / group.member_count) * 100)
             : 0,
-        spiritualTemperature: 7, // Default, se obtendría de métricas
+        spiritualTemperature: Math.round(avgSpiritualTemp * 10) / 10, // Redondear a 1 decimal
         lastReportDate: group.updated_at || '',
         meetingDay: group.meeting_day || 'No definido',
         meetingTime: group.meeting_time || 'No definido',

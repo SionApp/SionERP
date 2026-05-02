@@ -18,7 +18,7 @@ export function useLeaderDiscipleshipData() {
     stats,
     goals,
     refetch: refetchBase,
-  } = useDiscipleshipData({ level: 1, enabled: !!user });
+  } = useDiscipleshipData({ userId: user?.id, level: 1, enabled: !!user });
 
   // Estados adicionales específicos del líder
   const [groups, setGroups] = useState<DiscipleshipGroup[]>([]);

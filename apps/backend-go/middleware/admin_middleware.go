@@ -1,13 +1,15 @@
 package middleware
 
 import (
+	"backend-sion/utils"
 	"log"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 )
 
-// RequireAdmin middleware ensures only users with 'admin' or 'owner' role can access the route
+// RequireAdmin middleware ensures only users with admin roles (pastor/staff)
+// or super admins can access the route.
 func RequireAdmin(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		// Check if has_admin_access flag is set (from auth middleware)
@@ -35,7 +37,7 @@ func RequireAdmin(next echo.HandlerFunc) echo.HandlerFunc {
 				c.Get("user_id"), email, role, c.Request().Method, c.Request().URL.Path)
 
 			LogAccessDeniedSimple(c,
-				c.Get("user_id").(string), email, role, 0, 5,
+				c.Get("user_id").(string), email, role, 0, utils.LevelAdmin,
 				"insufficient_role", "Admin access required",
 			)
 
@@ -47,7 +49,7 @@ func RequireAdmin(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 // hasAdminAccessHelper checks if a user has admin access
-// Returns true if role == "admin" or "owner"
-func hasAdminAccessHelper(_, role string) bool {
-	return role == "admin" || role == "owner"
+// Uses utils.IsAdminRole (pastor or staff)
+func hasAdminAccessHelper(_ string, role string) bool {
+	return utils.IsAdminRole(role)
 }

@@ -33,7 +33,7 @@ interface MenuItemConfig {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   requiredModule?: string;
-  minRole: number; // Minimum role level required (0=member, 5=admin)
+  minRole: number; // Minimum role level required (0=member, 500=admin)
 }
 
 const menuItems: MenuItemConfig[] = [
@@ -104,10 +104,11 @@ export function AppSidebar() {
     return isModuleInstalled(item.requiredModule);
   });
 
-  // Add Setup link for admin-level users
-  const isAdmin =
-    permissions?.role_level !== undefined && permissions.role_level >= ROLE_LEVELS.admin;
-  const adminItems = isAdmin
+  // Show "Gestión de Módulos" ONLY for the admin role (500).
+  // Pastors and staff have admin-level access but shouldn't manage modules
+  // (module installation has licensing/payment implications).
+  const isSuperAdmin = permissions?.role === 'admin';
+  const adminItems = isSuperAdmin
     ? [{ title: 'Gestión de Módulos', url: '/setup', icon: Sparkles }]
     : [];
 

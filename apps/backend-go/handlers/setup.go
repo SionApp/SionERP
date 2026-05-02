@@ -3,6 +3,7 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/models"
+	"backend-sion/utils"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -19,13 +20,14 @@ func NewSetupHandler() *SetupHandler {
 }
 
 // hasAnyAdmin checks if there is any admin user in the system
-// Returns true if:
-//   - There is a user with role = 'admin' OR
+// Returns true if there's a user with admin role (pastor/staff) or is_super_admin
 func hasAnyAdmin(db *config.Database) (bool, error) {
 	var adminCount int
 	err := db.DB.QueryRow(`
-		SELECT COUNT(*) FROM users 
-		WHERE role = 'admin'
+		SELECT COUNT(*) FROM users
+		WHERE (role = ANY(ARRAY['pastor'::user_role, 'staff'::user_role])
+			OR is_super_admin = true)
+			AND is_active = true
 	`).Scan(&adminCount)
 	if err != nil {
 		return false, err
@@ -55,15 +57,9 @@ func hasAdminAccessFromContext(c echo.Context) bool {
 }
 
 // hasAdminAccessHelper checks if a user has admin access
-func hasAdminAccessHelper(email, role string) bool {
-	if role == "admin" {
-		return true
-	}
-	// Special admin access for specific email
-	if email == "boanegro4@yopmail.com" {
-		return true
-	}
-	return false
+// Uses utils.IsAdminRole (pastor or staff)
+func hasAdminAccessHelper(_, role string) bool {
+	return utils.IsAdminRole(role)
 }
 
 // GetSetupStatus returns the list of available modules
@@ -73,7 +69,7 @@ func (h *SetupHandler) GetSetupStatus(c echo.Context) error {
 
 	// Check if ANY user exists (for initial setup detection)
 	var userCount int
-	err := db.DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
+	err := db.DB.QueryRow("SELECT COUNT(*) FROM users WHERE is_super_admin = false").Scan(&userCount)
 	if err != nil && err != sql.ErrNoRows {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error checking user status: " + err.Error(),
@@ -227,7 +223,7 @@ func (h *SetupHandler) PerformSetup(c echo.Context) error {
 		// Using a loop for simplicity, or could build a WHERE IN query
 		for _, modKey := range req.SelectedModules {
 			// Never allow disabling/enabling base through selected list
-			if modKey == "base" {
+			if modKey == utils.ModuleBase {
 				continue
 			}
 			_, err := tx.Exec("UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = $1", modKey)
@@ -257,7 +253,7 @@ func (h *SetupHandler) UpdateModuleStatus(c echo.Context) error {
 	}
 
 	// Prevent disabling base module
-	if moduleKey == "base" {
+	if moduleKey == utils.ModuleBase {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "Cannot disable base module",
 		})

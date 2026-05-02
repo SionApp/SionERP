@@ -3,12 +3,12 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/models"
+	"backend-sion/utils"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -16,200 +16,6 @@ type DiscipleshipReportsHandler struct{}
 
 func NewDiscipleshipReportsHandler() *DiscipleshipReportsHandler {
 	return &DiscipleshipReportsHandler{}
-}
-
-// =====================================================
-// MÉTRICAS SEMANALES
-// =====================================================
-
-// CreateMetrics crea métricas semanales para un grupo
-func (h *DiscipleshipReportsHandler) CreateMetrics(c echo.Context) error {
-	var req models.CreateMetricsRequest
-	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Datos inválidos",
-		})
-	}
-
-	userID := c.Get("user_id").(string)
-	db := config.GetDB()
-
-	// Verificar que el usuario es líder del grupo
-	var leaderID string
-	err := db.DB.QueryRow(
-		"SELECT leader_id FROM discipleship_groups WHERE id = $1",
-		req.GroupID,
-	).Scan(&leaderID)
-
-	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{
-			"error": "Grupo no encontrado",
-		})
-	}
-
-	// Verificar permisos (líder del grupo, supervisor, o pastor/staff)
-	var userRole string
-	db.DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&userRole)
-
-	if leaderID != userID && userRole != "pastor" && userRole != "staff" {
-		return c.JSON(http.StatusForbidden, map[string]string{
-			"error": "No tienes permisos para reportar métricas de este grupo",
-		})
-	}
-
-	// Verificar si ya existe un reporte para esta semana
-	var existingID string
-	err = db.DB.QueryRow(`
-		SELECT id FROM discipleship_metrics 
-		WHERE group_id = $1 AND week_date = $2
-	`, req.GroupID, req.WeekDate).Scan(&existingID)
-
-	if err == nil {
-		// Ya existe, actualizar
-		_, err = db.DB.Exec(`
-			UPDATE discipleship_metrics SET
-				attendance = $1, new_visitors = $2, returning_visitors = $3,
-				conversions = $4, baptisms = $5, spiritual_temperature = $6,
-				testimonies_count = $7, prayer_requests = $8, offering_amount = $9,
-				leader_notes = $10, updated_at = NOW()
-			WHERE id = $11
-		`, req.Attendance, req.NewVisitors, req.ReturningVisitors,
-			req.Conversions, req.Baptisms, req.SpiritualTemperature,
-			req.TestimoniesCount, req.PrayerRequests, req.OfferingAmount,
-			req.LeaderNotes, existingID)
-
-		if err != nil {
-			c.Logger().Error("Error updating metrics:", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": "Error al actualizar métricas",
-			})
-		}
-
-		return c.JSON(http.StatusOK, map[string]string{
-			"message":    "Métricas actualizadas exitosamente",
-			"metrics_id": existingID,
-		})
-	}
-
-	// Crear nuevo registro
-	var metricsID string
-	err = db.DB.QueryRow(`
-		INSERT INTO discipleship_metrics (
-			group_id, week_date, attendance, new_visitors, returning_visitors,
-			conversions, baptisms, spiritual_temperature, testimonies_count,
-			prayer_requests, offering_amount, leader_notes
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		RETURNING id
-	`, req.GroupID, req.WeekDate, req.Attendance, req.NewVisitors,
-		req.ReturningVisitors, req.Conversions, req.Baptisms,
-		req.SpiritualTemperature, req.TestimoniesCount, req.PrayerRequests,
-		req.OfferingAmount, req.LeaderNotes).Scan(&metricsID)
-
-	if err != nil {
-		c.Logger().Error("Error creating metrics:", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Error al crear métricas",
-		})
-	}
-
-	// Actualizar conteo de miembros en el grupo
-	db.DB.Exec(`
-		UPDATE discipleship_groups SET
-			active_members = $1,
-			updated_at = NOW()
-		WHERE id = $2
-	`, req.Attendance, req.GroupID)
-
-	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"message":    "Métricas creadas exitosamente",
-		"metrics_id": metricsID,
-	})
-}
-
-// GetMetrics obtiene métricas con filtros
-func (h *DiscipleshipReportsHandler) GetMetrics(c echo.Context) error {
-	db := config.GetDB()
-
-	groupID := c.QueryParam("group_id")
-	dateFrom := c.QueryParam("date_from")
-	dateTo := c.QueryParam("date_to")
-
-	query := `
-		SELECT 
-			m.id, m.group_id, m.week_date, m.attendance, m.new_visitors,
-			m.returning_visitors, m.conversions, m.baptisms,
-			m.spiritual_temperature, m.testimonies_count, m.prayer_requests,
-			m.offering_amount, m.leader_notes, m.created_at, m.updated_at,
-			g.group_name
-		FROM discipleship_metrics m
-		LEFT JOIN discipleship_groups g ON m.group_id = g.id
-		WHERE 1=1
-	`
-	args := []interface{}{}
-	argCount := 0
-
-	if groupID != "" {
-		// Validar que groupID sea un UUID válido
-		groupIDUUID, err := uuid.Parse(groupID)
-		if err != nil {
-			c.Logger().Error("Error parsing group_id as UUID:", err)
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "Parámetro group_id inválido, debe ser un UUID válido",
-			})
-		}
-
-		argCount++
-		query += fmt.Sprintf(" AND m.group_id = $%d", argCount)
-		args = append(args, groupIDUUID)
-	}
-	if dateFrom != "" {
-		argCount++
-		query += fmt.Sprintf(" AND m.week_date >= $%d", argCount)
-		args = append(args, dateFrom)
-	}
-	if dateTo != "" {
-		argCount++
-		query += fmt.Sprintf(" AND m.week_date <= $%d", argCount)
-		args = append(args, dateTo)
-	}
-
-	query += " ORDER BY m.week_date DESC LIMIT 100"
-
-	rows, err := db.DB.Query(query, args...)
-	if err != nil {
-		c.Logger().Error("Error fetching metrics:", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Error al obtener métricas",
-		})
-	}
-	defer rows.Close()
-
-	type MetricWithGroup struct {
-		models.DiscipleshipMetrics
-		GroupName string `json:"group_name"`
-	}
-
-	var metrics []MetricWithGroup
-	for rows.Next() {
-		var m MetricWithGroup
-		var groupName sql.NullString
-		err := rows.Scan(
-			&m.ID, &m.GroupID, &m.WeekDate, &m.Attendance, &m.NewVisitors,
-			&m.ReturningVisitors, &m.Conversions, &m.Baptisms,
-			&m.SpiritualTemperature, &m.TestimoniesCount, &m.PrayerRequests,
-			&m.OfferingAmount, &m.LeaderNotes, &m.CreatedAt, &m.UpdatedAt,
-			&groupName,
-		)
-		if err != nil {
-			continue
-		}
-		if groupName.Valid {
-			m.GroupName = groupName.String
-		}
-		metrics = append(metrics, m)
-	}
-
-	return c.JSON(http.StatusOK, metrics)
 }
 
 // =====================================================
@@ -286,7 +92,7 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	argCount := 0
 
 	// Si no es pastor/staff, solo puede ver sus propios reportes o los de sus subordinados
-	if userRole != "pastor" && userRole != "staff" {
+	if !utils.IsAdminRole(userRole) {
 		argCount++
 		query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
 		args = append(args, userID)
@@ -366,19 +172,19 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 	var userRole string
 	db.DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&userRole)
 
-	if supervisorID != userID && userRole != "pastor" && userRole != "staff" {
+	if supervisorID != userID && !utils.IsAdminRole(userRole) {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes permisos para aprobar este reporte",
 		})
 	}
 
-	_, err = db.DB.Exec(`
+	_, err = db.DB.Exec(fmt.Sprintf(`
 		UPDATE discipleship_reports SET
-			status = 'approved',
+			status = '%s',
 			approved_at = NOW(),
 			updated_at = NOW()
 		WHERE id = $1
-	`, reportID)
+	`, utils.ReportStatusApproved), reportID)
 
 	if err != nil {
 		c.Logger().Error("Error approving report:", err)

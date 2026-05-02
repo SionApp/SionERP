@@ -7,8 +7,65 @@ import {
   Zone,
 } from '@/types/discipleship.types';
 import { User } from '@/types/user.types';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+
+// ── Module-level singleton cache ──
+// All useZones() instances share this single data source.
+// Only ONE fetch happens regardless of how many components use the hook.
+
+interface ZonesCache {
+  zones: Zone[];
+  zoneStats: ZoneStats[];
+  loading: boolean;
+  error: string | null;
+  initialized: boolean;
+}
+
+const cache: ZonesCache = {
+  zones: [],
+  zoneStats: [],
+  loading: false,
+  error: null,
+  initialized: false,
+};
+
+// Subscribers react to cache changes
+type Subscriber = () => void;
+const subscribers = new Set<Subscriber>();
+
+function notifySubscribers() {
+  for (const sub of subscribers) {
+    sub();
+  }
+}
+
+// Singleton fetch — only runs once per session (until mutations refresh it)
+async function fetchZones(onlyActive = true) {
+  if (cache.loading) return;
+
+  try {
+    cache.loading = true;
+    cache.error = null;
+    notifySubscribers();
+
+    const [zonesData, statsData] = await Promise.all([
+      ZonesService.getZones({ is_active: onlyActive }),
+      ZonesService.getAllZoneStats().catch(() => []),
+    ]);
+
+    cache.zones = Array.isArray(zonesData) ? zonesData.map(normalizeZone) : [];
+    cache.zoneStats = statsData;
+    cache.initialized = true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al cargar zonas';
+    console.error('Error loading zones:', err);
+    cache.error = message;
+  } finally {
+    cache.loading = false;
+    notifySubscribers();
+  }
+}
 
 // Helper para normalizar valores sql.NullString que vienen como {String, Valid}
 const normalizeNullString = (value: unknown): string | null => {
@@ -54,35 +111,50 @@ interface UseZonesReturn {
 export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
   const { autoLoad = true, onlyActive = true } = options;
 
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [zoneStats, setZoneStats] = useState<ZoneStats[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Mirror cache state into React state — all instances read the same data
+  const [zones, setZones] = useState<Zone[]>(cache.zones);
+  const [zoneStats, setZoneStats] = useState<ZoneStats[]>(cache.zoneStats);
+  const [loading, setLoading] = useState(cache.loading);
+  const [error, setError] = useState<string | null>(cache.error);
 
-  const loadZones = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Subscribe to cache changes on mount
+  const subscribedRef = useRef(false);
+  useEffect(() => {
+    if (subscribedRef.current) return;
+    subscribedRef.current = true;
 
-      const [zonesData, statsData] = await Promise.all([
-        ZonesService.getZones({ is_active: onlyActive }),
-        ZonesService.getAllZoneStats().catch(() => []),
-      ]);
+    const subscriber: Subscriber = () => {
+      setZones([...cache.zones]);
+      setZoneStats([...cache.zoneStats]);
+      setLoading(cache.loading);
+      setError(cache.error);
+    };
+    subscribers.add(subscriber);
+    return () => {
+      subscribers.delete(subscriber);
+    };
+  }, []);
 
-      // Normalizar zonas para manejar sql.NullString
-      const normalizedZones = Array.isArray(zonesData) 
-        ? zonesData.map(normalizeZone)
-        : [];
-
-      setZones(normalizedZones);
-      setZoneStats(statsData);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al cargar zonas';
-      console.error('Error loading zones:', err);
-      setError(message);
-    } finally {
-      setLoading(false);
+  // Auto-load only if not already loaded (singleton guarantee)
+  useEffect(() => {
+    if (autoLoad && !cache.initialized) {
+      fetchZones(onlyActive);
     }
+  }, [autoLoad, onlyActive]);
+
+  // Listen for cross-component zone update events
+  useEffect(() => {
+    const handleZonesUpdate = () => {
+      fetchZones(onlyActive);
+    };
+    window.addEventListener('zones-updated', handleZonesUpdate);
+    return () => window.removeEventListener('zones-updated', handleZonesUpdate);
+  }, [onlyActive]);
+
+  // ── Mutation operations (all refresh the shared cache) ──
+
+  const refetch = useCallback(async () => {
+    await fetchZones(onlyActive);
   }, [onlyActive]);
 
   const getZone = useCallback(async (zoneId: string): Promise<Zone | null> => {
@@ -110,7 +182,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         setLoading(true);
         const result = await ZonesService.createZone(data);
         toast.success('Zona creada exitosamente');
-        await loadZones();
+        await fetchZones(onlyActive);
         window.dispatchEvent(new CustomEvent('zones-updated'));
         return result.zone_id;
       } catch (err) {
@@ -121,7 +193,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         setLoading(false);
       }
     },
-    [loadZones]
+    [onlyActive]
   );
 
   const updateZone = useCallback(
@@ -130,7 +202,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         setLoading(true);
         await ZonesService.updateZone(zoneId, data);
         toast.success('Zona actualizada exitosamente');
-        await loadZones();
+        await fetchZones(onlyActive);
         window.dispatchEvent(new CustomEvent('zones-updated'));
         return true;
       } catch (err) {
@@ -141,7 +213,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         setLoading(false);
       }
     },
-    [loadZones]
+    [onlyActive]
   );
 
   const deleteZone = useCallback(
@@ -150,7 +222,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         setLoading(true);
         await ZonesService.deleteZone(zoneId);
         toast.success('Zona eliminada exitosamente');
-        await loadZones();
+        await fetchZones(onlyActive);
         window.dispatchEvent(new CustomEvent('zones-updated'));
         return true;
       } catch (err) {
@@ -161,7 +233,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         setLoading(false);
       }
     },
-    [loadZones]
+    [onlyActive]
   );
 
   const assignGroupToZone = useCallback(
@@ -169,7 +241,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
       try {
         await ZonesService.assignGroupToZone(zoneId, groupId);
         toast.success('Grupo asignado a zona exitosamente');
-        await loadZones();
+        await fetchZones(onlyActive);
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al asignar grupo';
@@ -177,7 +249,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         return false;
       }
     },
-    [loadZones]
+    [onlyActive]
   );
 
   const assignUserToZone = useCallback(async (zoneId: string, userId: string): Promise<boolean> => {
@@ -197,7 +269,7 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
       try {
         await ZonesService.updateZone(zoneId, { supervisor_id: supervisorId });
         toast.success('Supervisor asignado exitosamente');
-        await loadZones();
+        await fetchZones(onlyActive);
         return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al asignar supervisor';
@@ -205,28 +277,15 @@ export const useZones = (options: UseZonesOptions = {}): UseZonesReturn => {
         return false;
       }
     },
-    [loadZones]
+    [onlyActive]
   );
-
-  useEffect(() => {
-    if (autoLoad) {
-      loadZones();
-    }
-
-    // Listen for zones update events from other components
-    const handleZonesUpdate = () => {
-      loadZones();
-    };
-    window.addEventListener('zones-updated', handleZonesUpdate);
-    return () => window.removeEventListener('zones-updated', handleZonesUpdate);
-  }, [autoLoad, loadZones]);
 
   return {
     zones,
     zoneStats,
     loading,
     error,
-    refetch: loadZones,
+    refetch,
     getZone,
     getZoneGroups,
     createZone,
@@ -246,11 +305,10 @@ export const useAvailableSupervisors = () => {
     try {
       setLoading(true);
       const data = await ZonesService.getAvailableSupervisors();
-      // Asegurarse de que siempre sea un array
       setSupervisors(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading supervisors:', err);
-      setSupervisors([]); // En caso de error, establecer array vacío
+      setSupervisors([]);
     } finally {
       setLoading(false);
     }

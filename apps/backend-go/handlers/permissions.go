@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"backend-sion/config"
+	"backend-sion/middleware"
 	"backend-sion/utils"
 	"net/http"
 
@@ -25,9 +26,10 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 		})
 	}
 
-	// Get user role
+	// Get user role and super admin status
 	var role string
-	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&role)
+	var isSuperAdmin bool
+	err := config.GetDB().DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&role, &isSuperAdmin)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{
 			"error": "User not found",
@@ -58,6 +60,7 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"role":              role,
 		"role_level":        roleLevel,
+		"has_admin_access":  middleware.HasAdminAccess(role, isSuperAdmin),
 		"installed_modules": modules,
 	})
 }

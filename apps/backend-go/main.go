@@ -1,7 +1,9 @@
 package main
 
 import (
+	"backend-sion/config"
 	"backend-sion/routes"
+	"backend-sion/services"
 	"log"
 	"os"
 
@@ -14,6 +16,15 @@ func main() {
 	// Cargar variables de entorno del archivo .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: .env file not found, using environment variables")
+	}
+
+	// Initialize database
+	db := config.GetDB()
+	defer db.Close()
+
+	// Bootstrap super admin from env vars (first-time deploy)
+	if err := services.BootstrapSuperAdmin(db.DB); err != nil {
+		log.Printf("[bootstrap] WARNING: %v", err)
 	}
 
 	e := echo.New()
