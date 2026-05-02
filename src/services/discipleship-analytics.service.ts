@@ -271,6 +271,19 @@ export class DiscipleshipAnalyticsService {
       if (groups.length === 0) return null;
 
       const group = groups[0];
+      
+      // Obtener métricas recientes (últimas 4 semanas) para calcular temperatura espiritual promedio
+      const fourWeeksAgo = new Date();
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+      const metricsResponse = await ApiService.get(
+        `/discipleship/metrics?group_id=${group.id}&start_date=${fourWeeksAgo.toISOString().split('T')[0]}`
+      );
+      const metrics = metricsResponse.data || [];
+      
+      const avgSpiritualTemp = metrics.length > 0
+        ? metrics.reduce((sum: number, m: any) => sum + (m.spiritual_temperature || 0), 0) / metrics.length
+        : 0;
+
       return {
         groupId: group.id,
         groupName: group.group_name,
@@ -280,7 +293,7 @@ export class DiscipleshipAnalyticsService {
           group.active_members > 0
             ? Math.round((group.active_members / group.member_count) * 100)
             : 0,
-        spiritualTemperature: 7, // Default, se obtendría de métricas
+        spiritualTemperature: Math.round(avgSpiritualTemp * 10) / 10, // Redondear a 1 decimal
         lastReportDate: group.updated_at || '',
         meetingDay: group.meeting_day || 'No definido',
         meetingTime: group.meeting_time || 'No definido',

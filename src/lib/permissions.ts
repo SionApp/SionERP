@@ -52,7 +52,7 @@ export async function fetchPermissions(userId?: string): Promise<UserPermissions
     cachedPermissions = data as UserPermissions;
     cachedUserId = userId || null;
     return cachedPermissions;
-  } catch {
+  } catch (error) {
     // Fallback for when API is not available
     return { role: 'member', role_level: 0, has_admin_access: false, installed_modules: [] };
   }
