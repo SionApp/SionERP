@@ -102,11 +102,21 @@ export class DiscipleshipService {
   }
 
   static async getZoneStats(): Promise<ZoneStats[]> {
-    return ApiService.get(`${this.baseUrl}/analytics/zones`);
+    return ApiService.get(`/zones`);
   }
 
   static async getGroupPerformance(): Promise<GroupPerformance[]> {
-    return ApiService.get(`${this.baseUrl}/analytics/performance`);
+    const data = (await ApiService.get(`${this.baseUrl}/analytics`)) as any;
+    return ((data?.group_performance as any[]) || []).map((g: any) => ({
+      groupId: g.group_id || '',
+      groupName: g.group_name || 'Sin nombre',
+      leaderName: g.leader_name || 'Sin líder',
+      avgAttendance: g.avg_attendance || 0,
+      growthRate: g.growth_rate || 0,
+      spiritualTemp: g.spiritual_temp || 0,
+      status: g.status || 'active',
+      lastReportDate: g.last_report_date || '',
+    }));
   }
 
   // =====================================================

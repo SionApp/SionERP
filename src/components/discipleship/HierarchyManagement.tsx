@@ -24,7 +24,7 @@ import { DiscipleshipService } from '@/services/discipleship.service';
 import { UserService } from '@/services/user.service';
 import type { AssignHierarchyRequest, DiscipleshipHierarchy } from '@/types/discipleship.types';
 import { User } from '@/types/user.types';
-import { Edit, Loader2, MapPin, Search, UserCheck, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit, Loader2, MapPin, Search, UserCheck, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -53,12 +53,15 @@ interface UserWithHierarchy extends User {
   hierarchy?: DiscipleshipHierarchy;
 }
 
+const PAGE_SIZE = 10;
+
 const HierarchyManagement = () => {
   const { zones } = useZones();
   const [users, setUsers] = useState<UserWithHierarchy[]>([]);
   const [hierarchies, setHierarchies] = useState<DiscipleshipHierarchy[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithHierarchy | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -139,6 +142,18 @@ const HierarchyManagement = () => {
         (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (user.id_number || '').includes(searchTerm)
     );
+
+  // Paginación
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pagedUsers = filteredUsers.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // Reset a página 1 al cambiar búsqueda
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
 
   // Abrir diálogo para editar jerarquía
   const handleEditHierarchy = (user: UserWithHierarchy) => {
@@ -305,7 +320,7 @@ const HierarchyManagement = () => {
             <Input
               placeholder="Buscar por nombre, email o cédula..."
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
@@ -317,7 +332,10 @@ const HierarchyManagement = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Usuarios ({filteredUsers.length})
+            Usuarios
+            <span className="text-sm font-normal text-muted-foreground">
+              ({filteredUsers.length}{searchTerm ? ` de ${users.length}` : ''})
+            </span>
           </CardTitle>
           <CardDescription>
             Lista de usuarios y sus jerarquías actuales en el módulo de discipulado
@@ -331,7 +349,7 @@ const HierarchyManagement = () => {
                 <p>No se encontraron usuarios</p>
               </div>
             ) : (
-              filteredUsers
+              pagedUsers
                 .filter(user => user && user.id)
                 .map(user => {
                   const hierarchy = user.hierarchy;
@@ -426,6 +444,80 @@ const HierarchyManagement = () => {
                 })
             )}
           </div>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t mt-4">
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Mostrando{' '}
+                <span className="font-medium text-foreground">
+                  {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredUsers.length)}
+                </span>{' '}
+                de{' '}
+                <span className="font-medium text-foreground">{filteredUsers.length}</span>{' '}
+                usuarios
+              </p>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                {/* Números de página */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      // Mostrar primera, última, actual y adyacentes
+                      return (
+                        page === 1 ||
+                        page === totalPages ||
+                        Math.abs(page - safePage) <= 1
+                      );
+                    })
+                    .reduce<(number | 'ellipsis')[]>((acc, page, idx, arr) => {
+                      if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
+                        acc.push('ellipsis');
+                      }
+                      acc.push(page);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === 'ellipsis' ? (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
+                          …
+                        </span>
+                      ) : (
+                        <Button
+                          key={item}
+                          variant={safePage === item ? 'default' : 'outline'}
+                          size="icon"
+                          className="h-8 w-8 text-xs"
+                          onClick={() => setCurrentPage(item as number)}
+                        >
+                          {item}
+                        </Button>
+                      )
+                    )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
