@@ -1,3 +1,6 @@
+import { GoalsDashboard } from '@/pages/dashboard/GoalsDashboard';
+import { AlertDetailSheet } from './AlertDetailSheet';
+import { ReportDetailSheet } from './ReportDetailSheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useDiscipleshipData } from '@/hooks/useDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
+import type { DiscipleshipAlert, DiscipleshipReport } from '@/types/discipleship.types';
 import {
   AlertTriangle,
   Building2,
@@ -14,6 +18,7 @@ import {
   Crown,
   Loader2,
   Map,
+  PartyPopper,
   Plus,
   Settings,
   Target,
@@ -56,15 +61,6 @@ interface Goal {
   deadline: string;
 }
 
-interface Alert {
-  id: string;
-  title: string;
-  message: string;
-  alert_type: string;
-  priority: number;
-  action_required: boolean;
-  created_at: string;
-}
 
 interface PendingReport {
   id: string;
@@ -74,14 +70,40 @@ interface PendingReport {
   submitted_at: string;
 }
 
+/**
+ * Extrae un Date de un campo que puede ser:
+ * - string ISO (time.Time de Go)
+ * - objeto {Time: string, Valid: bool} (sql.NullTime de Go)
+ * - null / undefined
+ */
+function parseGoNullTime(value: unknown): Date | null {
+  if (!value) return null;
+  if (typeof value === 'string') return new Date(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'Valid' in value &&
+    'Time' in value &&
+    (value as { Valid: boolean }).Valid
+  ) {
+    return new Date((value as { Time: string }).Time);
+  }
+  return null;
+}
+
 const PastoralDashboard: React.FC = React.memo(() => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState('overview');
+  const [selectedAlert, setSelectedAlert] = useState<DiscipleshipAlert | null>(null);
+  const [alertSheetOpen, setAlertSheetOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<DiscipleshipReport | null>(null);
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
 
   // Usar hook compartido para evitar consultas duplicadas
-  const { loading, stats, zoneStats, weeklyTrends, goals, alerts, pendingReports, refetch } =
+  const { loading, stats, zoneStats, weeklyTrends, alerts, pendingReports, refetch } =
     useDiscipleshipData({ userId: user?.id, level: 5 });
+  console.log(stats, 'stats');
   const handleApproveReport = async (reportId: string) => {
     try {
       await DiscipleshipService.approveReport(reportId);
@@ -91,6 +113,17 @@ const PastoralDashboard: React.FC = React.memo(() => {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       toast.error((errorMessage as string) || 'Error al aprobar el reporte');
       console.log(errorMessage, 'errorMessageasdasd');
+    }
+  };
+
+  const handleRejectReport = async (reportId: string, feedback: string) => {
+    try {
+      await DiscipleshipService.rejectReport(reportId, feedback);
+      toast.success('Reporte rechazado');
+      refetch();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(errorMessage || 'Error al rechazar el reporte');
     }
   };
 
@@ -139,7 +172,10 @@ const PastoralDashboard: React.FC = React.memo(() => {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Badge variant="default" className="text-xs sm:text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
+          <Badge
+            variant="default"
+            className="text-xs sm:text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2"
+          >
             <Crown className="mr-2 h-3 w-3 md:h-4 md:w-4" />
             <span className="hidden sm:inline">Nivel 5 - Pastor</span>
             <span className="sm:hidden">N5</span>
@@ -148,87 +184,53 @@ const PastoralDashboard: React.FC = React.memo(() => {
       </div>
 
       {/* Executive Summary Cards */}
-      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 sm:gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Grupos</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Grupos</CardTitle>
+            <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_groups || 0}</div>
-            <p className="text-xs text-muted-foreground">En todo el ministerio</p>
+          <CardContent className="px-3 pb-3 sm:px-4 sm:pb-4 md:px-6 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">{stats.total_groups || 0}</div>
+            <p className="text-xs text-muted-foreground truncate">En todo el ministerio</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Miembros</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Miembros</CardTitle>
+            <Users className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_members || 0}</div>
-            <p className="text-xs text-muted-foreground">Activos en células</p>
+          <CardContent className="px-3 pb-3 sm:px-4 sm:pb-4 md:px-6 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">{stats.total_members || 0}</div>
+            <p className="text-xs text-muted-foreground truncate">Activos en células</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-purple-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Multiplicaciones</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Multiplicaciones</CardTitle>
+            <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.multiplications || 0}</div>
-            <p className="text-xs text-muted-foreground">Este año</p>
+          <CardContent className="px-3 pb-3 sm:px-4 sm:pb-4 md:px-6 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">{stats.multiplications || 0}</div>
+            <p className="text-xs text-muted-foreground truncate">Este año</p>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Índice de Salud</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Índice de Salud</CardTitle>
+            <Zap className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{(stats.spiritual_health || 0).toFixed(1)}/10</div>
-            <p className="text-xs text-muted-foreground">Promedio general</p>
+          <CardContent className="px-3 pb-3 sm:px-4 sm:pb-4 md:px-6 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">{(stats.spiritual_health || 0).toFixed(1)}/10</div>
+            <p className="text-xs text-muted-foreground truncate">Promedio general</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Acciones Rápidas */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <Button
-          variant="outline"
-          className="h-auto py-4 flex-col gap-2"
-          onClick={() => navigate('/dashboard/zones')}
-        >
-          <Map className="h-5 w-5" />
-          <span className="text-sm">Ver Zonas</span>
-        </Button>
-        <Button
-          variant="outline"
-          className="h-auto py-4 flex-col gap-2"
-          onClick={() => navigate('/dashboard/discipleship')}
-        >
-          <Users className="h-5 w-5" />
-          <span className="text-sm">Discipulado</span>
-        </Button>
-        <Button
-          variant="outline"
-          className="h-auto py-4 flex-col gap-2"
-          onClick={() => toast.info('Alertas automáticas - Funcionalidad próximamente')}
-        >
-          <AlertTriangle className="h-5 w-5" />
-          <span className="text-sm">Generar Alertas</span>
-        </Button>
-        <Button
-          variant="outline"
-          className="h-auto py-4 flex-col gap-2"
-          onClick={() => navigate('/dashboard/settings')}
-        >
-          <Settings className="h-5 w-5" />
-          <span className="text-sm">Configuración</span>
-        </Button>
-      </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
         {/* Mobile: Scroll horizontal, Desktop: Grid */}
@@ -265,13 +267,21 @@ const PastoralDashboard: React.FC = React.memo(() => {
               value="alerts"
               className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
             >
-              Alertas
-              {stats.pending_alerts && stats.pending_alerts > 0 && (
+              <span className="hidden sm:inline">Alertas</span>
+              <span className="sm:hidden">Alert.</span>
+              {stats.pending_alerts > 0 ? (
                 <Badge
                   variant="destructive"
-                  className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5"
+                  className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5 animate-pulse"
                 >
                   {stats.pending_alerts}
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5 text-muted-foreground"
+                >
+                  0
                 </Badge>
               )}
             </TabsTrigger>
@@ -411,73 +421,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
         </TabsContent>
 
         <TabsContent value="strategic" className="space-y-4">
-          {/* Strategic Goals */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Objetivos Estratégicos</CardTitle>
-              <CardDescription>Progreso hacia las metas del ministerio</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {goals.length === 0 ? (
-                <div className="text-center py-8">
-                  <Target className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No hay objetivos definidos</p>
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => toast.info('Crear objetivos - Funcionalidad próximamente')}
-                  >
-                    Crear Objetivo
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {goals.map(goal => (
-                    <div key={goal.id}>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-medium">{goal.description}</h3>
-                        <Badge
-                          variant={
-                            goal.status === 'completed'
-                              ? 'default'
-                              : goal.progress_percentage >= 75
-                                ? 'secondary'
-                                : goal.progress_percentage >= 50
-                                  ? 'outline'
-                                  : 'destructive'
-                          }
-                        >
-                          {goal.status === 'completed'
-                            ? 'Completado'
-                            : `${Math.round(goal.progress_percentage)}%`}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                        <span>
-                          Progreso: {goal.current_value}/{goal.target_value}
-                        </span>
-                        <span>Meta: {goal.deadline}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${
-                            goal.status === 'completed'
-                              ? 'bg-green-500'
-                              : goal.progress_percentage >= 75
-                                ? 'bg-blue-500'
-                                : goal.progress_percentage >= 50
-                                  ? 'bg-yellow-500'
-                                  : 'bg-red-500'
-                          }`}
-                          style={{ width: `${Math.min(100, goal.progress_percentage)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <GoalsDashboard />
         </TabsContent>
 
         <TabsContent value="approvals" className="space-y-4">
@@ -495,32 +439,51 @@ const PastoralDashboard: React.FC = React.memo(() => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {pendingReports.map(report => (
+                  {(pendingReports as unknown as DiscipleshipReport[]).map(report => (
                     <div
                       key={report.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg"
                     >
-                      <div>
-                        <h4 className="font-medium">{report.reporter_name}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {report.report_type} - Período: {report.period_end}
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-sm truncate">{report.reporter_name}</h4>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {report.report_type} - Período:{' '}
+                          {parseGoNullTime(report.period_end)?.toLocaleDateString('es-AR', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          }) ?? report.period_end}
                         </p>
                         <p className="text-xs text-muted-foreground flex items-center mt-1">
-                          <Clock className="w-3 h-3 mr-1" />
-                          Enviado: {new Date(report.submitted_at).toLocaleDateString()}
+                          <Clock className="w-3 h-3 mr-1 shrink-0" />
+                          Enviado:{' '}
+                          {parseGoNullTime(report.submitted_at)?.toLocaleDateString('es-AR', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          }) ?? 'Sin fecha'}
                         </p>
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="flex-1 sm:flex-none"
+                          onClick={() => {
+                            setSelectedReport(report);
+                            setReportSheetOpen(true);
+                          }}
+                        >
+                          Ver
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleApproveReport(report.id)}
+                          className="flex-1 sm:flex-none"
                         >
                           <CheckCircle className="w-4 h-4 mr-1" />
                           Aprobar
-                        </Button>
-                        <Button size="sm" variant="ghost">
-                          Ver
                         </Button>
                       </div>
                     </div>
@@ -532,56 +495,73 @@ const PastoralDashboard: React.FC = React.memo(() => {
         </TabsContent>
 
         <TabsContent value="alerts" className="space-y-4">
-          {/* Alerts */}
           <Card>
-            <CardHeader>
-              <CardTitle>Alertas del Sistema</CardTitle>
-              <CardDescription>Situaciones que requieren atención</CardDescription>
+            <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
+              <CardTitle className="text-base sm:text-lg">Alertas del Sistema</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Situaciones que requieren atención
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
               {alerts.length === 0 ? (
                 <div className="text-center py-8">
                   <CheckCircle className="w-12 h-12 mx-auto text-green-500 mb-4" />
                   <p className="text-muted-foreground">No hay alertas pendientes</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {alerts.map(alert => (
-                    <div
+                <div className="space-y-2">
+                  {(alerts as unknown as DiscipleshipAlert[]).map(alert => (
+                    <button
                       key={alert.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      type="button"
+                      className="w-full text-left flex items-start gap-3 p-3 sm:p-4 border rounded-xl hover:bg-muted/50 active:bg-muted transition-colors"
+                      onClick={() => {
+                        setSelectedAlert(alert);
+                        setAlertSheetOpen(true);
+                      }}
                     >
-                      <div className="flex items-start gap-3">
+                      {alert.priority >= 5 ? (
+                        <PartyPopper className="w-4 h-4 mt-0.5 shrink-0 text-green-500" />
+                      ) : (
                         <AlertTriangle
-                          className={`w-5 h-5 mt-0.5 ${
-                            alert.priority === 1
+                          className={`w-4 h-4 mt-0.5 shrink-0 ${
+                            alert.priority >= 3
                               ? 'text-red-500'
                               : alert.priority === 2
                                 ? 'text-orange-500'
                                 : 'text-yellow-500'
                           }`}
                         />
-                        <div>
-                          <h4 className="font-medium">{alert.title}</h4>
-                          <p className="text-sm text-muted-foreground">{alert.message}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(alert.created_at).toLocaleDateString()}
-                          </p>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium leading-snug truncate">{alert.title}</p>
+                          <Badge
+                            variant={getAlertPriorityColor(alert.priority)}
+                            className="text-[10px] shrink-0"
+                          >
+                            {alert.priority >= 5
+                              ? 'Celebración'
+                              : alert.priority >= 3
+                                ? 'Alta'
+                                : alert.priority === 2
+                                  ? 'Media'
+                                  : 'Baja'}
+                          </Badge>
                         </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          {alert.message}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 opacity-70">
+                          {new Date(alert.created_at).toLocaleDateString('es-AR', {
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                          {' · '}
+                          Toca para ver detalles
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={getAlertPriorityColor(alert.priority)}>
-                          {alert.priority === 1 ? 'Alta' : alert.priority === 2 ? 'Media' : 'Baja'}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleResolveAlert(alert.id)}
-                        >
-                          Resolver
-                        </Button>
-                      </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -621,7 +601,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                           className="h-2 rounded-full bg-green-500"
-                          style={{ width: `${(stats.spiritual_health / 10) * 100}%` }}
+                          style={{ width: `${Math.min(100, ((stats.spiritual_health || 0) / 10) * 100)}%` }}
                         ></div>
                       </div>
                     </div>
@@ -682,6 +662,29 @@ const PastoralDashboard: React.FC = React.memo(() => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Alert Detail Sheet */}
+      <AlertDetailSheet
+        alert={selectedAlert}
+        open={alertSheetOpen}
+        onOpenChange={open => {
+          setAlertSheetOpen(open);
+          if (!open) setSelectedAlert(null);
+        }}
+        onResolve={handleResolveAlert}
+      />
+
+      {/* Report Detail Sheet */}
+      <ReportDetailSheet
+        report={selectedReport}
+        open={reportSheetOpen}
+        onOpenChange={open => {
+          setReportSheetOpen(open);
+          if (!open) setSelectedReport(null);
+        }}
+        onApprove={handleApproveReport}
+        onReject={handleRejectReport}
+      />
     </div>
   );
 });

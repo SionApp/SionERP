@@ -8,12 +8,12 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // BootstrapSuperAdmin creates a super admin user from environment variables
-// if one doesn't already exist. This is used for first-time production deploy.
-//
-// It ensures the Auth user and the public user are perfectly synced with IDs.
+// if one doesn't already exist. Uses a single UUID for both Auth and public.users.
 func BootstrapSuperAdmin(db *sql.DB) error {
 	adminEmail := os.Getenv("SION_ADMIN_EMAIL")
 	if adminEmail == "" {
@@ -33,61 +33,65 @@ func BootstrapSuperAdmin(db *sql.DB) error {
 
 	supabase := config.NewSupabaseClient()
 
-	// 1. Check if Auth user exists
+	// 1. Check if Auth user already exists
 	authUser, err := supabase.GetUserByEmail(adminEmail)
-	var authID string
+	var userID string
 
 	if err != nil {
-		// User not found in Auth -> Create it
+		// Not found in Auth — generate one UUID for both Auth and public.users
+		userID = uuid.New().String()
 		log.Printf("[bootstrap] Auth user not found, creating: %s", adminEmail)
+
 		authUser, err = supabase.CreateUserWithEmailPassword(adminEmail, adminPassword, map[string]interface{}{
 			"role": adminRole,
-		})
+		}, userID)
 
 		if err != nil {
-			// If it fails because user already exists (race condition or previous partial run), try to fetch
+			// Race condition or previous partial run — try fetching again
 			if strings.Contains(err.Error(), "422") || strings.Contains(err.Error(), "already") {
-				log.Printf("[bootstrap] Auth user already exists, fetching details: %s", adminEmail)
+				log.Printf("[bootstrap] Auth user already exists, fetching: %s", adminEmail)
 				authUser, err = supabase.GetUserByEmail(adminEmail)
 				if err != nil {
 					return fmt.Errorf("[bootstrap] failed to fetch existing auth user: %w", err)
 				}
+				userID = authUser.ID
 			} else {
 				return fmt.Errorf("[bootstrap] failed to create auth user: %w", err)
 			}
+		} else {
+			userID = authUser.ID
+			log.Printf("[bootstrap] Created auth user: %s (id: %s)", adminEmail, userID)
 		}
-		log.Printf("[bootstrap] Created auth user: %s (id: %s)", adminEmail, authUser.ID)
 	} else {
-		log.Printf("[bootstrap] Auth user already exists: %s (id: %s)", adminEmail, authUser.ID)
+		userID = authUser.ID
+		log.Printf("[bootstrap] Auth user already exists: %s (id: %s)", adminEmail, userID)
 	}
 
-	authID = authUser.ID
+	// 2. If there's a stale public.users row with a different id for this email, remove it
+	db.Exec("DELETE FROM public.users WHERE email = $1 AND id::text != $2", adminEmail, userID)
 
-	// 2. Ensure public.users entry matches the Auth ID.
-	// If a user with this email exists but has a different ID (e.g. from seed.sql),
-	// we delete it to prevent ID mismatches where JWT sub != user ID.
-	_, _ = db.Exec("DELETE FROM public.users WHERE email = $1 AND id != $2", adminEmail, authID)
-
-	return ensurePublicUser(db, authID, adminEmail, adminRole)
+	// 3. Ensure public.users has a row with id = userID (same as auth UUID)
+	return ensurePublicUser(db, userID, adminEmail, adminRole)
 }
 
-// ensurePublicUser creates or updates the public.users entry for the super admin
-// using the exact Auth ID to ensure consistency.
-func ensurePublicUser(db *sql.DB, authID, email, role string) error {
-	idNumber := "ADMIN-BOOTSTRAP"
+// ensurePublicUser creates or updates the public.users row for the super admin.
+// id must equal the Supabase Auth UUID — single source of truth.
+func ensurePublicUser(db *sql.DB, userID, email, role string) error {
+	const idNumber = "ADMIN-BOOTSTRAP"
 
-	// Try to update existing record (if it exists with the correct ID)
+	// Try updating if the row already exists with this id
 	result, err := db.Exec(
 		`UPDATE public.users SET
 			is_super_admin = true,
-			role = $1,
-			first_name = COALESCE(first_name, 'Admin'),
-			last_name = COALESCE(last_name, 'SionERP'),
-			phone = COALESCE(phone, '+00-000-000-0000'),
-			address = COALESCE(address, 'Platform'),
-			is_active = true
-		WHERE id = $2`,
-		role, authID,
+			role            = $1,
+			first_name      = COALESCE(NULLIF(first_name, ''), 'Admin'),
+			last_name       = COALESCE(NULLIF(last_name, ''), 'SionERP'),
+			phone           = COALESCE(NULLIF(phone, ''), '+00-000-000-0000'),
+			address         = COALESCE(NULLIF(address, ''), 'Platform'),
+			is_active       = true,
+			updated_at      = NOW()
+		WHERE id::text = $2`,
+		role, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("[bootstrap] failed to update public user: %w", err)
@@ -99,17 +103,21 @@ func ensurePublicUser(db *sql.DB, authID, email, role string) error {
 		return nil
 	}
 
-	// No existing record with this ID -> insert new one
+	// Row doesn't exist yet — insert it
 	_, err = db.Exec(
-		`INSERT INTO public.users (id, id_number, first_name, last_name, phone, address, email, role, is_active, is_super_admin, auth_id)
-		VALUES ($1, $2, 'Admin', 'SionERP', '+00-000-000-0000', 'Platform', $3, $4, true, true, $5)
-		ON CONFLICT (id) DO UPDATE SET is_super_admin = true, role = $4`,
-		authID, idNumber, email, role, authID,
+		`INSERT INTO public.users
+			(id, id_number, first_name, last_name, phone, address, email, role, is_active, is_super_admin)
+		VALUES ($1, $2, 'Admin', 'SionERP', '+00-000-000-0000', 'Platform', $3, $4, true, true)
+		ON CONFLICT (id) DO UPDATE SET
+			is_super_admin = true,
+			role           = $4,
+			updated_at     = NOW()`,
+		userID, idNumber, email, role,
 	)
 	if err != nil {
 		return fmt.Errorf("[bootstrap] failed to insert public user: %w", err)
 	}
 
-	log.Printf("[bootstrap] Created new public user as super admin: %s (id: %s)", email, authID)
+	log.Printf("[bootstrap] Created public super admin: %s (id: %s)", email, userID)
 	return nil
 }

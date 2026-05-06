@@ -128,26 +128,30 @@ func SupabaseAuth() echo.MiddlewareFunc {
 				})
 			}
 
-			// Get the database connection safely
-			var dbRole string
-			var isSuperAdmin bool
-			db := config.GetDB()
-			if db != nil && db.DB != nil {
-				err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
-				if err != nil {
-					fmt.Printf("Could not fetch user role for %s: %v\n", claims.Sub, err)
-					dbRole = utils.RoleGuest // default value if fails
-				}
-			} else {
-				fmt.Printf("⚠️  Database connection not available, using default role\n")
+		// Get the database connection safely
+		var dbRole string
+		var isSuperAdmin bool
+		var actualUserID string // Este será el business UUID (id)
+		db := config.GetDB()
+		if db != nil && db.DB != nil {
+			// Buscar por id (que ahora es el MISMO que el JWT sub/Auth ID)
+			err := db.DB.QueryRow("SELECT id, role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&actualUserID, &dbRole, &isSuperAdmin)
+			if err != nil {
+				fmt.Printf("⚠️  User not found with id = %s (JWT sub). Error: %v\n", claims.Sub, err)
 				dbRole = utils.RoleGuest
+				actualUserID = claims.Sub
 			}
+		} else {
+			fmt.Printf("⚠️  Database connection not available, using default role\n")
+			dbRole = utils.RoleGuest
+			actualUserID = claims.Sub
+		}
 
-			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", claims.Sub, claims.Email, claims.Role)
+			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", actualUserID, claims.Email, dbRole)
 
-			// Agregar claims al contexto
+			// Agregar claims al contexto - USAR SIEMPRE EL BUSINESS UUID (id)
 			c.Set("user", claims)
-			c.Set("user_id", claims.Sub)
+			c.Set("user_id", actualUserID) // ← ¡ESTE ES EL BUSINESS UUID!
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
 			c.Set("db_role", dbRole)
@@ -217,56 +221,49 @@ func HasAdminAccess(dbRole string, isSuperAdmin bool) bool {
 	return utils.IsAdminRole(dbRole)
 }
 
-// OptionalAuth middleware attempts to validate Supabase JWT token if present
-// It does NOT return an error if the token is missing, essentially allowing "guest" access
-// This is useful for routes that have mixed public/private access logic (like /setup)
+// OptionalAuth middleware attempts to validate Supabase JWT token if present.
+// If the token is missing or invalid, proceeds as guest (no error returned).
 func OptionalAuth() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
-				// No auth header, proceed as guest
 				return next(c)
 			}
 
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 			if token == authHeader {
-				// Malformed header, proceed as guest (or could log it)
 				return next(c)
 			}
 
-			fmt.Printf("🔑 OptionalAuth: Validating token if present...\n")
-
-			// Validate token
 			claims, err := validateSupabaseToken(token)
 			if err != nil {
-				// Invalid token, just proceed as guest.
-				// The handler logic will decide if it needs strictly valid auth or not.
 				return next(c)
 			}
 
 			var dbRole string
 			var isSuperAdmin bool
+			var actualUserID string
 			db := config.GetDB()
 			if db != nil && db.DB != nil {
-				err = db.DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&dbRole, &isSuperAdmin)
+				err := db.DB.QueryRow(
+					"SELECT id, role, COALESCE(is_super_admin, false) FROM users WHERE id = $1",
+					claims.Sub,
+				).Scan(&actualUserID, &dbRole, &isSuperAdmin)
 				if err != nil {
-					fmt.Printf("OptionalAuth: Could not fetch user role for %s: %v\n", claims.Sub, err)
 					dbRole = utils.RoleGuest
+					actualUserID = claims.Sub
 				}
 			} else {
 				dbRole = utils.RoleGuest
+				actualUserID = claims.Sub
 			}
 
-			fmt.Printf("✅ OptionalAuth: Token valid - Role: %s\n", claims.Role)
-
-			// Add claims to context
 			c.Set("user", claims)
-			c.Set("user_id", claims.Sub)
+			c.Set("user_id", actualUserID)
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
 			c.Set("db_role", dbRole)
-			// Set admin_access flag for roles with admin privileges
 			c.Set("has_admin_access", HasAdminAccess(dbRole, isSuperAdmin))
 
 			return next(c)

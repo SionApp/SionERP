@@ -169,10 +169,10 @@ const EventsPage = () => {
           )}
         </div>
 
-        <CardContent className="p-6">
+        <CardContent className="p-3 sm:p-4 md:p-6">
           <div className="space-y-3">
             <div>
-              <h3 className="font-bold text-lg line-clamp-2 group-hover:text-primary transition-colors">
+              <h3 className="font-bold text-base sm:text-lg line-clamp-2 group-hover:text-primary transition-colors">
                 {event.title}
               </h3>
               <p className="text-muted-foreground text-sm line-clamp-2 mt-1">{event.description}</p>
@@ -362,9 +362,9 @@ const EventsPage = () => {
   );
 
   return (
-    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Eventos
@@ -373,7 +373,7 @@ const EventsPage = () => {
             Crea y administra eventos para tu congregación
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} className="w-full lg:w-auto">
+        <Button onClick={() => setIsCreateDialogOpen(true)} className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
           Crear Evento
         </Button>
@@ -490,14 +490,14 @@ const EventsPage = () => {
               <div className="space-y-4">
                 <p className="text-muted-foreground">{selectedEvent.description}</p>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                      <CalendarDays className="w-4 h-4 text-muted-foreground shrink-0" />
                       <span className="text-sm">{formatDate(selectedEvent.date)}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
                       <span className="text-sm">
                         {selectedEvent.time} - {selectedEvent.endTime}
                       </span>
@@ -506,11 +506,11 @@ const EventsPage = () => {
 
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-muted-foreground" />
+                      <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
                       <span className="text-sm">{selectedEvent.location}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-muted-foreground" />
+                      <Users className="w-4 h-4 text-muted-foreground shrink-0" />
                       <span className="text-sm">
                         {selectedEvent.attendees}/{selectedEvent.maxAttendees} asistentes
                       </span>

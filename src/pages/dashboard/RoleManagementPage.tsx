@@ -189,35 +189,35 @@ const RoleManagementPage = () => {
 
     return (
       <Card className="group hover:shadow-lg transition-all duration-300">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
+        <CardContent className="p-3 sm:p-4 md:p-6">
+          <div className="flex items-start justify-between mb-3 sm:mb-4">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <div
-                className={`w-12 h-12 rounded-xl ${role.color.split(' ')[0]}-50 dark:${role.color.split(' ')[2].replace('dark:', '')}950/20 flex items-center justify-center`}
+                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl shrink-0 ${role.color.split(' ')[0]}-50 dark:${role.color.split(' ')[2].replace('dark:', '')}950/20 flex items-center justify-center`}
               >
-                <Icon className="w-6 h-6" />
+                <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div>
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                  {role.name}
+              <div className="min-w-0">
+                <h3 className="font-bold text-base sm:text-lg flex flex-wrap items-center gap-1.5">
+                  <span className="truncate">{role.name}</span>
                   {role.isSystem && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs shrink-0">
                       Sistema
                     </Badge>
                   )}
                 </h3>
-                <p className="text-sm text-muted-foreground line-clamp-2">{role.description}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{role.description}</p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
+          <div className="space-y-2 sm:space-y-3">
+            <div className="flex items-center justify-between text-xs sm:text-sm">
               <span className="text-muted-foreground">Usuarios asignados:</span>
               <span className="font-semibold">{role.users}</span>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-xs sm:text-sm">
               <span className="text-muted-foreground">Permisos activos:</span>
               <span className="font-semibold">{totalPermissions}</span>
             </div>
@@ -229,7 +229,7 @@ const RoleManagementPage = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-2 mt-4 pt-4 border-t">
+          <div className="flex items-center gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
             <Button
               variant="outline"
               size="sm"
@@ -349,9 +349,9 @@ const RoleManagementPage = () => {
   );
 
   return (
-    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 sm:gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Gestión de Roles
@@ -399,7 +399,7 @@ const RoleManagementPage = () => {
             </CardHeader>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
             {systemRoles.map(role => (
               <RoleCard key={role.id} role={role} />
             ))}

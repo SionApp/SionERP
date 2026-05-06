@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { Toaster } from '@/components/ui/toaster';
@@ -17,6 +18,7 @@ import SetupPage from './pages/SetupPage';
 import DashboardHome from './pages/dashboard/DashboardHome';
 import DiscipleshipPage from './pages/dashboard/DiscipleshipPage';
 import EventsPage from './pages/dashboard/EventsPage';
+import { GoalsDashboard } from './pages/dashboard/GoalsDashboard';
 import ModulesManagementPage from './pages/dashboard/ModulesManagementPage';
 import ProfilePage from './pages/dashboard/ProfilePage';
 import RegisterUserPage from './pages/dashboard/RegisterUserPage';
@@ -151,14 +153,15 @@ const AppContent = () => {
               {/* Supervisor+ (supervisor, pastor, admin) */}
               <Route path="reports" element={<ProtectedRoute minRole={ROLE_LEVELS.supervisor} requiredModule="reports" requiredRoleName="Supervisor"><ReportsPage /></ProtectedRoute>} />
 
-              {/* Admin only */}
-              <Route path="settings" element={<ProtectedRoute minRole={ROLE_LEVELS.admin} requiredRoleName="Administrador"><SettingsPage /></ProtectedRoute>} />
-              <Route path="modules" element={<ProtectedRoute minRole={ROLE_LEVELS.admin} requiredRoleName="Administrador"><ModulesManagementPage /></ProtectedRoute>} />
-              <Route path="roles" element={<ProtectedRoute minRole={ROLE_LEVELS.admin} requiredRoleName="Administrador"><RolesPage /></ProtectedRoute>} />
-              <Route path="role-management" element={<ProtectedRoute minRole={ROLE_LEVELS.admin} requiredRoleName="Administrador"><RoleManagementPage /></ProtectedRoute>} />
+              {/* Admin access (pastor or admin — defined by backend has_admin_access flag) */}
+              <Route path="settings" element={<ProtectedRoute requireAdminAccess><SettingsPage /></ProtectedRoute>} />
+              <Route path="modules" element={<ProtectedRoute requireAdminAccess><ModulesManagementPage /></ProtectedRoute>} />
+              <Route path="roles" element={<ProtectedRoute requireAdminAccess><RolesPage /></ProtectedRoute>} />
+              <Route path="role-management" element={<ProtectedRoute requireAdminAccess><RoleManagementPage /></ProtectedRoute>} />
 
               {/* Module-based (member+ but requires module installed) */}
               <Route path="discipleship" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship"><DiscipleshipPage /></ProtectedRoute>} />
+              <Route path="discipleship/goals" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship"><GoalsDashboard /></ProtectedRoute>} />
               <Route path="zones" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="zones"><ZonesPage /></ProtectedRoute>} />
               <Route path="events" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="events"><EventsPage /></ProtectedRoute>} />
             </Route>
@@ -196,4 +199,17 @@ const App = () => {
   );
 };
 
-export default App;
+const SentryWrappedApp = () => (
+  <Sentry.ErrorBoundary fallback={({ error }) => (
+    <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+      <div className="text-center space-y-2">
+        <p className="text-lg font-semibold">Ocurrió un error inesperado</p>
+        <p className="text-sm text-muted-foreground">{String(error)}</p>
+      </div>
+    </div>
+  )}>
+    <App />
+  </Sentry.ErrorBoundary>
+);
+
+export default SentryWrappedApp;

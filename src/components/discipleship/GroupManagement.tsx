@@ -1,3 +1,5 @@
+import { Can } from '@/components/Can';
+import { ROLE_LEVELS } from '@/lib/permissions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -444,20 +446,24 @@ const GroupManagement = () => {
   // Acciones para cada grupo
   const groupActions = (group: DiscipleshipGroup) => (
     <div className="flex justify-end gap-1">
-      <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(group.id)}>
-        <UserCog className="w-4 h-4" />
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(group)}>
-        <Edit className="w-4 h-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => handleDelete(group.id)}
-        className="text-destructive hover:text-destructive"
-      >
-        <Trash2 className="w-4 h-4" />
-      </Button>
+      <Can I={ROLE_LEVELS.supervisor}>
+        <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(group.id)}>
+          <UserCog className="w-4 h-4" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(group)}>
+          <Edit className="w-4 h-4" />
+        </Button>
+      </Can>
+      <Can I={ROLE_LEVELS.staff}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => handleDelete(group.id)}
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </Can>
     </div>
   );
 
@@ -573,6 +579,7 @@ const GroupManagement = () => {
             </CardTitle>
             <CardDescription>Administra los grupos, asigna líderes y supervisores</CardDescription>
           </div>
+          <Can I={ROLE_LEVELS.supervisor}>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => handleOpenDialog()}>
@@ -761,6 +768,7 @@ const GroupManagement = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </Can>
         </div>
       </CardHeader>
 

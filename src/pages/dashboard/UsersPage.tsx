@@ -198,29 +198,29 @@ const UsersPage = () => {
       key: 'first_name',
       label: 'Nombre Completo',
       render: user => (
-        <div>
-          <div className="font-medium">
+        <div className="min-w-0">
+          <div className="font-medium truncate">
             {user.first_name} {user.last_name}
           </div>
-          <div className="text-sm text-muted-foreground">{user.email}</div>
+          <div className="text-muted-foreground truncate">{user.email}</div>
         </div>
       ),
       responsive: 'always',
       sortable: true,
-      width: '250px',
+      width: '28%',
     },
     {
       key: 'id_number',
       label: 'Cédula',
       render: user => (
-        <div className="text-sm">
-          <div>{user.id_number}</div>
-          <div className="text-muted-foreground">{user.phone}</div>
+        <div className="min-w-0">
+          <div className="truncate">{user.id_number}</div>
+          <div className="text-muted-foreground truncate">{user.phone}</div>
         </div>
       ),
       responsive: 'lg',
       sortable: true,
-      width: '150px',
+      width: '11%',
     },
     {
       key: 'role',
@@ -232,37 +232,36 @@ const UsersPage = () => {
       ),
       responsive: 'md',
       sortable: true,
-      width: '120px',
+      width: '9%',
     },
     {
       key: 'address',
       label: 'Dirección',
       render: user => (
-        <div className="text-sm max-w-xs truncate" title={user.address}>
+        <div className="truncate" title={user.address}>
           {user.address}
         </div>
       ),
       responsive: 'xl',
-      width: '200px',
+      width: '12%',
     },
     {
       key: 'created_at',
       label: 'Registrado',
       render: user => (
-        <div className="text-sm">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {new Date(user.created_at).toLocaleDateString()}
-          </div>
+        <div className="flex items-center gap-1 whitespace-nowrap">
+          <Calendar className="h-3 w-3 2xl:h-4 2xl:w-4 shrink-0" />
+          {new Date(user.created_at).toLocaleDateString()}
         </div>
       ),
       responsive: 'lg',
       sortable: true,
-      width: '120px',
+      width: '9%',
     },
     {
       key: 'invitation_status',
       label: 'Estado',
+      width: '15%',
       render: user => {
         const invitation = invitations.find(inv => inv.email === user.email);
 
@@ -315,15 +314,15 @@ const UsersPage = () => {
   ];
 
   const userActions = (user: User) => (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center justify-end gap-1 2xl:gap-2">
       <Button
         variant="outline"
         size="sm"
         onClick={() => handleDetailUser(user)}
         title="Ver detalles"
-        className="h-8 w-8 p-0"
+        className="h-8 w-8 2xl:h-10 2xl:w-10 p-0"
       >
-        <Eye className="h-3 w-3" />
+        <Eye className="h-4 w-4 2xl:h-5 2xl:w-5" />
       </Button>
       <Can I={ROLE_LEVELS.staff}>
         <Button
@@ -331,18 +330,9 @@ const UsersPage = () => {
           size="sm"
           onClick={() => handleEditUser(user)}
           title="Editar usuario"
-          className="h-8 w-8 p-0"
+          className="h-8 w-8 2xl:h-10 2xl:w-10 p-0"
         >
-          <Edit className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleDeleteUser(user)}
-          title="Eliminar usuario"
-          className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 className="h-3 w-3" />
+          <Edit className="h-4 w-4 2xl:h-5 2xl:w-5" />
         </Button>
         {user.invitation_status !== 'accepted' && (
           <Button
@@ -350,56 +340,63 @@ const UsersPage = () => {
             size="sm"
             onClick={() => setShowInviteModalUser(user)}
             title="Invitar usuario"
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 2xl:h-10 2xl:w-10 p-0"
           >
-            <Mail className="h-3 w-3" />
+            <Mail className="h-4 w-4 2xl:h-5 2xl:w-5" />
           </Button>
         )}
+      </Can>
+      <Can I={ROLE_LEVELS.pastor}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleDeleteUser(user)}
+          title="Eliminar usuario"
+          className="h-8 w-8 2xl:h-10 2xl:w-10 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-4 w-4 2xl:h-5 2xl:w-5" />
+        </Button>
       </Can>
     </div>
   );
 
   const mobileCardRender = (user: User, actions?: React.ReactNode) => (
-    <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors space-y-3">
-      <div className="flex justify-between items-start">
+    <div className="p-3 sm:p-4 border rounded-xl hover:bg-accent/50 transition-colors space-y-3 bg-card">
+      {/* Name + role */}
+      <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-base truncate">
+          <h3 className="font-semibold text-sm sm:text-base truncate leading-tight">
             {user.first_name} {user.last_name}
           </h3>
-          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">{user.email}</p>
         </div>
-        <div className="flex flex-col gap-1 ml-2">
-          <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
-            {getRoleDisplayName(user.role)}
-          </Badge>
+        <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs shrink-0">
+          {getRoleDisplayName(user.role)}
+        </Badge>
+      </div>
+
+      {/* Cédula + Teléfono */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        <div className="min-w-0">
+          <p className="text-muted-foreground leading-none mb-0.5">Cédula</p>
+          <p className="font-medium truncate">{user.id_number || '—'}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-muted-foreground leading-none mb-0.5">Teléfono</p>
+          <p className="font-medium truncate">{user.phone || '—'}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
-        <div className="min-w-0">
-          <span className="text-muted-foreground">Cédula:</span>
-          <p className="font-medium truncate">{user.id_number}</p>
+      {/* Footer: date + actions */}
+      <div className="flex items-center justify-between gap-2 pt-2 border-t">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+          <Calendar className="h-3 w-3 shrink-0" />
+          <span className="truncate">{new Date(user.created_at).toLocaleDateString()}</span>
+          {user.whatsapp && (
+            <span className="text-green-500 font-medium shrink-0">· WA</span>
+          )}
         </div>
-        <div className="min-w-0">
-          <span className="text-muted-foreground">Teléfono:</span>
-          <p className="font-medium truncate">{user.phone}</p>
-        </div>
-      </div>
-
-      {user.whatsapp && (
-        <div className="flex justify-start">
-          <Badge variant="outline" className="text-xs">
-            📱 WhatsApp
-          </Badge>
-        </div>
-      )}
-
-      <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t">
-        <div className="text-xs text-muted-foreground min-w-0">
-          <span>Registrado: </span>
-          <span className="font-medium">{new Date(user.created_at).toLocaleDateString()}</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-1">{actions}</div>
+        <div className="flex items-center gap-1.5 shrink-0">{actions}</div>
       </div>
     </div>
   );
@@ -430,12 +427,12 @@ const UsersPage = () => {
         onClear={() => setFilters({})}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Usuarios ({filteredUsers.length})</CardTitle>
-          <CardDescription>Lista de todos los usuarios registrados</CardDescription>
+      <Card className="max-w-[1400px] 2xl:max-w-[1800px] mx-auto">
+        <CardHeader className="pb-2 sm:pb-4 px-3 sm:px-6">
+          <CardTitle className="text-base sm:text-xl">Usuarios ({filteredUsers.length})</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Lista de todos los usuarios registrados</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 sm:px-6">
           <DataTable
             data={filteredUsers.map(
               user =>

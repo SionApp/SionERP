@@ -1,8 +1,8 @@
 # Manual de Usuario — SionERP
 
-**Versión**: 1.2  
-**Fecha**: 18 de Abril de 2026  
-**Última actualización**: Agregada sección 8.7 - Sistema de Zonas y Grupos  
+**Versión**: 2.0
+**Fecha**: Mayo 2026
+**Última actualización**: Alertas automáticas, fases de grupo, objetivos estratégicos, nuevo sistema de reportes
 **Sistema**: SionERP — Sistema de Gestión Cristiana
 
 ---
@@ -11,22 +11,36 @@
 
 ### 1.1 ¿Qué es SionERP?
 
-SionERP es un sistema diseñado para ayudar a la gestión de una iglesia cristiana. Permite:
+SionERP es un sistema diseñado para gestionar integralmente una iglesia cristiana. Permite:
 
-- **Gestionar miembros** y usuarios del sistema
-- **Administrar el discipulado** estructura de células con 5 niveles de liderazgo
+- **Gestionar miembros** y usuarios con roles definidos
+- **Administrar el discipulado** con estructura jerárquica de 5 niveles (células)
 - **Controlar zonas** geográficas y los grupos en cada zona
-- **Generar reportes** semanales, quincenales, mensuales y trimestrales
-- **Ver métricas** y analytics del ministerio
+- **Registrar reportes** semanales, quincenales, mensuales y trimestrales
+- **Ver métricas y analytics** del ministerio en tiempo real
+- **Gestionar objetivos** estratégicos con seguimiento de progreso
+- **Recibir alertas** automáticas sobre grupos que necesitan atención o que merecen celebración
 
-### 1.2 ¿A quién va dirigido?
+### 1.2 ¿Se puede usar desde el celular?
 
-- **Pastores**: Vista ejecutiva de todo el ministerio
-- **Coordinadores**: Estrategia general y visión zonal
-- **Supervisores Generales**: Gestión de zona completa
-- **Supervisores Auxiliares**: Supervisión de grupos pequeños
-- **Líderes**: Gestión de célula de discipulado
-- **Administradores**: Gestión de usuarios y configuración del sistema
+**Sí.** SionERP es una PWA (Progressive Web App). Podés instalarlo en tu celular como una app nativa:
+
+- **Android**: Chrome → Menú → "Instalar aplicación"
+- **iPhone**: Safari → Compartir → "Agregar a pantalla de inicio"
+
+La navegación en móvil tiene barra inferior con los accesos rápidos.
+
+### 1.3 ¿A quién va dirigido?
+
+| Perfil | Uso principal |
+|--------|--------------|
+| **Pastor** | Vista ejecutiva de todo el ministerio |
+| **Coordinador** | Estrategia general y objetivos |
+| **Supervisor General** | Gestión de zona completa |
+| **Supervisor Auxiliar** | Supervisión de 3-5 grupos |
+| **Líder** | Gestión de su célula semanal |
+| **Administrador (Admin)** | Setup inicial y gestión de módulos |
+| **Staff** | Soporte y administración de usuarios |
 
 ---
 
@@ -34,27 +48,37 @@ SionERP es un sistema diseñado para ayudar a la gestión de una iglesia cristia
 
 ### 2.1 Requisitos
 
-- Navegador web moderno (Chrome, Firefox, Edge, Safari)
-- Cuenta de usuario creada por un administrador
+- Navegador web moderno (Chrome, Firefox, Edge, Safari) o app instalada
+- Cuenta de usuario creada por un administrador o pastor
 - Conexión a internet
 
 ### 2.2 Iniciar Sesión
 
 1. Ir a la URL del sistema
-2. Ingresar correo electrónico
-3. Ingresar contraseña
-4. Click en "Iniciar sesión"
+2. Ingresar correo electrónico y contraseña
+3. Click en "Iniciar sesión"
+
+Al ingresar, el sistema te redirige automáticamente al dashboard correspondiente a tu nivel.
 
 ### 2.3 Roles y Permisos
 
-| Rol                     | Permisos                                        |
-| ----------------------- | ----------------------------------------------- |
-| **Pastor**              | Acceso total a todo el sistema                  |
-| **Coordinador**         | Vista estratégica, reportes trimestrales        |
-| **Supervisor General**  | Gestión de zona, reportes mensuales             |
-| **Supervisor Auxiliar** | Supervisión de 3-5 grupos, reportes quincenales |
-| **Líder**               | Gestión de su grupo, reporte semanal            |
-| **Admin**               | Gestión de usuarios y configuración             |
+El sistema usa **Control de Acceso Basado en Roles (RBAC)**:
+
+| Rol | Nivel | Permisos |
+|-----|-------|---------|
+| **Admin** | 500 | Setup del sistema, gestión de módulos |
+| **Pastor** | 400 | Acceso total al sistema y todos los módulos |
+| **Staff** | 300 | Gestión de usuarios, invitaciones, configuración |
+| **Supervisor** | 200 | Gestión de grupos, zonas, reportes |
+| **Server** | 100 | Acceso básico según módulo asignado |
+| **Member** | 0 | Solo su perfil y datos básicos |
+
+> **Importante**: El **rol** (admin/pastor/staff...) es independiente del **nivel de discipulado** (Líder/Supervisor/Coordinador/Pastoral). Un miembro puede ser Líder de Grupo sin tener rol de staff.
+
+**Restricciones visibles**:
+- Las páginas muestran solo las opciones que el usuario puede usar.
+- Los botones de crear/editar/eliminar aparecen solo si tenés el nivel correcto.
+- El menú lateral se adapta a tu rol y los módulos instalados.
 
 ---
 
@@ -62,375 +86,360 @@ SionERP es un sistema diseñado para ayudar a la gestión de una iglesia cristia
 
 ### 3.1 Pastor — Dashboard Ejecutivo
 
-El Pastor tiene acceso a:
+Acceso completo a todo el sistema. Su dashboard muestra:
 
-- **Vista general del ministry**: Métricas consolidadas de todos los grupos
-- **Alertas**: Necesidades que requieren atención pastoral
-- **Reportes**: Aprobación de reportes especiales
-- **Estadísticas**: Crecimiento, retención, conversiones
+| Tab | Contenido |
+|-----|-----------|
+| **Vista General** | Gráficas de tendencias, distribución por zonas, KPIs globales |
+| **Estratégico** | Objetivos activos con barras de progreso |
+| **Aprobaciones** | Reportes enviados que esperan aprobación |
+| **Alertas** | Alertas activas (críticas y de celebración) |
+| **Salud del Sistema** | Asistencia promedio, salud espiritual, liderazgo, multiplicaciones |
 
-**¿Cómo acceder?**:
-
-1. Loguearse con cuenta de pastor
-2. Ir a "Dashboard" → Se muestra automáticamente
+**Acceso**: Loguearse → ir a "Discipulado" → Dashboard aparece automáticamente.
 
 ---
 
 ### 3.2 Coordinador — Dashboard Estratégico
 
-El Coordinador tiene acceso a:
-
-- **Vista de zona(s)** asignada(s)
-- **Reportes trimestrales**: Consolidación de métricas
-- **Análisis de tendencias**: Crecimiento y desarrollo
-- **Planificación**: Metas anuales
-
-**¿Cómo acceder?**:
-
-1. Loguearse con cuenta de coordinador
-2. Ir a "Dashboard"
+| Tab | Contenido |
+|-----|-----------|
+| **Resumen** | KPIs de sus zonas |
+| **Supervisores** | Lista de supervisores a cargo |
+| **Objetivos** | Gestión de objetivos estratégicos |
+| **Reportes** | Reportes pendientes de revisión |
 
 ---
 
 ### 3.3 Supervisor General — Dashboard Zonal
 
-El Supervisor General tiene acceso a:
-
-- **Gestión de zona**: Todos los grupos en su zona
-- **Reportes mensuales**: Consolidación zonal
-- **Multiplicación**: Identificación de grupos listos para multiplicar
-- **Desarrollo de líderes**: Capacitación y soporte
-
-**¿Cómo acceder?**:
-
-1. Loguearse con cuenta de supervisor general
-2. Ir a "Dashboard"
+- Vista consolidada de todos los grupos en su zona
+- Reportes mensuales de sus supervisores auxiliares
+- Identificación de grupos que necesitan atención
 
 ---
 
 ### 3.4 Supervisor Auxiliar — Dashboard de Supervisión
 
-El Supervisor Auxiliar tiene acceso a:
-
-- **Supervisión de 3-5 grupos** asignados
-- **Reportes quincenales**: Consolidación de grupos
-- **Atención a grupos**: Identificar grupos que necesitan soporte
-- **Desarrollo de líderes**: Identificar nuevos líderes
-
-**¿Cómo acceder?**:
-
-1. Loguearse con cuenta de supervisor auxiliar
-2. Ir a "Dashboard"
+- Supervisión de 3-5 grupos asignados
+- Reportes quincenales
+- Alertas de grupos bajo su cargo
 
 ---
 
 ### 3.5 Líder — Dashboard de Grupo
 
-El Líder tiene acceso a:
-
-- **Su grupo de discipulado**: Lista de miembros
-- **Reporte semanal**: Registrar asistencia, visitantes, etc.
-- **Seguimiento**: Contactar nuevos visitantes
-- **Notas**: Registrar observaciones
-
-**¿Cómo acceder?**:
-
-1. Loguearse con cuenta de líder
-2. Ir a "Dashboard"
+- Su grupo de discipulado con lista de miembros
+- Formulario de reporte semanal
+- Historial de asistencia
 
 ---
 
-## 4. Guía de Uso por Función
+## 4. Módulo de Discipulado — Guía Completa
 
-### 4.1 Registrar Reporte Semanal (Líder)
-
-**Paso 1**: Ir al Dashboard
-**Paso 2**: Buscar el formulario de "Reporte Semanal"
-**Paso 3**: Llenar los campos:
-
-- Asistencia (miembros, visitantes nuevos, visitantes que regresan)
-- Testimonios registrados
-- Peticiones de oración
-- Temperatura espiritual del grupo (1-10)
-- Notas del líder
-  **Paso 4**: Click en "Enviar"
-
-El reporte se envía al Supervisor Auxiliar automáticamente.
-
----
-
-### 4.2 Revisar Reportes (Supervisor Auxiliar)
-
-**Paso 1**: Ir a "Discipulado" → "Reportes"
-**Paso 2**: Ver lista de reportes de los líderes bajo su supervisión
-**Paso 3**: Revisar detalle del reporte
-**Paso 4**: Aprobar o rechazar con comentarios
-
----
-
-### 4.3 Gestionar Zonas (Administrador)
-
-**Paso 1**: Ir a "Zonas"
-**Paso 2**: Ver lista de zonas existentes
-**Paso 3**: Para agregar zona:
-
-- Click en "Nueva Zona"
-- Ingresar nombre, descripción, color
-- Asignar supervisor
-  **Paso 4**: Guardar
-
----
-
-### 4.4 Gestionar Grupos (Administrador/Líder)
-
-**Paso 1**: Ir a "Discipulado" → "Grupos"
-**Paso 2**: Ver lista de grupos
-**Paso 3**: Para agregar grupo:
-
-- Click en "Nuevo Grupo"
-- Ingresar nombre, líder asignado, ubicación, día y hora de reunión
-  **Paso 4**: Guardar
-
----
-
-### 4.5 Gestionar Usuarios (Administrador)
-
-**Paso 1**: Ir a "Usuarios"
-**Paso 2**: Ver lista de usuarios
-**Paso 3**: Para agregar usuario:
-
-- Click en "Invitar Usuario"
-- Ingresar correo, nombre, rol
-- El sistema envía invitación por correo
-  **Paso 4**: El usuario recibe correo y crea su cuenta
-
----
-
-### 4.6 Configurar Sistema (Administrador)
-
-**Paso 1**: Ir a "Configuración"
-**Paso 2**: Editar:
-
-- Información de la iglesia
-- Configuración de módulos (activar/desactivar)
-- Notificaciones
-  **Paso 3**: Guardar cambios
-
----
-
-## 5. Estructura del Sistema
-
-### 5.1 Jerarquía de Discipulado
+### 4.1 Jerarquía
 
 ```
 Pastor (Nivel 5)
-   ↓
+    ↓
 Coordinador (Nivel 4)
-   ↓
+    ↓
 Supervisor General (Nivel 3)
-   ↓
+    ↓
 Supervisor Auxiliar (Nivel 2)
-   ↓
+    ↓
 Líder de Grupo (Nivel 1)
 ```
 
-### 5.2 Flujo de Reportes
+### 4.2 Registrar Reporte Semanal (Líder)
 
-1. **Líder** → Reporte Semanal
-2. **Supervisor Auxiliar** → Reporte Quincenal (consolida grupos)
-3. **Supervisor General** → Reporte Mensual (consolida zona)
-4. **Coordinador** → Reporte Trimestral (consolida región)
-5. **Pastor** → Dashboard Ejecutivo (vista total)
+El reporte semanal tiene **4 secciones**:
+
+**Sección 1 — Asistencia de la Reunión**
+- Asistencia Nuevos Discípulos (ND)
+- Asistencia Discípulos Maduros (DM)
+- Invitados/Amigos
+- Niños
+
+**Sección 2 — Actividad del Grupo**
+- Grupos de discipulado realizados
+- Salidas de evangelismo
+- Seguimiento a discípulos nuevos (líder)
+- Seguimiento a discípulos maduros (líder)
+
+**Sección 3 — Compromiso del Líder**
+- Días de diario espiritual
+- Evangelismo personal
+- Asistencia al servicio dominical ✓/✗
+- Asistencia a oración ✓/✗
+- Asistencia a doctrina ✓/✗
+
+**Sección 4 — Estado del Grupo**
+- ¿Está el grupo en proceso de multiplicación? (checkbox)
+
+**Pasos**:
+1. Dashboard → "Enviar Reporte"
+2. Completar las 4 secciones
+3. Click en "Enviar"
+
+El sistema calcula automáticamente la **salud espiritual del grupo** con estos 13 datos (más activos = mayor salud).
 
 ---
 
-## 6. Glosario
+### 4.3 Fases de un Grupo
 
-| Término                    | Significado                                            |
-| -------------------------- | ------------------------------------------------------ |
-| **Discipulado**            | Sistema de formación de nuevos cristianos en células   |
-| **Célula/Grupo**           | Grupo pequeño de discipulado que se reúne semanalmente |
-| **Jerarquía**              | Estructura de liderazgo de 5 niveles                   |
-| **Zona**                   | División geográfica para organizar grupos              |
-| **Multiplicación**         | Proceso de dividir un grupo cuando crece demasiado     |
-| **Temperatura espiritual** | Indicador 1-10 de la salud del grupo                   |
+Cada grupo tiene una fase calculada automáticamente según su historial de reportes:
+
+| Fase | Icono | Criterio |
+|------|-------|---------|
+| **Germinando** | 🌱 | Menos de 4 reportes totales |
+| **Creciendo** | 🌿 | 4 o más reportes totales |
+| **Sólido** | 💎 | 24+ reportes, 12+ con alta salud espiritual |
+| **Multiplicando** | 🔥 | Marcado "en multiplicación" en 2+ reportes recientes |
+| **Necesita apoyo** | ⚠️ | Tiene alertas críticas activas sin resolver |
+
+La fase se muestra como badge de color en la lista de grupos.
 
 ---
 
-## 7. Preguntas Frecuentes
+### 4.4 Sistema de Alertas
+
+Las alertas se generan automáticamente para notificar situaciones importantes:
+
+**Alertas Críticas** (requieren acción pastoral):
+
+| Tipo | Cuándo se genera |
+|------|-----------------|
+| 📋 Sin Reportes | El grupo no envió reportes en 2 semanas |
+| 📉 Asistencia Baja | Asistencia promedio < 50% por 4 semanas |
+| ⬇️ Declive Espiritual | Salud espiritual < 5 por 4 semanas consecutivas |
+| 🔄 Sin Crecimiento | Sin métricas de crecimiento en el período |
+
+**Alertas de Celebración** (buenas noticias):
+
+| Tipo | Cuándo se genera |
+|------|-----------------|
+| 🏆 Hito de Consistencia | Racha sostenida de reportes regulares |
+| ⭐ Campeón de Evangelismo | Destacado en métricas de evangelismo |
+| 💪 Grupo Sólido | Grupo clasificado como sólido |
+
+**Cómo resolver una alerta**:
+1. Dashboard Pastoral → Tab "Alertas"
+2. Click en la alerta
+3. Revisar detalles (grupo, zona, mensaje)
+4. Click en "Resolver"
+
+Las alertas de celebración se muestran con badge verde y ícono 🎉.
+
+---
+
+### 4.5 Objetivos Estratégicos
+
+Los objetivos permiten establecer metas concretas y seguir su progreso:
+
+**Tipos de objetivo**:
+- **Asistencia**: Meta de asistencia promedio
+- **Crecimiento**: Nuevos miembros o conversiones
+- **Multiplicación**: Grupos que se multiplican
+- **Espiritual**: Temperatura espiritual promedio
+
+**Prioridades**: Alta (rojo), Media (naranja), Baja (amarillo)
+
+**Estados**:
+- **Activo**: En curso
+- **Completado**: Meta alcanzada
+- **Extendido**: Se amplió el plazo
+- **Cerrado**: Cerrado sin completar
+
+**Barra de progreso por color**:
+- 🟢 Verde: > 75% completado
+- 🔵 Azul: 50-75%
+- 🟡 Amarillo: 25-50%
+- 🔴 Rojo: < 25%
+
+**Acciones disponibles**:
+- **Extender plazo**: Si el objetivo necesita más tiempo
+- **Cerrar incompleto**: Si se decide no continuar
+- **Auto-actualizar progreso**: Calcula progreso automáticamente desde los datos del sistema
+
+---
+
+### 4.6 Gestionar Grupos
+
+**Crear grupo** (Supervisor o superior):
+1. Discipulado → "Grupos"
+2. Click en "Nuevo Grupo"
+3. Completar: nombre, líder asignado, zona, día y hora de reunión
+4. Guardar
+
+**Fases visibles** en la lista: Cada grupo muestra su fase (🌱🌿💎🔥⚠️).
+
+**Agregar miembros** a un grupo:
+1. Click en el grupo → "Ver Miembros"
+2. Click en "Agregar Miembro"
+3. Seleccionar usuario del sistema
+
+---
+
+### 4.7 Gestionar Jerarquía
+
+**Asignar un usuario a la jerarquía**:
+1. Discipulado → "Jerarquía"
+2. Seleccionar usuario
+3. Asignar nivel (1-5) y supervisor directo
+4. Guardar
+
+> Esto es diferente al rol del sistema (admin/pastor/staff). La jerarquía define el nivel dentro del módulo de discipulado.
+
+---
+
+### 4.8 Flujo de Reportes por Nivel
+
+| Nivel | Tipo de reporte | Frecuencia | Aprueba |
+|-------|----------------|-----------|---------|
+| Líder (1) | Reporte de grupo | Semanal | Sup. Auxiliar |
+| Sup. Auxiliar (2) | Consolidación de grupos | Quincenal | Sup. General |
+| Sup. General (3) | Consolidación de zona | Mensual | Coordinador |
+| Coordinador (4) | Consolidación regional | Trimestral | Pastor |
+| Pastor (5) | Dashboard ejecutivo | Siempre disponible | — |
+
+---
+
+## 5. Módulo de Zonas
+
+### 5.1 ¿Qué es una zona?
+
+Una zona es una **división geográfica** que agrupa grupos de discipulado. Permite visualizar la distribución del ministerio en un mapa.
+
+### 5.2 Crear zona (Staff o superior)
+
+1. Discipulado → "Zonas"
+2. Click en "Nueva Zona"
+3. Completar: nombre, descripción, color identificador
+4. Guardar
+
+### 5.3 Estados de los Grupos
+
+| Estado | Descripción | Cuenta para estadísticas |
+|--------|------------|------------------------|
+| **Activo** | Funcionamiento regular | ✅ Sí |
+| **Inactivo** | Suspendido temporalmente | ❌ No |
+| **Multiplicando** | En proceso de división | ✅ Sí |
+
+> Una zona aparece como "activa" solo si tiene al menos un grupo activo.
+
+### 5.4 Ver Mapa de Zonas
+
+1. Discipulado → "Zonas" → "Ver Mapa"
+2. El mapa (Leaflet) muestra grupos por zona con sus coordenadas
+
+---
+
+## 6. Gestión de Usuarios
+
+### 6.1 Crear Usuario (Staff o superior)
+
+**Opción A — Creación directa** (tiene acceso inmediato):
+1. "Usuarios" → "Nuevo Usuario"
+2. Ingresar: nombre, correo, contraseña, rol
+3. Click en "Crear"
+
+**Opción B — Invitación por correo**:
+1. "Usuarios" → "Invitar Usuario"
+2. Ingresar correo y rol
+3. El usuario recibe un correo con link de acceso
+
+### 6.2 Editar Usuario
+
+1. "Usuarios" → buscar usuario
+2. Click en "Editar"
+3. Modificar datos y guardar
+
+> Solo staff y superior pueden editar usuarios. Un usuario siempre puede editar su propio perfil desde "Mi Perfil".
+
+### 6.3 Perfil Personal
+
+1. Menú → "Mi Perfil"
+2. Editar nombre, foto, información de contacto
+3. Guardar
+
+---
+
+## 7. Configuración del Sistema (Pastor / Admin)
+
+### 7.1 Información de la Iglesia
+
+1. "Configuración" → "Información de la Iglesia"
+2. Editar: nombre, dirección, teléfono, correo
+3. Guardar
+
+### 7.2 Gestión de Módulos (Solo Admin)
+
+Los módulos permiten activar o desactivar funcionalidades:
+
+| Módulo | Qué habilita |
+|--------|-------------|
+| **Discipulado** | Grupos, jerarquía, reportes, alertas, objetivos |
+| **Zonas** | Gestión geográfica y mapa |
+| **Eventos** | Calendario de eventos (próximamente) |
+| **Reportes** | Módulo de reportes avanzados (próximamente) |
+
+Para activar/desactivar: "Gestión de Módulos" → Toggle del módulo.
+
+---
+
+## 8. Preguntas Frecuentes
 
 ### ¿Olvidé mi contraseña?
 
-Contactar al administrador del sistema para recuperar acceso.
+Contactar al pastor o administrador del sistema para restablecer el acceso.
 
-### ¿No puedo acceder a cierta función?
+### ¿No puedo ver cierta función o página?
 
-Verificar que el rol tenga permisos para esa función. Contactar al administrador.
+El sistema oculta funciones según tu rol. Si creés que necesitás acceso a algo, contactar a tu pastor o administrador.
 
-### ¿El reporte no se enviará?
+### ¿El reporte no se envía?
 
-Verificar conexión a internet y que todos los campos obligatorios estén llenos.
+Verificar que todos los campos numéricos estén completos. La conexión a internet debe estar activa.
 
-### ¿Cómo cambio mi información de perfil?
+### ¿Por qué el grupo no muestra datos en el dashboard?
 
-Ir a "Mi Perfil" y editar información.
+El dashboard se alimenta de los reportes semanales. Si el líder no envió reportes aún, los indicadores mostrarán cero. Enviar al menos 1 reporte para ver datos.
 
----
+### ¿Qué significa "Temperatura Espiritual"?
 
-## 8. Módulo de Discipulado — Flujo Completo
+Es un indicador calculado automáticamente a partir de las 13 métricas del reporte semanal. No es un número que el líder ingresa — el sistema lo calcula según la actividad real reportada. Un grupo con todas sus métricas activas tiene temperatura 13/13 (máxima).
 
-### 8.1 Estructura Jerárquica
+### ¿Qué son las alertas de "Celebración"?
 
-El módulo de discipulado tiene **5 niveles** de liderazgo:
-
-| Nivel | Rol                 | Descripción                         |
-| ----- | ------------------- | ----------------------------------- |
-| **5** | Pastor              | Vista ejecutiva de todo el ministry |
-| **4** | Coordinador         | Estrategia general                  |
-| **3** | Supervisor General  | Gestión de zona                     |
-| **2** | Supervisor Auxiliar | Supervisión de 3-5 grupos           |
-| **1** | Líder de Grupo      | Gestión de célula                   |
-
-### 8.2 Flujo de Datos
-
-```
-Usuarios → Jerarquía → Grupos → Métricas → Reportes → Analytics
-                            ↓
-                      Objetivos → Alertas
-```
-
-### 8.3 Tablas del Módulo
-
-| Tabla                    | Descripción                                 | Estado              |
-| ------------------------ | ------------------------------------------- | ------------------- |
-| `discipleship_hierarchy` | Define la estructura jerárquica de usuarios | ✅ Datos existentes |
-| `discipleship_groups`    | Grupos/células de discipulado               | ✅ Datos existentes |
-| `discipleship_metrics`   | Métricas semanales de cada grupo            | ✅ Datos populados  |
-| `discipleship_goals`     | Objetivos estratégicos                      | ✅ Datos populados  |
-| `discipleship_reports`   | Reportes por nivel                          | ✅ Datos populados  |
-| `discipleship_alerts`    | Alertas del sistema                         | ✅ Datos populados  |
-
-### 8.4 Dashboard Pastoral — 5 Tabs
-
-El dashboard del Pastor (nivel 5) tiene 5 pestañas:
-
-| Tab                   | Muestra                | Fuente de Datos                            |
-| --------------------- | ---------------------- | ------------------------------------------ |
-| **Vista General**     | Gráficas de tendencias | Métricas de las últimas semanas            |
-| **Estratégico**       | Barras de progreso     | Objetivos activos                          |
-| **Aprobaciones**      | Reports pendientes     | Reportes con status "submitted"            |
-| **Alertas**           | Alertas activas        | alertas con resolved=false                 |
-| **Salud del Sistema** | Métricas combinadas    | Stats de grupos, líderes, multiplicaciones |
-
-### 8.5 Cómo Usar Cada Tab
-
-#### Vista General
-
-- Muestra tendencias de las últimas 24 semanas
-- Gráfico de Línea: Asistencia vs Grupos vs Conversiones
-- Gráfico de Barras: Distribución por zonas
-- Indicadores clave: Asistencia %, Líderes activos, Multiplicaciones, Zonas
-
-#### Estratégico (Objetivos)
-
-- Cada objetivo muestra una barra de progreso
-- El color indica el estado:
-  - **Verde**: Completado (>75%)
-  - **Azul**: En progreso (50-75%)
-  - **Amarillo**:>Iniciando (25-50%)
-  - **Rojo**: Crítico (<25%)
-
-#### Aprobaciones
-
-- Lista de reportes enviados por subordinados
-- Click en "Aprobar" → cambia status a "approved"
-- Click en "Ver" → ver detalle del reporte
-
-#### Alertas
-
-- Por prioridad:
-  - **Rojo (1)**: Alta - requiere acción inmediata
-  - **Naranja (2)**: Media - revisar pronto
-  - **Amarillo (3)**: Baja - informational
-  - **Verde (4)**: Success - buenas noticias
-- Click en "Resolver" → marca como resuelta
-
-#### Salud del Sistema
-
-- Asistencia promedio (%)
-- Salud espiritual (1-10)
-- Cobertura de liderazgo (líderes/grupos)
-- Resumen: Total zonas, grupos, líderes, multiplicaciones
-
-### 8.6 Verificación de Datos
-
-Si las gráficas no muestran información, verificar que existan datos:
-
-```sql
--- En SQL Editor de Supabase
-SELECT COUNT(*) FROM discipleship_metrics;
-SELECT COUNT(*) FROM discipleship_goals;
-SELECT COUNT(*) FROM discipleship_reports WHERE status = 'submitted';
-SELECT COUNT(*) FROM discipleship_alerts WHERE resolved = false;
-```
-
-### 8.7 Sistema de Zonas y Grupos
-
-#### 8.7.1 Estados de los Grupos
-
-Cada grupo tiene un **estado** que determina su comportamiento:
-
-| Estado            | Descripción                               | Cuenta para Zona Activa |
-| ----------------- | ----------------------------------------- | ----------------------- |
-| **Activo**        | Grupo en funcionamiento regular           | ✅ Sí                   |
-| **Inactivo**      | Grupo sin reunión o cerrado temporalmente | ❌ No                   |
-| **Multiplicando** | Grupo en proceso de división              | ✅ Sí                   |
-
-#### 8.7.2 Zonas Activas
-
-Una **zona se considera activa** automáticamente cuando:
-
-- Tiene al menos **1 grupo con estado = 'active'**
-- Si todos sus grupos están 'inactivos', la zona no aparece en las estadísticas
-
-#### 8.7.3 Cómo Cambiar el Estado de un Grupo
-
-1. Ir a **Discipulado → Grupos**
-2. **Crear** un nuevo grupo o **Editar** uno existente
-3. En el formulario, buscar el campo **Estado**
-4. Seleccionar: **Activo** | **Inactivo** | **Multiplicando**
-5. **Guardar**
-
-El cambio es inmediato y afecta:
-
-- Las gráficas de distribución por zonas
-- El conteo de grupos activos
-- Las métricas del dashboard
-
-#### 8.7.4 Ejemplo Práctico
-
-```
-Zona Norte tiene:
-- Grupo A (Activo) → cuenta ✅
-- Grupo B (Inactivo) → no cuenta ❌
-→ Zona Norte = Activa (tiene 1 grupo activo)
-
-Zona Sur tiene:
-- Grupo C (Inactivo) → no cuenta ❌
-- Grupo D (Inactivo) → no cuenta ❌
-→ Zona Sur = No aparece (sin grupos activos)
-```
+Son notificaciones positivas que el sistema genera automáticamente cuando un grupo alcanza hitos importantes: consistencia en reportes, logros en evangelismo, o clasificación como grupo sólido. Aparecen con badge verde y ícono 🎉 en el dashboard.
 
 ---
 
-## 9. Contacto y Soporte
+## 9. Glosario
 
-Para asistencia técnica:
-
-- **Administrador del sistema**: [Nombre]
-- **Correo**: [Email]
-- **Teléfono**: [Teléfono]
+| Término | Significado |
+|---------|------------|
+| **Discipulado** | Sistema de formación de nuevos cristianos en grupos pequeños (células) |
+| **Célula / Grupo** | Grupo pequeño que se reúne semanalmente para crecer espiritualmente |
+| **Jerarquía** | Estructura de liderazgo de 5 niveles del módulo discipulado |
+| **Zona** | División geográfica para organizar grupos |
+| **Multiplicación** | Proceso de dividir un grupo cuando crece y está listo |
+| **Temperatura Espiritual** | Indicador calculado de la salud del grupo (suma de 13 métricas activas) |
+| **Fase de Grupo** | Estado calculado: Germinando → Creciendo → Sólido → Multiplicando |
+| **RBAC** | Control de acceso basado en roles (Role-Based Access Control) |
+| **PWA** | App web instalable en el celular como si fuera nativa |
+| **isFullAccess** | Flag que tienen pastores y staff para ver todo el sistema |
 
 ---
 
-_Manual creado para参考 del personal operativo. Actualizar conforme el sistema evolucione._
+## 10. Contacto y Soporte
+
+Para asistencia técnica o problemas de acceso:
+
+- **Administrador del sistema**: Pastor Daniel Rodríguez
+- **Correo**: pastor@sionerp.local
+
+---
+
+_Manual actualizado en Mayo 2026. Incluye: sistema de alertas automáticas, fases de grupo, objetivos estratégicos, nuevo sistema de reportes JSONB y PWA._

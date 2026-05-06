@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   Calendar,
   ChevronDown,
-  ChevronUp,
   Shield,
   Target,
   UserPlus,
@@ -98,19 +97,22 @@ const CollapsibleSection = ({
         <span className="text-primary">{icon}</span>
         <h2 className="text-lg md:text-xl font-bold">{title}</h2>
       </div>
-      {isOpen ? (
-        <ChevronUp className="h-5 w-5 text-muted-foreground" />
-      ) : (
-        <ChevronDown className="h-5 w-5 text-muted-foreground" />
-      )}
+      <ChevronDown
+        className={cn(
+          'h-5 w-5 text-muted-foreground transition-transform duration-300',
+          isOpen && 'rotate-180'
+        )}
+      />
     </button>
     <div
       className={cn(
-        'transition-all duration-300 overflow-hidden',
-        isOpen ? 'max-h-[9999px] opacity-100' : 'max-h-0 opacity-0'
+        'grid transition-all duration-300 ease-in-out',
+        isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
       )}
     >
-      <div className="p-4 md:p-6 pt-0">{children}</div>
+      <div className="overflow-hidden">
+        <div className="p-4 md:p-6 pt-0">{children}</div>
+      </div>
     </div>
   </Card>
 );
@@ -298,7 +300,7 @@ const DashboardHome = () => {
                     moderador: { label: 'Moderador', color: 'hsl(266 85% 68%)' },
                     usuario: { label: 'Usuario', color: 'hsl(295 85% 58%)' },
                   }}
-                  className="h-[180px] sm:h-[200px] lg:h-[250px] w-full"
+                  className="h-[220px] lg:h-[250px] w-full"
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -306,8 +308,8 @@ const DashboardHome = () => {
                         data={roleDistribution}
                         cx="50%"
                         cy="50%"
-                        innerRadius={30}
-                        outerRadius={60}
+                        innerRadius={45}
+                        outerRadius={80}
                         paddingAngle={5}
                         dataKey="value"
                       >
@@ -327,50 +329,51 @@ const DashboardHome = () => {
             {currentUserRole && ['admin', 'pastor', 'staff'].includes(currentUserRole) && (
               <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
                 <CardHeader className="p-3 sm:p-4 lg:p-6">
-<CardTitle className="text-lg lg:text-xl font-bold flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  Actividades Recientes
-                </CardTitle>
-                <CardDescription>Registro del sistema</CardDescription>
-              </CardHeader>
+                  <CardTitle className="text-lg lg:text-xl font-bold flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Actividades Recientes
+                  </CardTitle>
+                  <CardDescription>Registro del sistema</CardDescription>
+                </CardHeader>
                 <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
-                  <div className="max-h-60 overflow-y-auto space-y-3 lg:space-y-4 pr-2">
-                    {recentActivity.length === 0 ? (
-                      <p className="text-muted-foreground text-center py-4">
-                        No hay actividades recientes
-                      </p>
-                    ) : (
-                      recentActivity.slice(0, 10).map((activity, index) => (
+                  {recentActivity.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground">
+                      <Activity className="h-10 w-10 opacity-20" />
+                      <p className="text-sm text-center">Sin actividad reciente</p>
+                    </div>
+                  ) : (
+                  <div className="space-y-2 lg:space-y-3">
+                    {recentActivity.slice(0, 5).map((activity, index) => (
+                      <div
+                        key={activity.id || index}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-accent/50 to-transparent border border-border/50 active:bg-accent/40 transition-colors cursor-pointer"
+                        onClick={() => handleActivityClick(activity)}
+                      >
                         <div
-                          key={activity.id || index}
-                          className="flex items-center space-x-3 md:space-x-4 p-3 md:p-4 rounded-xl bg-gradient-to-r from-accent/50 to-transparent border border-border/50 hover:shadow-md transition-all duration-200 cursor-pointer hover:bg-accent/30"
-                          onClick={() => handleActivityClick(activity)}
-                        >
-                          <div
-                            className={cn(
-                              'w-3 h-3 rounded-full shrink-0',
-                              activity.type === 'success'
-                                ? 'bg-green-500'
-                                : activity.type === 'warning'
-                                  ? 'bg-orange-500'
-                                  : activity.type === 'error' || activity.type === 'danger'
-                                    ? 'bg-red-500'
-                                    : 'bg-blue-500'
-                            )}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{activity.action}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              por {activity.user}
-                            </p>
-                          </div>
-                          <div className="text-xs text-muted-foreground whitespace-nowrap">
-                            {activity.time}
-                          </div>
+                          className={cn(
+                            'w-2.5 h-2.5 rounded-full shrink-0',
+                            activity.type === 'success'
+                              ? 'bg-green-500'
+                              : activity.type === 'warning'
+                                ? 'bg-orange-500'
+                                : activity.type === 'error' || activity.type === 'danger'
+                                  ? 'bg-red-500'
+                                  : 'bg-blue-500'
+                          )}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{activity.action}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            por {activity.user}
+                          </p>
                         </div>
-                      ))
-                    )}
+                        <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                          {activity.time}
+                        </span>
+                      </div>
+                    ))}
                   </div>
+                  )}
                 </CardContent>
               </Card>
             )}

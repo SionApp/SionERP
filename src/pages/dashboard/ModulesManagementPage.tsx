@@ -61,7 +61,7 @@ export default function ModulesManagementPage() {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       <div>
         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de Módulos</h2>
         <p className="text-sm sm:text-base text-muted-foreground">
@@ -72,7 +72,7 @@ export default function ModulesManagementPage() {
       <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
         {modules.map(module => (
           <Card key={module.key}>
-            <CardHeader>
+            <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="space-y-1 min-w-0">
                   <CardTitle className="text-base sm:text-lg">{module.name}</CardTitle>
@@ -93,8 +93,8 @@ export default function ModulesManagementPage() {
               </div>
             </CardHeader>
             {module.is_installed && module.installed_at && (
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
+              <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6 pt-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Instalado el: {new Date(module.installed_at).toLocaleString('es-ES')}
                 </p>
               </CardContent>

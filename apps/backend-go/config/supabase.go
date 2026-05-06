@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type SupabaseClient struct {
@@ -134,21 +135,28 @@ func (s *SupabaseClient) GetUserByEmail(email string) (*CreateUserResponse, erro
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Supabase returns a list of users for email search
-	var users []CreateUserResponse
-	if err := json.Unmarshal(bodyBytes, &users); err != nil {
+	// Supabase Admin API returns { "users": [...], "total": N } — NOT a bare array
+	var wrapper struct {
+		Users []CreateUserResponse `json:"users"`
+	}
+	if err := json.Unmarshal(bodyBytes, &wrapper); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if len(users) == 0 {
-		return nil, fmt.Errorf("user not found")
+	// The local Supabase API ignores ?email= and returns all users.
+	// We must find the matching user ourselves.
+	for i := range wrapper.Users {
+		if strings.EqualFold(wrapper.Users[i].Email, email) {
+			return &wrapper.Users[i], nil
+		}
 	}
 
-	return &users[0], nil
+	return nil, fmt.Errorf("user not found")
 }
 
 // CreateUserWithEmailPassword creates a user directly with email and password using the Supabase Admin API
 type CreateUserRequest struct {
+	ID            string                 `json:"id,omitempty"` // ← NUEVO: para usar el mismo UUID que en public.users
 	Email         string                 `json:"email"`
 	Password      string                 `json:"password"`
 	UserMeta      map[string]interface{} `json:"user_metadata,omitempty"`
@@ -161,8 +169,8 @@ type CreateUserResponse struct {
 	Meta  map[string]interface{} `json:"user_metadata"`
 }
 
-func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, userMeta map[string]interface{}) (*CreateUserResponse, error) {
-	url := fmt.Sprintf("%s/auth/v1/admin/users", s.ProjectURL)
+func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, userMeta map[string]interface{}, userID ...string) (*CreateUserResponse, error) {
+	url := fmt.Sprintf("%s/auth/v1/admin/users", s.ProjectURL);
 
 	if s.ProjectURL == "" {
 		return nil, fmt.Errorf("SUPABASE_URL is not configured")
@@ -171,14 +179,18 @@ func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, use
 		return nil, fmt.Errorf("SUPABASE_SERVICE_ROLE_KEY is not configured")
 	}
 
-	requestBody := CreateUserRequest{
+	// Si se pasa un userID, usarlo como el id en Supabase Auth
+	reqBody := CreateUserRequest{
 		Email:        email,
 		Password:     password,
 		UserMeta:     userMeta,
 		EmailConfirm: true,
 	}
+	if len(userID) > 0 && userID[0] != "" {
+		reqBody.ID = userID[0]
+	}
 
-	jsonData, err := json.Marshal(requestBody)
+	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}

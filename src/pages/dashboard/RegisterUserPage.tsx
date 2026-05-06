@@ -200,7 +200,7 @@ const RegisterUserPage = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -215,18 +215,18 @@ const RegisterUserPage = () => {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="px-3 sm:px-4 md:px-6 pt-4 sm:pt-5 md:pt-6 pb-2 sm:pb-3">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-xl">
             {isEditMode ? <Save className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
             {isEditMode ? 'Datos del Usuario' : 'Datos del Usuario'}
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
             {isEditMode
               ? 'Modifica los campos que desees cambiar del usuario'
               : 'Completa todos los campos requeridos para registrar un nuevo usuario'}
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-3 sm:p-4 md:p-6">
+        <CardContent className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6">
           <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4 sm:space-y-6">
             {/* Información Personal */}
             <div className="space-y-4">
