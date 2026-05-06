@@ -13,11 +13,14 @@ export interface DiscipleshipActivity {
 }
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
+  leader: 'Reporte semanal',
+  supervision: 'Reporte semanal',
+  weekly: 'Reporte semanal',
   weekly_leader: 'Reporte semanal',
-  biweekly_auxiliary: 'Reporte quincenal',
-  monthly_general: 'Reporte mensual',
-  quarterly_coordinator: 'Reporte trimestral',
-  annual_pastoral: 'Reporte anual',
+  biweekly_auxiliary: 'Reporte semanal',
+  monthly_general: 'Reporte semanal',
+  quarterly_coordinator: 'Reporte semanal',
+  annual_pastoral: 'Reporte semanal',
 };
 
 const REPORT_STATUS_COLORS: Record<string, string> = {
