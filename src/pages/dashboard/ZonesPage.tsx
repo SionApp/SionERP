@@ -8,7 +8,7 @@ const ZonesPage = () => {
   const [view, setView] = useState<'list' | 'map'>('list');
 
   return (
-    <div className="space-y-3 sm:space-y-6 animate-fade-in p-2 sm:p-3 md:p-6">
+    <div className="space-y-3 sm:space-y-6 animate-fade-in p-3 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Zonas Territoriales</h1>

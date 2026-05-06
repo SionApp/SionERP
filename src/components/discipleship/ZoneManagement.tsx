@@ -52,6 +52,8 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
+import { Can } from '@/components/Can';
+import { ROLE_LEVELS } from '@/lib/permissions';
 import React, { useState } from 'react';
 import UserZoneAssignment from './UserZoneAssignment';
 
@@ -243,6 +245,7 @@ const ZoneManagement: React.FC = () => {
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Actualizar
               </Button>
+              <Can I={ROLE_LEVELS.staff}>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={resetForm} size="sm" className="flex-1 md:flex-none">
@@ -364,6 +367,7 @@ const ZoneManagement: React.FC = () => {
                   </div>
                 </DialogContent>
               </Dialog>
+              </Can>
             </div>
           </div>
         </CardHeader>
@@ -400,6 +404,7 @@ const ZoneManagement: React.FC = () => {
                           </Badge>
                         </div>
                       </div>
+                      <Can I={ROLE_LEVELS.staff}>
                       <div className="flex items-center gap-1 ml-2">
                         <Button
                           variant="ghost"
@@ -409,6 +414,7 @@ const ZoneManagement: React.FC = () => {
                         >
                           <Edit2 className="w-4 h-4" />
                         </Button>
+                        <Can I={ROLE_LEVELS.pastor}>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -417,7 +423,9 @@ const ZoneManagement: React.FC = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
+                        </Can>
                       </div>
+                      </Can>
                     </div>
 
                     {normalizeNullString(zone.description) && (

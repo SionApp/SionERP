@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -60,7 +61,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 
 	query := `
 		SELECT
-			u.id, u.auth_id, u.first_name, u.last_name, u.id_number, u.email, u.phone, u.address,
+			u.id, u.first_name, u.last_name, u.id_number, u.email, u.phone, u.address,
 			u.birth_date, u.marital_status, u.occupation, u.education_level,
 			u.how_found_church, u.ministry_interest, u.first_visit_date,
 			u.baptized, u.baptism_date, u.is_active_member, u.membership_date,
@@ -139,7 +140,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	for rows.Next() {
 		var user models.User
 		err := rows.Scan(
-			&user.ID, &user.AuthID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
+			&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 			&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 			&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
 			&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
@@ -535,9 +536,9 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		})
 	}
 
-	// Query by auth_id (JWT sub), fallback to id for backward compatibility
+	// Query by id (single source of truth - same as Auth ID)
 	query := `
-		SELECT id, auth_id, first_name, last_name, id_number, email, phone, address,
+		SELECT id, first_name, last_name, id_number, email, phone, address,
 			   birth_date, marital_status, occupation, education_level,
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
@@ -546,11 +547,11 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 			   territory, zone_name, active_groups_count, discipleship_level,
 			   onboarding_completed
 		FROM users
-		WHERE auth_id = $1 OR id = $1
-	`
+		WHERE id = $1
+		`
 	var user models.User
 	err := config.GetDB().DB.QueryRow(query, userID).Scan(
-		&user.ID, &user.AuthID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
+		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
 		&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
@@ -592,6 +593,7 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
+	// Obtener el user_id del JWT (que ahora es el MISMO que el id en users)
 	userID, ok := c.Get("user_id").(string)
 	if !ok {
 		c.Logger().Error("Invalid user_id in context")
@@ -601,9 +603,23 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
-	query, args, err := database.BuildUpdateQuery(&req, "users", "id", userID)
+	// Verificar que el usuario exista con ese ID
+	var actualUserID string
+	err := config.GetDB().DB.QueryRow(
+		"SELECT id FROM users WHERE id = $1", userID,
+	).Scan(&actualUserID)
+
 	if err != nil {
-		c.Logger().Error(fmt.Sprintf("Database error in UpdateCurrentUser for user %s: %v", userID, err))
+		c.Logger().Error(fmt.Sprintf("User not found with ID %s: %v", userID, err))
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error":   "User not found",
+			"message": "Your user profile was not found in the database",
+		})
+	}
+
+	query, args, err := database.BuildUpdateQuery(&req, "users", "id", actualUserID)
+	if err != nil {
+		c.Logger().Error(fmt.Sprintf("Database error in UpdateCurrentUser for user %s: %v", actualUserID, err))
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Error updating user profile",
 			"message": err.Error(),
@@ -615,16 +631,16 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s: %v", userID, err))
+		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s: %v", actualUserID, err))
 		return c.JSON(http.StatusNotFound, map[string]interface{}{
 			"error":   "User not found",
-			"message": fmt.Sprintf("User with ID %s does not exist", userID),
+			"message": fmt.Sprintf("User with ID %s does not exist", actualUserID),
 		})
 	}
-	c.Logger().Info(fmt.Sprintf("Profile updated successfully with ID: %s", userID))
+	c.Logger().Info(fmt.Sprintf("Profile updated successfully with ID: %s", actualUserID))
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Profile updated successfully",
-		"user_id": userID,
+		"user_id": actualUserID,
 		"user":    req,
 	})
 }
@@ -778,12 +794,12 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		}
 
 		// User exists in public.users but has NO auth access — grant them access
-		// Create auth account (Supabase will assign a new auth ID)
+		// Use the SAME UUID for Supabase Auth (so id in users = id in auth)
 		authUser, err = supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
 			"first_name": req.FirstName,
 			"last_name":  req.LastName,
 			"role":       req.Role,
-		})
+		}, existingUserID) // ← Pasar el ID de users para que sea el mismo en Auth
 		if err != nil {
 			c.Logger().Error("Failed to create auth for existing user:", err)
 			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -792,13 +808,13 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 			})
 		}
 
-		// Update existing profile (set auth_id so login works)
+		// Update existing profile
 		_, err = config.GetDB().DB.Exec(
-			`UPDATE users SET auth_id = $1, role = $2, first_name = $3, last_name = $4,
-			 phone = COALESCE(NULLIF($5, ''), phone), id_number = COALESCE(NULLIF($6, ''), id_number),
+			`UPDATE users SET role = $1, first_name = $2, last_name = $3,
+			 phone = COALESCE(NULLIF($4, ''), phone), id_number = COALESCE(NULLIF($5, ''), id_number),
 			 onboarding_completed = true, updated_at = NOW()
-			 WHERE id = $7`,
-			authUser.ID, req.Role, req.FirstName, req.LastName, req.Phone, req.IdNumber, existingUserID,
+			 WHERE id = $6`,
+			req.Role, req.FirstName, req.LastName, req.Phone, req.IdNumber, existingUserID,
 		)
 		if err != nil {
 			c.Logger().Error("Failed to update existing user profile:", err)
@@ -817,11 +833,15 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 	}
 
 	// User doesn't exist anywhere — create from scratch
-	authUser, err := supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
+	// Generate ONE UUID to use for BOTH Supabase Auth and public.users
+	// This ensures: id in users = id in auth.users (single source of truth)
+	newUserID := uuid.New().String()
+
+	_, err = supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
 		"first_name": req.FirstName,
 		"last_name":  req.LastName,
 		"role":       req.Role,
-	})
+	}, newUserID)
 	if err != nil {
 		c.Logger().Error("Failed to create user in Supabase Auth:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -830,18 +850,26 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		})
 	}
 
-	// Create user profile in users table (onboarding_completed = true since admin filled data)
+	// Create user profile in users table with the SAME UUID
 	query := `
 		INSERT INTO users (
-			id, auth_id, email, first_name, last_name, role, phone, id_number,
+			id, email, first_name, last_name, role, phone, id_number,
 			address, onboarding_completed, is_active, created_at, updated_at
-		) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, '', true, true, NOW(), NOW())
+		) VALUES ($1, $2, $3, $4, $5, $6, $7,
+			'', true, true, NOW(), NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			role = EXCLUDED.role,
+			first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), users.first_name),
+			last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), users.last_name),
+			phone = COALESCE(NULLIF(EXCLUDED.phone, ''), users.phone),
+			onboarding_completed = true,
+			updated_at = NOW()
 		RETURNING id
-	`
+		`
 
 	var userID string
 	err = config.GetDB().DB.QueryRow(
-		query, authUser.ID, req.Email, req.FirstName, req.LastName, req.Role, req.Phone, req.IdNumber,
+		query, newUserID, req.Email, req.FirstName, req.LastName, req.Role, req.Phone, req.IdNumber,
 	).Scan(&userID)
 	if err != nil {
 		c.Logger().Error("Database error in CreateUserDirect:", err)

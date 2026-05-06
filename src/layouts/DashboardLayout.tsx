@@ -1,4 +1,5 @@
 import { AppSidebar } from '@/components/AppSidebar';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { SetupModal } from '@/components/SetupModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -158,10 +159,12 @@ const DashboardLayout = () => {
 
         <div className="flex flex-1 w-full overflow-hidden">
           <AppSidebar />
-          <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-24 sm:pb-8">
+          <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-20 md:pb-8">
             <Outlet />
           </main>
         </div>
+
+        <MobileBottomNav />
       </div>
 
       {/* Panel secreto de módulos — Ctrl + Shift + S */}

@@ -1,9 +1,11 @@
+// Package routes defines all the API endpoints for the SionERP backend, organizing them by functionality and applying appropriate middleware for authentication and authorization. It includes routes for user management, dashboard analytics, discipleship management, zones, and system setup, ensuring a clean separation of concerns and secure access control throughout the application.
 package routes
 
 import (
 	"backend-sion/handlers"
 	"backend-sion/middleware"
 	"backend-sion/utils"
+
 	"github.com/labstack/echo/v4"
 )
 
@@ -36,19 +38,19 @@ func SetupRoutes(e *echo.Echo) {
 	usersAdmin := protected.Group("/users")
 	usersAdmin.Use(middleware.RequireRole(utils.LevelStaff)) // staff, pastor, admin
 	{
-		usersAdmin.GET("", userHandler.GetUsers)          // GET /api/v1/users
-		usersAdmin.POST("", userHandler.CreateUser)       // POST /api/v1/users
-		usersAdmin.GET("/:id", userHandler.GetUser)       // GET /api/v1/users/:id
-		usersAdmin.PUT("/:id", userHandler.UpdateUser)    // PUT /api/v1/users/:id
-		usersAdmin.DELETE("/:id", userHandler.DeleteUser) // DELETE /api/v1/users/:id
+		usersAdmin.GET("", userHandler.GetUsers)                 // GET /api/v1/users
+		usersAdmin.POST("", userHandler.CreateUser)              // POST /api/v1/users
+		usersAdmin.GET("/:id", userHandler.GetUser)              // GET /api/v1/users/:id
+		usersAdmin.PUT("/:id", userHandler.UpdateUser)           // PUT /api/v1/users/:id
+		usersAdmin.DELETE("/:id", userHandler.DeleteUser)        // DELETE /api/v1/users/:id
 		usersAdmin.POST("/direct", userHandler.CreateUserDirect) // POST /api/v1/users/direct
 	}
 
 	// Member+ (level 0): Profile access (any authenticated user)
 	usersSelf := protected.Group("/users")
 	{
-		usersSelf.GET("/me", userHandler.GetCurrentUser)               // GET /api/v1/users/me
-		usersSelf.PUT("/me", userHandler.UpdateCurrentUser)            // PUT /api/v1/users/me
+		usersSelf.GET("/me", userHandler.GetCurrentUser)                // GET /api/v1/users/me
+		usersSelf.PUT("/me", userHandler.UpdateCurrentUser)             // PUT /api/v1/users/me
 		usersSelf.PUT("/me/onboarding", userHandler.CompleteOnboarding) // PUT /api/v1/users/me/onboarding
 	}
 
@@ -68,10 +70,9 @@ func SetupRoutes(e *echo.Echo) {
 		setup.POST("", setupHandler.PerformSetup)
 	}
 
-	// Module management routes (admin only)
-	// Requires admin access: pastor/staff (via has_admin_access bypass) or super_admin
+	// Module management routes (pastor+ — admin is 500, pastor is 400)
 	modules := protected.Group("/modules")
-	modules.Use(middleware.RequireRole(utils.LevelAdmin))
+	modules.Use(middleware.RequireRole(utils.LevelPastor))
 	{
 		modules.PUT("/:key", setupHandler.UpdateModuleStatus)
 	}
@@ -86,10 +87,9 @@ func SetupRoutes(e *echo.Echo) {
 		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation)
 	}
 
-	// Settings routes (admin only)
-	// Requires admin access: pastor/staff (via has_admin_access bypass) or super_admin
+	// Settings routes (pastor+ — admin 500 and pastor 400)
 	settings := protected.Group("/settings")
-	settings.Use(middleware.RequireRole(utils.LevelAdmin))
+	settings.Use(middleware.RequireRole(utils.LevelPastor))
 	{
 		settings.GET("/system", handlers.NewSettingsHandler().GetSystemSettings)
 		settings.PUT("/system", handlers.NewSettingsHandler().UpdateSystemSettings)
@@ -119,9 +119,9 @@ func SetupRoutes(e *echo.Echo) {
 		// Grupos
 		discipleship.GET("/groups", discipleshipHandler.GetGroups)
 		discipleship.GET("/groups/:id", discipleshipHandler.GetGroup)
-		discipleship.POST("/groups", discipleshipHandler.CreateGroup)
-		discipleship.PUT("/groups/:id", discipleshipHandler.UpdateGroup)
-		discipleship.DELETE("/groups/:id", discipleshipHandler.DeleteGroup)
+		discipleship.POST("/groups", discipleshipHandler.CreateGroup, middleware.RequireRole(utils.LevelSupervisor))
+		discipleship.PUT("/groups/:id", discipleshipHandler.UpdateGroup, middleware.RequireRole(utils.LevelSupervisor))
+		discipleship.DELETE("/groups/:id", discipleshipHandler.DeleteGroup, middleware.RequireRole(utils.LevelStaff))
 
 		// Jerarquía
 		discipleship.GET("/hierarchy", discipleshipHandler.GetHierarchy)
@@ -159,30 +159,29 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.PUT("/reports/:id/approve", reportsHandler.ApproveReport)
 		discipleship.PUT("/reports/:id/reject", reportsHandler.RejectReport)
 
- 	// Objetivos Estratégicos (Goals)
-	goalsHandler := handlers.NewDiscipleshipGoalsHandler()
-	discipleship.GET("/goals", goalsHandler.GetGoals)
-	discipleship.POST("/goals", goalsHandler.CreateGoal)
-	discipleship.PUT("/goals/:id", goalsHandler.UpdateGoal)
-	discipleship.DELETE("/goals/:id", goalsHandler.DeleteGoal)
-	discipleship.POST("/goals/:id/extend", goalsHandler.ExtendDeadline)
-	discipleship.POST("/goals/:id/close-incomplete", goalsHandler.CloseIncomplete)
-	discipleship.POST("/goals/:id/auto-update", goalsHandler.AutoUpdateProgress)
+		// Objetivos Estratégicos (Goals)
+		goalsHandler := handlers.NewDiscipleshipGoalsHandler()
+		discipleship.GET("/goals", goalsHandler.GetGoals)
+		discipleship.POST("/goals", goalsHandler.CreateGoal)
+		discipleship.PUT("/goals/:id", goalsHandler.UpdateGoal)
+		discipleship.DELETE("/goals/:id", goalsHandler.DeleteGoal)
+		discipleship.POST("/goals/:id/extend", goalsHandler.ExtendDeadline)
+		discipleship.POST("/goals/:id/close-incomplete", goalsHandler.CloseIncomplete)
+		discipleship.POST("/goals/:id/auto-update", goalsHandler.AutoUpdateProgress)
 
-	// Alertas
-	discipleship.GET("/alerts", alertsHandler.GetAlerts)
+		// Alertas
+		discipleship.GET("/alerts", alertsHandler.GetAlerts)
 		discipleship.GET("/multiplications", discipleshipHandler.GetMultiplications)
 		discipleship.POST("/alerts", alertsHandler.CreateAlert)
 		discipleship.PUT("/alerts/:id/resolve", alertsHandler.ResolveAlert)
 		discipleship.DELETE("/alerts/:id", alertsHandler.DeleteAlert)
 		discipleship.POST("/alerts/generate", alertsHandler.GenerateAutomaticAlerts)
 
-		// Objetivos
+		// Tendencias y estadísticas
 		discipleship.GET("/weekly-trends", discipleshipHandler.GetWeeklyTrends)
 		discipleship.GET("/dashboard-stats", discipleshipHandler.GetDashboardStatsByLevel)
 		discipleship.GET("/leaders/:id/stats", discipleshipHandler.GetLeaderGroupStats)
 		discipleship.GET("/supervisors/:id/subordinates", discipleshipHandler.GetSupervisorSubordinates)
-		discipleship.GET("/goals", discipleshipHandler.GetGoals)
 	}
 
 	// Zones routes
@@ -199,8 +198,8 @@ func SetupRoutes(e *echo.Echo) {
 		zones.PUT("/:id/users/:userId", zonesHandler.AssignUserToZone)
 		// Ruta genérica al final
 		zones.GET("/:id", zonesHandler.GetZone)
-		zones.POST("", zonesHandler.CreateZone)
-		zones.PUT("/:id", zonesHandler.UpdateZone)
-		zones.DELETE("/:id", zonesHandler.DeleteZone)
+		zones.POST("", zonesHandler.CreateZone, middleware.RequireRole(utils.LevelStaff))
+		zones.PUT("/:id", zonesHandler.UpdateZone, middleware.RequireRole(utils.LevelStaff))
+		zones.DELETE("/:id", zonesHandler.DeleteZone, middleware.RequireRole(utils.LevelPastor))
 	}
 }

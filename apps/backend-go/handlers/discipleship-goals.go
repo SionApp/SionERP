@@ -4,12 +4,49 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
 )
 
 type DiscipleshipGoalsHandler struct{}
+
+// getContextUserID safely extracts user_id from context (handles nil and wrong types)
+func getContextUserID(c echo.Context) (string, error) {
+	v := c.Get("user_id")
+	if v == nil {
+		return "", fmt.Errorf("user_id not found in context")
+	}
+	if s, ok := v.(string); ok {
+		return s, nil
+	}
+	// If middleware stored it as a different type, convert to string
+	return fmt.Sprintf("%v", v), nil
+}
+
+// getContextRoleLevel safely extracts role_level from context (handles string/int mismatch)
+func getContextRoleLevel(c echo.Context) int {
+	v := c.Get("role_level")
+	if v == nil {
+		return 0 // Default: member level
+	}
+	
+	// Try as int first
+	if i, ok := v.(int); ok {
+		return i
+	}
+	
+	// Try as string (middleware stores it as string)
+	if s, ok := v.(string); ok {
+		if level, err := strconv.Atoi(s); err == nil {
+			return level
+		}
+	}
+	
+	// Default fallback
+	return 0
+}
 
 func NewDiscipleshipGoalsHandler() *DiscipleshipGoalsHandler {
 	return &DiscipleshipGoalsHandler{}
@@ -22,7 +59,10 @@ func (h *DiscipleshipGoalsHandler) CreateGoal(c echo.Context) error {
 		return err
 	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getContextUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
 	
 	// Verificar que el usuario puede crear goals (pastor 400+ o supervisor 200+)
 	var userLevel int
@@ -129,19 +169,29 @@ func (h *DiscipleshipGoalsHandler) GetGoals(c echo.Context) error {
 		return err
 	}
 
-	userID := c.Get("user_id").(string)
+	// Safe type assertions to avoid panics
+	userID, ok := c.Get("user_id").(string)
+	if !ok || userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Usuario no autenticado correctamente",
+		})
+	}
+
 	status := c.QueryParam("status")
 	zoneID := c.QueryParam("zone_id")
-	userLevel := c.Get("role_level").(int)
+
+	userLevel := 0 // Default: member level
+	if rl, ok := c.Get("role_level").(int); ok {
+		userLevel = rl
+	}
 
 	query := `
 		SELECT 
-			g.id, g.goal_type, g.title, g.description, g.target_metric,
-			g.target_value, g.current_value, g.progress_percentage, g.deadline,
-			g.status, g.priority, g.created_by, g.zone_id,
-			COALESCE(z.name, '') as zone_name, g.created_at, g.updated_at
+			g.id, g.goal_type, g.target_metric,
+			g.target_value, g.current_value, g.progress_percentage, 
+			g.deadline, g.status, g.zone_name,
+			g.supervisor_id, g.created_at, g.updated_at
 		FROM discipleship_goals g
-		LEFT JOIN zones z ON g.zone_id = z.id
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -241,7 +291,10 @@ func (h *DiscipleshipGoalsHandler) UpdateGoal(c echo.Context) error {
 	}
 
 	goalID := c.Param("id")
-	userID := c.Get("user_id").(string)
+	userID, err := getContextUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
 
 	// Verificar que el usuario es el creador o admin (500)
 	var createdBy string
@@ -344,7 +397,7 @@ func (h *DiscipleshipGoalsHandler) DeleteGoal(c echo.Context) error {
 		return err
 	}
 
-	userLevel := c.Get("role_level").(int)
+	userLevel := getContextRoleLevel(c)
 	if userLevel < 500 {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "Solo admin puede eliminar objetivos",
@@ -373,7 +426,10 @@ func (h *DiscipleshipGoalsHandler) ExtendDeadline(c echo.Context) error {
 	}
 
 	goalID := c.Param("id")
-	userID := c.Get("user_id").(string)
+	userID, err := getContextUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
 
 	// Verificar que el usuario es el creador, supervisor superior o admin
 	var createdBy string
@@ -452,8 +508,11 @@ func (h *DiscipleshipGoalsHandler) CloseIncomplete(c echo.Context) error {
 	}
 
 	goalID := c.Param("id")
-	userID := c.Get("user_id").(string)
-	userLevel := c.Get("role_level").(int)
+	userID, err := getContextUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+	userLevel := getContextRoleLevel(c)
 
 	// Verificar permisos: creador, supervisor superior o admin
 	var createdBy string
