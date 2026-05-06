@@ -35,7 +35,7 @@ export function GoalsDashboard() {
     try {
       setLoading(true);
       const data = await DiscipleshipAnalyticsService.getGoals(status);
-      setGoals(data);
+      setGoals(data ?? []);
     } catch (error) {
       console.error('Error loading goals:', error);
       toast.error('Error al cargar objetivos');

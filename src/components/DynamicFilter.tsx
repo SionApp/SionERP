@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, X, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronDown, Search, X, Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -182,12 +182,18 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
 
   return (
     <Card>
-      <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+      <CardHeader className="cursor-pointer py-3 sm:py-4" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 text-muted-foreground transition-transform duration-300',
+                isExpanded && 'rotate-180'
+              )}
+            />
             Filtros
             {activeFilterCount > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
+              <span className="text-xs sm:text-sm font-normal text-muted-foreground">
                 ({activeFilterCount} activo{activeFilterCount > 1 ? 's' : ''})
               </span>
             )}
@@ -201,21 +207,29 @@ export const DynamicFilter = ({ fields, onFilterChange, onClear }: DynamicFilter
                   e.stopPropagation();
                   handleClear();
                 }}
+                className="h-8 text-xs sm:text-sm"
               >
-                <X className="h-4 w-4 mr-1" />
+                <X className="h-3 w-3 mr-1" />
                 Limpiar
               </Button>
             )}
           </div>
         </div>
       </CardHeader>
-      {isExpanded && (
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {fields.map(renderField)}
-          </div>
-        </CardContent>
-      )}
+      <div
+        className={cn(
+          'grid transition-all duration-300 ease-in-out',
+          isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        )}
+      >
+        <div className="overflow-hidden">
+          <CardContent className="pt-0 pb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {fields.map(renderField)}
+            </div>
+          </CardContent>
+        </div>
+      </div>
     </Card>
   );
 };

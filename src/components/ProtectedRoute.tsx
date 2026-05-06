@@ -11,6 +11,8 @@ interface ProtectedRouteProps {
   requiredRoleName?: string;
   /** Optional module that must be installed */
   requiredModule?: string;
+  /** Requires has_admin_access flag from the backend (pastor or admin) */
+  requireAdminAccess?: boolean;
 }
 
 const ProtectedRoute = ({
@@ -18,6 +20,7 @@ const ProtectedRoute = ({
   minRole,
   requiredRoleName,
   requiredModule,
+  requireAdminAccess,
 }: ProtectedRouteProps) => {
   const { user, isLoading: authLoading } = useAuth();
   const { permissions, loading: permissionsLoading } = usePermissions();
@@ -39,12 +42,12 @@ const ProtectedRoute = ({
     return <Navigate to="/login" replace />;
   }
 
-  // If no role restriction specified, just check auth
-  if (!minRole && !requiredModule) {
+  // If no restriction specified, just check auth
+  if (!minRole && !requiredModule && !requireAdminAccess) {
     return <>{children}</>;
   }
 
-  // Permissions loading (only when role check is needed)
+  // Permissions loading (only when a restriction check is needed)
   if (permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -53,6 +56,16 @@ const ProtectedRoute = ({
           <p className="text-muted-foreground">Verificando permisos...</p>
         </div>
       </div>
+    );
+  }
+
+  // Check has_admin_access flag (defined by backend — currently pastor or admin)
+  if (requireAdminAccess && !permissions?.has_admin_access) {
+    return (
+      <AccessDeniedPage
+        requiredRole={requiredRoleName || 'Pastor / Administrador'}
+        currentRole={permissions?.role || 'desconocido'}
+      />
     );
   }
 

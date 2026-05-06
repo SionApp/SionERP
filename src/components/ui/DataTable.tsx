@@ -171,29 +171,29 @@ export function DataTable<T extends object>({
 
       {/* Desktop Table */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full border-collapse" style={{ tableLayout: 'auto' }}>
+        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead>
             <tr className="border-b">
               {columns.map(column => (
                 <th
                   key={String(column.key)}
                   className={cn(
-                    'px-4 py-3 text-left text-sm font-medium text-muted-foreground',
+                    'px-4 py-3 2xl:px-6 2xl:py-4 text-left text-sm 2xl:text-base font-medium text-muted-foreground',
                     column.sortable && 'cursor-pointer hover:text-foreground',
                     column.className,
                     getResponsiveClass(column.responsive)
                   )}
-                  style={column.width ? { width: column.width, minWidth: column.width } : {}}
+                  style={column.width ? { width: column.width } : {}}
                   onClick={() => column.sortable && handleSort(column.key)}
                 >
                   <div className="flex items-center gap-2">
                     {column.label}
-                    {column.sortable && <ArrowUpDown className="h-4 w-4 opacity-50" />}
+                    {column.sortable && <ArrowUpDown className="h-4 w-4 2xl:h-5 2xl:w-5 opacity-50" />}
                   </div>
                 </th>
               ))}
               {actions && (
-                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground w-32 min-w-[8rem]">
+                <th className="px-4 py-3 2xl:px-6 2xl:py-4 text-right text-sm 2xl:text-base font-medium text-muted-foreground w-[16%]">
                   Acciones
                 </th>
               )}
@@ -204,7 +204,7 @@ export function DataTable<T extends object>({
               <tr>
                 <td
                   colSpan={columns.length + (actions ? 1 : 0)}
-                  className="px-4 py-8 text-center text-muted-foreground"
+                  className="px-4 py-8 2xl:py-12 text-center text-sm 2xl:text-base text-muted-foreground"
                 >
                   {emptyMessage}
                 </td>
@@ -216,17 +216,17 @@ export function DataTable<T extends object>({
                     <td
                       key={String(column.key)}
                       className={cn(
-                        'px-4 py-3 text-sm',
+                        'px-4 py-3 2xl:px-6 2xl:py-4 text-sm 2xl:text-base overflow-hidden',
                         column.className,
                         getResponsiveClass(column.responsive)
                       )}
-                      style={column.width ? { width: column.width, minWidth: column.width } : {}}
+                      style={column.width ? { width: column.width } : {}}
                     >
                       {column.render ? column.render(item) : (item[column.key] as React.ReactNode)}
                     </td>
                   ))}
                   {actions && (
-                    <td className="px-4 py-3 text-right w-32 min-w-[8rem]">
+                    <td className="px-4 py-3 2xl:px-6 2xl:py-4 text-right w-[16%]">
                       {actions(item)}
                     </td>
                   )}
@@ -280,46 +280,27 @@ export function DataTable<T extends object>({
 
       {/* Pagination */}
       {pagination && totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Mostrando {(currentPage - 1) * itemsPerPage + 1} a{' '}
-            {Math.min(currentPage * itemsPerPage, sortedData.length)} de {sortedData.length}{' '}
-            resultados
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="text-xs sm:text-sm text-muted-foreground">
+            {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, sortedData.length)}{' '}
+            <span className="hidden sm:inline">de </span>
+            <span className="sm:hidden">/ </span>
+            {sortedData.length}
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
-            >
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
               <ChevronsLeft className="h-4 w-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm">
-              Página {currentPage} de {totalPages}
+            <span className="text-sm px-2 tabular-nums">
+              {currentPage} / {totalPages}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === totalPages}>
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
-            >
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>
               <ChevronsRight className="h-4 w-4" />
             </Button>
           </div>

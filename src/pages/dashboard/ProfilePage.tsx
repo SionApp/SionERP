@@ -30,7 +30,6 @@ import {
   Bell,
   Calendar,
   Camera,
-  Edit,
   Heart,
   Loader2,
   Lock,
@@ -187,135 +186,92 @@ const ProfilePage = () => {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 sm:gap-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Mi Perfil
-          </h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Gestiona tu información personal y preferencias de la cuenta
-          </p>
+    <div className="space-y-3 p-0 sm:p-3 md:p-6">
+      {/* ── Profile Hero ── */}
+      <div className="relative overflow-hidden rounded-b-2xl sm:rounded-2xl bg-gradient-to-br from-primary/90 via-blue-600/80 to-purple-600/80 px-4 pt-5 pb-4 sm:p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.12),_transparent_60%)] pointer-events-none" />
+        <div className="relative flex items-center gap-4">
+          {/* Avatar */}
+          <div className="relative shrink-0">
+            <Avatar className="w-18 h-18 sm:w-24 sm:h-24 ring-2 ring-white/30 shadow-xl" style={{ width: 72, height: 72 }}>
+              <AvatarImage src="" alt="Profile" />
+              <AvatarFallback className="text-2xl font-bold bg-white/20 text-white">
+                {initialWordName()}
+              </AvatarFallback>
+            </Avatar>
+            <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-md active:scale-95 transition-transform">
+              <Camera className="w-3.5 h-3.5 text-white" />
+            </button>
+          </div>
+
+          {/* Name + role */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-white drop-shadow truncate">
+              {userData?.first_name} {userData?.last_name}
+            </h1>
+            <p className="text-white/70 text-xs truncate mt-0.5">{userData?.email}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className="text-[11px] font-semibold bg-white/20 text-white px-2 py-0.5 rounded-full capitalize">
+                {userData?.role}
+              </span>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${userData?.is_active ? 'bg-green-400/30 text-green-100' : 'bg-red-400/30 text-red-100'}`}>
+                {userData?.is_active ? 'Activo' : 'Inactivo'}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Profile Quick Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:min-w-[400px]">
-          <Card className="text-center p-3 sm:p-4">
-            <div className="text-base sm:text-lg font-bold text-primary">
-              {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
+        {/* Stats row */}
+        <div className="grid grid-cols-4 gap-2 mt-4">
+          {[
+            { label: 'Rol', value: userData?.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1) : '—' },
+            { label: 'Estado', value: userData?.is_active ? 'Activo' : 'Inactivo' },
+            { label: 'Desde', value: userData?.membership_date ? safeFormatDate(userData.membership_date, 'yyyy') : '—' },
+            { label: 'Discip.', value: userData?.discipleship_level ?? 0 },
+          ].map(stat => (
+            <div key={stat.label} className="text-center bg-white/10 backdrop-blur-sm rounded-xl py-2 px-1">
+              <div className="text-sm font-bold text-white leading-tight">{stat.value}</div>
+              <div className="text-[10px] text-white/60 mt-0.5 leading-tight">{stat.label}</div>
             </div>
-            <div className="text-xs text-muted-foreground">Rol Actual</div>
-          </Card>
-          <Card className="text-center p-3 sm:p-4">
-            <div className="text-base sm:text-lg font-bold text-green-600">
-              {userData?.is_active ? 'Activo' : 'Inactivo'}
-            </div>
-            <div className="text-xs text-muted-foreground">Estado</div>
-          </Card>
-          <Card className="text-center p-3 sm:p-4">
-            <div className="text-base sm:text-lg font-bold text-blue-600">
-              {userData?.membership_date ? safeFormatDate(userData.membership_date, 'yyyy') : ''}
-            </div>
-            <div className="text-xs text-muted-foreground">Miembro desde</div>
-          </Card>
-          <Card className="text-center p-4">
-            <div className="text-lg font-bold text-purple-600">
-              {userData?.discipleship_level || 0}
-            </div>
-            <div className="text-xs text-muted-foreground">Nivel de Discipulado</div>
-          </Card>
+          ))}
         </div>
       </div>
 
-      <Tabs defaultValue="personal" className="space-y-4 sm:space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1 sm:gap-0">
-          <TabsTrigger
-            value="personal"
-            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
-          >
-            <User className="w-4 h-4" />
-            Personal
-          </TabsTrigger>
-          <TabsTrigger
-            value="church"
-            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
-          >
-            <Heart className="w-4 h-4" />
-            Iglesia
-          </TabsTrigger>
-          <TabsTrigger
-            value="security"
-            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
-          >
-            <Lock className="w-4 h-4" />
-            Seguridad
-          </TabsTrigger>
-          <TabsTrigger
-            value="preferences"
-            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
-          >
-            <Settings className="w-4 h-4" />
-            Preferencias
-          </TabsTrigger>
+      <Tabs defaultValue="personal" className="space-y-3 sm:space-y-4 px-2 sm:px-0">
+        <TabsList className="grid w-full grid-cols-4 h-auto p-1">
+          {[
+            { value: 'personal', icon: User, label: 'Personal' },
+            { value: 'church', icon: Heart, label: 'Iglesia' },
+            { value: 'security', icon: Lock, label: 'Seguridad' },
+            { value: 'preferences', icon: Settings, label: 'Preferencias' },
+          ].map(({ value, icon: Icon, label }) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="group flex flex-col items-center gap-1 py-2 px-1 h-auto"
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              {/* Mobile: solo visible en el tab activo. sm+: siempre visible */}
+              <span className="text-[11px] leading-tight w-full text-center truncate invisible group-data-[state=active]:visible sm:visible">
+                {label}
+              </span>
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="personal" className="space-y-4 sm:space-y-6">
-          {/* Profile Header Card */}
-          <Card className="border-0 bg-gradient-to-r from-primary/10 to-accent/10">
-            <CardContent className="p-3 sm:p-4 md:p-6">
-              <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6">
-                <div className="relative shrink-0">
-                  <Avatar className="w-20 h-20 sm:w-24 sm:h-24">
-                    <AvatarImage src="" alt="Profile" />
-                    <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-primary to-accent text-white">
-                      {initialWordName()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="absolute -bottom-2 -right-2 rounded-full"
-                  >
-                    <Camera className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-xl sm:text-2xl font-bold truncate">
-                    {userData?.first_name} {userData?.last_name}
-                  </h3>
-                  <p className="text-sm sm:text-base text-muted-foreground truncate">
-                    {userData?.email}
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-4 mt-2">
-                    <Badge variant="default">
-                      {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
-                    </Badge>
-                    <Badge variant="outline">
-                      Miembro desde {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
-                    </Badge>
-                  </div>
-                </div>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Edit className="w-4 h-4 mr-2" />
-                  Editar Foto
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
+        <TabsContent value="personal" className="space-y-3 sm:space-y-4">
           {/* Personal Information */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="w-5 h-5 text-primary" />
+            <CardHeader className="p-3 sm:p-4 pb-0 sm:pb-0">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <User className="w-4 h-4 text-primary" />
                 Información Personal
               </CardTitle>
-              <CardDescription>Mantén tu información personal actualizada</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">Mantén tu información actualizada</CardDescription>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="p-3 sm:p-4 pt-3">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="first_name" className="flex items-center gap-2">
                       <User className="w-4 h-4" />
@@ -391,23 +347,22 @@ const ProfilePage = () => {
 
                 <Separator />
 
-                <div className="space-y-4">
-                  <h4 className="font-semibold flex items-center gap-2">
+                <div className="space-y-3">
+                  <h4 className="font-semibold flex items-center gap-2 text-sm">
                     <Users className="w-4 h-4" />
                     Contacto de Emergencia
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="emergency_contact_name">Nombre del Contacto</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="emergency_contact_name" className="text-xs sm:text-sm">Nombre del Contacto</Label>
                       <Input
                         id="emergency_contact_name"
                         placeholder="Nombre completo"
                         {...register('emergency_contact_name')}
                       />
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="emergency_contact_phone">Teléfono del Contacto</Label>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="emergency_contact_phone" className="text-xs sm:text-sm">Teléfono del Contacto</Label>
                       <Input
                         id="emergency_contact_phone"
                         placeholder="Número de teléfono"
@@ -417,11 +372,11 @@ const ProfilePage = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={loading} className="w-full md:w-auto">
-                    {loading ? 'Guardando...' : 'Guardar Cambios'}
-                  </Button>
-                </div>
+                <Button type="submit" disabled={loading} className="w-full">
+                  {loading ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Guardando...</>
+                  ) : 'Guardar Cambios'}
+                </Button>
               </form>
             </CardContent>
           </Card>

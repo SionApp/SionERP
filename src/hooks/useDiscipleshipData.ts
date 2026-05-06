@@ -96,9 +96,12 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
         promises.subordinates = DiscipleshipAnalyticsService.getSupervisorSubordinates(userId);
       }
 
+      if (level >= 2) {
+        promises.pendingReports = DiscipleshipService.getReports({ status: 'submitted' }).then(data => data.slice(0, 10));
+      }
+
       if (level >= 5) {
         promises.alerts = DiscipleshipService.getAlerts({ resolved: false }).then(data => data.slice(0, 10));
-        promises.pendingReports = DiscipleshipService.getReports({ status: 'submitted' }).then(data => data.slice(0, 10));
       }
 
       if (level === 2) {

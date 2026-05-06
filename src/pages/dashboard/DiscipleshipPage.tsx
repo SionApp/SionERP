@@ -5,7 +5,7 @@ import ZoneManagement from '@/components/discipleship/ZoneManagement';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useRecentDiscipleshipActivity } from '@/hooks/useRecentDiscipleshipActivity';
 import { UserService } from '@/services/user.service';
@@ -24,9 +24,10 @@ import GeneralSupervisorDashboard from './discipleship/GeneralSupervisorDashboar
 import LeaderDashboard from './discipleship/LeaderDashboard';
 import PastoralDashboard from './discipleship/PastoralDashboard';
 
-function formatTimestamp(timestamp: { Time: string }): string {
+function formatTimestamp(timestamp: string): string {
   const now = new Date();
-  const date = new Date(timestamp.Time);
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return 'Fecha desconocida';
   const diffMs = now.getTime() - date.getTime();
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -76,7 +77,7 @@ function NoAccessCard({
 }
 
 const DiscipleshipPage = () => {
-  const authUser = useAuth().user;
+  const { user: authUser, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [user, setUser] = useState<UserType | null>(null);
   const [discipleshipAccess, setDiscipleshipAccess] = useState<DiscipleshipAccess | null>(null);
@@ -104,32 +105,26 @@ const DiscipleshipPage = () => {
       try {
         setLoading(true);
 
-        // Cargar datos del usuario
-        const userData = await UserService.getUserById(authUser.id as string);
-        const userWithRole = {
-          ...userData,
-          role: userData.role as UserType['role'],
-        };
+        const userData = await UserService.getCurrentUser();
+        const userWithRole = { ...userData, role: userData.role as UserType['role'] };
         setUser(userWithRole);
 
-        // Cargar acceso al módulo de discipulado
         if (userWithRole.role) {
-          const access = await getDiscipleshipAccess(
-            authUser.id as string,
-            userWithRole.role as string
-          );
+          const access = await getDiscipleshipAccess(userData.id, userWithRole.role as string);
           setDiscipleshipAccess(access);
         }
       } catch (error) {
-        toast.error('Error al cargar el usuario probando');
+        toast.error('Error al cargar el usuario');
         console.error('Error al cargar el usuario:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadUserAndAccess();
-  }, [authUser?.id]);
+    if (!authLoading) {
+      loadUserAndAccess();
+    }
+  }, [authUser?.id, authLoading]);
 
   const getDiscipleshipLevel = (): number => {
     if (!discipleshipAccess) return 1;
@@ -252,14 +247,14 @@ const DiscipleshipPage = () => {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Ministerio de Discipulado
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             {loading ? (
               'Cargando...'
             ) : discipleshipAccess?.canAccess ? (
@@ -353,50 +348,50 @@ const DiscipleshipPage = () => {
             </Card>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-6">
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-3 sm:p-4 md:p-6">
                 <div className="flex items-center gap-2">
-                  <Users className="w-8 h-8 text-primary" />
-                  <div>
-                    <p className="text-2xl font-bold">{discipleshipStats.totalGroups}</p>
-                    <p className="text-sm text-muted-foreground">Grupos Activos</p>
+                  <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.totalGroups}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Grupos Activos</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-3 sm:p-4 md:p-6">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="w-8 h-8 text-green-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{discipleshipStats.totalMembers}</p>
-                    <p className="text-sm text-muted-foreground">Miembros Activos</p>
+                  <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.totalMembers}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Miembros Activos</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-3 sm:p-4 md:p-6">
                 <div className="flex items-center gap-2">
-                  <Target className="w-8 h-8 text-blue-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{discipleshipStats.multiplications}</p>
-                    <p className="text-sm text-muted-foreground">Multiplicando</p>
+                  <Target className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.multiplications}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Multiplicando</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-3 sm:p-4 md:p-6">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="w-8 h-8 text-orange-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{discipleshipStats.alertsCount}</p>
-                    <p className="text-sm text-muted-foreground">Necesitan Atención</p>
+                  <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.alertsCount}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Necesitan Atención</p>
                   </div>
                 </div>
               </CardContent>
@@ -405,26 +400,26 @@ const DiscipleshipPage = () => {
 
           {/* Quick Actions */}
           <Card>
-            <CardHeader>
-              <CardTitle>Acciones Rápidas</CardTitle>
-              <CardDescription>
+            <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
+              <CardTitle className="text-base sm:text-xl">Acciones Rápidas</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
                 Gestiona los aspectos más importantes del discipulado
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-4">
+            <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
                 {canManageGroups && (
-                  <Button onClick={() => setActiveTab('manage')}>
+                  <Button onClick={() => setActiveTab('manage')} className="w-full sm:w-auto">
                     <Plus className="w-4 h-4 mr-2" />
                     Crear Nuevo Grupo
                   </Button>
                 )}
-                <Button variant="outline" onClick={() => setActiveTab('dashboard')}>
+                <Button variant="outline" onClick={() => setActiveTab('dashboard')} className="w-full sm:w-auto">
                   <BarChart3 className="w-4 h-4 mr-2" />
                   Ver Dashboard
                 </Button>
                 {canManageGroups && (
-                  <Button variant="outline" onClick={() => setActiveTab('map')}>
+                  <Button variant="outline" onClick={() => setActiveTab('map')} className="w-full sm:w-auto">
                     <MapPin className="w-4 h-4 mr-2" />
                     Ver Mapa
                   </Button>
@@ -435,10 +430,10 @@ const DiscipleshipPage = () => {
 
           {/* Recent Activity */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
               <CardTitle className="text-base">Actividad Reciente</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
               {activityLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-center space-y-2">
@@ -464,7 +459,7 @@ const DiscipleshipPage = () => {
                           {activity.description}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {formatTimestamp(activity.timestamp as unknown as { Time: string })}
+                          {formatTimestamp(activity.timestamp)}
                         </p>
                       </div>
                     </div>
@@ -515,6 +510,7 @@ const DiscipleshipPage = () => {
             <NoAccessCard module="Mapa" requiredLevel={2} />
           )}
         </TabsContent>
+
       </Tabs>
     </div>
   );

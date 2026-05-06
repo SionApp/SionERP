@@ -4,6 +4,7 @@ import (
 	"backend-sion/config"
 	"backend-sion/middleware"
 	"backend-sion/utils"
+	"log"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -40,21 +41,27 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 	roleLevel := utils.GetRoleLevel(role)
 
 	// Get installed modules from the `modules` table
-	var modules []string
+	modules := []string{}
 	rows, err := config.GetDB().DB.Query(`
 		SELECT key FROM modules WHERE is_installed = true ORDER BY key
 	`)
 	if err != nil {
-		// If table doesn't exist or error, return empty modules
-		modules = []string{}
-	} else {
-		defer rows.Close()
-		for rows.Next() {
-			var key string
-			if err := rows.Scan(&key); err == nil {
-				modules = append(modules, key)
-			}
+		// Log the error and return 500 so the frontend knows something went wrong
+		log.Printf("❌ Error querying modules table: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error":   "Failed to fetch installed modules",
+			"details": err.Error(),
+		})
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err == nil {
+			modules = append(modules, key)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("❌ Error iterating modules rows: %v", err)
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
