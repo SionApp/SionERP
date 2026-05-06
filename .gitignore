@@ -18,6 +18,11 @@ dist-ssr
 .env.*.local
 apps/backend-go/.env
 
+# AI agent context (internal — not for version control)
+CLAUDE.md
+.atl/
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

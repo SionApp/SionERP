@@ -1,15 +1,21 @@
+import { GoalsDashboard } from '@/pages/dashboard/GoalsDashboard';
+import { ReportDetailSheet } from './ReportDetailSheet';
 import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { parseGoTime } from '@/lib/go-time';
 import { useAuth } from '@/hooks/useAuth';
 import { useCoordinatorData } from '@/hooks/useCoordinatorData';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import type { DiscipleshipReport } from '@/types/discipleship.types';
 import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Award, Building2, CheckCircle, Clock, FileText, Loader2, Plus, Users } from 'lucide-react';
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import {
   Area,
   AreaChart,
@@ -48,19 +54,43 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<DiscipleshipReport | null>(null);
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
 
   // Usar hook específico del coordinador
   const {
     loading,
     stats,
-    goals,
     zoneStats,
     weeklyTrends,
     myReports,
+    pendingReports,
     error,
     refetch,
     refetchReports,
   } = useCoordinatorData();
+
+  const handleApproveReport = async (reportId: string) => {
+    try {
+      await DiscipleshipService.approveReport(reportId);
+      toast.success('Reporte aprobado');
+      refetch();
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(msg || 'Error al aprobar el reporte');
+    }
+  };
+
+  const handleRejectReport = async (reportId: string, feedback: string) => {
+    try {
+      await DiscipleshipService.rejectReport(reportId, feedback);
+      toast.success('Reporte rechazado');
+      refetch();
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(msg || 'Error al rechazar el reporte');
+    }
+  };
 
   // Calcular período semanal (semana anterior)
   const today = new Date();
@@ -188,7 +218,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-4 h-auto min-w-max sm:min-w-0 gap-1">
+          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-5 h-auto min-w-max sm:min-w-0 gap-1">
             <TabsTrigger
               value="overview"
               className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
@@ -212,6 +242,18 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
               className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
             >
               Zonas
+            </TabsTrigger>
+            <TabsTrigger
+              value="approvals"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              <span className="hidden sm:inline">Aprobaciones</span>
+              <span className="sm:hidden">Aprob.</span>
+              {stats.pending_reports && stats.pending_reports > 0 && (
+                <Badge variant="destructive" className="ml-1 text-[10px] h-4 px-1">
+                  {stats.pending_reports}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -312,43 +354,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
         </TabsContent>
 
         <TabsContent value="strategic-goals" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Objetivos Estratégicos</CardTitle>
-              <CardDescription>Progreso hacia las metas establecidas</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {goals.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No hay objetivos definidos</p>
-              ) : (
-                <div className="space-y-6">
-                  {goals.map(goal => (
-                    <div key={goal.id}>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-medium">{goal.description}</h3>
-                        <Badge
-                          variant={
-                            goal.progress_percentage >= 80
-                              ? 'default'
-                              : goal.progress_percentage >= 50
-                                ? 'secondary'
-                                : 'destructive'
-                          }
-                        >
-                          {Math.round(goal.progress_percentage)}%
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                        <span>Actual: {goal.current_value}</span>
-                        <span>Meta: {goal.target_value}</span>
-                      </div>
-                      <Progress value={goal.progress_percentage} className="h-2" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <GoalsDashboard />
         </TabsContent>
 
         <TabsContent value="quarterly-report" className="space-y-4">
@@ -447,6 +453,75 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="approvals" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cola de Aprobaciones</CardTitle>
+              <CardDescription>Reportes pendientes de tu aprobación</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {pendingReports.length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="w-12 h-12 mx-auto text-green-500 mb-4" />
+                  <p className="text-muted-foreground">No hay reportes pendientes</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(pendingReports as unknown as DiscipleshipReport[]).map(report => (
+                    <div
+                      key={report.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg"
+                    >
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-sm truncate">{report.reporter_name}</h4>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {report.report_type} · Período:{' '}
+                          {parseGoTime(report.period_end)?.toLocaleDateString('es-AR', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          }) ?? report.period_end}
+                        </p>
+                        <p className="text-xs text-muted-foreground flex items-center mt-1">
+                          <Clock className="w-3 h-3 mr-1 shrink-0" />
+                          Enviado:{' '}
+                          {parseGoTime(report.submitted_at)?.toLocaleDateString('es-AR', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          }) ?? 'Sin fecha'}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="flex-1 sm:flex-none"
+                          onClick={() => {
+                            setSelectedReport(report);
+                            setReportSheetOpen(true);
+                          }}
+                        >
+                          Ver
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleApproveReport(report.id)}
+                          className="flex-1 sm:flex-none"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Aprobar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="zone-performance" className="space-y-4">
           <Card>
             <CardHeader>
@@ -490,6 +565,17 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ReportDetailSheet
+        report={selectedReport}
+        open={reportSheetOpen}
+        onOpenChange={open => {
+          setReportSheetOpen(open);
+          if (!open) setSelectedReport(null);
+        }}
+        onApprove={handleApproveReport}
+        onReject={handleRejectReport}
+      />
     </div>
   );
 });

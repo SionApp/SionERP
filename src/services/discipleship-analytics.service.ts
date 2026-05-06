@@ -153,19 +153,25 @@ export class DiscipleshipAnalyticsService {
 
   // Obtener estadísticas por zona
   static async getZoneStats(): Promise<ZoneStats[]> {
-    const data = await ApiService.get(`/discipleship/analytics/zones`);
+    let data: any;
+    try {
+      data = await ApiService.get(`/zones`);
+    } catch {
+      return [];
+    }
 
     // El backend devuelve snake_case + is_active (basado en grupos activos)
     // Devolver ambos formatos para compatibilidad
+    // /zones devuelve { id, name, total_groups, total_members, avg_attendance, is_active }
     return ((data as any[]) || []).map((zone: any) => ({
-      zoneName: zone.zone_name || 'Sin zona',
-      zone_name: zone.zone_name || 'Sin zona', // Alias para compatibilidad
-      zoneID: zone.zone_id || zone.zoneId,
+      zoneName: zone.name || zone.zone_name || 'Sin zona',
+      zone_name: zone.name || zone.zone_name || 'Sin zona',
+      zoneID: zone.id || zone.zone_id,
       totalGroups: zone.total_groups || 0,
-      total_members: zone.total_groups || 0, // Alias para compatibilidad
+      total_members: zone.total_members || 0,
       totalMembers: zone.total_members || 0,
       avgAttendance: zone.avg_attendance || 0,
-      avg_attendance: zone.avg_attendance || 0, // Alias para compatibilidad
+      avg_attendance: zone.avg_attendance || 0,
       isActive: zone.is_active || false,
       growthRate: 0,
       healthIndex: 0,
@@ -347,6 +353,32 @@ export class DiscipleshipAnalyticsService {
     const url = status ? `/discipleship/goals?status=${status}` : '/discipleship/goals';
     const data = await ApiService.get(url);
     return data as any[];
+  }
+
+  static async createGoal(goalData: any): Promise<any> {
+    return await ApiService.post('/discipleship/goals', goalData);
+  }
+
+  static async updateGoal(id: string, data: any): Promise<any> {
+    return await ApiService.put(`/discipleship/goals/${id}`, data);
+  }
+
+  static async deleteGoal(id: string): Promise<void> {
+    return await ApiService.delete(`/discipleship/goals/${id}`);
+  }
+
+  static async extendGoal(id: string, newDeadline: string, reason: string): Promise<any> {
+    return await ApiService.post(`/discipleship/goals/${id}/extend`, {
+      new_deadline: newDeadline,
+      reason,
+    });
+  }
+
+  static async closeIncomplete(id: string, reason: string, achievedPercentage: number): Promise<any> {
+    return await ApiService.post(`/discipleship/goals/${id}/close-incomplete`, {
+      reason,
+      achieved_percentage: achievedPercentage,
+    });
   }
 
   // Helper para mapear prioridad a tipo de alerta

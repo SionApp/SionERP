@@ -3,7 +3,6 @@ import {
   Calendar,
   Heart,
   Home,
-  MapPin,
   Settings,
   Shield,
   Sparkles,
@@ -33,7 +32,8 @@ interface MenuItemConfig {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   requiredModule?: string;
-  minRole: number; // Minimum role level required (0=member, 500=admin)
+  minRole: number;
+  requireAdminAccess?: boolean; // pastor + staff con has_admin_access
 }
 
 const menuItems: MenuItemConfig[] = [
@@ -46,19 +46,12 @@ const menuItems: MenuItemConfig[] = [
     icon: UserPlus,
     minRole: ROLE_LEVELS.staff,
   },
-  { title: 'Roles', url: '/dashboard/roles', icon: Shield, minRole: ROLE_LEVELS.admin },
+  { title: 'Roles', url: '/dashboard/roles', icon: Shield, minRole: 0, requireAdminAccess: true },
   {
     title: 'Discipulado',
     url: '/dashboard/discipleship',
     icon: Heart,
     requiredModule: 'discipleship',
-    minRole: ROLE_LEVELS.member,
-  },
-  {
-    title: 'Zonas',
-    url: '/dashboard/zones',
-    icon: MapPin,
-    requiredModule: 'zones',
     minRole: ROLE_LEVELS.member,
   },
   {
@@ -79,7 +72,8 @@ const menuItems: MenuItemConfig[] = [
     title: 'Configuración',
     url: '/dashboard/settings',
     icon: Settings,
-    minRole: ROLE_LEVELS.admin,
+    minRole: 0,
+    requireAdminAccess: true,
   },
 ];
 
@@ -92,15 +86,14 @@ export function AppSidebar() {
 
   const isActive = (path: string) => currentPath === path;
 
-  // Filter items based on role level AND installed modules
   const filteredItems = menuItems.filter(item => {
-    // Check role level
-    if (!hasAccess(item.minRole)) return false;
+    if (item.requireAdminAccess) {
+      if (!permissions?.has_admin_access) return false;
+    } else if (!hasAccess(item.minRole)) {
+      return false;
+    }
 
-    // Always show items for no module requirement
     if (!item.requiredModule || item.requiredModule === 'base') return true;
-
-    // Check if module is installed
     return isModuleInstalled(item.requiredModule);
   });
 

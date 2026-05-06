@@ -141,7 +141,7 @@ const RolesPage = () => {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -158,34 +158,34 @@ const RolesPage = () => {
       {/* Stats */}
       <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6">
             <CardTitle className="text-sm font-medium">Total Roles</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{roles.length}</div>
+          <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">{roles.length}</div>
             <p className="text-xs text-muted-foreground">Roles configurados en el sistema</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6">
             <CardTitle className="text-sm font-medium">Usuarios Asignados</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalUsers}</div>
+          <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">{totalUsers}</div>
             <p className="text-xs text-muted-foreground">Total de usuarios con roles</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6">
             <CardTitle className="text-sm font-medium">Permisos Únicos</CardTitle>
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">
               {roles.reduce((total, role) => total + role.permissions.length, 0)}
             </div>
             <p className="text-xs text-muted-foreground">Permisos diferentes configurados</p>
@@ -194,41 +194,44 @@ const RolesPage = () => {
       </div>
 
       {/* Roles List */}
-      <div className="grid gap-4">
+      <div className="grid gap-3 sm:gap-4">
         {roles.map(roleData => (
           <Card key={roleData.role}>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <Badge variant={getRoleColor(roleData.role)}>{getRoleName(roleData.role)}</Badge>
-                  <div>
+            <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <Badge variant={getRoleColor(roleData.role)} className="shrink-0">
+                    {getRoleName(roleData.role)}
+                  </Badge>
+                  <div className="min-w-0">
                     <CardTitle className="text-base sm:text-lg">{getRoleName(roleData.role)}</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">{roleData.description}</CardDescription>
+                    <CardDescription className="text-xs sm:text-sm truncate">{roleData.description}</CardDescription>
                   </div>
                 </div>
                 <div className="text-left sm:text-right shrink-0">
-                  <p className="text-2xl font-bold">{roleData.count}</p>
-                  <p className="text-sm text-muted-foreground">usuarios</p>
+                  <p className="text-xl sm:text-2xl font-bold">{roleData.count}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">usuarios</p>
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <h4 className="font-medium mb-2">Permisos:</h4>
-                  <div className="flex flex-wrap gap-2">
+                  <h4 className="text-sm font-medium mb-2">Permisos:</h4>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {roleData.permissions.map((permission, index) => (
-                      <Badge key={index} variant="outline">
+                      <Badge key={index} variant="outline" className="text-xs">
                         {permission}
                       </Badge>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-4 border-t">
+                <div className="flex flex-wrap gap-2 pt-3 sm:pt-4 border-t">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="text-xs sm:text-sm"
                     onClick={() => toast.info('Funcionalidad en desarrollo')}
                   >
                     Ver Usuarios con este Rol
@@ -237,6 +240,7 @@ const RolesPage = () => {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="text-xs sm:text-sm"
                       onClick={() => toast.info('Funcionalidad en desarrollo')}
                     >
                       Gestionar Permisos
@@ -251,19 +255,19 @@ const RolesPage = () => {
 
       {/* Permission Matrix */}
       <Card>
-        <CardHeader>
-          <CardTitle>Matriz de Permisos</CardTitle>
-          <CardDescription>Vista general de permisos por rol</CardDescription>
+        <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
+          <CardTitle className="text-base sm:text-lg">Matriz de Permisos</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Vista general de permisos por rol</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+        <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <table className="w-full border-collapse min-w-[480px]">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left p-2">Permiso</th>
+                  <th className="text-left p-1.5 sm:p-2 text-xs sm:text-sm font-medium">Permiso</th>
                   {roles.map(roleData => (
-                    <th key={roleData.role} className="text-center p-2">
-                      <Badge variant={getRoleColor(roleData.role)}>
+                    <th key={roleData.role} className="text-center p-1.5 sm:p-2">
+                      <Badge variant={getRoleColor(roleData.role)} className="text-xs">
                         {getRoleName(roleData.role)}
                       </Badge>
                     </th>
@@ -274,13 +278,13 @@ const RolesPage = () => {
                 {Array.from(new Set(roles.flatMap(role => role.permissions))).map(
                   (permission, index) => (
                     <tr key={index} className="border-b">
-                      <td className="p-2 font-medium">{permission}</td>
+                      <td className="p-1.5 sm:p-2 text-xs sm:text-sm font-medium">{permission}</td>
                       {roles.map(roleData => (
-                        <td key={roleData.role} className="text-center p-2">
+                        <td key={roleData.role} className="text-center p-1.5 sm:p-2">
                           {roleData.permissions.includes(permission) ? (
-                            <div className="w-4 h-4 bg-green-500 rounded-full mx-auto"></div>
+                            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 bg-green-500 rounded-full mx-auto"></div>
                           ) : (
-                            <div className="w-4 h-4 bg-gray-300 rounded-full mx-auto"></div>
+                            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 bg-gray-300 rounded-full mx-auto"></div>
                           )}
                         </td>
                       ))}

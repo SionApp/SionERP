@@ -101,16 +101,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		LastLogin:        time.Now(),
 	}
 
-	discipleshipStats := models.DiscipleshipStats{
-		TotalGroups:     0,
-		TotalMembers:    0,
-		ActiveLeaders:   0,
-		AvgAttendance:   0,
-		MonthlyGrowth:   0,
-		SpiritualHealth: 0,
-		Multiplications: 0,
-		AlertsCount:     0,
-	}
+	discipleshipStats := h.getDiscipleshipStats(db)
 
 	// Fetch installed modules
 	installedModules := []string{}
@@ -276,6 +267,45 @@ func formatTimeAgo(t time.Time) string {
 		days := int(duration.Hours() / 24)
 		return fmt.Sprintf("%d d", days)
 	}
+}
+
+func (h *DashboardHandler) getDiscipleshipStats(db *config.Database) models.DiscipleshipStats {
+	stats := models.DiscipleshipStats{}
+
+	db.DB.QueryRow(`SELECT COUNT(*) FROM discipleship_groups WHERE status = 'active'`).Scan(&stats.TotalGroups)
+
+	db.DB.QueryRow(`SELECT COALESCE(SUM(active_members), 0) FROM discipleship_groups WHERE status = 'active'`).Scan(&stats.TotalMembers)
+
+	db.DB.QueryRow(`SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups WHERE status = 'active'`).Scan(&stats.ActiveLeaders)
+
+	db.DB.QueryRow(`
+		SELECT COALESCE(
+			AVG(CASE WHEN member_count > 0 THEN active_members::float / member_count * 100 ELSE 0 END), 0
+		)
+		FROM discipleship_groups WHERE status = 'active'
+	`).Scan(&stats.AvgAttendance)
+
+	db.DB.QueryRow(`SELECT COUNT(*) FROM discipleship_multiplications WHERE multiplication_date >= NOW() - INTERVAL '30 days'`).Scan(&stats.Multiplications)
+
+	db.DB.QueryRow(`SELECT COUNT(*) FROM discipleship_alerts WHERE resolved = false`).Scan(&stats.AlertsCount)
+
+	db.DB.QueryRow(`
+		SELECT COALESCE(AVG(spiritual_temperature), 0)
+		FROM discipleship_attendance
+		WHERE meeting_date >= NOW() - INTERVAL '30 days'
+	`).Scan(&stats.SpiritualHealth)
+
+	var prevMembers int
+	db.DB.QueryRow(`
+		SELECT COALESCE(SUM(active_members), 0)
+		FROM discipleship_groups
+		WHERE status = 'active' AND created_at <= NOW() - INTERVAL '30 days'
+	`).Scan(&prevMembers)
+	if prevMembers > 0 {
+		stats.MonthlyGrowth = float64(stats.TotalMembers-prevMembers) / float64(prevMembers) * 100
+	}
+
+	return stats
 }
 
 func formatAction(action, tableName string) string {

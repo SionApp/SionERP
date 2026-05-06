@@ -19,6 +19,7 @@ export function useCoordinatorData() {
     zoneStats,
     weeklyTrends,
     subordinates,
+    pendingReports,
     refetch: refetchBase,
   } = useDiscipleshipData({ userId: user?.id, level: 4, enabled: !!user });
 
@@ -78,6 +79,7 @@ export function useCoordinatorData() {
     
     // Datos específicos del coordinador
     myReports,
+    pendingReports: pendingReports || [],
     
     // Estados de carga
     loading: baseLoading || loadingReports,

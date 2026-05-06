@@ -135,9 +135,9 @@ const SettingsPage = () => {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Configuración del Sistema
@@ -146,7 +146,7 @@ const SettingsPage = () => {
             Administra y personaliza la configuración de tu iglesia
           </p>
         </div>
-        <Button variant="outline" onClick={loadAllSettings} disabled={isLoading} className="w-full lg:w-auto">
+        <Button variant="outline" onClick={loadAllSettings} disabled={isLoading} className="w-full sm:w-auto">
           <RotateCcw className="w-4 h-4 mr-2" />
           Recargar
         </Button>
