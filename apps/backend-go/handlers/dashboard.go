@@ -49,7 +49,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	var activeRoles int
 
 	err = db.DB.QueryRow(
-		`SELECT COUNT(*)
+		`SELECT COUNT(DISTINCT role)
 			FROM users
 		  WHERE is_active = true
 		`).Scan(&activeRoles)
@@ -217,16 +217,20 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentAct
 	var activities []models.RecentActivity
 	for rows.Next() {
 
-		var id, action, tableName, userEmail string
+		var id, action, tableName, userEmail, userName string
 		var changedAt time.Time
 
-		if err := rows.Scan(&id, &action, &tableName, &userEmail, &changedAt); err != nil {
+		if err := rows.Scan(&id, &action, &tableName, &userEmail, &userName, &changedAt); err != nil {
 			continue
 		}
 
 		timeAgo := formatTimeAgo(changedAt)
 
-		// Mapear tipos: Go usa "info", "success", "warning", "danger" / "error"
+		displayUser := userName
+		if displayUser == "" || displayUser == "Sistema" {
+			displayUser = userEmail
+		}
+
 		activityType := "info"
 		switch action {
 		case "INSERT", "create":
@@ -242,7 +246,7 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentAct
 		activities = append(activities, models.RecentActivity{
 			ID:     id,
 			Action: formattedAction,
-			User:   userEmail,
+			User:   displayUser,
 			Time:   timeAgo,
 			Type:   activityType,
 		})

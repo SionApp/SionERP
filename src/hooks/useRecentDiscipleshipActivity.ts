@@ -117,7 +117,7 @@ function extractStringValue(value: unknown): string | null {
   return null;
 }
 
-export function useRecentDiscipleshipActivity(limit = 10) {
+export function useRecentDiscipleshipActivity(limit = 10, leaderId?: string) {
   const [activities, setActivities] = useState<DiscipleshipActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,9 +128,10 @@ export function useRecentDiscipleshipActivity(limit = 10) {
       setError(null);
 
       const [reports, alerts, groupsResponse] = await Promise.allSettled([
-        DiscipleshipService.getReports({ limit, offset: 0 }),
-        DiscipleshipService.getAlerts({ limit, resolved: false }),
-        DiscipleshipService.getGroups({ limit: 5 }),
+        DiscipleshipService.getReports({ limit, offset: 0, ...(leaderId ? { reporter_id: leaderId } : {}) }),
+        // Para líderes no mostramos alertas del sistema, solo las propias
+        leaderId ? Promise.resolve([]) : DiscipleshipService.getAlerts({ limit, resolved: false }),
+        DiscipleshipService.getGroups({ limit: 5, ...(leaderId ? { leader_id: leaderId } : {}) }),
       ]);
 
       const allActivities: DiscipleshipActivity[] = [];
@@ -216,7 +217,7 @@ export function useRecentDiscipleshipActivity(limit = 10) {
     } finally {
       setLoading(false);
     }
-  }, [limit]);
+  }, [limit, leaderId]);
 
   useEffect(() => {
     loadActivities();

@@ -34,7 +34,7 @@ const (
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hierarchy Levels (Higher numbers = more authority)
+// System Role Levels (Higher numbers = more authority)
 // Uses large gaps so you can add roles in between without renumbering.
 // e.g., Super-Admin can be 600, Admin is 500.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,6 +44,19 @@ const (
 	LevelStaff      = 300
 	LevelSupervisor = 200
 	LevelServer     = 100
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Discipleship Hierarchy Levels (stored in discipleship_hierarchy.hierarchy_level)
+// These are INDEPENDENT of system roles — a user with system role 'server' can
+// hold any discipleship level.
+// ─────────────────────────────────────────────────────────────────────────────
+const (
+	DiscipleshipLevelLeader      = 1 // Líder de grupo
+	DiscipleshipLevelAuxiliary   = 2 // Supervisor Auxiliar
+	DiscipleshipLevelGeneral     = 3 // Supervisor General
+	DiscipleshipLevelCoordinator = 4 // Coordinador
+	DiscipleshipLevelPastoral    = 5 // Pastoral (acceso completo)
 )
 
 // RoleLevel returns the numeric hierarchy level for a given role.
