@@ -1044,9 +1044,27 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 		})
 	}
 
-	// Actualizar también el nivel de discipulado en la tabla users
+	// Double-write: sincronizar nivel en module_user_roles (fuente de verdad genérica
+	// para el middleware RequireModuleLevel — independiente del rol de sistema ERP)
+	roleName := discipleshipLevelName(req.HierarchyLevel)
+	assignedBy, _ := c.Get("user_id").(string)
+	_, err = db.DB.Exec(`
+		INSERT INTO module_user_roles (user_id, module_key, role_level, role_name, assigned_by)
+		VALUES ($1, 'discipleship', $2, $3, $4)
+		ON CONFLICT (user_id, module_key) DO UPDATE
+		  SET role_level  = EXCLUDED.role_level,
+		      role_name   = EXCLUDED.role_name,
+		      assigned_by = EXCLUDED.assigned_by,
+		      updated_at  = NOW()
+	`, req.UserID, req.HierarchyLevel, roleName, nullIfEmpty(assignedBy))
+	if err != nil {
+		// No bloqueante: logueamos pero no fallamos la petición
+		c.Logger().Errorf("⚠ Error sincronizando module_user_roles para user %s: %v", req.UserID, err)
+	}
+
+	// Actualizar también el nivel de discipulado en la tabla users (compatibilidad)
 	_, _ = db.DB.Exec(`
-		UPDATE users SET 
+		UPDATE users SET
 			discipleship_level = $1,
 			zone_id = $2,
 			territory = $3,
@@ -1057,6 +1075,24 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Jerarquía asignada exitosamente",
 	})
+}
+
+// discipleshipLevelName devuelve el nombre legible del nivel de discipulado.
+func discipleshipLevelName(level int) string {
+	switch level {
+	case 1:
+		return "Líder"
+	case 2:
+		return "Supervisor Auxiliar"
+	case 3:
+		return "Supervisor General"
+	case 4:
+		return "Coordinador"
+	case 5:
+		return "Pastoral"
+	default:
+		return fmt.Sprintf("Nivel %d", level)
+	}
 }
 
 // GetSubordinates obtiene los subordinados de un supervisor
@@ -1212,7 +1248,7 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 
 	// Get group performance for active groups
 	rows, err := db.DB.Query(`
-		SELECT g.id, g.group_name, u.name as leader_name,
+		SELECT g.id, g.group_name, COALESCE(u.first_name || ' ' || u.last_name, 'Sin asignar') as leader_name,
 			COALESCE((
 				SELECT AVG(
 					COALESCE((report_data->>'attendance_nd')::int, 0) +
@@ -2622,4 +2658,78 @@ func (h *DiscipleshipHandler) GetMemberAttendanceStats(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, stats)
+}
+
+// =====================================================
+// USUARIOS PARA GESTIÓN DE JERARQUÍA
+// =====================================================
+
+// UserForHierarchy contiene la información básica de un usuario
+// necesaria para asignar niveles de jerarquía de discipulado.
+type UserForHierarchy struct {
+	ID             string  `json:"id"`
+	FirstName      string  `json:"first_name"`
+	LastName       string  `json:"last_name"`
+	Email          string  `json:"email"`
+	IDNumber       string  `json:"id_number"`
+	Role           string  `json:"role"`
+	HierarchyLevel *int    `json:"hierarchy_level"` // nil si no tiene jerarquía asignada
+	SupervisorID   *string `json:"supervisor_id"`
+	ZoneName       *string `json:"zone_name"`
+	Territory      *string `json:"territory"`
+}
+
+// GetUsersForHierarchy devuelve la lista de usuarios con su nivel de jerarquía actual.
+// Accesible a usuarios con nivel de discipulado >= 4 (Coordinador) o admin access.
+// Este endpoint existe específicamente para la gestión de jerarquías — NO expone
+// datos administrativos sensibles del módulo de usuarios del ERP.
+func (h *DiscipleshipHandler) GetUsersForHierarchy(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	rows, err := db.DB.Query(`
+		SELECT
+			u.id,
+			COALESCE(u.first_name, '')    AS first_name,
+			COALESCE(u.last_name, '')     AS last_name,
+			COALESCE(u.email, '')         AS email,
+			COALESCE(u.id_number, '')     AS id_number,
+			COALESCE(u.role::text, '')    AS role,
+			dh.hierarchy_level,
+			dh.supervisor_id,
+			dh.zone_name,
+			dh.territory
+		FROM users u
+		LEFT JOIN discipleship_hierarchy dh ON dh.user_id = u.id
+		WHERE u.is_active = true
+		ORDER BY u.first_name, u.last_name
+	`)
+	if err != nil {
+		c.Logger().Error("Error fetching users for hierarchy:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al obtener usuarios",
+		})
+	}
+	defer rows.Close()
+
+	var users []UserForHierarchy
+	for rows.Next() {
+		var u UserForHierarchy
+		if err := rows.Scan(
+			&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.IDNumber, &u.Role,
+			&u.HierarchyLevel, &u.SupervisorID, &u.ZoneName, &u.Territory,
+		); err != nil {
+			c.Logger().Error("Error scanning user for hierarchy:", err)
+			continue
+		}
+		users = append(users, u)
+	}
+
+	if users == nil {
+		users = []UserForHierarchy{}
+	}
+
+	return c.JSON(http.StatusOK, users)
 }

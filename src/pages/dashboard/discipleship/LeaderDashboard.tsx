@@ -1,25 +1,12 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { LeaderReportModal } from '@/components/discipleship/LeaderReportModal';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Slider } from '@/components/ui/slider';
-import { Textarea } from '@/components/ui/textarea';
-import { LeaderReportModal } from '@/components/discipleship/LeaderReportModal';
 import { useLeaderDiscipleshipData } from '@/hooks/useLeaderDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
-import type { CreateReportRequest } from '@/types/discipleship.types';
+import type { GroupMemberWithDetails } from '@/types/discipleship.types';
 import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -28,14 +15,17 @@ import {
   CheckCircle,
   Clock,
   FileText,
+  Mail,
   Plus,
   RefreshCw,
-  Send,
+  Save,
   Target,
   TrendingUp,
+  UserCheck,
+  UserX,
   Users,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 export default function LeaderDashboard() {
@@ -44,6 +34,80 @@ export default function LeaderDashboard() {
 
   // Report form state
   const [showReportModal, setShowReportModal] = useState(false);
+
+  // Members state
+  const [members, setMembers] = useState<GroupMemberWithDetails[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // Attendance state
+  const [attendanceDate, setAttendanceDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [attendanceMap, setAttendanceMap] = useState<Record<string, boolean>>({});
+  const [savingAttendance, setSavingAttendance] = useState(false);
+  const [attendanceLoaded, setAttendanceLoaded] = useState(false);
+
+  const myGroup = groups[0];
+
+  useEffect(() => {
+    if (!myGroup?.id) return;
+    setLoadingMembers(true);
+    DiscipleshipService.getGroupMembers(myGroup.id)
+      .then(data => {
+        const list = data || [];
+        setMembers(list);
+        // Inicializar todos como presentes por defecto
+        const init: Record<string, boolean> = {};
+        list.forEach(m => { init[m.user_id] = true; });
+        setAttendanceMap(init);
+      })
+      .catch(() => setMembers([]))
+      .finally(() => setLoadingMembers(false));
+  }, [myGroup?.id]);
+
+  // Cargar asistencia existente cuando cambia la fecha
+  useEffect(() => {
+    if (!myGroup?.id || members.length === 0) return;
+    setAttendanceLoaded(false);
+    DiscipleshipService.getGroupAttendance(myGroup.id, { date: attendanceDate })
+      .then(existing => {
+        if (existing && existing.length > 0) {
+          // Hay registros para esta fecha — usar esos valores
+          const map: Record<string, boolean> = {};
+          members.forEach(m => { map[m.user_id] = false; }); // default ausente
+          existing.forEach((a: any) => { map[a.user_id] = a.present; });
+          setAttendanceMap(map);
+        } else {
+          // Sin registros — resetear todos a presentes
+          const init: Record<string, boolean> = {};
+          members.forEach(m => { init[m.user_id] = true; });
+          setAttendanceMap(init);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAttendanceLoaded(true));
+  }, [attendanceDate, myGroup?.id, members.length]);
+
+  const toggleAttendance = (userId: string) => {
+    setAttendanceMap(prev => ({ ...prev, [userId]: !prev[userId] }));
+  };
+
+  const saveAttendance = async () => {
+    if (!myGroup?.id) return;
+    setSavingAttendance(true);
+    try {
+      await DiscipleshipService.bulkRecordAttendance(myGroup.id, {
+        meeting_date: attendanceDate,
+        attendance: members.map(m => ({
+          user_id: m.user_id,
+          present: attendanceMap[m.user_id] ?? false,
+        })),
+      });
+      toast.success('Asistencia guardada correctamente');
+    } catch {
+      toast.error('Error al guardar la asistencia');
+    } finally {
+      setSavingAttendance(false);
+    }
+  };
 
   // Get current week dates
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
@@ -85,8 +149,6 @@ export default function LeaderDashboard() {
       </div>
     );
   }
-
-  const myGroup = groups[0]; // El líder generalmente tiene un grupo asignado
 
   return (
     <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6">
@@ -218,6 +280,158 @@ export default function LeaderDashboard() {
                   </div>
                 )
               )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Members Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Mi Gente
+            {members.length > 0 && (
+              <Badge variant="secondary" className="ml-1">{members.length}</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingMembers ? (
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : members.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No hay miembros asignados a tu célula aún</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {members.map(member => (
+                <div key={member.id} className="flex items-center justify-between py-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Avatar inicial */}
+                    <div className="flex-shrink-0 h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
+                      {member.user_name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{member.user_name}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+                        <Mail className="h-3 w-3 flex-shrink-0" />
+                        {member.user_email}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    {member.role_in_group && (
+                      <Badge variant="outline" className="text-xs hidden sm:inline-flex">
+                        {member.role_in_group}
+                      </Badge>
+                    )}
+                    {member.is_active ? (
+                      <Badge variant="default" className="gap-1 text-xs bg-green-600 hover:bg-green-700">
+                        <UserCheck className="h-3 w-3" />
+                        Activo
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="gap-1 text-xs text-muted-foreground">
+                        <UserX className="h-3 w-3" />
+                        Inactivo
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Attendance */}
+      {members.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5" />
+              Asistencia
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Date picker */}
+            <div className="flex items-center gap-3">
+              <label htmlFor="attendance-date" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                Fecha de reunión
+              </label>
+              <input
+                id="attendance-date"
+                type="date"
+                value={attendanceDate}
+                onChange={e => setAttendanceDate(e.target.value)}
+                className="border rounded-md px-3 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            {/* Member rows */}
+            {!attendanceLoaded ? (
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+              </div>
+            ) : (
+              <div className="divide-y">
+                {members.map(member => {
+                  const present = attendanceMap[member.user_id] ?? true;
+                  return (
+                    <div key={member.id} className="flex items-center justify-between py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex-shrink-0 h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
+                          {member.user_name?.charAt(0)?.toUpperCase() || '?'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{member.user_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{member.user_email}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleAttendance(member.user_id)}
+                        className={`flex-shrink-0 ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          present
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50'
+                            : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50'
+                        }`}
+                      >
+                        {present ? (
+                          <>
+                            <UserCheck className="h-3.5 w-3.5" />
+                            Presente
+                          </>
+                        ) : (
+                          <>
+                            <UserX className="h-3.5 w-3.5" />
+                            Ausente
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Summary + Save */}
+            <div className="flex items-center justify-between pt-2 border-t">
+              <p className="text-sm text-muted-foreground">
+                {Object.values(attendanceMap).filter(Boolean).length} de {members.length} presentes
+              </p>
+              <Button
+                size="sm"
+                onClick={saveAttendance}
+                disabled={savingAttendance || !attendanceLoaded}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {savingAttendance ? 'Guardando…' : 'Guardar Asistencia'}
+              </Button>
             </div>
           </CardContent>
         </Card>

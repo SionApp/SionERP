@@ -27,6 +27,20 @@ import type {
 } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
 
+/** Usuario con su nivel de jerarquía de discipulado actual (puede ser null si no tiene). */
+export interface UserForHierarchy {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  id_number: string;
+  role: string;
+  hierarchy_level: number | null;
+  supervisor_id: string | null;
+  zone_name: string | null;
+  territory: string | null;
+}
+
 export class DiscipleshipService {
   private static baseUrl = '/discipleship';
 
@@ -88,6 +102,17 @@ export class DiscipleshipService {
       return ApiService.get(`${this.baseUrl}/hierarchy/${supervisorId}/subordinates`);
     }
     return ApiService.get(`${this.baseUrl}/subordinates`);
+  }
+
+  /**
+   * Obtiene la lista de usuarios con su nivel de jerarquía actual.
+   * Accesible a usuarios con nivel de discipulado >= 4 (Coordinador).
+   * Reemplaza el uso de UserService.getAllUsers() en HierarchyManagement,
+   * que requería rol de sistema staff (300) bloqueando usuarios con rol
+   * 'server' pero con nivel de discipulado Coordinador.
+   */
+  static async getUsersForHierarchy(): Promise<UserForHierarchy[]> {
+    return ApiService.get(`${this.baseUrl}/users`);
   }
 
   // =====================================================

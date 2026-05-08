@@ -108,24 +108,29 @@ func SetupRoutes(e *echo.Echo) {
 
 	// Permissions routes
 	permissionsHandler := handlers.NewPermissionsHandler()
-	protected.GET("/permissions/me", permissionsHandler.GetMyPermissions) // GET /api/v1/permissions/me
+	protected.GET("/permissions/me", permissionsHandler.GetMyPermissions)                     // GET /api/v1/permissions/me
+	protected.GET("/permissions/module-role", permissionsHandler.GetModuleRole)              // GET /api/v1/permissions/module-role?module=:key
 
 	discipleshipHandler := handlers.NewDiscipleshipHandler()
 	reportsHandler := handlers.NewDiscipleshipReportsHandler()
 	alertsHandler := handlers.NewDiscipleshipAlertsHandler()
+	schedulerHandler := handlers.NewSchedulerHandler()
 	discipleship := protected.Group("/discipleship")
 	discipleship.Use(middleware.RequireModule(utils.ModuleDiscipleship)) // Enforce Discipleship Module
 	{
+		// Usuarios para gestión de jerarquía (nivel Coordinador+ del módulo)
+		discipleship.GET("/users", discipleshipHandler.GetUsersForHierarchy, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
+
 		// Grupos
 		discipleship.GET("/groups", discipleshipHandler.GetGroups)
 		discipleship.GET("/groups/:id", discipleshipHandler.GetGroup)
-		discipleship.POST("/groups", discipleshipHandler.CreateGroup, middleware.RequireRole(utils.LevelSupervisor))
-		discipleship.PUT("/groups/:id", discipleshipHandler.UpdateGroup, middleware.RequireRole(utils.LevelSupervisor))
-		discipleship.DELETE("/groups/:id", discipleshipHandler.DeleteGroup, middleware.RequireRole(utils.LevelStaff))
+		discipleship.POST("/groups", discipleshipHandler.CreateGroup, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelGeneral))
+		discipleship.PUT("/groups/:id", discipleshipHandler.UpdateGroup, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelGeneral))
+		discipleship.DELETE("/groups/:id", discipleshipHandler.DeleteGroup, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
 
 		// Jerarquía
 		discipleship.GET("/hierarchy", discipleshipHandler.GetHierarchy)
-		discipleship.POST("/hierarchy", discipleshipHandler.AssignHierarchy)
+		discipleship.POST("/hierarchy", discipleshipHandler.AssignHierarchy, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
 		discipleship.GET("/hierarchy/:id/subordinates", discipleshipHandler.GetSubordinates)
 
 		// Niveles de Discipulado
@@ -176,6 +181,7 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.PUT("/alerts/:id/resolve", alertsHandler.ResolveAlert)
 		discipleship.DELETE("/alerts/:id", alertsHandler.DeleteAlert)
 		discipleship.POST("/alerts/generate", alertsHandler.GenerateAutomaticAlerts)
+		discipleship.POST("/alerts/check-missing-reports", schedulerHandler.TriggerMissingReportsCheck)
 
 		// Tendencias y estadísticas
 		discipleship.GET("/weekly-trends", discipleshipHandler.GetWeeklyTrends)
