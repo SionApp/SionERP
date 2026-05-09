@@ -3,7 +3,11 @@ import { SupervisionReportModal } from '@/components/discipleship/SupervisionRep
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { parseGoTime } from '@/lib/go-time';
 import { useAuth } from '@/hooks/useAuth';
@@ -32,6 +36,7 @@ interface DashboardStats {
   active_leaders: number;
   pending_alerts: number;
   pending_reports: number;
+  zone_name?: string;
 }
 
 interface GroupData {
@@ -50,6 +55,11 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<DiscipleshipReport | null>(null);
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<GroupData | null>(null);
+  const [schedulingGroup, setSchedulingGroup] = useState<GroupData | null>(null);
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingTime, setMeetingTime] = useState('');
+  const [meetingNotes, setMeetingNotes] = useState('');
 
   // Usar hook específico del supervisor auxiliar
   const { loading, stats, groups, myReports, pendingReports, error, refetch, refetchReports } =
@@ -121,7 +131,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
           </h1>
           <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate">
             {user?.email} -{' '}
-            {(user as unknown as { zone_name: string })?.zone_name || 'Zona no asignada'}
+            {stats?.zone_name || 'Zona no asignada'}
           </p>
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -357,7 +367,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => toast.info(`Detalles del grupo: ${group.group_name}`)}
+                            onClick={() => setSelectedGroup(group)}
                           >
                             Ver Detalles
                           </Button>
@@ -491,9 +501,18 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                           {group.avg_attendance}% asist.
                         </p>
                       </div>
-                      <Button size="sm" variant="outline">
-                        Agendar Reunión
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSchedulingGroup(group);
+                            setMeetingDate('');
+                            setMeetingTime('');
+                            setMeetingNotes('');
+                          }}
+                        >
+                          Agendar Reunión
+                        </Button>
                     </div>
                   </div>
                 ))}
@@ -581,6 +600,82 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
         onApprove={handleApproveReport}
         onReject={handleRejectReport}
       />
+
+      <Sheet open={!!selectedGroup} onOpenChange={() => setSelectedGroup(null)}>
+        <SheetContent className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>{selectedGroup?.group_name}</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4 mt-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Líder</p>
+                <p className="font-medium">{selectedGroup?.leader_name || 'Sin asignar'}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Estado</p>
+                <p className="font-medium capitalize">{selectedGroup?.status}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Miembros</p>
+                <p className="font-medium">{selectedGroup?.member_count}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Asistencia</p>
+                <p className="font-medium">{selectedGroup?.avg_attendance}%</p>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={!!schedulingGroup} onOpenChange={() => setSchedulingGroup(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Agendar Reunión — {schedulingGroup?.group_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="date">Fecha</Label>
+              <Input
+                id="date"
+                type="date"
+                value={meetingDate}
+                onChange={e => setMeetingDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="time">Hora</Label>
+              <Input
+                id="time"
+                type="time"
+                value={meetingTime}
+                onChange={e => setMeetingTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notas</Label>
+              <Input
+                id="notes"
+                value={meetingNotes}
+                onChange={e => setMeetingNotes(e.target.value)}
+                placeholder="Temas a tratar, ubicación, etc."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSchedulingGroup(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => {
+              toast.success(`Reunión agendada para ${meetingDate} a las ${meetingTime}`);
+              setSchedulingGroup(null);
+            }}>
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });

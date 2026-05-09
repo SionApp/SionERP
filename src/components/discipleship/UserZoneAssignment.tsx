@@ -25,7 +25,7 @@ import { UserPlus, Search, MapPin, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useZones } from '@/hooks/useZones';
 import { useDiscipleshipLevels } from '@/hooks/useDiscipleshipLevels';
-import { ApiService } from '@/services/api.service';
+import { DiscipleshipService } from '@/services/discipleship.service';
 import { ZonesService } from '@/services/zones.service';
 import { normalizeNullString } from '@/lib/utils';
 import { getDiscipleshipLevelConfig } from '@/lib/discipleship';
@@ -68,22 +68,12 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
   const loadUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const response = await ApiService.get<{ users: AssignmentUser[] } | AssignmentUser[]>(
-        '/users'
-      );
-
-      let userList: AssignmentUser[] = [];
-      if (Array.isArray(response)) {
-        userList = response as AssignmentUser[];
-      } else if (response && typeof response === 'object' && 'users' in response) {
-        userList = (response.users as AssignmentUser[]) || [];
-      }
+      const usersData = await DiscipleshipService.getUsersForHierarchy();
+      const userList = usersData || [];
 
       const normalizedUsers = userList.map(user => ({
-        ...user,
         id: String(normalizeNullString(user.id) || ''),
         full_name:
-          user.full_name ||
           `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
           'Sin nombre',
         email: normalizeNullString(user.email) || 'Sin email',

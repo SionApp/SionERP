@@ -44,6 +44,7 @@ interface DashboardStats {
   average_attendance: number;
   spiritual_health: number;
   pending_alerts: number;
+  zone_name?: string;
 }
 
 interface Subordinate {
@@ -133,7 +134,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
           </h1>
           <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate">
             {user?.email} -{' '}
-            {(user as unknown as { zone_name: string })?.zone_name || 'Zona no asignada'}
+            {stats?.zone_name || 'Zona no asignada'}
           </p>
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -246,12 +247,6 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
               className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
             >
               Reporte Semanal
-            </TabsTrigger>
-            <TabsTrigger
-              value="multiplication"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Multiplicación
             </TabsTrigger>
             <TabsTrigger
               value="approvals"
@@ -528,19 +523,6 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="multiplication" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Plan de Multiplicación</CardTitle>
-              <CardDescription>Grupos en proceso de multiplicación</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                Funcionalidad de multiplicación próximamente
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="approvals" className="space-y-4">
           <Card>

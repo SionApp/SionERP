@@ -94,9 +94,11 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 		SELECT 
 			g.id, g.group_name, g.leader_id, g.supervisor_id,
 			g.zone_id, COALESCE(z.name, '') as zone_name,
-			g.meeting_day, g.meeting_time, g.meeting_location,
+			g.meeting_day, TO_CHAR(g.meeting_time, 'HH24:MI') as meeting_time, g.meeting_location,
 			g.meeting_address, g.latitude, g.longitude,
-			g.member_count, g.active_members, g.status,
+			(SELECT COUNT(*) FROM discipleship_group_members WHERE group_id = g.id) as member_count,
+			(SELECT COUNT(*) FROM discipleship_group_members WHERE group_id = g.id AND is_active = true) as active_members,
+			g.status,
 			g.created_at, g.updated_at,
 			COALESCE(u.first_name || ' ' || u.last_name, 'Sin líder') as leader_name,
 			COALESCE(s.first_name || ' ' || s.last_name, '') as supervisor_name
@@ -283,9 +285,11 @@ func (h *DiscipleshipHandler) GetGroup(c echo.Context) error {
 		SELECT 
 			g.id, g.group_name, g.leader_id, g.supervisor_id,
 			g.zone_id, COALESCE(z.name, '') as zone_name,
-			g.meeting_day, g.meeting_time, g.meeting_location,
+			g.meeting_day, TO_CHAR(g.meeting_time, 'HH24:MI') as meeting_time, g.meeting_location,
 			g.meeting_address, g.latitude, g.longitude,
-			g.member_count, g.active_members, g.status,
+			(SELECT COUNT(*) FROM discipleship_group_members WHERE group_id = g.id) as member_count,
+			(SELECT COUNT(*) FROM discipleship_group_members WHERE group_id = g.id AND is_active = true) as active_members,
+			g.status,
 			g.created_at, g.updated_at,
 			COALESCE(u.first_name || ' ' || u.last_name, 'Sin líder') as leader_name,
 			COALESCE(s.first_name || ' ' || s.last_name, '') as supervisor_name
@@ -1595,6 +1599,7 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		GroupsUnderSupervision int     `json:"groups_under_supervision"`
 		SubordinatesCount      int     `json:"subordinates_count"`
 		PendingReports         int     `json:"pending_reports"`
+		ZoneName               string  `json:"zone_name"`
 	}
 
 	// Estadísticas base según nivel
@@ -1641,6 +1646,10 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 				SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups 
 				WHERE zone_id = $1 AND status = 'active'
 			`, zoneID.String).Scan(&stats.TotalMembers)
+
+			db.DB.QueryRow(`
+				SELECT COALESCE(name, '') FROM zones WHERE id = $1
+			`, zoneID.String).Scan(&stats.ZoneName)
 		}
 
 		db.DB.QueryRow(`
@@ -1648,7 +1657,44 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			WHERE supervisor_id = $1
 		`, userID).Scan(&stats.SubordinatesCount)
 
-	case "4", "5": // Coordinador / Pastor - todo el sistema
+	case "4": // Coordinador - su zona
+		var coordZoneID sql.NullString
+		db.DB.QueryRow(`
+			SELECT zone_id FROM discipleship_hierarchy WHERE user_id = $1
+		`, userID).Scan(&coordZoneID)
+
+		if coordZoneID.Valid && coordZoneID.String != "" {
+			db.DB.QueryRow(`
+				SELECT COUNT(*) FROM discipleship_groups 
+				WHERE zone_id = $1 AND status = 'active'
+			`, coordZoneID.String).Scan(&stats.TotalGroups)
+
+			db.DB.QueryRow(`
+				SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups 
+				WHERE zone_id = $1 AND status = 'active'
+			`, coordZoneID.String).Scan(&stats.TotalMembers)
+
+			db.DB.QueryRow(`
+				SELECT COALESCE(name, '') FROM zones WHERE id = $1
+			`, coordZoneID.String).Scan(&stats.ZoneName)
+		}
+
+		db.DB.QueryRow(`
+			SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups WHERE status = 'active'
+		`).Scan(&stats.ActiveLeaders)
+
+		db.DB.QueryRow(`
+			SELECT COUNT(*) FROM discipleship_hierarchy 
+			WHERE supervisor_id = $1
+		`, userID).Scan(&stats.SubordinatesCount)
+
+		db.DB.QueryRow(`
+			SELECT COUNT(*) FROM cell_multiplication_tracking 
+			WHERE multiplication_date >= DATE_TRUNC('year', CURRENT_DATE)
+			AND success_status = 'successful'
+		`).Scan(&stats.Multiplications)
+
+	case "5": // Pastor - todo el sistema
 		db.DB.QueryRow(`
 			SELECT COUNT(*) FROM discipleship_groups WHERE status = 'active'
 		`).Scan(&stats.TotalGroups)
@@ -1711,9 +1757,16 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		SELECT COUNT(*) FROM discipleship_alerts WHERE resolved = false
 	`).Scan(&stats.PendingAlerts)
 
-	db.DB.QueryRow(`
-		SELECT COUNT(*) FROM discipleship_reports WHERE status = 'submitted'
-	`).Scan(&stats.PendingReports)
+	if levelInt >= 5 {
+		db.DB.QueryRow(`
+			SELECT COUNT(*) FROM discipleship_reports WHERE status = 'submitted'
+		`).Scan(&stats.PendingReports)
+	} else {
+		db.DB.QueryRow(`
+			SELECT COUNT(*) FROM discipleship_reports
+			WHERE status = 'submitted' AND supervisor_id = $1 AND reporter_id != $1
+		`, userID).Scan(&stats.PendingReports)
+	}
 
 	return c.JSON(http.StatusOK, stats)
 }
@@ -2667,16 +2720,20 @@ func (h *DiscipleshipHandler) GetMemberAttendanceStats(c echo.Context) error {
 // UserForHierarchy contiene la información básica de un usuario
 // necesaria para asignar niveles de jerarquía de discipulado.
 type UserForHierarchy struct {
-	ID             string  `json:"id"`
-	FirstName      string  `json:"first_name"`
-	LastName       string  `json:"last_name"`
-	Email          string  `json:"email"`
-	IDNumber       string  `json:"id_number"`
-	Role           string  `json:"role"`
-	HierarchyLevel *int    `json:"hierarchy_level"` // nil si no tiene jerarquía asignada
-	SupervisorID   *string `json:"supervisor_id"`
-	ZoneName       *string `json:"zone_name"`
-	Territory      *string `json:"territory"`
+	ID             string   `json:"id"`
+	FirstName      string   `json:"first_name"`
+	LastName       string   `json:"last_name"`
+	Email          string   `json:"email"`
+	Phone          string   `json:"phone"`
+	IDNumber       string   `json:"id_number"`
+	Role           string   `json:"role"`
+	HierarchyLevel *int     `json:"hierarchy_level"`
+	SupervisorID   *string  `json:"supervisor_id"`
+	ZoneID         *string  `json:"zone_id"`
+	ZoneName       *string  `json:"zone_name"`
+	Territory      *string  `json:"territory"`
+	Latitude       *float64 `json:"latitude"`
+	Longitude      *float64 `json:"longitude"`
 }
 
 // GetUsersForHierarchy devuelve la lista de usuarios con su nivel de jerarquía actual.
@@ -2695,12 +2752,16 @@ func (h *DiscipleshipHandler) GetUsersForHierarchy(c echo.Context) error {
 			COALESCE(u.first_name, '')    AS first_name,
 			COALESCE(u.last_name, '')     AS last_name,
 			COALESCE(u.email, '')         AS email,
+			COALESCE(u.phone, '')         AS phone,
 			COALESCE(u.id_number, '')     AS id_number,
 			COALESCE(u.role::text, '')    AS role,
 			dh.hierarchy_level,
 			dh.supervisor_id,
+			u.zone_id,
 			dh.zone_name,
-			dh.territory
+			dh.territory,
+			u.latitude,
+			u.longitude
 		FROM users u
 		LEFT JOIN discipleship_hierarchy dh ON dh.user_id = u.id
 		WHERE u.is_active = true
@@ -2718,8 +2779,9 @@ func (h *DiscipleshipHandler) GetUsersForHierarchy(c echo.Context) error {
 	for rows.Next() {
 		var u UserForHierarchy
 		if err := rows.Scan(
-			&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.IDNumber, &u.Role,
-			&u.HierarchyLevel, &u.SupervisorID, &u.ZoneName, &u.Territory,
+			&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Phone, &u.IDNumber, &u.Role,
+			&u.HierarchyLevel, &u.SupervisorID, &u.ZoneID, &u.ZoneName, &u.Territory,
+			&u.Latitude, &u.Longitude,
 		); err != nil {
 			c.Logger().Error("Error scanning user for hierarchy:", err)
 			continue

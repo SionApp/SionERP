@@ -14,7 +14,7 @@ type DiscipleshipGroup struct {
 	LeaderID        string   `json:"leader_id"`
 	SupervisorID    *string  `json:"supervisor_id"`
 	ZoneID          *string  `json:"zone_id" db:"zone_id"`
-	ZoneName        *string  `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
+	ZoneName        *string  `json:"zone_name" db:"zone_name"`
 	MeetingDay      *string  `json:"meeting_day"`
 	MeetingTime     *string  `json:"meeting_time"`
 	MeetingLocation *string  `json:"meeting_location"`

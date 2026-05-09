@@ -118,8 +118,8 @@ func SetupRoutes(e *echo.Echo) {
 	discipleship := protected.Group("/discipleship")
 	discipleship.Use(middleware.RequireModule(utils.ModuleDiscipleship)) // Enforce Discipleship Module
 	{
-		// Usuarios para gestión de jerarquía (nivel Coordinador+ del módulo)
-		discipleship.GET("/users", discipleshipHandler.GetUsersForHierarchy, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
+		// Usuarios del módulo de discipulado (nivel Supervisor Auxiliar+ del módulo)
+		discipleship.GET("/users", discipleshipHandler.GetUsersForHierarchy, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelAuxiliary))
 
 		// Grupos
 		discipleship.GET("/groups", discipleshipHandler.GetGroups)

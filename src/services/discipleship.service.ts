@@ -33,12 +33,16 @@ export interface UserForHierarchy {
   first_name: string;
   last_name: string;
   email: string;
+  phone: string;
   id_number: string;
   role: string;
   hierarchy_level: number | null;
   supervisor_id: string | null;
+  zone_id: string | null;
   zone_name: string | null;
   territory: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export class DiscipleshipService {
