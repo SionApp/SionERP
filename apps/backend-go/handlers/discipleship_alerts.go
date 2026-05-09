@@ -22,6 +22,14 @@ func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
 		return err
 	}
 
+	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, db)
+
+	if !canSeeAll && hierarchyLevel == nil {
+		return c.JSON(http.StatusForbidden, map[string]string{
+			"error": "No tienes acceso al módulo de discipulado",
+		})
+	}
+
 	resolved := c.QueryParam("resolved")
 	zoneIDParam := c.QueryParam("zone_id")
 	zoneNameParam := c.QueryParam("zone_name") // Compatibilidad
@@ -56,6 +64,32 @@ func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
 	`
 	args := []interface{}{}
 	argCount := 0
+
+	// Filtrar según nivel jerárquico
+	if !canSeeAll && hierarchyLevel != nil {
+		switch *hierarchyLevel {
+		case 1:
+			argCount++
+			query += fmt.Sprintf(" AND (a.related_user_id = $%d", argCount)
+			args = append(args, userID)
+			argCount++
+			query += fmt.Sprintf(" OR a.related_group_id IN (SELECT id FROM discipleship_groups WHERE leader_id = $%d))", argCount)
+			args = append(args, userID)
+		case 2:
+			argCount++
+			query += fmt.Sprintf(" AND a.related_group_id IN (SELECT id FROM discipleship_groups WHERE supervisor_id = $%d)", argCount)
+			args = append(args, userID)
+		case 3:
+			if userZoneID != nil && *userZoneID != "" {
+				argCount++
+				query += fmt.Sprintf(" AND a.zone_id = $%d", argCount)
+				args = append(args, *userZoneID)
+			} else {
+				query += " AND 1=0"
+			}
+		case 4, 5:
+		}
+	}
 
 	if resolved != "" {
 		argCount++
