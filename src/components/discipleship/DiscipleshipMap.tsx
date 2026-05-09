@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { ApiService } from '@/services/api.service';
+import { DiscipleshipService } from '@/services/discipleship.service';
 import { ZonesService } from '@/services/zones.service';
 import type {
   DiscipleshipGroup,
@@ -274,15 +274,13 @@ export default function DiscipleshipMap({
     void load();
   }, []);
 
-  // Cargar usuarios con coordenadas
+  // Cargar usuarios con coordenadas (usa endpoint de discipulado, no requiere staff+)
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const response = await ApiService.get<{ users: MapUser[] } | MapUser[]>('/users');
-        const rawUsers = Array.isArray(response)
-          ? response
-          : (response as { users?: MapUser[] })?.users || [];
-        const usersWithCoords: MapUser[] = (rawUsers as MapUser[])
+        const usersData = await DiscipleshipService.getUsersForHierarchy();
+        const rawUsers = usersData || [];
+        const usersWithCoords: MapUser[] = rawUsers
           .filter((u) => {
             const lat = Number(u.latitude);
             const lng = Number(u.longitude);

@@ -91,11 +91,19 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	args := []interface{}{}
 	argCount := 0
 
-	// Si no es pastor/staff, solo puede ver sus propios reportes o los de sus subordinados
+	// Si no es pastor/staff, filtrar según contexto:
+	// - Cola de aprobación (status=submitted): solo los que supervisas y no son tuyos
+	// - Resto: tus reportes + los que supervisas
 	if !utils.IsAdminRole(userRole) {
-		argCount++
-		query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
-		args = append(args, userID)
+		if status == "submitted" {
+			argCount++
+			query += fmt.Sprintf(" AND r.supervisor_id = $%d AND r.reporter_id != $%d", argCount, argCount)
+			args = append(args, userID)
+		} else {
+			argCount++
+			query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
+			args = append(args, userID)
+		}
 	}
 
 	if status != "" {
