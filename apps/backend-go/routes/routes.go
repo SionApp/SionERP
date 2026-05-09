@@ -136,9 +136,9 @@ func SetupRoutes(e *echo.Echo) {
 		// Niveles de Discipulado
 		discipleship.GET("/levels", discipleshipHandler.GetDiscipleshipLevels)
 		discipleship.GET("/levels/:id", discipleshipHandler.GetDiscipleshipLevel)
-		discipleship.POST("/levels", discipleshipHandler.CreateDiscipleshipLevel)
-		discipleship.PUT("/levels/:id", discipleshipHandler.UpdateDiscipleshipLevel)
-		discipleship.DELETE("/levels/:id", discipleshipHandler.DeleteDiscipleshipLevel)
+		discipleship.POST("/levels", discipleshipHandler.CreateDiscipleshipLevel, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
+		discipleship.PUT("/levels/:id", discipleshipHandler.UpdateDiscipleshipLevel, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
+		discipleship.DELETE("/levels/:id", discipleshipHandler.DeleteDiscipleshipLevel, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
 
 		// Miembros de Grupo - rutas específicas primero para evitar conflicto con :id
 		discipleship.GET("/groups/:id/members", discipleshipHandler.GetGroupMembers)
