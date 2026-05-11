@@ -178,19 +178,16 @@ export class DiscipleshipAnalyticsService {
     }));
   }
 
-  // Obtener rendimiento de grupos
-  static async getGroupPerformance(): Promise<GroupPerformance[]> {
-    const data = await ApiService.get(`/discipleship/analytics/performance`);
-
-    return ((data as GroupPerformance[]) || []).map((group: GroupPerformance) => ({
-      groupId: group.groupId || '',
-      groupName: group.groupName || 'Sin nombre',
-      leaderName: group.leaderName || 'Sin líder',
-      avgAttendance: group.avgAttendance || 0,
-      growthRate: group.growthRate || 0,
-      spiritualTemp: group.spiritualTemp || 0,
-      status: group.status || 'active',
-      lastReportDate: group.lastReportDate || '',
+  private static mapGroupPerformance(list: any[]): GroupPerformance[] {
+    return (list || []).map((g: any) => ({
+      groupId: g.group_id || '',
+      groupName: g.group_name || 'Sin nombre',
+      leaderName: g.leader_name || 'Sin líder',
+      avgAttendance: g.avg_attendance || 0,
+      growthRate: g.growth_rate || 0,
+      spiritualTemp: g.spiritual_temp || 0,
+      status: g.status || 'active',
+      lastReportDate: g.last_report_date || '',
     }));
   }
 
@@ -198,16 +195,16 @@ export class DiscipleshipAnalyticsService {
   static async getAlerts(resolved = false): Promise<DiscipleshipAlert[]> {
     const data = await ApiService.get(`/discipleship/alerts?resolved=${resolved}`);
 
-    return ((data as DiscipleshipAlert[]) || []).map((alert: DiscipleshipAlert) => ({
+    return ((data as any[]) || []).map((alert: any) => ({
       id: alert.id || '',
       type: this.mapAlertPriorityToType(alert.priority),
       title: alert.title || '',
       message: alert.message || '',
-      groupName: alert.groupName,
-      userName: alert.userName,
-      createdAt: alert.createdAt || '',
+      groupName: alert.group_name || alert.groupName || undefined,
+      userName: alert.user_name || alert.userName || undefined,
+      createdAt: alert.created_at || alert.createdAt || '',
       priority: alert.priority || 3,
-      actionRequired: alert.actionRequired || false,
+      actionRequired: alert.action_required ?? alert.actionRequired ?? false,
       resolved: alert.resolved || false,
     }));
   }
@@ -216,15 +213,15 @@ export class DiscipleshipAnalyticsService {
   static async getMultiplications(): Promise<MultiplicationTracker[]> {
     const data = await ApiService.get(`/discipleship/multiplications`);
 
-    return ((data as MultiplicationTracker[]) || []).map((mult: MultiplicationTracker) => ({
+    return ((data as any[]) || []).map((mult: any) => ({
       id: mult.id || '',
-      parentGroupName: mult.parentGroupName || '',
-      newGroupName: mult.newGroupName,
-      parentLeaderName: mult.parentLeaderName || '',
-      newLeaderName: mult.newLeaderName || '',
-      multiplicationDate: mult.multiplicationDate || '',
-      status: mult.status || 'planned',
-      initialMembers: mult.initialMembers || 0,
+      parentGroupName: mult.parent_group_name || mult.parentGroupName || '',
+      newGroupName: mult.new_group_name || mult.newGroupName || null,
+      parentLeaderName: mult.parent_leader_name || mult.parentLeaderName || '',
+      newLeaderName: mult.new_leader_name || mult.newLeaderName || null,
+      multiplicationDate: mult.multiplication_date || mult.multiplicationDate || '',
+      status: mult.success_status || mult.status || 'planned',
+      initialMembers: mult.initial_members ?? mult.initialMembers ?? 0,
     }));
   }
 
@@ -277,18 +274,6 @@ export class DiscipleshipAnalyticsService {
       if (groups.length === 0) return null;
 
       const group = groups[0];
-      
-      // Obtener métricas recientes (últimas 4 semanas) para calcular temperatura espiritual promedio
-      const fourWeeksAgo = new Date();
-      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-      const metricsResponse = await ApiService.get(
-        `/discipleship/metrics?group_id=${group.id}&start_date=${fourWeeksAgo.toISOString().split('T')[0]}`
-      );
-      const metrics = metricsResponse.data || [];
-      
-      const avgSpiritualTemp = metrics.length > 0
-        ? metrics.reduce((sum: number, m: any) => sum + (m.spiritual_temperature || 0), 0) / metrics.length
-        : 0;
 
       return {
         groupId: group.id,
@@ -296,10 +281,10 @@ export class DiscipleshipAnalyticsService {
         memberCount: group.member_count || 0,
         activeMembers: group.active_members || 0,
         avgAttendance:
-          group.active_members > 0
+          group.member_count > 0
             ? Math.round((group.active_members / group.member_count) * 100)
             : 0,
-        spiritualTemperature: Math.round(avgSpiritualTemp * 10) / 10, // Redondear a 1 decimal
+        spiritualTemperature: group.spiritual_temperature || 0,
         lastReportDate: group.updated_at || '',
         meetingDay: group.meeting_day || 'No definido',
         meetingTime: group.meeting_time || 'No definido',
@@ -313,29 +298,46 @@ export class DiscipleshipAnalyticsService {
 
   // Obtener todos los datos del dashboard de discipulado
   static async getAllDiscipleshipData() {
-    try {
-      const [analytics, zoneStats, groupPerformance, alerts, multiplications, weeklyTrends] =
-        await Promise.all([
-          this.getAnalytics(),
-          this.getZoneStats(),
-          this.getGroupPerformance(),
-          this.getAlerts(),
-          this.getMultiplications(),
-          this.getWeeklyTrends(),
-        ]);
+    const [analyticsResult, zoneResult, alertsResult, multsResult, trendsResult] =
+      await Promise.allSettled([
+        ApiService.get('/discipleship/analytics') as Promise<any>,
+        this.getZoneStats(),
+        this.getAlerts(),
+        this.getMultiplications(),
+        this.getWeeklyTrends(),
+      ]);
 
-      return {
-        analytics,
-        zoneStats,
-        groupPerformance,
-        alerts,
-        multiplications,
-        weeklyTrends,
-      };
-    } catch (error) {
-      console.error('Error loading discipleship data:', error);
-      throw error;
-    }
+    const rawAnalytics = analyticsResult.status === 'fulfilled' ? analyticsResult.value : null;
+    const zoneStats = zoneResult.status === 'fulfilled' ? zoneResult.value : [];
+    const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : [];
+    const multiplications = multsResult.status === 'fulfilled' ? multsResult.value : [];
+    const weeklyTrends = trendsResult.status === 'fulfilled' ? trendsResult.value : [];
+
+    if (analyticsResult.status === 'rejected')
+      console.error('Analytics fetch failed:', analyticsResult.reason);
+    if (zoneResult.status === 'rejected')
+      console.error('Zone stats fetch failed:', zoneResult.reason);
+    if (alertsResult.status === 'rejected')
+      console.error('Alerts fetch failed:', alertsResult.reason);
+    if (multsResult.status === 'rejected')
+      console.error('Multiplications fetch failed:', multsResult.reason);
+    if (trendsResult.status === 'rejected')
+      console.error('Weekly trends fetch failed:', trendsResult.reason);
+
+    const analytics: DiscipleshipAnalytics = {
+      totalGroups: rawAnalytics?.total_groups || 0,
+      totalMembers: rawAnalytics?.total_members || 0,
+      averageAttendance: rawAnalytics?.average_attendance || 0,
+      growthRate: rawAnalytics?.growth_rate || 0,
+      activeLeaders: rawAnalytics?.active_leaders || 0,
+      multiplications: rawAnalytics?.multiplications || 0,
+      spiritualHealth: rawAnalytics?.spiritual_health || 0,
+      dateRange: { from: '', to: '' },
+    };
+
+    const groupPerformance = this.mapGroupPerformance(rawAnalytics?.group_performance || []);
+
+    return { analytics, zoneStats, groupPerformance, alerts, multiplications, weeklyTrends };
   }
   // Agregar estos métodos al servicio existente:
 

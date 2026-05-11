@@ -23,7 +23,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ApiService } from '@/services/api.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateGroupRequest, DiscipleshipGroup } from '@/types/discipleship.types';
 import { useZones } from '@/hooks/useZones';
@@ -35,14 +34,11 @@ import {
 import {
   Calendar,
   ChevronLeft,
-  Edit,
   Loader2,
   MapPin,
   Plus,
   Search,
-  Trash2,
   Users,
-  UserCog,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -109,12 +105,11 @@ const GroupManagement = () => {
   });
   const [geolocation, setGeolocation] = useState<GeolocationResult | null>(null);
 
-  // Cargar usuarios (solo una vez)
+  // Cargar usuarios con el endpoint de discipulado (no requiere staff+)
   const loadUsers = useCallback(async () => {
     try {
-      const { users } = await ApiService.get<{ users: User[] }>('/users');
-      const allUsers = (users || []).map(user => ({
-        ...user,
+      const usersData = await DiscipleshipService.getUsersForHierarchy();
+      const allUsers = (usersData || []).map(user => ({
         id: String(normalizeNullString(user.id) || ''),
         first_name: String(normalizeNullString(user.first_name) || ''),
         last_name: String(normalizeNullString(user.last_name) || ''),
@@ -124,7 +119,7 @@ const GroupManagement = () => {
 
       setLeaders(allUsers.filter(u => u.role !== 'pastor'));
       setSupervisors(
-        allUsers.filter((u: User) => ['pastor', 'staff', 'supervisor'].includes(u.role))
+        allUsers.filter((u: { role: string }) => ['pastor', 'staff', 'supervisor'].includes(u.role))
       );
     } catch (error: unknown) {
       console.error('Error loading users:', error);
@@ -320,23 +315,6 @@ const GroupManagement = () => {
     }
   }, []);
 
-  const getPhaseBadge = useCallback((phase: string) => {
-    switch (phase) {
-      case 'germinating':
-        return <Badge className="bg-sky-500 text-white">🌱 Germinando</Badge>;
-      case 'growing':
-        return <Badge className="bg-emerald-500 text-white">🌿 Creciendo</Badge>;
-      case 'solid':
-        return <Badge className="bg-violet-500 text-white">💎 Sólido</Badge>;
-      case 'multiplying':
-        return <Badge className="bg-amber-500 text-white">🔥 Multiplicando</Badge>;
-      case 'at_risk':
-        return <Badge variant="destructive">⚠️ Necesita apoyo</Badge>;
-      default:
-        return <Badge variant="outline">{phase || '—'}</Badge>;
-    }
-  }, []);
-
   // Definir columnas para DataTable
   const columns: Column<DiscipleshipGroup>[] = [
     {
@@ -434,41 +412,9 @@ const GroupManagement = () => {
       responsive: 'sm',
       sortable: true,
     },
-    {
-      key: 'phase',
-      label: 'Fase',
-      render: group => getPhaseBadge(group.phase),
-      responsive: 'md',
-      sortable: true,
-    },
   ];
 
-  // Acciones para cada grupo
-  const groupActions = (group: DiscipleshipGroup) => (
-    <div className="flex justify-end gap-1">
-      <Can I={ROLE_LEVELS.supervisor}>
-        <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(group.id)}>
-          <UserCog className="w-4 h-4" />
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(group)}>
-          <Edit className="w-4 h-4" />
-        </Button>
-      </Can>
-      <Can I={ROLE_LEVELS.staff}>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => handleDelete(group.id)}
-          className="text-destructive hover:text-destructive"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      </Can>
-    </div>
-  );
-
-  // Render para móvil
-  const mobileCardRender = (group: DiscipleshipGroup, actions?: React.ReactNode) => (
+  const mobileCardRender = (group: DiscipleshipGroup) => (
     <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors space-y-3">
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0">
@@ -479,7 +425,6 @@ const GroupManagement = () => {
         </div>
         <div className="flex flex-col gap-1 ml-2">
           {getStatusBadge(group.status)}
-          {group.phase && getPhaseBadge(group.phase)}
         </div>
       </div>
 
@@ -546,7 +491,6 @@ const GroupManagement = () => {
         </div>
       )}
 
-      <div className="flex justify-end items-center pt-2 border-t">{actions}</div>
     </div>
   );
 
@@ -814,7 +758,6 @@ const GroupManagement = () => {
         <DataTable
           data={groups}
           columns={columns}
-          actions={groupActions}
           loading={loading}
           emptyMessage="No se encontraron grupos"
           pagination={true}

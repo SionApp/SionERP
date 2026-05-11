@@ -169,20 +169,21 @@ func (h *DiscipleshipGoalsHandler) GetGoals(c echo.Context) error {
 		return err
 	}
 
-	// Safe type assertions to avoid panics
-	userID, ok := c.Get("user_id").(string)
-	if !ok || userID == "" {
+	status := c.QueryParam("status")
+	zoneID := c.QueryParam("zone_id")
+
+	userID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
 			"error": "Usuario no autenticado correctamente",
 		})
 	}
 
-	status := c.QueryParam("status")
-	zoneID := c.QueryParam("zone_id")
-
-	userLevel := 0 // Default: member level
-	if rl, ok := c.Get("role_level").(int); ok {
-		userLevel = rl
+	userLevel := 0
+	if canSeeAll {
+		userLevel = 5
+	} else if hierarchyLevel != nil {
+		userLevel = *hierarchyLevel
 	}
 
 	query := `

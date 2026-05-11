@@ -1,7 +1,6 @@
 package models
 
 import (
-	"database/sql"
 	"time"
 )
 
@@ -10,23 +9,23 @@ import (
 // =====================================================
 
 type DiscipleshipGroup struct {
-	ID              string          `json:"id"`
-	GroupName       string          `json:"group_name"`
-	LeaderID        string          `json:"leader_id"`
-	SupervisorID    sql.NullString  `json:"supervisor_id"`
-	ZoneID          sql.NullString  `json:"zone_id" db:"zone_id"`
-	ZoneName        sql.NullString  `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
-	MeetingDay      sql.NullString  `json:"meeting_day"`
-	MeetingTime     sql.NullString  `json:"meeting_time"`
-	MeetingLocation sql.NullString  `json:"meeting_location"`
-	MeetingAddress  sql.NullString  `json:"meeting_address"`
-	Latitude        sql.NullFloat64 `json:"latitude"`
-	Longitude       sql.NullFloat64 `json:"longitude"`
-	MemberCount     int             `json:"member_count"`
-	ActiveMembers   int             `json:"active_members"`
-	Status          string          `json:"status"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	ID              string   `json:"id"`
+	GroupName       string   `json:"group_name"`
+	LeaderID        string   `json:"leader_id"`
+	SupervisorID    *string  `json:"supervisor_id"`
+	ZoneID          *string  `json:"zone_id" db:"zone_id"`
+	ZoneName        *string  `json:"zone_name" db:"zone_name"`
+	MeetingDay      *string  `json:"meeting_day"`
+	MeetingTime     *string  `json:"meeting_time"`
+	MeetingLocation *string  `json:"meeting_location"`
+	MeetingAddress  *string  `json:"meeting_address"`
+	Latitude        *float64 `json:"latitude"`
+	Longitude       *float64 `json:"longitude"`
+	MemberCount     int      `json:"member_count"`
+	ActiveMembers   int      `json:"active_members"`
+	Status          string   `json:"status"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type DiscipleshipGroupWithDetails struct {
@@ -71,16 +70,16 @@ type UpdateGroupRequest struct {
 // =====================================================
 
 type DiscipleshipHierarchy struct {
-	ID                   string         `json:"id"`
-	UserID               string         `json:"user_id"`
-	HierarchyLevel       int            `json:"hierarchy_level"`
-	SupervisorID         sql.NullString `json:"supervisor_id"`
-	ZoneID               sql.NullString `json:"zone_id" db:"zone_id"`
-	ZoneName             sql.NullString `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
-	Territory            sql.NullString `json:"territory"`
-	ActiveGroupsAssigned int            `json:"active_groups_assigned"`
-	CreatedAt            time.Time      `json:"created_at"`
-	UpdatedAt            time.Time      `json:"updated_at"`
+	ID                   string    `json:"id"`
+	UserID               string    `json:"user_id"`
+	HierarchyLevel       int       `json:"hierarchy_level"`
+	SupervisorID         *string   `json:"supervisor_id"`
+	ZoneID               *string   `json:"zone_id" db:"zone_id"`
+	ZoneName             *string   `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
+	Territory            *string   `json:"territory"`
+	ActiveGroupsAssigned int       `json:"active_groups_assigned"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 type HierarchyWithUser struct {
@@ -106,15 +105,15 @@ type AssignHierarchyRequest struct {
 type DiscipleshipReport struct {
 	ID           string                 `json:"id"`
 	ReporterID   string                 `json:"reporter_id"`
-	SupervisorID sql.NullString         `json:"supervisor_id"`
+	SupervisorID *string                `json:"supervisor_id"`
 	ReportType   string                 `json:"report_type"`
 	ReportLevel  int                    `json:"report_level"`
 	PeriodStart  string                 `json:"period_start"`
 	PeriodEnd    string                 `json:"period_end"`
 	Status       string                 `json:"status"`
 	ReportData   map[string]interface{} `json:"report_data"`
-	SubmittedAt  sql.NullTime           `json:"submitted_at"`
-	ApprovedAt   sql.NullTime           `json:"approved_at"`
+	SubmittedAt  *time.Time             `json:"submitted_at"`
+	ApprovedAt   *time.Time             `json:"approved_at"`
 	CreatedAt    time.Time              `json:"created_at"`
 	UpdatedAt    time.Time              `json:"updated_at"`
 }
@@ -132,22 +131,22 @@ type CreateReportRequest struct {
 // =====================================================
 
 type DiscipleshipAlert struct {
-	ID             string         `json:"id"`
-	AlertType      string         `json:"alert_type"`
-	Title          string         `json:"title"`
-	Message        string         `json:"message"`
-	Priority       int            `json:"priority"`
-	RelatedGroupID sql.NullString `json:"related_group_id"`
-	RelatedUserID  sql.NullString `json:"related_user_id"`
-	ZoneID         sql.NullString `json:"zone_id" db:"zone_id"`
-	ZoneName       sql.NullString `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
-	ActionRequired bool           `json:"action_required"`
-	Resolved       bool           `json:"resolved"`
-	ResolvedBy     sql.NullString `json:"resolved_by"`
-	ResolvedAt     sql.NullTime   `json:"resolved_at"`
-	ExpiresAt      sql.NullTime   `json:"expires_at"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	ID             string     `json:"id"`
+	AlertType      string     `json:"alert_type"`
+	Title          string     `json:"title"`
+	Message        string     `json:"message"`
+	Priority       int        `json:"priority"`
+	RelatedGroupID *string    `json:"related_group_id"`
+	RelatedUserID  *string    `json:"related_user_id"`
+	ZoneID         *string    `json:"zone_id" db:"zone_id"`
+	ZoneName       *string    `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
+	ActionRequired bool       `json:"action_required"`
+	Resolved       bool       `json:"resolved"`
+	ResolvedBy     *string    `json:"resolved_by"`
+	ResolvedAt     *time.Time `json:"resolved_at"`
+	ExpiresAt      *time.Time `json:"expires_at"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type CreateAlertRequest struct {
@@ -167,18 +166,18 @@ type CreateAlertRequest struct {
 // =====================================================
 
 type CellMultiplication struct {
-	ID                 string         `json:"id"`
-	ParentGroupID      string         `json:"parent_group_id"`
-	ParentLeaderID     string         `json:"parent_leader_id"`
-	NewGroupID         sql.NullString `json:"new_group_id"`
-	NewLeaderID        sql.NullString `json:"new_leader_id"`
-	MultiplicationDate string         `json:"multiplication_date"`
-	MultiplicationType string         `json:"multiplication_type"`
-	SuccessStatus      string         `json:"success_status"`
-	InitialMembers     int            `json:"initial_members"`
-	Notes              sql.NullString `json:"notes"`
-	CreatedAt          time.Time      `json:"created_at"`
-	UpdatedAt          time.Time      `json:"updated_at"`
+	ID                 string    `json:"id"`
+	ParentGroupID      string    `json:"parent_group_id"`
+	ParentLeaderID     string    `json:"parent_leader_id"`
+	NewGroupID         *string   `json:"new_group_id"`
+	NewLeaderID        *string   `json:"new_leader_id"`
+	MultiplicationDate string    `json:"multiplication_date"`
+	MultiplicationType string    `json:"multiplication_type"`
+	SuccessStatus      string    `json:"success_status"`
+	InitialMembers     int       `json:"initial_members"`
+	Notes              *string   `json:"notes"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 type CreateMultiplicationRequest struct {

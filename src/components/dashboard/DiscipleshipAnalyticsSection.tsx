@@ -99,6 +99,7 @@ export const DiscipleshipAnalyticsSection = ({
       </div>
     );
   }
+  console.log(zoneStats, analytics, weeklyTrends);
 
   const getTrendIcon = (value: number) => {
     if (value > 0) return <ArrowUpRight className="h-4 w-4 text-green-500" />;
@@ -115,7 +116,7 @@ export const DiscipleshipAnalyticsSection = ({
   // Datos para el radar chart de salud espiritual por zona
   const spiritualHealthRadarData = zoneStats.map(zone => ({
     zone: zone.zoneName.replace('Zona ', ''),
-    salud: zone.healthIndex || 8,
+    salud: zone.healthIndex || 0,
     asistencia: (zone.avgAttendance / 20) * 10,
     crecimiento: Math.max(0, zone.growthRate / 2),
   }));
@@ -417,6 +418,11 @@ export const DiscipleshipAnalyticsSection = ({
               <h4 className="font-semibold text-xs md:text-sm text-muted-foreground text-center md:text-left">
                 Alertas Activas
               </h4>
+              {alerts.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  Sin alertas activas
+                </p>
+              )}
               {alerts.slice(0, 3).map((alert, alertIndex) => (
                 <div
                   key={
@@ -455,6 +461,11 @@ export const DiscipleshipAnalyticsSection = ({
               <h4 className="font-semibold text-xs md:text-sm text-muted-foreground text-center md:text-left">
                 Multiplicaciones Recientes
               </h4>
+              {multiplications.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  Sin multiplicaciones registradas
+                </p>
+              )}
               {multiplications.slice(0, 3).map((mult, index) => (
                 <div
                   key={

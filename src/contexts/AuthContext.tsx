@@ -83,11 +83,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // Clear permissions cache on ANY auth state change
-      // This ensures no stale data leaks between users
       invalidatePermissionsCache();
 
-      if (!session?.user) {
+      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+        loadCurrentUser(session.user);
+      } else if (!session?.user) {
         setCurrentUser(null);
         setCurrentUserLoaded(false);
       }
@@ -99,7 +99,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      if (!session?.user) {
+      if (session?.user) {
+        loadCurrentUser(session.user);
+      } else {
         setCurrentUser(null);
         setCurrentUserLoaded(false);
       }

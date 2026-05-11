@@ -13,11 +13,14 @@ export interface DiscipleshipActivity {
 }
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
+  leader: 'Reporte semanal',
+  supervision: 'Reporte semanal',
+  weekly: 'Reporte semanal',
   weekly_leader: 'Reporte semanal',
-  biweekly_auxiliary: 'Reporte quincenal',
-  monthly_general: 'Reporte mensual',
-  quarterly_coordinator: 'Reporte trimestral',
-  annual_pastoral: 'Reporte anual',
+  biweekly_auxiliary: 'Reporte semanal',
+  monthly_general: 'Reporte semanal',
+  quarterly_coordinator: 'Reporte semanal',
+  annual_pastoral: 'Reporte semanal',
 };
 
 const REPORT_STATUS_COLORS: Record<string, string> = {
@@ -114,7 +117,7 @@ function extractStringValue(value: unknown): string | null {
   return null;
 }
 
-export function useRecentDiscipleshipActivity(limit = 10) {
+export function useRecentDiscipleshipActivity(limit = 10, leaderId?: string) {
   const [activities, setActivities] = useState<DiscipleshipActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,9 +128,10 @@ export function useRecentDiscipleshipActivity(limit = 10) {
       setError(null);
 
       const [reports, alerts, groupsResponse] = await Promise.allSettled([
-        DiscipleshipService.getReports({ limit, offset: 0 }),
-        DiscipleshipService.getAlerts({ limit, resolved: false }),
-        DiscipleshipService.getGroups({ limit: 5 }),
+        DiscipleshipService.getReports({ limit, offset: 0, ...(leaderId ? { reporter_id: leaderId } : {}) }),
+        // Para líderes no mostramos alertas del sistema, solo las propias
+        leaderId ? Promise.resolve([]) : DiscipleshipService.getAlerts({ limit, resolved: false }),
+        DiscipleshipService.getGroups({ limit: 5, ...(leaderId ? { leader_id: leaderId } : {}) }),
       ]);
 
       const allActivities: DiscipleshipActivity[] = [];
@@ -213,7 +217,7 @@ export function useRecentDiscipleshipActivity(limit = 10) {
     } finally {
       setLoading(false);
     }
-  }, [limit]);
+  }, [limit, leaderId]);
 
   useEffect(() => {
     loadActivities();

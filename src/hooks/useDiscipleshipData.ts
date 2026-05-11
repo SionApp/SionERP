@@ -14,6 +14,7 @@ interface DashboardStats {
   pending_reports?: number;
   groups_under_supervision?: number;
   subordinates_count?: number;
+  zone_name?: string;
 }
 
 interface UseDiscipleshipDataOptions {

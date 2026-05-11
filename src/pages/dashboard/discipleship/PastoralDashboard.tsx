@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useDiscipleshipData } from '@/hooks/useDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipAlert, DiscipleshipReport } from '@/types/discipleship.types';
@@ -61,7 +61,6 @@ interface Goal {
   deadline: string;
 }
 
-
 interface PendingReport {
   id: string;
   reporter_name: string;
@@ -92,7 +91,7 @@ function parseGoNullTime(value: unknown): Date | null {
 }
 
 const PastoralDashboard: React.FC = React.memo(() => {
-  const { user } = useAuth();
+  const { user, currentUser } = useAuth();
   const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [selectedAlert, setSelectedAlert] = useState<DiscipleshipAlert | null>(null);
@@ -103,7 +102,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
   // Usar hook compartido para evitar consultas duplicadas
   const { loading, stats, zoneStats, weeklyTrends, alerts, pendingReports, refetch } =
     useDiscipleshipData({ userId: user?.id, level: 5 });
-  console.log(stats, 'stats');
+  console.log(currentUser, 'currentUserDashboard');
   const handleApproveReport = async (reportId: string) => {
     try {
       await DiscipleshipService.approveReport(reportId);
@@ -168,7 +167,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard Pastoral</h1>
           <p className="text-sm md:text-base text-muted-foreground">
-            {user?.first_name} {user?.last_name} - Vista Ejecutiva General
+            {currentUser?.first_name} {currentUser?.last_name} - Vista Ejecutiva General
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -177,7 +176,9 @@ const PastoralDashboard: React.FC = React.memo(() => {
             className="text-xs sm:text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2"
           >
             <Crown className="mr-2 h-3 w-3 md:h-4 md:w-4" />
-            <span className="hidden sm:inline">Nivel 5 - Pastor</span>
+            <span className="hidden sm:inline">
+              Nivel 5 - {currentUser?.role.toUpperCase() ?? 'Pastor'}
+            </span>
             <span className="sm:hidden">N5</span>
           </Badge>
         </div>
@@ -224,7 +225,9 @@ const PastoralDashboard: React.FC = React.memo(() => {
             <Zap className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
           </CardHeader>
           <CardContent className="px-3 pb-3 sm:px-4 sm:pb-4 md:px-6 md:pb-6">
-            <div className="text-xl sm:text-2xl font-bold">{(stats.spiritual_health || 0).toFixed(1)}/10</div>
+            <div className="text-xl sm:text-2xl font-bold">
+              {(stats.spiritual_health || 0).toFixed(1)}/10
+            </div>
             <p className="text-xs text-muted-foreground truncate">Promedio general</p>
           </CardContent>
         </Card>
@@ -601,7 +604,9 @@ const PastoralDashboard: React.FC = React.memo(() => {
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                           className="h-2 rounded-full bg-green-500"
-                          style={{ width: `${Math.min(100, ((stats.spiritual_health || 0) / 10) * 100)}%` }}
+                          style={{
+                            width: `${Math.min(100, ((stats.spiritual_health || 0) / 10) * 100)}%`,
+                          }}
                         ></div>
                       </div>
                     </div>

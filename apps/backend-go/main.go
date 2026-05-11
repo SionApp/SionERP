@@ -2,6 +2,7 @@ package main
 
 import (
 	"backend-sion/config"
+	"backend-sion/handlers"
 	"backend-sion/routes"
 	"backend-sion/services"
 	"log"
@@ -92,6 +93,9 @@ func main() {
 
 	// Setup all routes
 	routes.SetupRoutes(e)
+
+	// Start background scheduler (weekly report check every Tuesday 8am)
+	handlers.StartWeeklyReportScheduler()
 
 	// Start server
 	port := os.Getenv("PORT")

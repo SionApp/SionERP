@@ -15,8 +15,9 @@ import {
   getDiscipleshipAccess,
   type DiscipleshipAccess,
 } from '@/utils/discipleship-access';
-import { AlertCircle, BarChart3, MapPin, Plus, Target, TrendingUp, Users } from 'lucide-react';
+import { AlertCircle, BarChart3, Calendar, CheckCircle, ClipboardList, MapPin, Plus, Target, TrendingUp, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { DiscipleshipService } from '@/services/discipleship.service';
 import { toast } from 'sonner';
 import AuxiliarySupervisorDashboard from './discipleship/AuxiliarySupervisorDashboard';
 import CoordinatorDashboard from './discipleship/CoordinatorDashboard';
@@ -36,6 +37,140 @@ function formatTimestamp(timestamp: string): string {
   if (diffHours < 24) return `Hace ${diffHours}h`;
   if (diffDays < 7) return `Hace ${diffDays}d`;
   return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+}
+
+// ─────────────────────────────────────────────
+// Resumen personalizado para líderes (nivel 1)
+// ─────────────────────────────────────────────
+function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
+  const { user } = useAuth();
+  const [group, setGroup] = useState<any>(null);
+  const [lastReport, setLastReport] = useState<any>(null);
+  const [memberCount, setMemberCount] = useState<{ total: number; active: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const load = async () => {
+      try {
+        setLoading(true);
+        const [groupsRes, reportsRes] = await Promise.allSettled([
+          DiscipleshipService.getGroups({ leader_id: user.id, limit: 1 }),
+          DiscipleshipService.getReports({ reporter_id: user.id, limit: 1 }),
+        ]);
+
+        if (groupsRes.status === 'fulfilled') {
+          const list = Array.isArray(groupsRes.value) ? groupsRes.value : groupsRes.value?.data ?? [];
+          const g = list[0] ?? null;
+          setGroup(g);
+          if (g) {
+            setMemberCount({ total: g.member_count || 0, active: g.active_members || 0 });
+          }
+        }
+        if (reportsRes.status === 'fulfilled') {
+          const list = Array.isArray(reportsRes.value) ? reportsRes.value : reportsRes.value ?? [];
+          setLastReport(list[0] ?? null);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [user?.id]);
+
+  const reportStatusLabel: Record<string, string> = {
+    submitted: 'Enviado',
+    approved: 'Aprobado',
+    draft: 'Borrador',
+    revision_required: 'Requiere revisión',
+  };
+  const reportStatusColor: Record<string, string> = {
+    submitted: 'text-blue-500',
+    approved: 'text-green-500',
+    draft: 'text-muted-foreground',
+    revision_required: 'text-orange-500',
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats de la célula */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-6">
+        <Card>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center gap-2">
+              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-bold">{loading ? '—' : memberCount?.total ?? 0}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Miembros</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-bold">{loading ? '—' : memberCount?.active ?? 0}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Activos</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-bold truncate">{loading ? '—' : (group?.meeting_day ?? 'No definido')}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Día de reunión</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 shrink-0" />
+              <div className="min-w-0">
+                {loading ? (
+                  <p className="text-xl sm:text-2xl font-bold">—</p>
+                ) : lastReport ? (
+                  <p className={`text-sm font-semibold ${reportStatusColor[lastReport.status] ?? 'text-muted-foreground'}`}>
+                    {reportStatusLabel[lastReport.status] ?? lastReport.status}
+                  </p>
+                ) : (
+                  <p className="text-sm font-semibold text-muted-foreground">Sin reporte</p>
+                )}
+                <p className="text-xs sm:text-sm text-muted-foreground">Último reporte</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Acciones relevantes para el líder */}
+      <Card>
+        <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
+          <CardTitle className="text-base sm:text-xl">Acciones Rápidas</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Gestiona tu célula
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
+            <Button onClick={onGoToDashboard} className="w-full sm:w-auto">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Ver mi Célula
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function NoAccessCard({
@@ -83,7 +218,12 @@ const DiscipleshipPage = () => {
   const [discipleshipAccess, setDiscipleshipAccess] = useState<DiscipleshipAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const { activities: recentActivities, loading: activityLoading } =
-    useRecentDiscipleshipActivity(8);
+    useRecentDiscipleshipActivity(
+      8,
+      discipleshipAccess?.canAccess && !discipleshipAccess?.isFullAccess && discipleshipAccess?.level === 1
+        ? (authUser?.id ?? undefined)
+        : undefined
+    );
   const { discipleshipStats, loading: statsLoading } = useDashboardStats();
 
   useEffect(() => {
@@ -135,9 +275,7 @@ const DiscipleshipPage = () => {
     if (!discipleshipAccess) return 'Sin acceso';
 
     if (discipleshipAccess.isFullAccess) {
-      return user?.role === 'pastor'
-        ? 'Pastoral (Acceso Completo)'
-        : 'Supervisor General (Acceso Completo)';
+      return 'Pastoral (Acceso Completo)';
     }
 
     const level = discipleshipAccess.level || 1;
@@ -145,9 +283,9 @@ const DiscipleshipPage = () => {
       case 5:
         return 'Pastoral';
       case 4:
-        return 'Coordinador General';
-      case 3:
         return 'Coordinador';
+      case 3:
+        return 'Supervisor General';
       case 2:
         return 'Supervisor Auxiliar';
       case 1:
@@ -348,85 +486,90 @@ const DiscipleshipPage = () => {
             </Card>
           ) : (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-6">
-            <Card>
-              <CardContent className="p-3 sm:p-4 md:p-6">
-                <div className="flex items-center gap-2">
-                  <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.totalGroups}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Grupos Activos</p>
+              {getDiscipleshipLevel() === 1 ? (
+            /* ── Resumen para LÍDERES (nivel 1) ── */
+            <LeaderOverview onGoToDashboard={() => setActiveTab('dashboard')} />
+          ) : (
+            /* ── Resumen para SUPERVISORES y superiores (nivel 2+) ── */
+            <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-6">
+              <Card>
+                <CardContent className="p-3 sm:p-4 md:p-6">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.totalGroups}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Grupos Activos</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-3 sm:p-4 md:p-6">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.totalMembers}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Miembros Activos</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 md:p-6">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.totalMembers}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Miembros Activos</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-3 sm:p-4 md:p-6">
-                <div className="flex items-center gap-2">
-                  <Target className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.multiplications}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Multiplicando</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 md:p-6">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.multiplications}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Multiplicando</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-3 sm:p-4 md:p-6">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.alertsCount}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Necesitan Atención</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 sm:p-4 md:p-6">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.alertsCount}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Necesitan Atención</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
-              <CardTitle className="text-base sm:text-xl">Acciones Rápidas</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Gestiona los aspectos más importantes del discipulado
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
-              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
-                {canManageGroups && (
-                  <Button onClick={() => setActiveTab('manage')} className="w-full sm:w-auto">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Crear Nuevo Grupo
+            {/* Quick Actions — solo para nivel 2+ */}
+            <Card>
+              <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
+                <CardTitle className="text-base sm:text-xl">Acciones Rápidas</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  Gestiona los aspectos más importantes del discipulado
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
+                  {canManageGroups && (
+                    <Button onClick={() => setActiveTab('manage')} className="w-full sm:w-auto">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Crear Nuevo Grupo
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setActiveTab('dashboard')} className="w-full sm:w-auto">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Ver Dashboard
                   </Button>
-                )}
-                <Button variant="outline" onClick={() => setActiveTab('dashboard')} className="w-full sm:w-auto">
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  Ver Dashboard
-                </Button>
-                {canManageGroups && (
-                  <Button variant="outline" onClick={() => setActiveTab('map')} className="w-full sm:w-auto">
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Ver Mapa
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  {canManageGroups && (
+                    <Button variant="outline" onClick={() => setActiveTab('map')} className="w-full sm:w-auto">
+                      <MapPin className="w-4 h-4 mr-2" />
+                      Ver Mapa
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            </>
+          )}
 
           {/* Recent Activity */}
           <Card>

@@ -4,6 +4,7 @@ import (
 	"backend-sion/config"
 	"backend-sion/middleware"
 	"backend-sion/utils"
+	"database/sql"
 	"log"
 	"net/http"
 
@@ -69,5 +70,73 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 		"role_level":        roleLevel,
 		"has_admin_access":  middleware.HasAdminAccess(role, isSuperAdmin),
 		"installed_modules": modules,
+	})
+}
+
+// GetModuleRole returns the current user's role level in a specific module.
+//
+// Query param:
+//   - module (required): module key, e.g. "discipleship", "events"
+//
+// Responses:
+//   - 200 {module, role_level, role_name, is_admin}  — role found
+//   - 404 {error: "no_module_role", module}           — user has no role in this module
+//   - 400 {error}                                     — missing module param
+func (h *PermissionsHandler) GetModuleRole(c echo.Context) error {
+	moduleKey := c.QueryParam("module")
+	if moduleKey == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "'module' query param is required",
+		})
+	}
+
+	// Bypass EXCLUSIVO para pastor y admin — el staff tiene su propio rol de módulo.
+	// has_admin_access incluye staff (acceso ERP), pero para el módulo queremos el nivel real.
+	dbRole, _ := c.Get("db_role").(string)
+	isSuperAdmin, _ := c.Get("is_super_admin").(bool)
+	if isSuperAdmin || dbRole == utils.RolePastor || dbRole == utils.RoleAdmin {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"module":     moduleKey,
+			"role_level": 5,
+			"role_name":  "Pastoral",
+			"is_admin":   true,
+		})
+	}
+
+	userID, ok := c.Get("user_id").(string)
+	if !ok || userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "User ID not found in context",
+		})
+	}
+
+	db := config.GetDB()
+	var roleLevel int
+	var roleName sql.NullString
+	err := db.DB.QueryRow(
+		`SELECT role_level, role_name FROM module_user_roles
+		 WHERE user_id = $1 AND module_key = $2
+		 LIMIT 1`,
+		userID, moduleKey,
+	).Scan(&roleLevel, &roleName)
+
+	if err == sql.ErrNoRows {
+		return c.JSON(http.StatusNotFound, map[string]string{
+			"error":  "no_module_role",
+			"module": moduleKey,
+		})
+	}
+	if err != nil {
+		log.Printf("❌ Error querying module_user_roles [module=%s, user=%s]: %v", moduleKey, userID, err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al consultar rol de módulo",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"module":     moduleKey,
+		"role_level": roleLevel,
+		"role_name":  roleName.String,
+		"is_admin":   false,
 	})
 }

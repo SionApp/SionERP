@@ -20,11 +20,9 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useZones } from '@/hooks/useZones';
-import { DiscipleshipService } from '@/services/discipleship.service';
-import { UserService } from '@/services/user.service';
+import { DiscipleshipService, type UserForHierarchy } from '@/services/discipleship.service';
 import type { AssignHierarchyRequest, DiscipleshipHierarchy } from '@/types/discipleship.types';
-import { User } from '@/types/user.types';
-import { Edit, Loader2, MapPin, Search, UserCheck, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit, Loader2, MapPin, Search, UserCheck, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -49,18 +47,16 @@ const normalizeNullString = (value: unknown): string | null => {
   return String(value);
 };
 
-interface UserWithHierarchy extends User {
-  hierarchy?: DiscipleshipHierarchy;
-}
+const PAGE_SIZE = 10;
 
 const HierarchyManagement = () => {
   const { zones } = useZones();
-  const [users, setUsers] = useState<UserWithHierarchy[]>([]);
-  const [hierarchies, setHierarchies] = useState<DiscipleshipHierarchy[]>([]);
+  const [users, setUsers] = useState<UserForHierarchy[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserWithHierarchy | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserForHierarchy | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState<AssignHierarchyRequest>({
@@ -71,45 +67,13 @@ const HierarchyManagement = () => {
     territory: '',
   });
 
-  // Cargar usuarios y jerarquías
+  // Cargar usuarios con su nivel de jerarquía desde el endpoint de discipulado.
+  // Usa /discipleship/users en lugar de /users para no depender del rol de sistema.
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [usersData, hierarchiesData] = await Promise.all([
-        UserService.getAllUsers(),
-        DiscipleshipService.getHierarchy().catch(err => {
-          console.warn('Error loading hierarchy, continuing with empty array:', err);
-          return [] as DiscipleshipHierarchy[];
-        }),
-      ]);
-
-      // Validar que hierarchiesData sea un array
-      const validHierarchies = Array.isArray(hierarchiesData) ? hierarchiesData : [];
-
-      // Normalizar jerarquías (manejar valores null del backend)
-      const normalizedHierarchies = validHierarchies.map(h => ({
-        ...h,
-        supervisor_id: normalizeNullString(h.supervisor_id),
-        zone_name: normalizeNullString(h.zone_name),
-        territory: normalizeNullString(h.territory),
-      }));
-
-      // Crear un mapa de jerarquías por user_id
-      const hierarchyMap = new Map<string, DiscipleshipHierarchy>();
-      normalizedHierarchies.forEach(h => {
-        if (h && h.user_id) {
-          hierarchyMap.set(h.user_id, h);
-        }
-      });
-
-      // Combinar usuarios con sus jerarquías
-      const usersWithHierarchy = (usersData || []).map(user => ({
-        ...user,
-        hierarchy: hierarchyMap.get(user.id),
-      }));
-
-      setUsers(usersWithHierarchy);
-      setHierarchies(normalizedHierarchies);
+      const usersData = await DiscipleshipService.getUsersForHierarchy();
+      setUsers(Array.isArray(usersData) ? usersData : []);
     } catch (error: unknown) {
       console.error('Error loading data:', error);
       if (error instanceof Error) {
@@ -117,9 +81,7 @@ const HierarchyManagement = () => {
       } else {
         toast.error('Error al cargar datos');
       }
-      // Asegurar que siempre tengamos un array vacío
       setUsers([]);
-      setHierarchies([]);
     } finally {
       setLoading(false);
     }
@@ -140,28 +102,36 @@ const HierarchyManagement = () => {
         (user.id_number || '').includes(searchTerm)
     );
 
+  // Paginación
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pagedUsers = filteredUsers.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // Reset a página 1 al cambiar búsqueda
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
   // Abrir diálogo para editar jerarquía
-  const handleEditHierarchy = (user: UserWithHierarchy) => {
+  const handleEditHierarchy = (user: UserForHierarchy) => {
     try {
       if (!user || !user.id) {
         toast.error('Usuario inválido');
         return;
       }
 
-      const hierarchy = user.hierarchy;
-      const hierarchyLevel = hierarchy?.hierarchy_level;
-      const supervisorId = hierarchy?.supervisor_id;
-      const zoneName = hierarchy?.zone_name;
-      const territory = hierarchy?.territory;
-
       setSelectedUser(user);
       setFormData({
         user_id: user.id,
         hierarchy_level:
-          hierarchyLevel && hierarchyLevel >= 1 && hierarchyLevel <= 5 ? hierarchyLevel : 1,
-        supervisor_id: supervisorId || '',
-        zone_name: zoneName || '',
-        territory: territory || '',
+          user.hierarchy_level && user.hierarchy_level >= 1 && user.hierarchy_level <= 5
+            ? user.hierarchy_level
+            : 1,
+        supervisor_id: user.supervisor_id || '',
+        zone_name: user.zone_name || '',
+        territory: user.territory || '',
       });
       setIsDialogOpen(true);
     } catch (error) {
@@ -215,31 +185,25 @@ const HierarchyManagement = () => {
     }
   };
 
-  // Obtener usuarios que pueden ser supervisores (nivel 2, 3, 4, 5)
+  // Obtener usuarios que pueden ser supervisores (nivel >= 2 y menor al nivel actual)
   const getAvailableSupervisors = (currentUserId: string, currentLevel: number) => {
-    if (!Array.isArray(hierarchies) || !Array.isArray(users)) {
-      return [];
-    }
+    if (!Array.isArray(users)) return [];
 
-    return hierarchies
+    return users
       .filter(
-        h =>
-          h &&
-          h.user_id &&
-          h.user_id !== currentUserId &&
-          h.hierarchy_level < currentLevel &&
-          h.hierarchy_level >= 2
+        u =>
+          u &&
+          u.id &&
+          u.id !== currentUserId &&
+          u.hierarchy_level !== null &&
+          u.hierarchy_level! < currentLevel &&
+          u.hierarchy_level! >= 2
       )
-      .map(h => {
-        const user = users.find(u => u && u.id === h.user_id);
-        return {
-          id: h.user_id,
-          name: user
-            ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Usuario sin nombre'
-            : 'Usuario desconocido',
-          level: h.hierarchy_level,
-        };
-      });
+      .map(u => ({
+        id: u.id,
+        name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Usuario sin nombre',
+        level: u.hierarchy_level!,
+      }));
   };
 
   const getLevelBadge = (level: number | undefined) => {
@@ -305,7 +269,7 @@ const HierarchyManagement = () => {
             <Input
               placeholder="Buscar por nombre, email o cédula..."
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
@@ -317,7 +281,10 @@ const HierarchyManagement = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Usuarios ({filteredUsers.length})
+            Usuarios
+            <span className="text-sm font-normal text-muted-foreground">
+              ({filteredUsers.length}{searchTerm ? ` de ${users.length}` : ''})
+            </span>
           </CardTitle>
           <CardDescription>
             Lista de usuarios y sus jerarquías actuales en el módulo de discipulado
@@ -331,14 +298,12 @@ const HierarchyManagement = () => {
                 <p>No se encontraron usuarios</p>
               </div>
             ) : (
-              filteredUsers
+              pagedUsers
                 .filter(user => user && user.id)
                 .map(user => {
-                  const hierarchy = user.hierarchy;
-                  const supervisor =
-                    hierarchy?.supervisor_id && hierarchy.supervisor_id !== null
-                      ? users.find(u => u && u.id === hierarchy.supervisor_id)
-                      : null;
+                  const supervisor = user.supervisor_id
+                    ? users.find(u => u && u.id === user.supervisor_id)
+                    : null;
 
                   return (
                     <div
@@ -351,7 +316,7 @@ const HierarchyManagement = () => {
                             <h3 className="font-bold text-base sm:text-lg truncate">
                               {user.first_name || ''} {user.last_name || ''}
                             </h3>
-                            {getLevelBadge(hierarchy?.hierarchy_level)}
+                            {getLevelBadge(user.hierarchy_level ?? undefined)}
                           </div>
                           <p className="text-sm text-muted-foreground truncate">
                             {user.email || ''}
@@ -379,7 +344,7 @@ const HierarchyManagement = () => {
                               Zona
                             </p>
                             <p className="text-sm font-medium truncate">
-                              {hierarchy?.zone_name || 'Sin zona'}
+                              {user.zone_name || 'Sin zona'}
                             </p>
                           </div>
                         </div>
@@ -401,7 +366,7 @@ const HierarchyManagement = () => {
                         )}
                       </div>
 
-                      {!hierarchy && (
+                      {!user.hierarchy_level && (
                         <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
                           <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                           <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
@@ -418,7 +383,7 @@ const HierarchyManagement = () => {
                           onClick={() => handleEditHierarchy(user)}
                         >
                           <Edit className="h-4 w-4" />
-                          {hierarchy ? 'Editar Jerarquía' : 'Asignar Jerarquía'}
+                          {user.hierarchy_level ? 'Editar Jerarquía' : 'Asignar Jerarquía'}
                         </Button>
                       </div>
                     </div>
@@ -426,6 +391,80 @@ const HierarchyManagement = () => {
                 })
             )}
           </div>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t mt-4">
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Mostrando{' '}
+                <span className="font-medium text-foreground">
+                  {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredUsers.length)}
+                </span>{' '}
+                de{' '}
+                <span className="font-medium text-foreground">{filteredUsers.length}</span>{' '}
+                usuarios
+              </p>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                {/* Números de página */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      // Mostrar primera, última, actual y adyacentes
+                      return (
+                        page === 1 ||
+                        page === totalPages ||
+                        Math.abs(page - safePage) <= 1
+                      );
+                    })
+                    .reduce<(number | 'ellipsis')[]>((acc, page, idx, arr) => {
+                      if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
+                        acc.push('ellipsis');
+                      }
+                      acc.push(page);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === 'ellipsis' ? (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
+                          …
+                        </span>
+                      ) : (
+                        <Button
+                          key={item}
+                          variant={safePage === item ? 'default' : 'outline'}
+                          size="icon"
+                          className="h-8 w-8 text-xs"
+                          onClick={() => setCurrentPage(item as number)}
+                        >
+                          {item}
+                        </Button>
+                      )
+                    )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
