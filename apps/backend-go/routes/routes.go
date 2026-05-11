@@ -44,6 +44,7 @@ func SetupRoutes(e *echo.Echo) {
 		usersAdmin.PUT("/:id", userHandler.UpdateUser)           // PUT /api/v1/users/:id
 		usersAdmin.DELETE("/:id", userHandler.DeleteUser)        // DELETE /api/v1/users/:id
 		usersAdmin.POST("/direct", userHandler.CreateUserDirect) // POST /api/v1/users/direct
+		usersAdmin.POST("/bulk", userHandler.BulkImportUsers)   // POST /api/v1/users/bulk
 	}
 
 	// Member+ (level 0): Profile access (any authenticated user)

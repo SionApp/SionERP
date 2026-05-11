@@ -2,6 +2,7 @@ import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { DynamicFilter, FilterField, FilterValues } from '@/components/DynamicFilter';
 import UserDetailSheet from '@/components/UserDetailSheet';
 import { InviteUserModal } from '@/components/dashboard/InviteUserModal';
+import { ImportUsersModal } from '@/components/users/ImportUsersModal';
 import { Column, DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Can } from '@/components/Can';
 import { UserService } from '@/services/user.service';
 import { Invitation } from '@/types/invitation.types';
 import { User } from '@/types/user.types';
-import { Calendar, Edit, Eye, Mail, Plus, SendHorizontal, Trash2 } from 'lucide-react';
+import { Calendar, Edit, Eye, Mail, Plus, SendHorizontal, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -26,6 +27,7 @@ const UsersPage = () => {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [showInviteModalUser, setShowInviteModalUser] = useState<User | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
 
   const filterFields: FilterField[] = [
@@ -414,10 +416,23 @@ const UsersPage = () => {
           </p>
         </div>
         <Can I={ROLE_LEVELS.staff}>
-          <Button onClick={() => navigate('/dashboard/register-user')} className="w-full sm:w-auto shrink-0">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Usuario
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              className="w-full sm:w-auto shrink-0"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Importar Excel
+            </Button>
+            <Button
+              onClick={() => navigate('/dashboard/register-user')}
+              className="w-full sm:w-auto shrink-0"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Usuario
+            </Button>
+          </div>
         </Can>
       </div>
 
@@ -473,6 +488,15 @@ const UsersPage = () => {
         isOpen={!!showInviteModalUser}
         onClose={() => setShowInviteModalUser(null)}
         onInviteSent={() => loadInvitations()}
+      />
+
+      <ImportUsersModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onComplete={() => {
+          setImportOpen(false);
+          loadUsers();
+        }}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import { Invitation } from '@/types/invitation.types';
+import type { ImportResult, UserImportRow } from '@/types/user-import.types';
 import { CreateUserData, UpdateUserData, UpdateUserRequest, User } from '@/types/user.types';
 import { ApiService } from './api.service';
 
@@ -201,6 +202,10 @@ export class UserService {
       console.error('Error completing onboarding:', error);
       throw error;
     }
+  }
+
+  static async bulkImportUsers(rows: UserImportRow[]): Promise<ImportResult> {
+    return ApiService.post<ImportResult>('/users/bulk', { users: rows });
   }
 
   static async createUserDirect(userData: {
