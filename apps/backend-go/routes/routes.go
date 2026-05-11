@@ -190,6 +190,14 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.GET("/supervisors/:id/subordinates", discipleshipHandler.GetSupervisorSubordinates)
 	}
 
+	// Notifications routes (any authenticated user)
+	notificationsHandler := handlers.NewNotificationsHandler()
+	notifications := protected.Group("/notifications")
+	notifications.GET("", notificationsHandler.GetNotifications)
+	notifications.PUT("/read-all", notificationsHandler.MarkAllAsRead)  // MUST be before /:id
+	notifications.PUT("/:id/read", notificationsHandler.MarkAsRead)
+	notifications.DELETE("/:id", notificationsHandler.DismissNotification)
+
 	// Zones routes
 	zonesHandler := handlers.NewZonesHandler()
 	zones := protected.Group("/zones")

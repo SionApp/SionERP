@@ -18,6 +18,8 @@ export interface Notification {
     name: string;
     avatar?: string;
   };
+  related_entity_type?: string;
+  related_entity_id?: string;
 }
 
 interface NotificationItemProps {
