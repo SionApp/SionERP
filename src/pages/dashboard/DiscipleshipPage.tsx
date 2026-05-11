@@ -15,7 +15,7 @@ import {
   getDiscipleshipAccess,
   type DiscipleshipAccess,
 } from '@/utils/discipleship-access';
-import { AlertCircle, BarChart3, Calendar, CheckCircle, ClipboardList, Clock, MapPin, Plus, Target, TrendingUp, Users } from 'lucide-react';
+import { AlertCircle, BarChart3, Calendar, CheckCircle, ClipboardList, MapPin, Plus, Target, TrendingUp, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { toast } from 'sonner';
