@@ -18,40 +18,47 @@ import { useState } from 'react';
 // ─── Labels ──────────────────────────────────────────────────────────────────
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
+  // Valores actuales enviados por los modales
+  leader: 'Reporte Semanal',
+  supervision: 'Reporte Semanal',
+  weekly: 'Reporte Semanal',
+  // Valores legacy (registros viejos en DB)
   weekly_leader: 'Reporte Semanal',
-  biweekly_auxiliary: 'Reporte Quincenal',
-  monthly_general: 'Reporte Mensual',
-  quarterly_coordinator: 'Reporte Trimestral',
-  annual_pastoral: 'Reporte Anual',
+  biweekly_auxiliary: 'Reporte Semanal',
+  monthly_general: 'Reporte Semanal',
+  quarterly_coordinator: 'Reporte Semanal',
+  annual_pastoral: 'Reporte Semanal',
 };
 
-/**
- * Labels para campos conocidos de report_data.
- * Campos no mapeados se muestran con su clave original.
- */
 const FIELD_LABELS: Record<string, string> = {
-  // Asistencia
+  // Asistencia a reuniones
+  attendance_nd: 'Asistencia célula (ND)',
+  attendance_dm: 'Asistencia discipulado matrimonios',
+  attendance_friends: 'Asistencia de amigos / invitados',
+  attendance_kids: 'Asistencia de niños',
+  // Servicios de iglesia
+  service_attendance_sunday: 'Asistió al servicio dominical',
+  service_attendance_prayer: 'Asistió al servicio de oración',
+  doctrine_attendance: 'Asistió a doctrina',
+  // Actividades del grupo
+  group_discipleships: 'Discipulados realizados',
+  group_evangelism: 'Evangelismo del grupo',
+  // Actividades del líder
+  leader_evangelism: 'Evangelismo personal del líder',
+  leader_new_disciples_care: 'Cuidado de nuevos discípulos',
+  leader_mature_disciples_care: 'Cuidado de discípulos maduros',
+  spiritual_journal_days: 'Días de diario espiritual',
+  // Estado del grupo
+  is_multiplying: '¿En proceso de multiplicación?',
+  // Genéricos (compatibilidad)
   attendance: 'Asistencia',
   total_attendance: 'Asistencia total',
-  average_attendance: 'Asistencia promedio',
-  adult_attendance: 'Adultos',
-  youth_attendance: 'Jóvenes',
-  children_attendance: 'Niños',
-  // Personas
   visitors: 'Visitantes',
   new_members: 'Nuevos miembros',
   conversions: 'Conversiones',
   baptisms: 'Bautismos',
-  // Actividades
-  prayer_meetings: 'Reuniones de oración',
-  bible_studies: 'Estudios bíblicos',
-  home_visits: 'Visitas domiciliarias',
-  evangelism_outreach: 'Evangelismo',
-  cell_meetings: 'Reuniones de célula',
-  // Finanzas
   offering: 'Ofrenda',
   tithe: 'Diezmos',
-  // Notas
   notes: 'Notas del líder',
   prayer_requests: 'Pedidos de oración',
   challenges: 'Desafíos',
@@ -61,16 +68,25 @@ const FIELD_LABELS: Record<string, string> = {
   observations: 'Observaciones',
 };
 
+/** Campos internos que no aportan valor al revisor — se ocultan. */
+const HIDDEN_FIELDS = new Set(['group_id', 'reporter_id', 'level']);
+
 /** Campos que se muestran PRIMERO (métricas clave). */
 const PRIORITY_FIELDS = [
-  'attendance',
-  'total_attendance',
-  'visitors',
-  'conversions',
-  'baptisms',
-  'new_members',
-  'offering',
-  'tithe',
+  'attendance_nd',
+  'attendance_dm',
+  'attendance_friends',
+  'attendance_kids',
+  'service_attendance_sunday',
+  'service_attendance_prayer',
+  'doctrine_attendance',
+  'group_discipleships',
+  'group_evangelism',
+  'leader_evangelism',
+  'leader_new_disciples_care',
+  'leader_mature_disciples_care',
+  'spiritual_journal_days',
+  'is_multiplying',
 ];
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -102,9 +118,9 @@ function formatFieldValue(value: unknown): string {
   return String(value);
 }
 
-/** Ordena entradas poniendo los campos prioritarios primero. */
+/** Ordena entradas poniendo los campos prioritarios primero y ocultando internos. */
 function sortedEntries(data: Record<string, unknown>): [string, unknown][] {
-  const entries = Object.entries(data);
+  const entries = Object.entries(data).filter(([k]) => !HIDDEN_FIELDS.has(k));
   const priority = entries.filter(([k]) => PRIORITY_FIELDS.includes(k));
   const rest = entries.filter(([k]) => !PRIORITY_FIELDS.includes(k));
   return [...priority, ...rest];

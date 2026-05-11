@@ -68,15 +68,12 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 // GetReports obtiene reportes con filtros
 func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	db := config.GetDB()
-	userID := c.Get("user_id").(string)
+
+	_, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
 
 	status := c.QueryParam("status")
 	reportType := c.QueryParam("type")
 	reporterID := c.QueryParam("reporter_id")
-
-	// Verificar rol del usuario
-	var userRole string
-	db.DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&userRole)
 
 	query := `
 		SELECT 
@@ -91,11 +88,23 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	args := []interface{}{}
 	argCount := 0
 
-	// Si no es pastor/staff, solo puede ver sus propios reportes o los de sus subordinados
-	if !utils.IsAdminRole(userRole) {
-		argCount++
-		query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
-		args = append(args, userID)
+	// Filtrar según jerarquía de discipulado (en lugar de rol ERP):
+	// - Si tiene acceso total (pastor/staff) o es Coordinator+ (nivel 4+): sin filtro
+	// - Cola de aprobación (status=submitted): solo los que supervisas y no son tuyos
+	// - Resto: tus reportes + los que supervisas
+	if !canSeeAll {
+		userID := c.Get("user_id").(string)
+		if hierarchyLevel == nil || *hierarchyLevel < 4 {
+			if status == "submitted" {
+				argCount++
+				query += fmt.Sprintf(" AND r.supervisor_id = $%d AND r.reporter_id != $%d", argCount, argCount)
+				args = append(args, userID)
+			} else {
+				argCount++
+				query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
+				args = append(args, userID)
+			}
+		}
 	}
 
 	if status != "" {
