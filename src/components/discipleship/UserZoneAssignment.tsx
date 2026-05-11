@@ -81,6 +81,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
         role: normalizeNullString(user.role) || 'member',
         zone_name: normalizeNullString(user.zone_name) || undefined,
         zone_id: normalizeNullString(user.zone_id) || undefined,
+        discipleship_level: user.hierarchy_level ?? undefined,
       }));
 
       setUsers(normalizedUsers);
