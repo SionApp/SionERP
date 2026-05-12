@@ -19,8 +19,7 @@ UPDATE users u
   FROM dupes d
  WHERE u.id = d.id AND d.rn > 1;
 
--- Step 3: Create functional unique index (case-insensitive) with CONCURRENTLY to avoid table lock.
--- IF NOT EXISTS prevents error if the index already exists (idempotent migration).
--- NOTE: CONCURRENTLY cannot run inside a transaction block; this is intentional.
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS users_email_lower_key
+-- Step 3: Create functional unique index (case-insensitive).
+-- IF NOT EXISTS makes the migration idempotent.
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_key
   ON users (LOWER(email));
