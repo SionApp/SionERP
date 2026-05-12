@@ -16,12 +16,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EXCEL_PATH = '/Users/danzt/Downloads/DATA IGLESIA SION ACT. 14-12-25.xlsx';
 const OUTPUT_PATH = path.resolve(__dirname, '../supabase/seed.sql');
 
-// ─── Config Admin ────────────────────────────────────────────────────────────
-const ADMIN_UUID     = process.env.SION_ADMIN_UUID     || 'b0000001-0000-0000-0000-000000000001';
-const ADMIN_EMAIL    = process.env.SION_ADMIN_EMAIL    || 'pastor@sionerp.local';
-const ADMIN_PASSWORD = process.env.SION_ADMIN_PASSWORD || 'SionERP2025!';
-const ADMIN_ROLE     = process.env.SION_ADMIN_ROLE     || 'pastor';
-
 // ─── Zonas (UUIDs fijos para consistencia entre resets) ───────────────────────
 const ZONAS = [
   { id: 'c0000001-0000-0000-0000-000000000001', name: 'OESTE 1', color: '#3b82f6', description: 'Zona Oeste 1' },
@@ -134,55 +128,16 @@ push(
   ``,
 );
 
-// ── Usuario Admin en auth.users ───────────────────────────────────────────────
-push(
-  `-- ========================`,
-  `-- ADMIN (auth.users)`,
-  `-- ========================`,
-  `-- Contraseña cifrada con pgcrypto bcrypt (disponible en Supabase local)`,
-  `INSERT INTO auth.users (`,
-  `  instance_id, id, aud, role, email,`,
-  `  encrypted_password, email_confirmed_at,`,
-  `  raw_app_meta_data, raw_user_meta_data,`,
-  `  created_at, updated_at,`,
-  `  confirmation_token, email_change, email_change_token_new, recovery_token`,
-  `) VALUES (`,
-  `  '00000000-0000-0000-0000-000000000000',`,
-  `  ${q(ADMIN_UUID)}, 'authenticated', 'authenticated', ${q(ADMIN_EMAIL)},`,
-  `  crypt(${q(ADMIN_PASSWORD)}, gen_salt('bf', 10)), NOW(),`,
-  `  '{"provider":"email","providers":["email"]}',`,
-  `  jsonb_build_object('role', ${q(ADMIN_ROLE)}::text),`,
-  `  NOW(), NOW(), '', '', '', ''`,
-  `) ON CONFLICT (id) DO NOTHING;`,
-  ``,
-);
-
-// ── Usuario Admin en public.users ────────────────────────────────────────────
-push(
-  `-- ========================`,
-  `-- ADMIN (public.users)`,
-  `-- ========================`,
-  `INSERT INTO public.users (`,
-  `  id, id_number, first_name, last_name, email,`,
-  `  phone, address, role, is_active, is_super_admin,`,
-  `  created_at, updated_at`,
-  `) VALUES (`,
-  `  ${q(ADMIN_UUID)}, 'ADMIN-SEED', 'Pastor', 'Admin', ${q(ADMIN_EMAIL)},`,
-  `  '+00-000-000-0000', 'Platform', ${q(ADMIN_ROLE)}, true, true,`,
-  `  NOW(), NOW()`,
-  `) ON CONFLICT (id) DO UPDATE SET`,
-  `  role = ${q(ADMIN_ROLE)}, is_super_admin = true, is_active = true, updated_at = NOW();`,
-  ``,
-);
-
 // ── Miembros desde Excel ──────────────────────────────────────────────────────
+// Nota: el usuario admin se crea via bootstrap.go al levantar el backend,
+// leyendo SION_ADMIN_EMAIL / SION_ADMIN_PASSWORD de las env vars.
 push(
   `-- ========================`,
   `-- MIEMBROS (${rawRows.length} filas en Excel)`,
   `-- ========================`,
 );
 
-const seenEmails = new Set([ADMIN_EMAIL]);
+const seenEmails = new Set();
 const seenCedulas = new Set();
 let imported = 0, skipped = 0, generated = 0;
 const errors = [];
