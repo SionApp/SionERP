@@ -74,6 +74,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_module_user_roles_updated_at ON module_user_roles;
 CREATE TRIGGER trg_module_user_roles_updated_at
   BEFORE UPDATE ON module_user_roles
   FOR EACH ROW EXECUTE FUNCTION update_module_user_roles_updated_at();
