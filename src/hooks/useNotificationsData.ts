@@ -1,73 +1,112 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { NotificationService } from '@/services/notification.service';
 import type { Notification } from '@/components/ui/notifications';
-
-const FETCH_KEY = 'sion_notif_last_fetch';
-const POLL_MS = 30_000;
-const SKIP_THRESHOLD_MS = 25_000;
 
 export function useNotificationsData() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  const fetchNow = useCallback(async (bypassGuard = false) => {
-    if (!bypassGuard) {
-      try {
-        const last = localStorage.getItem(FETCH_KEY);
-        if (last && Date.now() - Number(last) < SKIP_THRESHOLD_MS) return;
-      } catch {
-        // localStorage unavailable (e.g. strict incognito) — proceed with fetch
-      }
-    }
-
+  // ── Fetch HTTP (carga inicial y reconexión) ─────────────────────────────────
+  const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
       const data = await NotificationService.getAll();
       setNotifications(data ?? []);
-      try {
-        localStorage.setItem(FETCH_KEY, Date.now().toString());
-      } catch {
-        // localStorage unavailable — silently ignore
-      }
     } catch (e) {
-      console.error('useNotificationsData fetch error:', e);
+      console.error('[notifications] fetch error:', e);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // ── Suscripción Realtime ────────────────────────────────────────────────────
   useEffect(() => {
-    fetchNow(true);
+    let cancelled = false;
 
-    const interval = setInterval(() => fetchNow(false), POLL_MS);
+    const setup = async () => {
+      // Fetch inicial mientras se conecta el canal
+      fetchAll();
 
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        fetchNow(true);
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+
+      const channel = supabase
+        .channel(`notifications:${user.id}`)
+        // Nueva notificación → prepender al estado
+        .on(
+          'postgres_changes',
+          {
+            event:  'INSERT',
+            schema: 'public',
+            table:  'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          ({ new: row }) => {
+            setNotifications(prev => [row as Notification, ...prev]);
+          },
+        )
+        // Notificación marcada como leída en otra pestaña → sincronizar
+        .on(
+          'postgres_changes',
+          {
+            event:  'UPDATE',
+            schema: 'public',
+            table:  'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          ({ new: row }) => {
+            const updated = row as Notification;
+            setNotifications(prev =>
+              prev.map(n => (n.id === updated.id ? updated : n)),
+            );
+          },
+        )
+        .subscribe(status => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Canal caído → refetch por HTTP como fallback
+            console.warn('[notifications] Realtime error, refetching via HTTP');
+            if (!cancelled) fetchAll();
+          }
+        });
+
+      channelRef.current = channel;
     };
 
+    setup();
+
+    // Refetch al volver al tab (por si se perdió un evento mientras el canal
+    // estaba en background o reconectando)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchAll();
+    };
     document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
-      clearInterval(interval);
+      cancelled = true;
       document.removeEventListener('visibilitychange', onVisibility);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, [fetchNow]);
+  }, [fetchAll]);
 
+  // ── Acciones (optimistic updates) ──────────────────────────────────────────
   const markAsRead = useCallback(async (id: string) => {
-    await NotificationService.markAsRead(id);
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
+    await NotificationService.markAsRead(id);
   }, []);
 
   const markAllAsRead = useCallback(async () => {
-    await NotificationService.markAllAsRead();
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    await NotificationService.markAllAsRead();
   }, []);
 
   const dismiss = useCallback(async (id: string) => {
-    await NotificationService.dismiss(id);
     setNotifications(prev => prev.filter(n => n.id !== id));
+    await NotificationService.dismiss(id);
   }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
