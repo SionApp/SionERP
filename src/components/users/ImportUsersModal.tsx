@@ -6,9 +6,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { UserService } from '@/services/user.service';
 import type { ImportError, ImportResult, ParsedRow, UserImportRow } from '@/types/user-import.types';
-import { AlertCircle, CheckCircle2, FileSpreadsheet, Upload } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, FileSpreadsheet, Upload } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -87,7 +89,14 @@ function normalizeRow(raw: Record<string, unknown>): Partial<UserImportRow> {
   return normalized;
 }
 
-function validateRows(rawRows: Record<string, unknown>[]): ParsedRow[] {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function generatePlaceholderEmail(cedula: string | undefined, rowIndex: number): string {
+  if (cedula && cedula.trim()) return `${cedula.trim()}@sionerp.local`;
+  return `import.${rowIndex}@sionerp.local`;
+}
+
+function validateRows(rawRows: Record<string, unknown>[], flexible: boolean): ParsedRow[] {
   return rawRows.map((raw, i) => {
     const normalized = normalizeRow(raw);
     const errors: string[] = [];
@@ -95,14 +104,21 @@ function validateRows(rawRows: Record<string, unknown>[]): ParsedRow[] {
 
     if (!normalized.first_name) errors.push('Nombre requerido');
     if (!normalized.last_name) errors.push('Apellido requerido');
-    if (!normalized.email) {
-      errors.push('Email requerido');
-    } else {
-      const emailLower = normalized.email.toLowerCase().trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) {
-        errors.push('Email inválido');
+
+    const rawEmail = normalized.email?.toLowerCase().trim() ?? '';
+    const emailMissing = !rawEmail;
+    const emailInvalid = rawEmail && !EMAIL_RE.test(rawEmail);
+
+    if (emailMissing || emailInvalid) {
+      if (flexible) {
+        const placeholder = generatePlaceholderEmail(normalized.id_number, i + 1);
+        normalized.email = placeholder;
+        warnings.push(`Email ${emailMissing ? 'vacío' : 'inválido'} — generado: ${placeholder}`);
+      } else {
+        errors.push(emailMissing ? 'Email requerido' : 'Email inválido');
       }
-      normalized.email = emailLower;
+    } else {
+      normalized.email = rawEmail;
     }
 
     if (!normalized.role) {
@@ -144,6 +160,7 @@ export function ImportUsersModal({ open, onOpenChange, onComplete }: ImportUsers
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [flexibleMode, setFlexibleMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetState = useCallback(() => {
@@ -177,7 +194,7 @@ export function ImportUsersModal({ open, onOpenChange, onComplete }: ImportUsers
         setPhase('error');
         return;
       }
-      const parsed = validateRows(raw);
+      const parsed = validateRows(raw, flexibleMode);
       setRows(parsed);
       setPhase('preview');
     } catch {
@@ -250,14 +267,40 @@ export function ImportUsersModal({ open, onOpenChange, onComplete }: ImportUsers
         {/* ── IDLE: file picker ──────────────────────────────────────────── */}
         {phase === 'idle' && (
           <div className="space-y-4">
+            {/* Flexible mode toggle */}
+            <div className={`rounded-lg border p-4 space-y-1.5 transition-colors ${flexibleMode ? 'border-amber-400 bg-amber-50/60 dark:bg-amber-950/20' : 'border-border bg-muted/30'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="flexible-mode" className="font-medium text-sm cursor-pointer">
+                    Carga inicial (modo flexible)
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Filas sin email o con email inválido reciben un placeholder{' '}
+                    <span className="font-mono">cédula@sionerp.local</span>. Usalo solo para la carga inicial de datos históricos.
+                  </p>
+                </div>
+                <Switch
+                  id="flexible-mode"
+                  checked={flexibleMode}
+                  onCheckedChange={setFlexibleMode}
+                />
+              </div>
+              {flexibleMode && (
+                <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  Modo activo — los emails generados deberán actualizarse luego en cada perfil.
+                </p>
+              )}
+            </div>
+
             <div className="rounded-lg border-2 border-dashed border-muted-foreground/30 p-8 text-center">
               <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground mb-3">
                 Seleccioná un archivo .xlsx o .csv con las columnas:{' '}
                 <span className="font-medium text-foreground">
-                  first_name, last_name, email
+                  Nombres, Apellidos, Correo Electronico
                 </span>{' '}
-                (requeridas) y phone, role, id_number, birth_date (opcionales).
+                (requeridas) y Celular, Direccion, Cedula, F. Nac. (opcionales).
               </p>
               <Button
                 variant="outline"
@@ -275,7 +318,7 @@ export function ImportUsersModal({ open, onOpenChange, onComplete }: ImportUsers
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Columnas aceptadas en español: Nombre, Apellido, Correo, Teléfono, Rol, Cédula, Fecha_Nacimiento, WhatsApp
+              Columnas aceptadas en español: Nombres, Apellidos, Correo Electronico, Celular, Direccion, Cédula, F. Nac., WhatsApp
             </p>
           </div>
         )}
@@ -333,9 +376,18 @@ export function ImportUsersModal({ open, onOpenChange, onComplete }: ImportUsers
                       <td className="px-3 py-2 text-muted-foreground">{row.role ?? 'server'}</td>
                       <td className="px-3 py-2">
                         {row._valid ? (
-                          <span className="inline-flex items-center gap-1 text-green-600">
-                            <CheckCircle2 className="h-3 w-3" /> OK
-                          </span>
+                          row._warnings.length > 0 ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-amber-600"
+                              title={row._warnings.join(', ')}
+                            >
+                              <AlertTriangle className="h-3 w-3" /> Advertencia
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-green-600">
+                              <CheckCircle2 className="h-3 w-3" /> OK
+                            </span>
+                          )
                         ) : (
                           <span
                             className="inline-flex items-center gap-1 text-destructive"
