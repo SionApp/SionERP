@@ -86,9 +86,7 @@ const DashboardLayout = () => {
       invalidatePermissionsCache();
       await authLogout();
     } catch {
-      // Session may already be invalid — clear local storage manually
-      localStorage.clear();
-      sessionStorage.clear();
+      // authLogout itself should not throw, but just in case
     } finally {
       window.location.href = '/login';
     }

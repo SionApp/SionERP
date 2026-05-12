@@ -138,6 +138,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch {
       // Session may already be invalid server-side (e.g. after db reset)
     }
+    // Force-clear all Supabase tokens from localStorage regardless of signOut result.
+    // Needed when the GoTrue server rejects signOut (e.g. token invalid after db reset)
+    // — in that case the JS client skips _removeSession() and the JWT stays in storage.
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('sb-'))
+      .forEach(k => localStorage.removeItem(k));
     invalidatePermissionsCache();
     setCurrentUser(null);
     setCurrentUserLoaded(false);
