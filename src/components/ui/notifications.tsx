@@ -1,9 +1,6 @@
-import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bell, CheckCircle, AlertTriangle, Info, X, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { AlertCircle, AlertTriangle, CheckCircle, Info, CheckCheck } from 'lucide-react';
 
 export interface Notification {
   id: string;
@@ -12,7 +9,11 @@ export interface Notification {
   message: string;
   actionText?: string;
   actionUrl?: string;
-  createdAt: string;
+  // snake_case aliases (from backend)
+  action_text?: string;
+  action_url?: string;
+  createdAt?: string;
+  created_at?: string;
   read: boolean;
   relatedUser?: {
     name: string;
@@ -20,6 +21,40 @@ export interface Notification {
   };
   related_entity_type?: string;
   related_entity_id?: string;
+}
+
+const TYPE_CONFIG = {
+  success: {
+    icon: CheckCircle,
+    bg: 'bg-emerald-100 dark:bg-emerald-900/30',
+    color: 'text-emerald-600 dark:text-emerald-400',
+  },
+  error: {
+    icon: AlertCircle,
+    bg: 'bg-red-100 dark:bg-red-900/30',
+    color: 'text-red-600 dark:text-red-400',
+  },
+  warning: {
+    icon: AlertTriangle,
+    bg: 'bg-orange-100 dark:bg-orange-900/30',
+    color: 'text-orange-600 dark:text-orange-400',
+  },
+  info: {
+    icon: Info,
+    bg: 'bg-blue-100 dark:bg-blue-900/30',
+    color: 'text-blue-600 dark:text-blue-400',
+  },
+} as const;
+
+function formatTime(dateString?: string): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const diffMs = Date.now() - date.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Ahora';
+  if (mins < 60) return `${mins}m`;
+  if (mins < 1440) return `${Math.floor(mins / 60)}h`;
+  return `${Math.floor(mins / 1440)}d`;
 }
 
 interface NotificationItemProps {
@@ -32,116 +67,71 @@ interface NotificationItemProps {
 const NotificationItem: React.FC<NotificationItemProps> = ({
   notification,
   onMarkAsRead,
-  onDismiss,
   onAction,
 }) => {
-  const getIcon = () => {
-    switch (notification.type) {
-      case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-orange-600" />;
-      case 'error':
-        return <AlertTriangle className="w-5 h-5 text-red-600" />;
-      case 'info':
-      default:
-        return <Info className="w-5 h-5 text-blue-600" />;
-    }
+  const config = TYPE_CONFIG[notification.type] ?? TYPE_CONFIG.info;
+  const Icon = config.icon;
+  const actionText = notification.actionText ?? notification.action_text;
+  const actionUrl = notification.actionUrl ?? notification.action_url;
+  const timestamp = notification.createdAt ?? notification.created_at;
+
+  const handleClick = () => {
+    if (!notification.read) onMarkAsRead(notification.id);
   };
 
-  const getBadgeVariant = () => {
-    switch (notification.type) {
-      case 'success':
-        return 'default' as const;
-      case 'warning':
-        return 'secondary' as const;
-      case 'error':
-        return 'destructive' as const;
-      case 'info':
-      default:
-        return 'outline' as const;
-    }
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-
-    if (diffInMinutes < 1) return 'Ahora';
-    if (diffInMinutes < 60) return `Hace ${diffInMinutes}m`;
-    if (diffInMinutes < 1440) return `Hace ${Math.floor(diffInMinutes / 60)}h`;
-    return `Hace ${Math.floor(diffInMinutes / 1440)}d`;
+  const handleAction = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAction?.(notification.id, actionUrl);
+    if (!notification.read) onMarkAsRead(notification.id);
   };
 
   return (
-    <Card className={`transition-all ${notification.read ? 'opacity-75' : 'shadow-md'}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          {notification.relatedUser ? (
-            <Avatar className="w-8 h-8">
-              <AvatarImage src={notification.relatedUser.avatar} />
-              <AvatarFallback>
-                {notification.relatedUser.name
-                  .split(' ')
-                  .map(n => n[0])
-                  .join('')}
-              </AvatarFallback>
-            </Avatar>
-          ) : (
-            <div className="flex-shrink-0">{getIcon()}</div>
-          )}
+    <div
+      className={cn(
+        'relative flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors',
+        'hover:bg-muted/50',
+        !notification.read && 'bg-blue-50/40 dark:bg-blue-950/20'
+      )}
+      onClick={handleClick}
+    >
+      {/* Unread dot */}
+      {!notification.read && (
+        <span className="absolute left-1.5 top-4 h-1.5 w-1.5 rounded-full bg-blue-500" />
+      )}
 
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h4 className="font-semibold text-sm">{notification.title}</h4>
-                <Badge variant={getBadgeVariant()} className="text-xs">
-                  {notification.type}
-                </Badge>
-                {!notification.read && <div className="w-2 h-2 bg-blue-600 rounded-full"></div>}
-              </div>
+      {/* Type icon avatar */}
+      <div
+        className={cn(
+          'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
+          config.bg
+        )}
+      >
+        <Icon className={cn('h-4 w-4', config.color)} />
+      </div>
 
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {formatTime(notification.createdAt)}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onDismiss(notification.id)}
-                  className="h-6 w-6 p-0"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-
-            <p className="text-sm text-muted-foreground">{notification.message}</p>
-
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2">
-                {notification.actionText && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onAction?.(notification.id, notification.actionUrl)}
-                  >
-                    {notification.actionText}
-                  </Button>
-                )}
-                {!notification.read && (
-                  <Button variant="ghost" size="sm" onClick={() => onMarkAsRead(notification.id)}>
-                    Marcar como leída
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
+      {/* Content */}
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-semibold leading-tight">{notification.title}</p>
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            {formatTime(timestamp)}
+          </span>
         </div>
-      </CardContent>
-    </Card>
+
+        <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2">
+          {notification.message}
+        </p>
+
+        {actionText && actionUrl && (
+          <button
+            onClick={handleAction}
+            className="mt-1 text-[13px] font-medium text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {actionText}
+          </button>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -163,49 +153,59 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="w-5 h-5" />
-              Notificaciones
-              {unreadCount > 0 && (
-                <Badge variant="default" className="ml-2">
-                  {unreadCount}
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription>Mantente al día con las actividades del discipulado</CardDescription>
-          </div>
-
+    <div className="flex flex-col w-full overflow-hidden rounded-xl">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Notificaciones</span>
           {unreadCount > 0 && (
-            <Button variant="outline" size="sm" onClick={onMarkAllAsRead}>
-              Marcar todas como leídas
-            </Button>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {unreadCount} nuevas
+            </span>
           )}
         </div>
-      </CardHeader>
+        {unreadCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={onMarkAllAsRead}
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+            Marcar todo leído
+          </Button>
+        )}
+      </div>
 
-      <CardContent className="space-y-4">
+      {/* List */}
+      <div className="max-h-[420px] overflow-y-auto divide-y divide-border/50">
         {notifications.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No hay notificaciones</p>
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Info className="h-8 w-8 mb-2 opacity-40" />
+            <p className="text-sm">No hay notificaciones</p>
           </div>
         ) : (
-          notifications.map(notification => (
+          notifications.map(n => (
             <NotificationItem
-              key={notification.id}
-              notification={notification}
+              key={n.id}
+              notification={n}
               onMarkAsRead={onMarkAsRead}
               onDismiss={onDismiss}
               onAction={onAction}
             />
           ))
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Footer */}
+      {notifications.length > 0 && (
+        <div className="border-t px-4 py-2.5 text-center">
+          <button className="text-[13px] text-muted-foreground hover:text-foreground transition-colors">
+            Ver todas las notificaciones
+          </button>
+        </div>
+      )}
+    </div>
   );
 };
 
