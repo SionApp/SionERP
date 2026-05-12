@@ -133,7 +133,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Session may already be invalid server-side (e.g. after db reset)
+    }
     invalidatePermissionsCache();
     setCurrentUser(null);
     setCurrentUserLoaded(false);

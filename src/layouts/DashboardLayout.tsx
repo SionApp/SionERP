@@ -82,12 +82,16 @@ const DashboardLayout = () => {
   }, [loading, location.pathname, navigate]);
 
   const handleLogout = async () => {
-    // Clear ALL caches on logout
-    invalidatePermissionsCache();
-    await authLogout();
-    // Hard reload to clear ALL React state, module caches, and service worker caches
-    // This ensures the next user gets a completely fresh app state
-    window.location.href = '/login';
+    try {
+      invalidatePermissionsCache();
+      await authLogout();
+    } catch {
+      // Session may already be invalid — clear local storage manually
+      localStorage.clear();
+      sessionStorage.clear();
+    } finally {
+      window.location.href = '/login';
+    }
   };
 
   if (loading) {
