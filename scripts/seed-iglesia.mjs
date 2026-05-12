@@ -87,6 +87,21 @@ async function main() {
   console.log('✅ Conectado a la base de datos\n');
 
   try {
+    // ── 0. Activar módulos base ──────────────────────────────────────────────
+    await client.query(`
+      INSERT INTO modules (key, name, description, is_installed, installed_at)
+      VALUES
+        ('base',         'Sistema Base',  'Funcionalidades principales',       true, NOW()),
+        ('discipleship', 'Discipulado',   'Grupos, jerarquías y reportes',     true, NOW()),
+        ('zones',        'Zonas',         'Gestión de zonas territoriales',    true, NOW()),
+        ('events',       'Eventos',       'Eventos de la iglesia',             false, NULL),
+        ('reports',      'Informes',      'Informes y estadísticas avanzadas', false, NULL)
+      ON CONFLICT (key) DO UPDATE SET
+        is_installed = EXCLUDED.is_installed,
+        installed_at = CASE WHEN EXCLUDED.is_installed THEN COALESCE(modules.installed_at, NOW()) ELSE NULL END
+    `);
+    console.log('✅ Módulos configurados\n');
+
     // ── 1. Crear zonas ───────────────────────────────────────────────────────
     console.log('── Creando zonas...');
     const zoneIdMap = {}; // name → uuid
