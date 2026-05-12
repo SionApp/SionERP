@@ -14,7 +14,9 @@
     "preview": "vite preview",
     "types:generate": "supabase gen types typescript --local > src/integrations/supabase/types.ts",
     "types:generate:linked": "supabase gen types typescript --linked > src/integrations/supabase/types.ts",
-    "postmigrate": "npm run types:generate"
+    "postmigrate": "npm run types:generate",
+    "seed:generate": "node scripts/generate-seed.mjs",
+    "db:reset": "node scripts/generate-seed.mjs && supabase db reset"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
