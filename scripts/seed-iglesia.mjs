@@ -14,8 +14,14 @@ import { randomUUID } from 'crypto';
 
 const { Client } = pg;
 
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const DB_URL   = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const EXCEL_PATH = '/Users/danzt/Downloads/DATA IGLESIA SION ACT. 14-12-25.xlsx';
+
+// ─── Admin a crear ────────────────────────────────────────────────────────────
+const ADMIN_EMAIL    = process.env.SION_ADMIN_EMAIL    || 'pastor@sionerp.local';
+const ADMIN_PASSWORD = process.env.SION_ADMIN_PASSWORD || 'SionERP2025!';
+const ADMIN_ROLE     = process.env.SION_ADMIN_ROLE     || 'pastor';
+const ADMIN_UUID     = process.env.SION_ADMIN_UUID     || 'b0000001-0000-0000-0000-000000000001';
 
 // ─── Zonas a crear ────────────────────────────────────────────────────────────
 
@@ -54,6 +60,9 @@ function normalizeBool(val) {
   return s === 'si' || s === 'sí' || s === 'yes' || s === '1' || s === 'true';
 }
 
+// Matches YYYY-MM-DD or DD/MM/YYYY or DD-MM-YYYY
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$|^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/;
+
 function normalizeDate(val) {
   if (!val) return null;
   if (val instanceof Date) {
@@ -64,8 +73,10 @@ function normalizeDate(val) {
     return `${y}-${m}-${d}`;
   }
   const s = cleanStr(val);
-  if (!s || s.toLowerCase().startsWith('año')) return null;
-  return s;
+  if (!s) return null;
+  // Only pass through strings that look like a real date
+  if (DATE_RE.test(s)) return s;
+  return null; // "NO REC.", "ENERO, 2011", "NOV.2014", etc. → null
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -169,16 +180,16 @@ async function main() {
           `INSERT INTO users (
             id, first_name, last_name, email, phone, address,
             id_number, role, birth_date, baptism_date, baptized,
-            whatsapp, zone_id, is_active, created_at, updated_at
+            whatsapp, zone_id, zone_name, is_active, created_at, updated_at
           ) VALUES (
             $1,$2,$3,$4,$5,$6,
             $7,$8,$9,$10,$11,
-            $12,$13,true,NOW(),NOW()
+            $12,$13,$14,true,NOW(),NOW()
           )`,
           [
             id, firstName, lastName, email, phone, address,
             cedula || '', 'server', birthDate, baptismDate, baptized,
-            whatsapp, zoneId
+            whatsapp, zoneId, zoneName || null
           ]
         );
 
@@ -202,6 +213,63 @@ async function main() {
       if (errors.length > 20) console.log(`   ... y ${errors.length - 20} más`);
     }
     console.log('══════════════════════════════════════\n');
+
+    // ── 5. Crear usuario admin ───────────────────────────────────────────────
+    console.log('── Creando usuario admin...');
+    try {
+      // Verificar si ya existe en auth.users
+      const authExists = await client.query(
+        "SELECT id FROM auth.users WHERE email = $1",
+        [ADMIN_EMAIL]
+      );
+
+      if (authExists.rows.length > 0) {
+        console.log(`  → Auth user ya existe: ${ADMIN_EMAIL} (${authExists.rows[0].id})\n`);
+      } else {
+        // Insertar en auth.users con bcrypt (pgcrypto disponible en Supabase local)
+        await client.query(`
+          INSERT INTO auth.users (
+            instance_id, id, aud, role, email,
+            encrypted_password, email_confirmed_at,
+            raw_app_meta_data, raw_user_meta_data,
+            created_at, updated_at,
+            confirmation_token, email_change, email_change_token_new, recovery_token
+          ) VALUES (
+            '00000000-0000-0000-0000-000000000000',
+            $1, 'authenticated', 'authenticated', $2,
+            crypt($3, gen_salt('bf', 10)), NOW(),
+            '{"provider":"email","providers":["email"]}',
+            jsonb_build_object('role', $4::text),
+            NOW(), NOW(),
+            '', '', '', ''
+          )
+        `, [ADMIN_UUID, ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_ROLE]);
+        console.log(`  ✓ Auth user creado: ${ADMIN_EMAIL} (${ADMIN_UUID})`);
+      }
+
+      // Upsert en public.users
+      await client.query(`
+        INSERT INTO public.users (
+          id, id_number, first_name, last_name, email,
+          phone, address, role, is_active, is_super_admin,
+          created_at, updated_at
+        ) VALUES (
+          $1, 'ADMIN-SEED', 'Pastor', 'Admin', $2,
+          '+00-000-000-0000', 'Platform', $3, true, true,
+          NOW(), NOW()
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          role           = $3,
+          is_super_admin = true,
+          is_active      = true,
+          updated_at     = NOW()
+      `, [ADMIN_UUID, ADMIN_EMAIL, ADMIN_ROLE]);
+      console.log(`  ✓ public.users upserted para admin\n`);
+
+    } catch (adminErr) {
+      console.warn(`  ⚠️  Admin creation error: ${adminErr.message.split('\n')[0]}`);
+      console.warn('     El backend (bootstrap.go) lo creará al iniciar.\n');
+    }
 
     // Verificar distribución por zona
     console.log('── Distribución por zona:');
