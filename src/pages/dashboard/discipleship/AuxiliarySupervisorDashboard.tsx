@@ -69,7 +69,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
     try {
       await DiscipleshipService.approveReport(reportId);
       toast.success('Reporte aprobado');
-      refetch();
+      await refetch();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Error desconocido';
       toast.error(msg || 'Error al aprobar el reporte');
@@ -80,7 +80,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
     try {
       await DiscipleshipService.rejectReport(reportId, feedback);
       toast.success('Reporte rechazado');
-      refetch();
+      await refetch();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Error desconocido';
       toast.error(msg || 'Error al rechazar el reporte');
@@ -258,7 +258,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
             >
               <span className="hidden sm:inline">Aprobaciones</span>
               <span className="sm:hidden">Aprob.</span>
-              {(stats as { pending_reports?: number }).pending_reports && (stats as { pending_reports?: number }).pending_reports! > 0 && (
+              {((stats as { pending_reports?: number }).pending_reports ?? 0) > 0 && (
                 <Badge variant="destructive" className="ml-1 text-[10px] h-4 px-1">
                   {(stats as { pending_reports?: number }).pending_reports}
                 </Badge>

@@ -28,17 +28,15 @@ func getDiscipleshipAccessInfo(c echo.Context, db *config.Database) (userID stri
 	userID, _ = c.Get("user_id").(string)
 	userRole, _ := c.Get("db_role").(string)
 
-	// Pastor y Staff tienen acceso completo
-	if utils.IsAdminRole(userRole) {
-		return userID, nil, nil, true
-	}
-
-	// Otros roles necesitan hierarchy_level
+	// El nivel de discipulado tiene prioridad sobre el rol ERP.
+	// Un usuario con rol 'staff' asignado como Supervisor General (nivel 3) debe
+	// estar limitado a su zona, no ver todo. Solo si NO tiene jerarquía asignada
+	// se usa el rol ERP como fallback (para pastores/admins sin nivel).
 	var level int
 	var zone sql.NullString
 	err := db.DB.QueryRow(`
-		SELECT hierarchy_level, COALESCE(zone_id::text, '') 
-		FROM discipleship_hierarchy 
+		SELECT hierarchy_level, COALESCE(zone_id::text, '')
+		FROM discipleship_hierarchy
 		WHERE user_id = $1
 	`, userID).Scan(&level, &zone)
 
@@ -48,10 +46,19 @@ func getDiscipleshipAccessInfo(c echo.Context, db *config.Database) (userID stri
 			zoneIDStr := zone.String
 			zoneID = &zoneIDStr
 		}
+		// Coordinador (4) y Pastoral (5) tienen acceso completo dentro del módulo
+		if level >= 4 {
+			return userID, hierarchyLevel, zoneID, true
+		}
 		return userID, hierarchyLevel, zoneID, false
 	}
 
-	// Sin jerarquía asignada
+	// Sin jerarquía de discipulado — fallback al rol ERP (pastor/staff = acceso total)
+	if utils.IsAdminRole(userRole) {
+		return userID, nil, nil, true
+	}
+
+	// Sin acceso
 	return userID, nil, nil, false
 }
 
@@ -1192,6 +1199,24 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 		WHERE id = $4
 	`, req.HierarchyLevel, zoneID, req.Territory, req.UserID)
 
+	// Si es Líder (nivel 1), propagar supervisor_id a sus grupos para que el
+	// Supervisor Auxiliar pueda ver esos grupos en su dashboard y recibir reportes.
+	if req.HierarchyLevel == 1 {
+		if req.SupervisorID != "" {
+			_, _ = db.DB.Exec(`
+				UPDATE discipleship_groups
+				SET supervisor_id = $1, updated_at = NOW()
+				WHERE leader_id = $2
+			`, req.SupervisorID, req.UserID)
+		} else {
+			_, _ = db.DB.Exec(`
+				UPDATE discipleship_groups
+				SET supervisor_id = NULL, updated_at = NOW()
+				WHERE leader_id = $1
+			`, req.UserID)
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Jerarquía asignada exitosamente",
 	})
@@ -1253,22 +1278,47 @@ func (h *DiscipleshipHandler) GetSubordinates(c echo.Context) error {
 		}
 	}
 
-	query := `
-		SELECT 
-			h.id, h.user_id, h.hierarchy_level, h.supervisor_id,
-			h.zone_id, COALESCE(z.name, '') as zone_name,
-			h.territory, h.active_groups_assigned,
-			h.created_at, h.updated_at,
-			COALESCE(u.first_name || ' ' || u.last_name, '') as user_name,
-			COALESCE(u.email, '') as user_email
-		FROM discipleship_hierarchy h
-		LEFT JOIN zones z ON h.zone_id = z.id
-		LEFT JOIN users u ON h.user_id = u.id
-		WHERE h.supervisor_id = $1
-		ORDER BY h.hierarchy_level DESC
-	`
+	// Para nivel 3 (Supervisor General): mostrar todos los Supervisores Auxiliares (nivel 2)
+	// en la misma zona, independientemente de si tienen supervisor_id explícito.
+	// Para otros niveles: usar supervisor_id directo.
+	var query string
+	var queryArgs []interface{}
 
-	rows, err := db.DB.Query(query, supervisorID)
+	if !canSeeAll && hierarchyLevel != nil && *hierarchyLevel == 3 && zoneID != nil && *zoneID != "" {
+		query = `
+			SELECT
+				h.id, h.user_id, h.hierarchy_level, h.supervisor_id,
+				h.zone_id, COALESCE(z.name, '') as zone_name,
+				h.territory, h.active_groups_assigned,
+				h.created_at, h.updated_at,
+				COALESCE(u.first_name || ' ' || u.last_name, '') as user_name,
+				COALESCE(u.email, '') as user_email
+			FROM discipleship_hierarchy h
+			LEFT JOIN zones z ON h.zone_id = z.id
+			LEFT JOIN users u ON h.user_id = u.id
+			WHERE h.hierarchy_level = 2 AND h.zone_id = $1
+			ORDER BY h.hierarchy_level DESC
+		`
+		queryArgs = []interface{}{*zoneID}
+	} else {
+		query = `
+			SELECT
+				h.id, h.user_id, h.hierarchy_level, h.supervisor_id,
+				h.zone_id, COALESCE(z.name, '') as zone_name,
+				h.territory, h.active_groups_assigned,
+				h.created_at, h.updated_at,
+				COALESCE(u.first_name || ' ' || u.last_name, '') as user_name,
+				COALESCE(u.email, '') as user_email
+			FROM discipleship_hierarchy h
+			LEFT JOIN zones z ON h.zone_id = z.id
+			LEFT JOIN users u ON h.user_id = u.id
+			WHERE h.supervisor_id = $1
+			ORDER BY h.hierarchy_level DESC
+		`
+		queryArgs = []interface{}{supervisorID}
+	}
+
+	rows, err := db.DB.Query(query, queryArgs...)
 	if err != nil {
 		c.Logger().Error("Error fetching subordinates:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{

@@ -14,7 +14,7 @@ type User struct {
 	Phone            string     `json:"phone" db:"phone"`
 	Address          string     `json:"address" db:"address"`
 	BirthDate        *string    `json:"birth_date" db:"birth_date"`
-	BaptismDate      *time.Time `json:"baptism_date" db:"baptism_date"`
+	BaptismDate      *string    `json:"baptism_date" db:"baptism_date"`
 	Baptized         bool       `json:"baptized" db:"baptized"`
 	Role             string     `json:"role" db:"role"`
 	WhatsApp         bool       `json:"whatsapp" db:"whatsapp"`
@@ -43,7 +43,12 @@ type User struct {
 	EmergencyContactPhone *string `json:"emergency_contact_phone" db:"emergency_contact_phone"`
 
 	// Invitation status (from LEFT JOIN with user_invitations)
-	InvitationStatus *string `json:"invitation_status,omitempty" db:"invitation_status"`
+	InvitationStatus    *string    `json:"invitation_status,omitempty" db:"invitation_status"`
+	InvitationExpiresAt *time.Time `json:"invitation_expires_at,omitempty" db:"invitation_expires_at"`
+	InvitationID        *string    `json:"invitation_id,omitempty" db:"invitation_id"`
+
+	// Auth info (from LEFT JOIN with auth.users)
+	LastSignInAt *time.Time `json:"last_sign_in_at,omitempty" db:"last_sign_in_at"`
 
 	// Onboarding
 	OnboardingCompleted *bool `json:"onboarding_completed" db:"onboarding_completed"`
@@ -69,7 +74,7 @@ type UpdateUserRequest struct {
 
 	// Church membership
 	Baptized       *bool      `json:"baptized,omitempty"`
-	BaptismDate    *time.Time `json:"baptism_date,omitempty"`
+	BaptismDate    *string    `json:"baptism_date,omitempty"`
 	IsActiveMember *bool      `json:"is_active_member,omitempty"`
 	MembershipDate *string    `json:"membership_date,omitempty"`
 

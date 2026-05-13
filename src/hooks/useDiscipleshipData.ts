@@ -92,9 +92,12 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
         promises.zoneStats = DiscipleshipAnalyticsService.getZoneStats();
       }
 
+      if (level >= 3) {
+        promises.subordinates = DiscipleshipAnalyticsService.getSupervisorSubordinates(userId);
+      }
+
       if (level >= 4) {
         promises.goals = DiscipleshipAnalyticsService.getGoals();
-        promises.subordinates = DiscipleshipAnalyticsService.getSupervisorSubordinates(userId);
       }
 
       if (level >= 2) {
