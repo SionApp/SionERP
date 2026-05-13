@@ -34,10 +34,13 @@ import {
 import {
   Calendar,
   ChevronLeft,
+  Edit,
   Loader2,
   MapPin,
   Plus,
   Search,
+  Trash2,
+  UserPlus,
   Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -302,6 +305,42 @@ const GroupManagement = () => {
     [loadInitialGroups]
   );
 
+  const groupActions = (group: DiscipleshipGroup) => (
+    <div className="flex items-center justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 p-0"
+        title="Gestionar personas"
+        onClick={() => setSelectedGroupForMembers(group.id)}
+      >
+        <UserPlus className="h-4 w-4" />
+      </Button>
+      <Can I={ROLE_LEVELS.supervisor}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0"
+          title="Editar grupo"
+          onClick={() => handleOpenDialog(group)}
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
+      </Can>
+      <Can I={ROLE_LEVELS.coordinator}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+          title="Eliminar grupo"
+          onClick={() => handleDelete(group.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </Can>
+    </div>
+  );
+
   const getStatusBadge = useCallback((status: string) => {
     switch (status) {
       case 'active':
@@ -423,8 +462,37 @@ const GroupManagement = () => {
             Líder: {group.leader_name || 'Sin asignar'}
           </p>
         </div>
-        <div className="flex flex-col gap-1 ml-2">
+        <div className="flex items-center gap-1 ml-2">
           {getStatusBadge(group.status)}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            title="Gestionar personas"
+            onClick={() => setSelectedGroupForMembers(group.id)}
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+          </Button>
+          <Can I={ROLE_LEVELS.supervisor}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => handleOpenDialog(group)}
+            >
+              <Edit className="h-3.5 w-3.5" />
+            </Button>
+          </Can>
+          <Can I={ROLE_LEVELS.coordinator}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-destructive"
+              onClick={() => handleDelete(group.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </Can>
         </div>
       </div>
 
@@ -758,6 +826,7 @@ const GroupManagement = () => {
         <DataTable
           data={groups}
           columns={columns}
+          actions={groupActions}
           loading={loading}
           emptyMessage="No se encontraron grupos"
           pagination={true}

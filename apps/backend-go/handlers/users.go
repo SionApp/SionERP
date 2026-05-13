@@ -68,14 +68,17 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			u.cell_group, u.cell_leader_id, u.role, u.pastoral_notes, u.is_active,
 			u.discipleship_level,
 			u.whatsapp, u.created_at, u.updated_at,
-			i.status as invitation_status,
+			i.status        AS invitation_status,
+			i.expires_at    AS invitation_expires_at,
+			i.id            AS invitation_id,
 			COALESCE(u.zone_id::text, '') as zone_id,
 			COALESCE(z.name, '') as zone_name,
-			u.onboarding_completed
+			u.onboarding_completed,
+			au.last_sign_in_at
 		FROM users u
 		LEFT JOIN user_invitations i ON u.email = i.email
-			AND i.status IN ('pending', 'accepted')
 		LEFT JOIN zones z ON u.zone_id = z.id
+		LEFT JOIN auth.users au ON u.id = au.id
 		WHERE u.is_active = true
 	`
 
@@ -148,9 +151,12 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
 			&user.IsActive, &user.DiscipleshipLevel, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
 			&user.InvitationStatus,
+			&user.InvitationExpiresAt,
+			&user.InvitationID,
 			&user.ZoneID,
 			&user.ZoneName,
 			&user.OnboardingCompleted,
+			&user.LastSignInAt,
 		)
 		if err != nil {
 			c.Logger().Error("Row scan error in GetUsers: ", err)
