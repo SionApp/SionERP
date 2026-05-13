@@ -2,15 +2,15 @@ import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { DynamicFilter, FilterField, FilterValues } from '@/components/DynamicFilter';
 import UserDetailSheet from '@/components/UserDetailSheet';
 import { InviteUserModal } from '@/components/dashboard/InviteUserModal';
+import { ImportUsersModal } from '@/components/users/ImportUsersModal';
 import { Column, DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Can } from '@/components/Can';
 import { UserService } from '@/services/user.service';
-import { Invitation } from '@/types/invitation.types';
 import { User } from '@/types/user.types';
-import { Calendar, Edit, Eye, Mail, Plus, SendHorizontal, Trash2 } from 'lucide-react';
+import { Calendar, Edit, Eye, Mail, Plus, SendHorizontal, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -23,9 +23,8 @@ const UsersPage = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [showInviteModalUser, setShowInviteModalUser] = useState<User | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
 
   const filterFields: FilterField[] = [
@@ -134,33 +133,16 @@ const UsersPage = () => {
         return role;
     }
   };
-  const loadInvitations = async () => {
-    try {
-      setLoadingInvitations(true);
-      const invitations = await UserService.loadInvitations();
-      setInvitations(invitations || []);
-    } catch (error) {
-      console.error('Error loading invitations:', error);
-      toast.error('Error al cargar las invitaciones');
-    } finally {
-      setLoadingInvitations(false);
-    }
-  };
-
   const handleResendInvitation = async (invitationId: string) => {
     try {
       await UserService.resendInvitation(invitationId);
       toast.success('Invitación reenviada correctamente');
-      loadInvitations();
+      loadUsers();
     } catch (error) {
       console.error('Error resending invitation:', error);
       toast.error('Error al reenviar la invitación');
     }
   };
-
-  useEffect(() => {
-    loadInvitations();
-  }, []);
 
   const handleDetailUser = (user: User) => {
     setSelectedUserId(user.id);
@@ -193,7 +175,7 @@ const UsersPage = () => {
     }
   };
 
-  const columns: Column<User & { invitation_status: string }>[] = [
+  const columns: Column<User>[] = [
     {
       key: 'first_name',
       label: 'Nombre Completo',
@@ -263,42 +245,50 @@ const UsersPage = () => {
       label: 'Estado',
       width: '15%',
       render: user => {
-        const invitation = invitations.find(inv => inv.email === user.email);
+        const hasLoggedIn = !!user.last_sign_in_at;
+        const status = user.invitation_status;
+        const isExpired = user.invitation_expires_at
+          ? new Date(user.invitation_expires_at) < new Date()
+          : false;
+        const canResend =
+          !hasLoggedIn &&
+          !!user.invitation_id &&
+          (status === 'failed' ||
+            status === 'resent' ||
+            (status === 'pending' && !isExpired));
 
-        if (!invitation) {
-          return <Badge variant="outline">No invitado</Badge>;
-        }
-
-        const isExpired = new Date(invitation.expires_at) < new Date();
+        const statusBadge = () => {
+          // Si ya inició sesión, el estado de invitación es irrelevante
+          if (hasLoggedIn) return null;
+          if (!status) return <Badge variant="outline">No invitado</Badge>;
+          if (status === 'accepted')
+            return <Badge variant="green">Aceptada</Badge>;
+          if (status === 'pending' && !isExpired)
+            return <Badge variant="yellow">Pendiente</Badge>;
+          if (status === 'resent')
+            return <Badge variant="outline">Reenviada</Badge>;
+          // failed or expired
+          return <Badge variant="red">Expirada</Badge>;
+        };
 
         return (
-          <div className="flex items-center gap-2">
-            <Badge
-              variant={
-                invitation.status === 'resent'
-                  ? 'outline'
-                  : invitation.status === 'accepted'
-                    ? 'green'
-                    : invitation.status === 'pending' && !isExpired
-                      ? 'yellow'
-                      : 'red'
-              }
-            >
-              {invitation.status === 'resent'
-                ? 'Invitación reenviada'
-                : invitation.status === 'pending' && !isExpired
-                  ? 'Invitación pendiente'
-                  : invitation.status === 'accepted'
-                    ? 'Aceptada'
-                    : 'Expirada'}
-            </Badge>
-
-            {invitation.status === 'pending' && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {hasLoggedIn && (
+              <Badge
+                variant="green"
+                className="text-[10px]"
+                title={`Último acceso: ${new Date(user.last_sign_in_at!).toLocaleDateString()}`}
+              >
+                Activo
+              </Badge>
+            )}
+            {statusBadge()}
+            {canResend && (
               <Can I={ROLE_LEVELS.staff}>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleResendInvitation(invitation.id)}
+                  onClick={() => handleResendInvitation(user.invitation_id!)}
                   className="h-6 w-6 p-0"
                   title="Reenviar invitación"
                 >
@@ -334,7 +324,7 @@ const UsersPage = () => {
         >
           <Edit className="h-4 w-4 2xl:h-5 2xl:w-5" />
         </Button>
-        {user.invitation_status !== 'accepted' && (
+        {!user.last_sign_in_at && user.invitation_status !== 'accepted' && (
           <Button
             variant="outline"
             size="sm"
@@ -414,10 +404,23 @@ const UsersPage = () => {
           </p>
         </div>
         <Can I={ROLE_LEVELS.staff}>
-          <Button onClick={() => navigate('/dashboard/register-user')} className="w-full sm:w-auto shrink-0">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Usuario
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              className="w-full sm:w-auto shrink-0"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Importar Excel
+            </Button>
+            <Button
+              onClick={() => navigate('/dashboard/register-user')}
+              className="w-full sm:w-auto shrink-0"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Usuario
+            </Button>
+          </div>
         </Can>
       </div>
 
@@ -434,14 +437,7 @@ const UsersPage = () => {
         </CardHeader>
         <CardContent className="px-3 sm:px-6">
           <DataTable
-            data={filteredUsers.map(
-              user =>
-                ({
-                  ...user,
-                  invitation_status:
-                    invitations.find(inv => inv.email === user.email)?.status || 'pending',
-                }) as User & { invitation_status: 'pending' | 'accepted' | 'expired' }
-            )}
+            data={filteredUsers}
             columns={columns}
             actions={userActions}
             loading={loading}
@@ -472,7 +468,16 @@ const UsersPage = () => {
         user={showInviteModalUser}
         isOpen={!!showInviteModalUser}
         onClose={() => setShowInviteModalUser(null)}
-        onInviteSent={() => loadInvitations()}
+        onInviteSent={() => loadUsers()}
+      />
+
+      <ImportUsersModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onComplete={() => {
+          setImportOpen(false);
+          loadUsers();
+        }}
       />
     </div>
   );

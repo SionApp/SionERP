@@ -185,25 +185,42 @@ const HierarchyManagement = () => {
     }
   };
 
-  // Obtener usuarios que pueden ser supervisores (nivel >= 2 y menor al nivel actual)
-  const getAvailableSupervisors = (currentUserId: string, currentLevel: number) => {
+  // supervisor_id apunta HACIA ARRIBA: es quien supervisa a este usuario.
+  // Ejemplo: un Líder (N1) tiene como supervisor a un Supervisor Auxiliar (N2).
+  // Un Supervisor Auxiliar gestiona hasta 5 Líderes porque esos Líderes
+  // tienen su supervisor_id apuntando a él — no al revés.
+  // → buscar nivel N+1. Excepción: Pastoral (N5) supervisa a todos los
+  //   coordinadores sin importar zona (suele haber uno solo).
+  const getAvailableSupervisors = (currentUserId: string, currentLevel: number, zoneName?: string) => {
     if (!Array.isArray(users)) return [];
 
+    const targetLevel = currentLevel + 1;
+    if (targetLevel > 5) return [];
+
     return users
-      .filter(
-        u =>
-          u &&
-          u.id &&
-          u.id !== currentUserId &&
-          u.hierarchy_level !== null &&
-          u.hierarchy_level! < currentLevel &&
-          u.hierarchy_level! >= 2
-      )
+      .filter(u => {
+        if (!u || !u.id || u.id === currentUserId) return false;
+        if (u.hierarchy_level !== targetLevel) return false;
+        // Pastoral supervisa a todos sin importar zona
+        if (targetLevel === 5) return true;
+        if (zoneName && normalizeNullString(u.zone_name) !== zoneName) return false;
+        return true;
+      })
       .map(u => ({
         id: u.id,
         name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Usuario sin nombre',
         level: u.hierarchy_level!,
       }));
+  };
+
+  const supervisorLabelForLevel = (level: number) => {
+    const labels: Record<number, string> = {
+      1: 'Supervisor Auxiliar (reporta a)',
+      2: 'Supervisor General (reporta a)',
+      3: 'Coordinador (reporta a)',
+      4: 'Pastoral (reporta a)',
+    };
+    return labels[level] ?? 'Reporta a';
   };
 
   const getLevelBadge = (level: number | undefined) => {
@@ -468,8 +485,15 @@ const HierarchyManagement = () => {
         </CardContent>
       </Card>
 
-      {/* Dialog para editar jerarquía */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* Dialog para editar jerarquía — key fuerza remount limpio al cambiar usuario */}
+      <Dialog
+        key={selectedUser?.id ?? 'new'}
+        open={isDialogOpen}
+        onOpenChange={open => {
+          setIsDialogOpen(open);
+          if (!open) setSelectedUser(null);
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -492,7 +516,8 @@ const HierarchyManagement = () => {
                 onValueChange={value => {
                   const level = parseInt(value, 10);
                   if (!isNaN(level)) {
-                    setFormData(prev => ({ ...prev, hierarchy_level: level }));
+                    // Al cambiar nivel limpiamos el supervisor porque cambia el tipo esperado
+                    setFormData(prev => ({ ...prev, hierarchy_level: level, supervisor_id: '' }));
                   }
                 }}
               >
@@ -512,47 +537,17 @@ const HierarchyManagement = () => {
               </p>
             </div>
 
-            {/* Supervisor */}
-            {formData.hierarchy_level > 1 && (
-              <div>
-                <Label htmlFor="supervisor_id">Supervisor</Label>
-                <Select
-                  value={formData.supervisor_id || '__none__'}
-                  onValueChange={value =>
-                    setFormData(prev => ({
-                      ...prev,
-                      supervisor_id: value === '__none__' ? '' : value,
-                    }))
-                  }
-                >
-                  <SelectTrigger id="supervisor_id">
-                    <SelectValue placeholder="Selecciona un supervisor (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin supervisor</SelectItem>
-                    {getAvailableSupervisors(
-                      formData.user_id || '',
-                      formData.hierarchy_level || 1
-                    ).map(supervisor => (
-                      <SelectItem key={supervisor.id} value={supervisor.id}>
-                        {supervisor.name} (Nivel {supervisor.level})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Usuario que supervisará a este usuario en la jerarquía
-                </p>
-              </div>
-            )}
-
-            {/* Zona */}
+            {/* Zona — va ANTES del supervisor para que filtre las opciones */}
             <div>
               <Label htmlFor="zone_name">Zona</Label>
               <Select
                 value={formData.zone_name || '__none__'}
                 onValueChange={value =>
-                  setFormData(prev => ({ ...prev, zone_name: value === '__none__' ? '' : value }))
+                  setFormData(prev => ({
+                    ...prev,
+                    zone_name: value === '__none__' ? '' : value,
+                    supervisor_id: '', // limpiar supervisor al cambiar zona
+                  }))
                 }
               >
                 <SelectTrigger id="zone_name">
@@ -568,6 +563,45 @@ const HierarchyManagement = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Supervisor — filtrado por zona y nivel. Nivel 5 (Pastoral) no tiene supervisor */}
+            {formData.hierarchy_level >= 1 && formData.hierarchy_level < 5 && (
+              <div>
+                <Label htmlFor="supervisor_id">
+                  {supervisorLabelForLevel(formData.hierarchy_level || 2)}
+                </Label>
+                <Select
+                  value={formData.supervisor_id || '__none__'}
+                  onValueChange={value =>
+                    setFormData(prev => ({
+                      ...prev,
+                      supervisor_id: value === '__none__' ? '' : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="supervisor_id">
+                    <SelectValue placeholder="Selecciona (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin asignar</SelectItem>
+                    {getAvailableSupervisors(
+                      formData.user_id || '',
+                      formData.hierarchy_level || 2,
+                      formData.zone_name || undefined,
+                    ).map(sup => (
+                      <SelectItem key={sup.id} value={sup.id}>
+                        {sup.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.zone_name && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mostrando solo usuarios de <strong>{formData.zone_name}</strong>
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Territorio */}
             <div>

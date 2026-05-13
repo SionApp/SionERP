@@ -249,7 +249,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
             >
               <span className="hidden sm:inline">Aprobaciones</span>
               <span className="sm:hidden">Aprob.</span>
-              {stats.pending_reports && stats.pending_reports > 0 && (
+              {(stats.pending_reports ?? 0) > 0 && (
                 <Badge variant="destructive" className="ml-1 text-[10px] h-4 px-1">
                   {stats.pending_reports}
                 </Badge>

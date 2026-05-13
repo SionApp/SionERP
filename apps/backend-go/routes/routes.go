@@ -44,6 +44,7 @@ func SetupRoutes(e *echo.Echo) {
 		usersAdmin.PUT("/:id", userHandler.UpdateUser)           // PUT /api/v1/users/:id
 		usersAdmin.DELETE("/:id", userHandler.DeleteUser)        // DELETE /api/v1/users/:id
 		usersAdmin.POST("/direct", userHandler.CreateUserDirect) // POST /api/v1/users/direct
+		usersAdmin.POST("/bulk", userHandler.BulkImportUsers)   // POST /api/v1/users/bulk
 	}
 
 	// Member+ (level 0): Profile access (any authenticated user)
@@ -189,6 +190,14 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.GET("/leaders/:id/stats", discipleshipHandler.GetLeaderGroupStats)
 		discipleship.GET("/supervisors/:id/subordinates", discipleshipHandler.GetSupervisorSubordinates)
 	}
+
+	// Notifications routes (any authenticated user)
+	notificationsHandler := handlers.NewNotificationsHandler()
+	notifications := protected.Group("/notifications")
+	notifications.GET("", notificationsHandler.GetNotifications)
+	notifications.PUT("/read-all", notificationsHandler.MarkAllAsRead)  // MUST be before /:id
+	notifications.PUT("/:id/read", notificationsHandler.MarkAsRead)
+	notifications.DELETE("/:id", notificationsHandler.DismissNotification)
 
 	// Zones routes
 	zonesHandler := handlers.NewZonesHandler()

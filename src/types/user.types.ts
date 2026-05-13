@@ -35,6 +35,9 @@ export interface User {
   created_at: string;
   updated_at: string;
   invitation_status?: string;
+  invitation_expires_at?: string;
+  invitation_id?: string;
+  last_sign_in_at?: string;
 
   // Campos de discipulado
   zone_id?: string;
