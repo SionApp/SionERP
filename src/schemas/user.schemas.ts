@@ -64,7 +64,7 @@ export const registerUserSchema = z.object({
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
   first_name: z.string().min(2, 'Los nombres son requeridos'),
   last_name: z.string().min(2, 'Los apellidos son requeridos'),
-  id_number: z.string().min(8, 'La cédula debe tener al menos 8 caracteres'),
+  id_number: z.string().min(7, 'La cédula debe tener al menos 7 caracteres'),
   phone: z.string().min(10, 'El teléfono debe tener al menos 10 caracteres'),
   whatsapp: z.boolean().optional(),
   role: z.enum(userRoles, {

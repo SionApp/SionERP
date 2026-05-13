@@ -3,21 +3,25 @@ import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { SetupModal } from '@/components/SetupModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
+import { NotificationCenter } from '@/components/ui/notifications';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { useSetupShortcut } from '@/hooks/useSetupShortcut';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotificationsData } from '@/hooks/useNotificationsData';
+import { useSetupShortcut } from '@/hooks/useSetupShortcut';
+import { invalidatePermissionsCache } from '@/lib/permissions';
 import { UserService } from '@/services/user.service';
-import { AlertCircle, LogOut } from 'lucide-react';
+import { Bell, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { invalidatePermissionsCache } from '@/lib/permissions';
 
 const PROFILE_PATH = '/dashboard/profile';
 const ONBOARDING_ALLOWED = [PROFILE_PATH, '/dashboard'];
 
 const DashboardLayout = () => {
   const { user, logout: authLogout } = useAuth();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, dismiss } = useNotificationsData();
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
@@ -78,12 +82,14 @@ const DashboardLayout = () => {
   }, [loading, location.pathname, navigate]);
 
   const handleLogout = async () => {
-    // Clear ALL caches on logout
-    invalidatePermissionsCache();
-    await authLogout();
-    // Hard reload to clear ALL React state, module caches, and service worker caches
-    // This ensures the next user gets a completely fresh app state
-    window.location.href = '/login';
+    try {
+      invalidatePermissionsCache();
+      await authLogout();
+    } catch {
+      // authLogout itself should not throw, but just in case
+    } finally {
+      window.location.href = '/login';
+    }
   };
 
   if (loading) {
@@ -136,6 +142,27 @@ const DashboardLayout = () => {
             </div>
 
             <ThemeToggle />
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative rounded-xl">
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[360px] p-0" align="end">
+                <NotificationCenter
+                  notifications={notifications}
+                  onMarkAsRead={markAsRead}
+                  onMarkAllAsRead={markAllAsRead}
+                  onDismiss={dismiss}
+                />
+              </PopoverContent>
+            </Popover>
 
             <Button
               variant="ghost"

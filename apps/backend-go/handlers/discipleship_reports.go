@@ -59,6 +59,25 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 		})
 	}
 
+	// Notify supervisor of new report (fire-and-forget)
+	if supervisorID.Valid && supervisorID.String != "" {
+		db2 := db
+		repID := reportID
+		supID := supervisorID.String
+		go func() {
+			utils.CreateNotification(db2, models.NotificationInput{
+				UserID:            supID,
+				Type:              "info",
+				Title:             "Nuevo reporte para revisar",
+				Message:           "Un líder a tu cargo envió un reporte.",
+				ActionURL:         utils.Ptr("/dashboard/discipleship?tab=reports"),
+				ActionText:        utils.Ptr("Ver reportes"),
+				RelatedEntityType: utils.Ptr("report"),
+				RelatedEntityID:   &repID,
+			})
+		}()
+	}
+
 	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"message":   "Reporte enviado exitosamente",
 		"report_id": reportID,
@@ -202,6 +221,22 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 		})
 	}
 
+	// Notify reporter that their report was approved (fire-and-forget)
+	repID := reportID
+	repOrID := reporterID
+	go func() {
+		utils.CreateNotification(db, models.NotificationInput{
+			UserID:            repOrID,
+			Type:              "success",
+			Title:             "Tu reporte fue aprobado",
+			Message:           "Tu supervisor aprobó tu reporte.",
+			ActionURL:         utils.Ptr("/dashboard/discipleship?tab=reports"),
+			ActionText:        utils.Ptr("Ver mis reportes"),
+			RelatedEntityType: utils.Ptr("report"),
+			RelatedEntityID:   &repID,
+		})
+	}()
+
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Reporte aprobado exitosamente",
 	})
@@ -218,7 +253,18 @@ func (h *DiscipleshipReportsHandler) RejectReport(c echo.Context) error {
 
 	db := config.GetDB()
 
-	_, err := db.DB.Exec(`
+	// Resolve reporter_id before UPDATE (mirrors ApproveReport pattern)
+	var reporterID string
+	err := db.DB.QueryRow(`
+		SELECT reporter_id FROM discipleship_reports WHERE id = $1
+	`, reportID).Scan(&reporterID)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{
+			"error": "Reporte no encontrado",
+		})
+	}
+
+	_, err = db.DB.Exec(`
 		UPDATE discipleship_reports SET
 			status = 'revision_required',
 			updated_at = NOW()
@@ -232,7 +278,21 @@ func (h *DiscipleshipReportsHandler) RejectReport(c echo.Context) error {
 		})
 	}
 
-	// TODO: Enviar notificación al reportador con el feedback
+	// Notify reporter that their report needs revision (fire-and-forget)
+	repID := reportID
+	repOrID := reporterID
+	go func() {
+		utils.CreateNotification(db, models.NotificationInput{
+			UserID:            repOrID,
+			Type:              "warning",
+			Title:             "Tu reporte necesita revisión",
+			Message:           "Tu supervisor solicitó cambios.",
+			ActionURL:         utils.Ptr("/dashboard/discipleship?tab=reports"),
+			ActionText:        utils.Ptr("Ver reporte"),
+			RelatedEntityType: utils.Ptr("report"),
+			RelatedEntityID:   &repID,
+		})
+	}()
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Reporte marcado para revisión",
