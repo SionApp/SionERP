@@ -9,7 +9,6 @@
 import pg from 'pg';
 import * as XLSX from 'xlsx';
 import { readFileSync } from 'fs';
-import { createRequire } from 'module';
 import { randomUUID } from 'crypto';
 
 const { Client } = pg;
