@@ -1,109 +1,67 @@
 import { UserService } from '@/services/user.service';
-import { supabase } from '@/integrations/supabase/client';
+import { ApiService } from '@/services/api.service';
 
-// Mock Supabase
-jest.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    from: jest.fn(),
+vi.mock('@/services/api.service', () => ({
+  ApiService: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
 describe('UserService', () => {
-  const mockFrom = supabase.from as jest.Mock;
-  const mockSelect = jest.fn();
-  const mockInsert = jest.fn();
-  const mockUpdate = jest.fn();
-  const mockDelete = jest.fn();
-
   beforeEach(() => {
-    jest.clearAllMocks();
-    mockFrom.mockReturnValue({
-      select: mockSelect,
-      insert: mockInsert,
-      update: mockUpdate,
-      delete: mockDelete,
-    });
+    vi.clearAllMocks();
   });
 
   describe('getAllUsers', () => {
-    test('should fetch all users successfully', async () => {
-      const mockUsers = [
+    test('should fetch and map users with full_name', async () => {
+      const rawUsers = [
         { id: '1', first_name: 'John', last_name: 'Doe', email: 'john@example.com' },
         { id: '2', first_name: 'Jane', last_name: 'Smith', email: 'jane@example.com' },
       ];
 
-      mockSelect.mockResolvedValue({
-        data: mockUsers,
-        error: null,
-      });
+      vi.mocked(ApiService.get).mockResolvedValue({ users: rawUsers });
 
       const result = await UserService.getAllUsers();
 
-      expect(mockFrom).toHaveBeenCalledWith('users');
-      expect(mockSelect).toHaveBeenCalledWith('*');
-      expect(result).toEqual(mockUsers);
+      expect(ApiService.get).toHaveBeenCalledWith('/users');
+      expect(result[0].full_name).toBe('John Doe');
+      expect(result[1].full_name).toBe('Jane Smith');
     });
 
-    test('should handle database errors', async () => {
-      const mockError = { message: 'Database connection failed' };
-      mockSelect.mockResolvedValue({
-        data: null,
-        error: mockError,
-      });
+    test('should return empty array when API returns no users', async () => {
+      vi.mocked(ApiService.get).mockResolvedValue({ users: [] });
 
-      await expect(UserService.getAllUsers()).rejects.toThrow('Database connection failed');
+      const result = await UserService.getAllUsers();
+
+      expect(result).toEqual([]);
+    });
+
+    test('should propagate errors from the API', async () => {
+      vi.mocked(ApiService.get).mockRejectedValue(new Error('Network error'));
+
+      await expect(UserService.getAllUsers()).rejects.toThrow('Network error');
     });
   });
 
-  describe('createUser', () => {
-    test('should create user successfully', async () => {
-      const newUser = {
-        first_name: 'Test',
-        last_name: 'User',
-        email: 'test@example.com',
-        phone: '1234567890',
-        id_number: '12345678',
-        address: 'Test Address',
-        role: 'server' as const,
+  describe('getCurrentUser', () => {
+    test('should fetch and return the current user from /users/me', async () => {
+      const rawUser = {
+        id: '1',
+        first_name: 'Daniel',
+        last_name: 'Rodríguez',
+        email: 'pastor@test.com',
       };
 
-      const createdUser = { ...newUser, id: '123' };
+      vi.mocked(ApiService.get).mockResolvedValue(rawUser);
 
-      mockInsert.mockReturnValue({
-        select: jest.fn().mockResolvedValue({
-          data: [createdUser],
-          error: null,
-        }),
-      });
+      const result = await UserService.getCurrentUser();
 
-      const result = await UserService.createUser(newUser);
-
-      expect(mockFrom).toHaveBeenCalledWith('users');
-      expect(mockInsert).toHaveBeenCalledWith(newUser);
-      expect(result).toEqual(createdUser);
-    });
-  });
-
-  describe('updateUser', () => {
-    test('should update user successfully', async () => {
-      const userId = '123';
-      const updates = { first_name: 'Updated Name' };
-      const updatedUser = { id: userId, ...updates };
-
-      mockUpdate.mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          select: jest.fn().mockResolvedValue({
-            data: [updatedUser],
-            error: null,
-          }),
-        }),
-      });
-
-      const result = await UserService.updateUser({ id: userId, ...updates });
-
-      expect(mockFrom).toHaveBeenCalledWith('users');
-      expect(mockUpdate).toHaveBeenCalledWith(updates);
-      expect(result).toEqual(updatedUser);
+      expect(ApiService.get).toHaveBeenCalledWith('/users/me');
+      expect(result.first_name).toBe('Daniel');
+      expect(result.email).toBe('pastor@test.com');
     });
   });
 });
