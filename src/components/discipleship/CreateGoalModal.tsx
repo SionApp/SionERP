@@ -25,12 +25,17 @@ import {
   Droplets,
   Church,
   Heart,
+  Info,
+  Sparkles,
 } from 'lucide-react';
 import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
 import { useDiscipleship } from '@/hooks/useDiscipleship';
+import { CascadeAssignStep } from './CascadeAssignStep';
 
 interface CreateGoalModalProps {
   onSuccess: () => void;
+  userLevel?: number;
+  canSeeAll?: boolean;
 }
 
 const goalTypeOptions = [
@@ -41,10 +46,13 @@ const goalTypeOptions = [
   { value: 'new_groups', label: 'Nuevos Grupos', icon: Church, color: 'text-orange-500' },
   { value: 'multiplications', label: 'Multiplicaciones', icon: Church, color: 'text-pink-500' },
   { value: 'spiritual_health', label: 'Salud Espiritual', icon: Heart, color: 'text-red-500' },
+  { value: 'personalizado', label: 'Personalizado', icon: Sparkles, color: 'text-violet-500' },
 ];
 
-export function CreateGoalModal({ onSuccess }: CreateGoalModalProps) {
+export function CreateGoalModal({ onSuccess, userLevel, canSeeAll = false }: CreateGoalModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState<'form' | 'cascade'>('form');
+  const [newGoalId, setNewGoalId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     goal_type: '',
     title: '',
@@ -54,6 +62,7 @@ export function CreateGoalModal({ onSuccess }: CreateGoalModalProps) {
     deadline: '',
     priority: 2,
     zone_id: '',
+    measurement_type: 'manual' as 'automatic' | 'manual',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,6 +81,7 @@ export function CreateGoalModal({ onSuccess }: CreateGoalModalProps) {
       new_groups: 'group_count',
       multiplications: 'multiplication_count',
       spiritual_health: 'spiritual_temperature',
+      personalizado: 'custom',
     };
 
     const data = {
@@ -81,8 +91,14 @@ export function CreateGoalModal({ onSuccess }: CreateGoalModalProps) {
 
     try {
       setIsSubmitting(true);
-      await DiscipleshipAnalyticsService.createGoal(data);
-      onSuccess();
+      const result = await DiscipleshipAnalyticsService.createGoal(data);
+      const goalId: string = result?.goal_id ?? result?.id ?? '';
+      if (goalId) {
+        setNewGoalId(goalId);
+        setStep('cascade');
+      } else {
+        onSuccess();
+      }
     } catch (error) {
       console.error('Error creating goal:', error);
       toast.error('Error al crear objetivo');
@@ -90,6 +106,26 @@ export function CreateGoalModal({ onSuccess }: CreateGoalModalProps) {
       setIsSubmitting(false);
     }
   };
+
+  if (step === 'cascade' && newGoalId) {
+    return (
+      <CascadeAssignStep
+        goalId={newGoalId}
+        userLevel={userLevel}
+        canSeeAll={canSeeAll}
+        onComplete={() => {
+          onSuccess();
+          setStep('form');
+          setNewGoalId(null);
+        }}
+        onSkip={() => {
+          onSuccess();
+          setStep('form');
+          setNewGoalId(null);
+        }}
+      />
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -99,7 +135,12 @@ export function CreateGoalModal({ onSuccess }: CreateGoalModalProps) {
         <Select
           value={formData.goal_type}
           onValueChange={(value) =>
-            setFormData({ ...formData, goal_type: value })
+            setFormData({
+              ...formData,
+              goal_type: value,
+              // Personalizado siempre es manual — no hay forma de medirlo automáticamente
+              measurement_type: value === 'personalizado' ? 'manual' : formData.measurement_type,
+            })
           }
         >
           <SelectTrigger>
@@ -129,6 +170,51 @@ export function CreateGoalModal({ onSuccess }: CreateGoalModalProps) {
           placeholder="Ej: Alcanzar 150 miembros"
         />
       </div>
+
+      {/* Measurement Type — oculto para personalizado (siempre manual) */}
+      {formData.goal_type === 'personalizado' ? (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800">
+          <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-violet-700 dark:text-violet-300">
+            El objetivo personalizado se mide manualmente. Los asignados reportarán el avance en su reporte semanal.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label>Tipo de Medición</Label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={formData.measurement_type === 'automatic' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFormData({ ...formData, measurement_type: 'automatic' })}
+            >
+              Automático
+            </Button>
+            <Button
+              type="button"
+              variant={formData.measurement_type === 'manual' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFormData({ ...formData, measurement_type: 'manual' })}
+            >
+              Manual
+            </Button>
+          </div>
+          {formData.measurement_type === 'automatic' && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                El avance se toma automáticamente del reporte semanal de los asignados. No necesitan completar ningún campo extra.
+              </p>
+            </div>
+          )}
+          {formData.measurement_type === 'manual' && (
+            <p className="text-sm text-muted-foreground">
+              Los usuarios asignados reportarán el avance manualmente cada semana desde su reporte semanal.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Description */}
       <div className="space-y-2">

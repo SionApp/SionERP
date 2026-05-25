@@ -24,17 +24,20 @@ import {
   Clock,
   Calendar,
   MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import type { DiscipleshipGoal } from '@/types/discipleship.types';
 import { GoalReviewModal } from './GoalReviewModal';
+import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
 
 interface GoalCardProps {
   goal: DiscipleshipGoal;
   onExtend: (goalId: string, newDeadline: string, reason: string) => void;
   onCloseIncomplete: (goalId: string, reason: string, percentage: number) => void;
   onUpdate: () => void;
+  canDelete?: boolean;
 }
 
 const goalTypeConfig: Record<string, { icon: any; label: string; color: string }> = {
@@ -47,9 +50,25 @@ const goalTypeConfig: Record<string, { icon: any; label: string; color: string }
   spiritual_health: { icon: Heart, label: 'Salud Espiritual', color: 'text-red-500' },
 };
 
-export function GoalCard({ goal, onExtend, onCloseIncomplete, onUpdate }: GoalCardProps) {
+export function GoalCard({ goal, onExtend, onCloseIncomplete, onUpdate, canDelete = false }: GoalCardProps) {
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const config = goalTypeConfig[goal.goal_type] || goalTypeConfig.growth;
+
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      await DiscipleshipAnalyticsService.deleteGoal(goal.id);
+      toast.success('Objetivo eliminado');
+      onUpdate();
+    } catch {
+      toast.error('Error al eliminar el objetivo');
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -92,16 +111,33 @@ export function GoalCard({ goal, onExtend, onCloseIncomplete, onUpdate }: GoalCa
               <p className="text-sm text-muted-foreground">{config.label}</p>
             </div>
           </div>
-          <Badge className={getStatusColor(goal.status)}>
-            {goal.status === 'completed' ? (
-              <CheckCircle className="h-3 w-3 mr-1" />
-            ) : goal.status === 'pending_review' ? (
-              <Clock className="h-3 w-3 mr-1" />
-            ) : goal.status === 'failed' ? (
-              <AlertTriangle className="h-3 w-3 mr-1" />
-            ) : null}
-            {goal.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {goal.measurement_type && (
+              <Badge variant="outline" className="text-xs">
+                {goal.measurement_type === 'manual' ? 'Manual' : 'Auto'}
+              </Badge>
+            )}
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            <Badge className={getStatusColor(goal.status)}>
+              {goal.status === 'completed' ? (
+                <CheckCircle className="h-3 w-3 mr-1" />
+              ) : goal.status === 'pending_review' ? (
+                <Clock className="h-3 w-3 mr-1" />
+              ) : goal.status === 'failed' ? (
+                <AlertTriangle className="h-3 w-3 mr-1" />
+              ) : null}
+              {goal.status}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -180,6 +216,26 @@ export function GoalCard({ goal, onExtend, onCloseIncomplete, onUpdate }: GoalCa
           </div>
         ) : null}
       </CardContent>
+
+      {/* Confirmación de eliminación */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Eliminar objetivo?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Se eliminará <strong>"{goal.title}"</strong> y todas sus asignaciones. Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

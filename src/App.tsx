@@ -36,59 +36,62 @@ import { ROLE_LEVELS } from './lib/permissions';
 
 const queryClient = new QueryClient();
 
+// Caché a nivel de módulo — persiste mientras la app está montada.
+// Evita re-verificar setup en cada navegación interna.
+let _setupVerified = false;
+let _setupRedirect: string | null = null;
+
 // SetupGuard component that checks setup status and redirects accordingly
 const SetupGuard = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const { user } = useAuth();
-  const [isChecking, setIsChecking] = useState(true);
-  const [shouldRedirect, setShouldRedirect] = useState<string | null>(null);
+  // Si ya verificamos antes, arrancamos con isChecking=false
+  const [isChecking, setIsChecking] = useState(!_setupVerified);
+  const [shouldRedirect, setShouldRedirect] = useState<string | null>(_setupRedirect);
 
   useEffect(() => {
-    const checkSetupStatus = async () => {
-      // Skip check for public routes
-      const publicRoutes = ['/setup', '/login', '/register'];
-      if (publicRoutes.includes(location.pathname)) {
-        setIsChecking(false);
-        return;
-      }
+    // Si ya verificamos en esta sesión, no volver a hacerlo
+    if (_setupVerified) {
+      setIsChecking(false);
+      setShouldRedirect(_setupRedirect);
+      return;
+    }
 
+    const publicRoutes = ['/setup', '/login', '/register'];
+    if (publicRoutes.includes(location.pathname)) {
+      _setupVerified = true;
+      setIsChecking(false);
+      return;
+    }
+
+    const checkSetupStatus = async () => {
       try {
         const data = await ApiService.get<{
           is_initialized: boolean;
           has_admin: boolean;
         }>('/setup/status');
 
-        // If system is not initialized AND there's no admin, redirect to /setup
-        // If there IS an admin, allow access (admin can initialize the system)
         if (!data.is_initialized && !data.has_admin) {
+          _setupRedirect = '/setup';
           setShouldRedirect('/setup');
-          return;
         }
-
-        setIsChecking(false);
       } catch (error: any) {
-        // If error is 401/403, it means system is initialized and requires auth
-        // Allow the route to handle it (ProtectedRoute will redirect to login)
-        if (error.status === 401 || error.status === 403) {
-          setIsChecking(false);
-          return;
-        }
-        // For other errors, if it might be because system is not initialized
-        // and we're not on a public route, try redirecting to setup
-        if (location.pathname !== '/setup' && location.pathname !== '/login' && location.pathname !== '/register') {
-          // Only redirect if it's likely a "not initialized" error
+        if (error.status !== 401 && error.status !== 403) {
           if (error.message?.includes('modules') || error.message?.includes('table')) {
+            _setupRedirect = '/setup';
             setShouldRedirect('/setup');
-            return;
           }
         }
-        // For other errors, just continue
+      } finally {
+        _setupVerified = true;
         setIsChecking(false);
       }
     };
 
     checkSetupStatus();
-  }, [location.pathname, user?.id]);
+    // Solo verificar al montar la primera vez, no en cada cambio de ruta
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (isChecking) {
     return (

@@ -83,14 +83,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      invalidatePermissionsCache();
+      // Solo invalidar permisos en cambios reales de auth, no en refreshes silenciosos
+      if (event !== 'TOKEN_REFRESHED') {
+        invalidatePermissionsCache();
+      }
 
-      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+      if (session?.user && event === 'SIGNED_IN') {
         loadCurrentUser(session.user);
       } else if (!session?.user) {
         setCurrentUser(null);
         setCurrentUserLoaded(false);
       }
+      // TOKEN_REFRESHED: solo actualiza session/user refs — no recarga datos ni limpia cache
     });
 
     // THEN check for existing session

@@ -59,6 +59,9 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 		})
 	}
 
+	// Auto-update automatic goal progress from report data (fire-and-forget)
+	go autoUpdateGoalProgressFromReport(db, userID, reportID, req.ReportData)
+
 	// Notify supervisor of new report (fire-and-forget)
 	if supervisorID.Valid && supervisorID.String != "" {
 		db2 := db
@@ -88,7 +91,7 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	db := config.GetDB()
 
-	_, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	_, _, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
 
 	status := c.QueryParam("status")
 	reportType := c.QueryParam("type")
@@ -107,23 +110,20 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	args := []interface{}{}
 	argCount := 0
 
-	// Filtrar según jerarquía de discipulado (en lugar de rol ERP):
-	// - Si tiene acceso total (pastor/staff) o es Coordinator+ (nivel 4+): sin filtro
-	// - Cola de aprobación (status=submitted): solo los que supervisas y no son tuyos
-	// - Resto: tus reportes + los que supervisas
-	if !canSeeAll {
-		userID := c.Get("user_id").(string)
-		if hierarchyLevel == nil || *hierarchyLevel < 4 {
-			if status == "submitted" {
-				argCount++
-				query += fmt.Sprintf(" AND r.supervisor_id = $%d AND r.reporter_id != $%d", argCount, argCount)
-				args = append(args, userID)
-			} else {
-				argCount++
-				query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
-				args = append(args, userID)
-			}
-		}
+	// Filtrar según jerarquía de discipulado:
+	// - Cola de aprobación (status=submitted): SIEMPRE filtrar por supervisor_id = yo,
+	//   sin importar si es admin/pastor. El Pastor solo aprueba lo que un Coordinador
+	//   le reportó directamente — no ve reportes de Líderes que van al Auxiliar.
+	// - Otros status: admins ven todo; el resto ve sus reportes + los que supervisan.
+	userID := c.Get("user_id").(string)
+	if status == "submitted" {
+		argCount++
+		query += fmt.Sprintf(" AND r.supervisor_id = $%d AND r.reporter_id != $%d", argCount, argCount)
+		args = append(args, userID)
+	} else if !canSeeAll {
+		argCount++
+		query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
+		args = append(args, userID)
 	}
 
 	if status != "" {
@@ -176,6 +176,140 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, reports)
+}
+
+// extractGoalValueFromReport maps a goal_type to the corresponding numeric value
+// in the report_data JSONB. Returns (value, true) when a mapping exists, or (0, false)
+// for types that are always manual (e.g. "personalizado").
+func extractGoalValueFromReport(goalType string, reportData map[string]interface{}) (float64, bool) {
+	num := func(key string) float64 {
+		v, ok := reportData[key]
+		if !ok {
+			return 0
+		}
+		switch n := v.(type) {
+		case float64:
+			return n
+		case int:
+			return float64(n)
+		case bool:
+			if n {
+				return 1
+			}
+			return 0
+		}
+		return 0
+	}
+
+	switch goalType {
+	case "attendance":
+		return num("attendance_nd") + num("attendance_dm") + num("attendance_friends") + num("attendance_kids"), true
+	case "growth":
+		return num("leader_new_disciples_care"), true
+	case "conversions":
+		return num("group_evangelism") + num("leader_evangelism"), true
+	case "baptisms":
+		return num("leader_new_disciples_care"), true
+	case "new_groups", "multiplications":
+		return num("is_multiplying"), true // boolean → 1 if multiplying this week
+	case "spiritual_health":
+		return num("spiritual_journal_days"), true
+	default:
+		// "personalizado" and any unknown types: always manual, no auto extraction
+		return 0, false
+	}
+}
+
+// autoUpdateGoalProgressFromReport finds active automatic goal assignments for the reporter,
+// extracts the relevant value from their report_data, and runs the 3-step upward aggregation.
+// Designed to run as a goroutine (fire-and-forget).
+func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID string, reportData map[string]interface{}) {
+	rows, err := db.DB.Query(`
+		SELECT ga.id, ga.goal_id, dg.goal_type
+		FROM goal_assignments ga
+		JOIN discipleship_goals dg ON ga.goal_id = dg.id
+		WHERE ga.assigned_to = $1
+		  AND ga.status = 'active'
+		  AND dg.measurement_type = 'automatic'
+	`, reporterID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	type autoAssignment struct {
+		id, goalID, goalType string
+	}
+	var assignments []autoAssignment
+	for rows.Next() {
+		var a autoAssignment
+		if err := rows.Scan(&a.id, &a.goalID, &a.goalType); err != nil {
+			continue
+		}
+		assignments = append(assignments, a)
+	}
+	rows.Close()
+
+	for _, a := range assignments {
+		value, ok := extractGoalValueFromReport(a.goalType, reportData)
+		if !ok {
+			continue
+		}
+
+		tx, err := db.DB.Begin()
+		if err != nil {
+			continue
+		}
+
+		// Insert / update progress (idempotent per assignment + report)
+		_, err = tx.Exec(`
+			INSERT INTO goal_manual_progress (assignment_id, reporter_id, report_id, value_reported)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (assignment_id, report_id) DO UPDATE
+				SET value_reported = EXCLUDED.value_reported
+		`, a.id, reporterID, reportID, value)
+		if err != nil {
+			tx.Rollback()
+			continue
+		}
+
+		// Step A: recompute leaf assignment from all its progress entries
+		tx.Exec(`
+			UPDATE goal_assignments
+			SET current_value = COALESCE(
+				(SELECT SUM(value_reported) FROM goal_manual_progress WHERE assignment_id = $1), 0),
+				updated_at = NOW()
+			WHERE id = $1
+		`, a.id)
+
+		// Step B: walk up the ancestor chain and recompute each as SUM of its children
+		tx.Exec(`
+			WITH RECURSIVE ancestors AS (
+				SELECT parent_assignment_id AS id
+				FROM goal_assignments WHERE id = $1 AND parent_assignment_id IS NOT NULL
+				UNION ALL
+				SELECT ga.parent_assignment_id
+				FROM goal_assignments ga
+				JOIN ancestors anc ON ga.id = anc.id
+				WHERE ga.parent_assignment_id IS NOT NULL
+			)
+			UPDATE goal_assignments ga
+			SET current_value = COALESCE(
+				(SELECT SUM(c.current_value) FROM goal_assignments c WHERE c.parent_assignment_id = ga.id), 0),
+				updated_at = NOW()
+			FROM ancestors anc WHERE ga.id = anc.id
+		`, a.id)
+
+		// Step C: sync root total into discipleship_goals.current_value
+		tx.Exec(`
+			UPDATE discipleship_goals g
+			SET current_value = COALESCE(
+				(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0)
+			WHERE g.id = $1
+		`, a.goalID)
+
+		tx.Commit()
+	}
 }
 
 // ApproveReport aprueba un reporte

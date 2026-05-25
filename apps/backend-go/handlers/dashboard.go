@@ -319,9 +319,12 @@ func formatAction(action, tableName string) string {
 		"DELETE": "eliminó",
 	}
 	tableTextMap := map[string]string{
-		"users":   "usuario",
-		"events":  "evento",
-		"reports": "reporte",
+		"users":               "usuario",
+		"events":              "evento",
+		"reports":             "reporte",
+		"discipleship_goals":  "objetivo",
+		"goal_assignments":    "asignación de objetivo",
+		"goal_manual_progress": "progreso de objetivo",
 	}
 
 	actionText := actionTextMap[action]

@@ -335,3 +335,38 @@ type BulkAttendanceRequest struct {
 	MeetingDate string                    `json:"meeting_date" validate:"required"`
 	Attendance  []RecordAttendanceRequest `json:"attendance" validate:"required"`
 }
+
+// =====================================================
+// ASIGNACIONES DE OBJETIVOS (CASCADE)
+// =====================================================
+
+type GoalAssignment struct {
+	ID                 string           `json:"id" db:"id"`
+	GoalID             string           `json:"goal_id" db:"goal_id"`
+	AssignedTo         string           `json:"assigned_to" db:"assigned_to"`
+	AssignedBy         string           `json:"assigned_by" db:"assigned_by"`
+	AssignedLevel      int              `json:"assigned_level" db:"assigned_level"`
+	TargetValue        float64          `json:"target_value" db:"target_value"`
+	CurrentValue       float64          `json:"current_value" db:"current_value"`
+	ProgressPercentage float64          `json:"progress_percentage" db:"progress_percentage"`
+	ParentAssignmentID *string          `json:"parent_assignment_id,omitempty" db:"parent_assignment_id"`
+	Status             string           `json:"status" db:"status"`
+	Notes              *string          `json:"notes,omitempty" db:"notes"`
+	CreatedAt          time.Time        `json:"created_at" db:"created_at"`
+	UpdatedAt          time.Time        `json:"updated_at" db:"updated_at"`
+	// populated only by tree queries
+	AssignedToName string           `json:"assigned_to_name,omitempty"`
+	Children       []GoalAssignment `json:"children,omitempty"`
+}
+
+type GoalManualProgress struct {
+	ID            string     `json:"id" db:"id"`
+	AssignmentID  string     `json:"assignment_id" db:"assignment_id"`
+	ReporterID    string     `json:"reporter_id" db:"reporter_id"`
+	ReportID      *string    `json:"report_id,omitempty" db:"report_id"`
+	ValueReported float64    `json:"value_reported" db:"value_reported"`
+	PeriodStart   *time.Time `json:"period_start,omitempty" db:"period_start"`
+	PeriodEnd     *time.Time `json:"period_end,omitempty" db:"period_end"`
+	Notes         *string    `json:"notes,omitempty" db:"notes"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+}
