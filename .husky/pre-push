@@ -1,0 +1,5 @@
+echo "→ pnpm test:run"
+pnpm test:run || exit 1
+
+echo "→ go build ./..."
+cd apps/backend-go && go build ./... || exit 1
