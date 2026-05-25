@@ -10,21 +10,27 @@ import (
 
 // AccessDeniedLog represents a denied access attempt
 type AccessDeniedLog struct {
-	UserID       string    `json:"user_id"`
-	UserEmail    string    `json:"user_email"`
-	UserRole     string    `json:"user_role"`
-	RoleLevel    int       `json:"user_role_level"`
-	RequiredLevel int      `json:"required_level"`
-	DeniedReason string    `json:"denied_reason"`
-	HTTPMethod   string    `json:"http_method"`
-	RequestPath  string    `json:"request_path"`
-	IPAddress    string    `json:"ip_address"`
-	UserAgent    string    `json:"user_agent"`
-	Details      string    `json:"details"` // JSON string for extra context
+	UserID        string `json:"user_id"`
+	UserEmail     string `json:"user_email"`
+	UserRole      string `json:"user_role"`
+	RoleLevel     int    `json:"user_role_level"`
+	RequiredLevel int    `json:"required_level"`
+	DeniedReason  string `json:"denied_reason"`
+	HTTPMethod    string `json:"http_method"`
+	RequestPath   string `json:"request_path"`
+	IPAddress     string `json:"ip_address"`
+	UserAgent     string `json:"user_agent"`
+	Details       string `json:"details"` // JSON string for extra context
 }
 
 // LogAccessDenied persists a denied access attempt to the database
 func LogAccessDenied(c echo.Context, entry AccessDeniedLog) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("⚠️  Cannot log access denied (DB unavailable): user=%s path=%s reason=%s",
+				entry.UserID, entry.RequestPath, entry.DeniedReason)
+		}
+	}()
 	db := config.GetDB()
 	if db == nil || db.DB == nil {
 		log.Printf("⚠️  Cannot log access denied: DB not available — user=%s path=%s reason=%s",
