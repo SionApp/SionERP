@@ -2044,16 +2044,12 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		SELECT COUNT(*) FROM discipleship_alerts WHERE resolved = false
 	`).Scan(&stats.PendingAlerts)
 
-	if levelInt >= 5 {
-		db.DB.QueryRow(`
-			SELECT COUNT(*) FROM discipleship_reports WHERE status = 'submitted'
-		`).Scan(&stats.PendingReports)
-	} else {
-		db.DB.QueryRow(`
-			SELECT COUNT(*) FROM discipleship_reports
-			WHERE status = 'submitted' AND supervisor_id = $1 AND reporter_id != $1
-		`, userID).Scan(&stats.PendingReports)
-	}
+	// Siempre filtrar por supervisor_id: el badge solo refleja reportes
+	// dirigidos directamente a este usuario, sin importar su nivel.
+	db.DB.QueryRow(`
+		SELECT COUNT(*) FROM discipleship_reports
+		WHERE status = 'submitted' AND supervisor_id = $1 AND reporter_id != $1
+	`, userID).Scan(&stats.PendingReports)
 
 	return c.JSON(http.StatusOK, stats)
 }
@@ -2305,97 +2301,6 @@ func (h *DiscipleshipHandler) GetSupervisorSubordinates(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, subordinates)
-}
-
-// GetGoals obtiene los objetivos estratégicos
-func (h *DiscipleshipHandler) GetGoals(c echo.Context) error {
-	db, err := validateDB(c)
-	if err != nil {
-		return err
-	}
-	status := c.QueryParam("status")
-	zoneIDParam := c.QueryParam("zone_id")
-	zoneNameParam := c.QueryParam("zone_name") // Compatibilidad
-
-	// Determinar zone_id: usar el que viene en el request o buscar por zone_name (compatibilidad)
-	var zoneID interface{}
-	if zoneIDParam != "" {
-		zoneID = zoneIDParam
-	} else if zoneNameParam != "" {
-		// Compatibilidad: buscar zona por nombre
-		var foundZoneID string
-		err = db.DB.QueryRow("SELECT id FROM zones WHERE name = $1", zoneNameParam).Scan(&foundZoneID)
-		if err == nil {
-			zoneID = foundZoneID
-		}
-	}
-
-	query := `
-		SELECT 
-			g.id, g.goal_type, g.description, g.target_metric, g.target_value,
-			g.current_value, g.progress_percentage, g.deadline, g.status,
-			g.supervisor_id, COALESCE(z.name, '') as zone_name, g.created_at, g.updated_at
-		FROM discipleship_goals g
-		LEFT JOIN zones z ON g.zone_id = z.id
-		WHERE 1=1
-	`
-	args := []interface{}{}
-	argCount := 0
-
-	if status != "" && status != "all" {
-		argCount++
-		query += fmt.Sprintf(" AND g.status = $%d", argCount)
-		args = append(args, status)
-	}
-
-	if zoneID != nil {
-		argCount++
-		query += fmt.Sprintf(" AND g.zone_id = $%d", argCount)
-		args = append(args, zoneID)
-	}
-
-	query += " ORDER BY deadline ASC"
-
-	rows, err := db.DB.Query(query, args...)
-	if err != nil {
-		c.Logger().Error("Error fetching goals:", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Error al obtener objetivos",
-		})
-	}
-	defer rows.Close()
-
-	type Goal struct {
-		ID                 string         `json:"id"`
-		GoalType           string         `json:"goal_type"`
-		Description        string         `json:"description"`
-		TargetMetric       string         `json:"target_metric"`
-		TargetValue        int            `json:"target_value"`
-		CurrentValue       int            `json:"current_value"`
-		ProgressPercentage float64        `json:"progress_percentage"`
-		Deadline           string         `json:"deadline"`
-		Status             string         `json:"status"`
-		SupervisorID       sql.NullString `json:"supervisor_id"`
-		ZoneName           sql.NullString `json:"zone_name"`
-		CreatedAt          sql.NullTime   `json:"created_at"`
-		UpdatedAt          sql.NullTime   `json:"updated_at"`
-	}
-
-	var goals []Goal
-	for rows.Next() {
-		var g Goal
-		err := rows.Scan(
-			&g.ID, &g.GoalType, &g.Description, &g.TargetMetric, &g.TargetValue,
-			&g.CurrentValue, &g.ProgressPercentage, &g.Deadline, &g.Status,
-			&g.SupervisorID, &g.ZoneName, &g.CreatedAt.Time, &g.UpdatedAt.Time,
-		)
-		if err != nil {
-			continue
-		}
-		goals = append(goals, g)
-	}
-
-	return c.JSON(http.StatusOK, goals)
 }
 
 // Helper functions

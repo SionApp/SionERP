@@ -127,6 +127,50 @@ export interface DashboardStats {
 }
 
 // =====================================================
+// CASCADE ASSIGNMENT TYPES (Phase 1-3)
+// =====================================================
+
+export interface GoalAssignment {
+  id: string;
+  goal_id: string;
+  assigned_to: string;
+  assigned_by: string;
+  assigned_level: number;
+  target_value: number;
+  current_value: number;
+  progress_percentage: number;
+  parent_assignment_id?: string | null;
+  status: string;
+  notes?: string | null;
+  created_at: string;
+  assigned_to_name?: string;
+}
+
+export interface AssignmentTreeNode extends GoalAssignment {
+  children: AssignmentTreeNode[];
+}
+
+export interface CreateAssignmentsPayload {
+  assignments: Array<{
+    assigned_to: string;
+    target_value: number;
+    parent_assignment_id?: string | null;
+    notes?: string | null;
+  }>;
+}
+
+export interface ActiveAssignment {
+  assignment_id: string;
+  goal_id: string;
+  goal_title: string;
+  goal_type: string;
+  target_value: number;
+  current_value: number;
+  deadline: string;
+  already_reported_for_period: boolean;
+}
+
+// =====================================================
 // SERVICIO
 // =====================================================
 
@@ -381,6 +425,60 @@ export class DiscipleshipAnalyticsService {
       reason,
       achieved_percentage: achievedPercentage,
     });
+  }
+
+  // =====================================================
+  // PHASE 1+2+3: CASCADE ASSIGNMENT & MANUAL PROGRESS
+  // =====================================================
+
+  static async getGoalActivity(goalId: string): Promise<{ id: string; action: string; table: string; meta: string; user_name: string; created_at: string }[]> {
+    const data = await ApiService.get(`/discipleship/goals/${goalId}/activity`);
+    return (data as any[]) ?? [];
+  }
+
+  static async getAvailableAssignees(goalId: string): Promise<{ user_id: string; user_name: string; hierarchy_level: number }[]> {
+    const data = await ApiService.get(`/discipleship/goals/${goalId}/available-assignees`);
+    return (data as { user_id: string; user_name: string; hierarchy_level: number }[]) ?? [];
+  }
+
+  static async getAssignmentTree(goalId: string): Promise<AssignmentTreeNode> {
+    const data = await ApiService.get(`/discipleship/goals/${goalId}/assignments`);
+    return data as AssignmentTreeNode;
+  }
+
+  static async createAssignments(goalId: string, payload: CreateAssignmentsPayload): Promise<GoalAssignment[]> {
+    const data = await ApiService.post(`/discipleship/goals/${goalId}/assignments`, payload);
+    return (data as { created: GoalAssignment[] }).created ?? [];
+  }
+
+  static async batchAssignToZones(goalId: string, defaultTargetValue?: number): Promise<GoalAssignment[]> {
+    const body = defaultTargetValue !== undefined ? { default_target_value: defaultTargetValue } : {};
+    const data = await ApiService.post(`/discipleship/goals/${goalId}/assignments/batch-zones`, body);
+    return (data as { created: GoalAssignment[] }).created ?? [];
+  }
+
+  static async getActiveManualAssignments(period: string): Promise<ActiveAssignment[]> {
+    const data = await ApiService.get(`/discipleship/me/active-manual-assignments?period=${period}`);
+    return (data as { assignments: ActiveAssignment[] }).assignments ?? [];
+  }
+
+  static async submitManualProgress(
+    assignmentId: string,
+    value: number,
+    reportId: string | null,
+    periodStart?: string,
+    periodEnd?: string
+  ): Promise<void> {
+    await ApiService.post(`/discipleship/assignments/${assignmentId}/progress`, {
+      value_reported: value,
+      report_id: reportId,
+      period_start: periodStart,
+      period_end: periodEnd,
+    });
+  }
+
+  static async deleteAssignment(assignmentId: string): Promise<void> {
+    await ApiService.delete(`/discipleship/assignments/${assignmentId}`);
   }
 
   // Helper para mapear prioridad a tipo de alerta

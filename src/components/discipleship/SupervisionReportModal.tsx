@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { DiscipleshipService } from '@/services/discipleship.service';
+import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import type { ActiveAssignment } from '@/services/discipleship-analytics.service';
 import type { CreateReportRequest } from '@/types/discipleship.types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -29,10 +31,11 @@ import {
   RefreshCw,
   Send,
   Sparkles,
+  Target,
   UserPlus,
   Users,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
 interface SupervisionReportModalProps {
@@ -53,6 +56,8 @@ export function SupervisionReportModal({
   hierarchyLevel,
 }: SupervisionReportModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [manualAssignments, setManualAssignments] = useState<ActiveAssignment[]>([]);
+  const [manualValues, setManualValues] = useState<Record<string, number>>({});
   const [reportData, setReportData] = useState({
     // Trabajo de Supervisión
     new_disciples_care: 0,
@@ -70,14 +75,41 @@ export function SupervisionReportModal({
     comments: '',
   });
 
+  const getCurrentIsoWeek = (): string => {
+    const now = periodStart;
+    const jan4 = new Date(now.getFullYear(), 0, 4);
+    const startOfWeek1 = new Date(jan4);
+    startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+    const diffMs = now.getTime() - startOfWeek1.getTime();
+    const week = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
+    return `${now.getFullYear()}-W${String(week).padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const isoWeek = getCurrentIsoWeek();
+    DiscipleshipAnalyticsService.getActiveManualAssignments(isoWeek)
+      .then((assignments) => {
+        setManualAssignments(assignments);
+        const initial: Record<string, number> = {};
+        assignments.forEach((a) => { initial[a.assignment_id] = 0; });
+        setManualValues(initial);
+      })
+      .catch(() => {
+        setManualAssignments([]);
+      });
+  }, [isOpen]);
+
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true);
+      const periodStartStr = format(periodStart, 'yyyy-MM-dd');
+      const periodEndStr = format(periodEnd, 'yyyy-MM-dd');
       const createData: CreateReportRequest = {
         report_type: 'supervision', // Reporte de supervisión
         report_level: hierarchyLevel,
-        period_start: format(periodStart, 'yyyy-MM-dd'),
-        period_end: format(periodEnd, 'yyyy-MM-dd'),
+        period_start: periodStartStr,
+        period_end: periodEndStr,
         report_data: {
           new_disciples_care: reportData.new_disciples_care,
           team_care: reportData.team_care,
@@ -92,7 +124,24 @@ export function SupervisionReportModal({
         },
       };
 
-      await DiscipleshipService.createReport(createData);
+      const result = await DiscipleshipService.createReport(createData);
+      const newReportId = result?.report_id ?? null;
+
+      // Submit manual goal progress (non-blocking — report is already saved)
+      const progressPromises = manualAssignments
+        .filter((a) => manualValues[a.assignment_id] > 0)
+        .map((a) =>
+          DiscipleshipAnalyticsService.submitManualProgress(
+            a.assignment_id,
+            manualValues[a.assignment_id],
+            newReportId,
+            periodStartStr,
+            periodEndStr,
+          ).catch(() => {
+            toast.warning('Reporte guardado, progreso del objetivo no se sincronizó');
+          })
+        );
+      await Promise.allSettled(progressPromises);
 
       toast.success('Reporte de supervisión enviado exitosamente');
       onSuccess();
@@ -123,6 +172,8 @@ export function SupervisionReportModal({
       zone_total_evangelism: 0,
       comments: '',
     });
+    setManualAssignments([]);
+    setManualValues({});
   };
 
   // Nombres descriptivos según el nivel
@@ -373,6 +424,43 @@ export function SupervisionReportModal({
             </div>
           </div>
         </div>
+
+        {/* SECCIÓN: Objetivos Manuales */}
+        {manualAssignments.length > 0 && (
+          <div className="p-5 border rounded-xl bg-card text-card-foreground shadow-sm space-y-4">
+            <div className="flex items-center gap-3 border-b pb-3">
+              <div className="p-2 bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 rounded-lg">
+                <Target className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Objetivos manuales</h3>
+                <p className="text-sm text-muted-foreground">Reportá tu avance para esta semana</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {manualAssignments.map((a) => (
+                <div key={a.assignment_id} className="space-y-1">
+                  <Label htmlFor={`goal-${a.assignment_id}`} className="text-sm font-medium">
+                    {a.goal_title}
+                    {a.already_reported_for_period && (
+                      <span className="ml-2 text-xs text-muted-foreground">(ya reportado esta semana)</span>
+                    )}
+                  </Label>
+                  <Input
+                    id={`goal-${a.assignment_id}`}
+                    type="number"
+                    min={0}
+                    className="bg-background"
+                    value={manualValues[a.assignment_id] ?? 0}
+                    onChange={(e) =>
+                      setManualValues({ ...manualValues, [a.assignment_id]: parseInt(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

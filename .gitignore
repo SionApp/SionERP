@@ -20,8 +20,15 @@ apps/backend-go/.env
 
 # AI agent context (internal — not for version control)
 CLAUDE.md
+AGENTS.md
 .atl/
 .claude/
+.opencode/
+.pi/
+graphify-out/
+
+# Build artifacts
+apps/backend-go/tmp/
 
 # Editor directories and files
 .vscode/*

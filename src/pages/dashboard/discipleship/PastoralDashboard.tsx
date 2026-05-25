@@ -28,11 +28,11 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -102,7 +102,6 @@ const PastoralDashboard: React.FC = React.memo(() => {
   // Usar hook compartido para evitar consultas duplicadas
   const { loading, stats, zoneStats, weeklyTrends, alerts, pendingReports, refetch } =
     useDiscipleshipData({ userId: user?.id, level: 5 });
-  console.log(currentUser, 'currentUserDashboard');
   const handleApproveReport = async (reportId: string) => {
     try {
       await DiscipleshipService.approveReport(reportId);
@@ -111,7 +110,6 @@ const PastoralDashboard: React.FC = React.memo(() => {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       toast.error((errorMessage as string) || 'Error al aprobar el reporte');
-      console.log(errorMessage, 'errorMessageasdasd');
     }
   };
 
@@ -134,7 +132,6 @@ const PastoralDashboard: React.FC = React.memo(() => {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       toast.error((errorMessage as string) || 'Error al resolver la alerta');
-      console.log(errorMessage, 'errorMessageasdasd');
     }
   };
 
@@ -309,42 +306,66 @@ const PastoralDashboard: React.FC = React.memo(() => {
             </CardHeader>
             <CardContent>
               {weeklyTrends.length > 0 ? (
-                <div className="w-full overflow-x-auto">
-                  <div style={{ width: '100%', height: 300, minHeight: 250 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={weeklyTrends}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis yAxisId="left" />
-                        <YAxis yAxisId="right" orientation="right" />
-                        <Tooltip />
-                        <Line
-                          yAxisId="left"
-                          type="monotone"
-                          dataKey="miembros"
-                          stroke="#3b82f6"
-                          strokeWidth={3}
-                          name="Asistencia"
-                        />
-                        <Line
-                          yAxisId="right"
-                          type="monotone"
-                          dataKey="grupos"
-                          stroke="#22c55e"
-                          strokeWidth={2}
-                          name="Grupos Activos"
-                        />
-                        <Line
-                          yAxisId="right"
-                          type="monotone"
-                          dataKey="conversiones"
-                          stroke="#f59e0b"
-                          strokeWidth={2}
-                          name="Conversiones"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                <div style={{ width: '100%', height: 300, minHeight: 250 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={weeklyTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="pgradAttendance" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="pgradGroups" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="pgradConversions" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="miembros"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        fill="url(#pgradAttendance)"
+                        dot={false}
+                        activeDot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
+                        name="Asistencia"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="grupos"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        fill="url(#pgradGroups)"
+                        dot={false}
+                        activeDot={{ r: 4, fill: '#22c55e', strokeWidth: 0 }}
+                        name="Grupos Activos"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="conversiones"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        fill="url(#pgradConversions)"
+                        dot={false}
+                        activeDot={{ r: 4, fill: '#f59e0b', strokeWidth: 0 }}
+                        name="Conversiones"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground py-8 md:py-12 text-sm">
@@ -362,19 +383,41 @@ const PastoralDashboard: React.FC = React.memo(() => {
               </CardHeader>
               <CardContent>
                 {zoneStats.length > 0 ? (
-                  <div className="w-full overflow-x-auto">
-                    <div style={{ width: '100%', height: 250, minHeight: 200 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={zoneStats}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="zoneName" />
-                          <YAxis />
-                          <Tooltip />
-                          <Bar dataKey="totalGroups" fill="#3b82f6" name="Grupos" />
-                          <Bar dataKey="totalMembers" fill="#22c55e" name="Miembros" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                  <div style={{ width: '100%', height: 250, minHeight: 200 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={zoneStats} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} barCategoryGap="35%">
+                        <defs>
+                          <linearGradient id="pgradBar1" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#3b82f6" />
+                            <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.7} />
+                          </linearGradient>
+                          <linearGradient id="pgradBar2" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#16a34a" />
+                            <stop offset="100%" stopColor="#4ade80" stopOpacity={0.7} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} horizontal={true} vertical={false} />
+                        <XAxis
+                          dataKey="zoneName"
+                          tick={{ fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v: string) => v.replace('Zona ', 'Z')}
+                        />
+                        <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                          }}
+                          cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
+                        />
+                        <Bar dataKey="totalGroups" fill="url(#pgradBar1)" name="Grupos" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                        <Bar dataKey="totalMembers" fill="url(#pgradBar2)" name="Miembros" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 ) : (
                   <p className="text-center text-muted-foreground py-8 text-sm">

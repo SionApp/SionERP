@@ -99,7 +99,6 @@ export const DiscipleshipAnalyticsSection = ({
       </div>
     );
   }
-  console.log(zoneStats, analytics, weeklyTrends);
 
   const getTrendIcon = (value: number) => {
     if (value > 0) return <ArrowUpRight className="h-4 w-4 text-green-500" />;
@@ -233,23 +232,39 @@ export const DiscipleshipAnalyticsSection = ({
           <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
             <ChartContainer
               config={{
-                attendance: { label: 'Asistencia', color: 'hsl(var(--primary))' },
-                visitors: { label: 'Visitantes', color: 'hsl(220 70% 50%)' },
-                conversions: { label: 'Conversiones', color: 'hsl(142 76% 36%)' },
+                attendance: { label: 'Asistencia', color: '#8b5cf6' },
+                visitors: { label: 'Visitantes', color: '#06b6d4' },
+                conversions: { label: 'Conversiones', color: '#10b981' },
               }}
               className="h-[180px] sm:h-[200px] lg:h-[300px] w-full"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={formattedWeeklyTrends}
-                  margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                  margin={{ top: 10, right: 5, left: -20, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <defs>
+                    <linearGradient id="gradAttendance" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradVisitors" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradConversions" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} />
                   <XAxis
                     dataKey="weekLabel"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={9}
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
                     interval="preserveStartEnd"
                     angle={-35}
                     textAnchor="end"
@@ -258,33 +273,38 @@ export const DiscipleshipAnalyticsSection = ({
                   <YAxis
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={9}
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
                     width={35}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Area
                     type="monotone"
                     dataKey="attendance"
-                    stackId="1"
-                    stroke="hsl(var(--primary))"
-                    fill="hsl(var(--primary))"
-                    fillOpacity={0.6}
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    fill="url(#gradAttendance)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: '#8b5cf6', strokeWidth: 0 }}
                   />
                   <Area
                     type="monotone"
                     dataKey="visitors"
-                    stackId="1"
-                    stroke="hsl(220 70% 50%)"
-                    fill="hsl(220 70% 50%)"
-                    fillOpacity={0.6}
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    fill="url(#gradVisitors)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: '#06b6d4', strokeWidth: 0 }}
                   />
                   <Area
                     type="monotone"
                     dataKey="conversions"
-                    stackId="1"
-                    stroke="hsl(142 76% 36%)"
-                    fill="hsl(142 76% 36%)"
-                    fillOpacity={0.6}
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#gradConversions)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: '#10b981', strokeWidth: 0 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -306,41 +326,49 @@ export const DiscipleshipAnalyticsSection = ({
           <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
             <ChartContainer
               config={{
-                groups: { label: 'Grupos', color: 'hsl(var(--primary))' },
-                members: { label: 'Miembros', color: 'hsl(220 70% 50%)' },
-                growth: { label: 'Crecimiento %', color: 'hsl(142 76% 36%)' },
+                salud: { label: 'Salud Espiritual', color: '#8b5cf6' },
+                asistencia: { label: 'Asistencia', color: '#06b6d4' },
               }}
               className="h-[180px] sm:h-[220px] lg:h-[300px] w-full mx-auto"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={spiritualHealthRadarData} cx="50%" cy="50%" outerRadius="65%">
-                  <PolarGrid stroke="hsl(var(--border))" />
+                  <PolarGrid stroke="hsl(var(--border))" strokeOpacity={0.5} />
                   <PolarAngleAxis
                     dataKey="zone"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9 }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 500 }}
                   />
                   <PolarRadiusAxis
                     angle={0}
                     domain={[0, 10]}
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 8 }}
-                    tickCount={5}
+                    tickCount={4}
+                    axisLine={false}
                   />
                   <Radar
                     name="Salud Espiritual"
                     dataKey="salud"
-                    stroke="hsl(var(--primary))"
-                    fill="hsl(var(--primary))"
-                    fillOpacity={0.3}
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    fill="#8b5cf6"
+                    fillOpacity={0.2}
+                    dot={{ fill: '#8b5cf6', r: 3, strokeWidth: 0 }}
                   />
                   <Radar
                     name="Asistencia"
                     dataKey="asistencia"
-                    stroke="hsl(220 70% 50%)"
-                    fill="hsl(220 70% 50%)"
-                    fillOpacity={0.3}
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    fill="#06b6d4"
+                    fillOpacity={0.15}
+                    dot={{ fill: '#06b6d4', r: 3, strokeWidth: 0 }}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }} />
+                  <Legend
+                    wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
+                    iconType="circle"
+                    iconSize={8}
+                  />
                 </RadarChart>
               </ResponsiveContainer>
             </ChartContainer>
@@ -361,9 +389,8 @@ export const DiscipleshipAnalyticsSection = ({
           <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
             <ChartContainer
               config={{
-                salud: { label: 'Salud Espiritual', color: 'hsl(var(--primary))' },
-                asistencia: { label: 'Asistencia', color: 'hsl(220 70% 50%)' },
-                crecimiento: { label: 'Crecimiento', color: 'hsl(142 76% 36%)' },
+                totalGroups: { label: 'Grupos', color: '#8b5cf6' },
+                totalMembers: { label: 'Miembros', color: '#06b6d4' },
               }}
               className="h-[180px] sm:h-[200px] lg:h-[300px] w-full"
             >
@@ -371,30 +398,46 @@ export const DiscipleshipAnalyticsSection = ({
                 <BarChart
                   data={zoneStats}
                   layout="vertical"
-                  margin={{ top: 5, right: 5, left: 0, bottom: 0 }}
+                  margin={{ top: 5, right: 16, left: 0, bottom: 0 }}
+                  barCategoryGap="30%"
+                  barGap={4}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <defs>
+                    <linearGradient id="gradGroups" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#7c3aed" />
+                      <stop offset="100%" stopColor="#a78bfa" />
+                    </linearGradient>
+                    <linearGradient id="gradMembers" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#0891b2" />
+                      <stop offset="100%" stopColor="#67e8f9" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} horizontal={false} />
                   <XAxis
                     type="number"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={9}
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
                   />
                   <YAxis
                     type="category"
                     dataKey="zoneName"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={9}
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
                     width={70}
                     tickFormatter={(value: string) =>
                       value.length > 10 ? value.substring(0, 10) + '…' : value
                     }
                   />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="totalGroups" fill="hsl(var(--primary))" name="Grupos" />
-                  <Bar dataKey="totalMembers" fill="hsl(220 70% 50%)" name="Miembros" />
-                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} />
+                  <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
+                  <Bar dataKey="totalGroups" fill="url(#gradGroups)" name="Grupos" radius={[0, 4, 4, 0]} maxBarSize={14} />
+                  <Bar dataKey="totalMembers" fill="url(#gradMembers)" name="Miembros" radius={[0, 4, 4, 0]} maxBarSize={14} />
+                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} iconType="circle" iconSize={8} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartContainer>

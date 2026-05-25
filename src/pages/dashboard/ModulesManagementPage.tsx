@@ -1,9 +1,20 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useSystem } from '@/contexts/SystemContext';
+import { getModuleMeta } from '@/lib/modules-meta';
 import { ApiService } from '@/services/api.service';
-import { Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -19,6 +30,7 @@ export default function ModulesManagementPage() {
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [confirmDisable, setConfirmDisable] = useState<Module | null>(null);
   const { refreshModules } = useSystem();
 
   useEffect(() => {
@@ -29,20 +41,26 @@ export default function ModulesManagementPage() {
     try {
       const data = await ApiService.get<{ modules: Module[] }>('/setup/status');
       setModules(data.modules.filter(m => m.key !== 'base'));
-    } catch (error) {
+    } catch {
       toast.error('Error al cargar módulos');
-      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleModule = async (moduleKey: string, currentStatus: boolean) => {
+  const handleToggle = (module: Module) => {
+    if (module.is_installed) {
+      setConfirmDisable(module);
+    } else {
+      doToggle(module.key, true);
+    }
+  };
+
+  const doToggle = async (moduleKey: string, newStatus: boolean) => {
     setUpdating(moduleKey);
     try {
-      await ApiService.put(`/modules/${moduleKey}`, { is_installed: !currentStatus });
-
-      toast.success(`Módulo ${!currentStatus ? 'habilitado' : 'deshabilitado'} exitosamente`);
+      await ApiService.put(`/modules/${moduleKey}`, { is_installed: newStatus });
+      toast.success(`Módulo ${newStatus ? 'habilitado' : 'deshabilitado'} exitosamente`);
       await fetchModules();
       await refreshModules();
     } catch (error: any) {
@@ -52,68 +70,177 @@ export default function ModulesManagementPage() {
     }
   };
 
+  const activeCount = modules.filter(m => m.is_installed).length;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
-      <div>
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de Módulos</h2>
-        <p className="text-sm sm:text-base text-muted-foreground">
-          Habilita o deshabilita módulos del sistema según tus necesidades.
-        </p>
-      </div>
+    <>
+      <div className="space-y-6 p-3 sm:p-4 md:p-6 max-w-5xl">
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
-        {modules.map(module => (
-          <Card key={module.key}>
-            <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="space-y-1 min-w-0">
-                  <CardTitle className="text-base sm:text-lg">{module.name}</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">{module.description}</CardDescription>
-                </div>
-                <div className="flex items-center space-x-2 shrink-0">
-                  <Switch
-                    id={`module-${module.key}`}
-                    checked={module.is_installed}
-                    onCheckedChange={() => toggleModule(module.key, module.is_installed)}
-                    disabled={updating === module.key}
-                  />
-                  <Label htmlFor={`module-${module.key}`} className="cursor-pointer">
-                    {module.is_installed ? 'Habilitado' : 'Deshabilitado'}
-                  </Label>
-                  {updating === module.key && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
-                </div>
-              </div>
-            </CardHeader>
-            {module.is_installed && module.installed_at && (
-              <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6 pt-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">
-                  Instalado el: {new Date(module.installed_at).toLocaleString('es-ES')}
-                </p>
-              </CardContent>
-            )}
-          </Card>
-        ))}
-      </div>
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de Módulos</h2>
+              <Badge variant="secondary" className="text-xs font-semibold tabular-nums">
+                {activeCount}/{modules.length} activos
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Habilita o deshabilita módulos según las necesidades del ministerio.
+            </p>
+          </div>
 
-      <Card className="bg-muted/50">
-        <CardHeader>
-          <CardTitle className="text-sm">Nota Importante</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          <p>
-            El módulo <strong>Base</strong> (Usuarios y Configuración) siempre está habilitado y no
-            puede ser desactivado.
+          {/* Shortcut hint */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 border border-border/50 px-3 py-2 rounded-lg self-start whitespace-nowrap">
+            <kbd className="font-mono bg-background border border-border px-1.5 py-0.5 rounded text-[10px]">Ctrl</kbd>
+            <span>+</span>
+            <kbd className="font-mono bg-background border border-border px-1.5 py-0.5 rounded text-[10px]">⇧</kbd>
+            <span>+</span>
+            <kbd className="font-mono bg-background border border-border px-1.5 py-0.5 rounded text-[10px]">S</kbd>
+            <span className="ml-1">Panel rápido</span>
+          </div>
+        </div>
+
+        {/* ── Module grid ── */}
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {modules.map(module => {
+            const meta = getModuleMeta(module.key);
+            const Icon = meta.icon;
+            const isUpdating = updating === module.key;
+
+            return (
+              <Card
+                key={module.key}
+                className={`relative overflow-hidden transition-all duration-300 ${
+                  module.is_installed
+                    ? 'border-border shadow-sm'
+                    : 'border-border/40 bg-muted/20'
+                }`}
+              >
+                {/* Color accent top bar */}
+                <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${meta.gradient}`} />
+
+                <CardHeader className="px-4 sm:px-5 pt-5 pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    {/* Icon + name block */}
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div
+                        className={`w-11 h-11 rounded-xl ${meta.bg} flex items-center justify-center flex-shrink-0 border border-white/10`}
+                      >
+                        <Icon className={`w-5 h-5 ${meta.text}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <h3 className="text-sm font-semibold leading-tight">{module.name}</h3>
+                          {module.is_installed ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              Activo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/50">
+                              <XCircle className="w-2.5 h-2.5" />
+                              Inactivo
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-snug">
+                          {module.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Toggle */}
+                    <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+                      {isUpdating && (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                      )}
+                      <Switch
+                        checked={module.is_installed}
+                        onCheckedChange={() => handleToggle(module)}
+                        disabled={isUpdating}
+                        aria-label={`${module.is_installed ? 'Deshabilitar' : 'Habilitar'} ${module.name}`}
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="px-4 sm:px-5 pb-4 pt-0">
+                  {/* Features */}
+                  {meta.features.length > 0 && (
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mb-3">
+                      {meta.features.map(feature => (
+                        <li key={feature} className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 bg-gradient-to-br ${meta.gradient}`}
+                          />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Installed date */}
+                  {module.is_installed && module.installed_at && (
+                    <p className="text-[11px] text-muted-foreground/60 border-t border-border/30 pt-2.5 mt-1">
+                      Habilitado el{' '}
+                      {new Date(module.installed_at).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* ── Base module note ── */}
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/40 border border-border/40">
+          <div className="w-8 h-8 rounded-lg bg-slate-500/10 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-4 h-4 text-slate-500" />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            El módulo <strong className="text-foreground">Base</strong> — Usuarios, Roles y
+            Configuración — siempre está activo y no puede deshabilitarse.
           </p>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </div>
+
+      {/* ── Confirm disable dialog ── */}
+      <AlertDialog open={!!confirmDisable} onOpenChange={open => !open && setConfirmDisable(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Deshabilitar {confirmDisable?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Al deshabilitarlo, sus rutas y funcionalidades dejarán de estar accesibles para todos
+              los usuarios. Podés volver a habilitarlo en cualquier momento sin perder datos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDisable(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (confirmDisable) doToggle(confirmDisable.key, false);
+                setConfirmDisable(null);
+              }}
+            >
+              Sí, deshabilitar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

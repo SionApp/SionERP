@@ -186,59 +186,126 @@ const ProfilePage = () => {
   };
 
   return (
-    <div className="space-y-3 p-0 sm:p-3 md:p-6">
-      {/* ── Profile Hero ── */}
-      <div className="relative overflow-hidden rounded-b-2xl sm:rounded-2xl bg-gradient-to-br from-primary/90 via-blue-600/80 to-purple-600/80 px-4 pt-5 pb-4 sm:p-6">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.12),_transparent_60%)] pointer-events-none" />
-        <div className="relative flex items-center gap-4">
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            <Avatar className="w-18 h-18 sm:w-24 sm:h-24 ring-2 ring-white/30 shadow-xl" style={{ width: 72, height: 72 }}>
-              <AvatarImage src="" alt="Profile" />
-              <AvatarFallback className="text-2xl font-bold bg-white/20 text-white">
-                {initialWordName()}
-              </AvatarFallback>
-            </Avatar>
-            <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-md active:scale-95 transition-transform">
-              <Camera className="w-3.5 h-3.5 text-white" />
-            </button>
-          </div>
+    <div className="space-y-4 p-0 sm:p-3 md:p-6">
 
-          {/* Name + role */}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-white drop-shadow truncate">
-              {userData?.first_name} {userData?.last_name}
-            </h1>
-            <p className="text-white/70 text-xs truncate mt-0.5">{userData?.email}</p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className="text-[11px] font-semibold bg-white/20 text-white px-2 py-0.5 rounded-full capitalize">
-                {userData?.role}
-              </span>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${userData?.is_active ? 'bg-green-400/30 text-green-100' : 'bg-red-400/30 text-red-100'}`}>
-                {userData?.is_active ? 'Activo' : 'Inactivo'}
-              </span>
-            </div>
-          </div>
+      {/* ── Profile Hero ── */}
+      <div className="rounded-b-2xl sm:rounded-2xl overflow-hidden border border-border/50 shadow-sm bg-card">
+
+        {/* Cover strip — mesh gradient, solo decorativo */}
+        <div className="relative h-28 sm:h-36">
+          <div
+            className="absolute inset-0"
+            style={{
+              background: [
+                'radial-gradient(ellipse at 15% 60%, #7c3aed 0%, transparent 55%)',
+                'radial-gradient(ellipse at 85% 20%, #1d4ed8 0%, transparent 55%)',
+                'radial-gradient(ellipse at 55% 90%, #4338ca 0%, transparent 50%)',
+                'radial-gradient(ellipse at 90% 80%, #0891b2 0%, transparent 40%)',
+                'linear-gradient(135deg, #1e1b4b 0%, #1e3a8a 100%)',
+              ].join(', '),
+            }}
+          />
+          {/* Sheen overlay */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(167,139,250,0.2),_transparent_60%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_rgba(96,165,250,0.15),_transparent_55%)]" />
+
+          {/* Edit cover button */}
+          <button
+            aria-label="Cambiar portada"
+            className="absolute top-3 right-3 h-7 px-3 rounded-lg bg-black/25 backdrop-blur-sm border border-white/20 flex items-center gap-1.5 text-white/75 text-xs font-medium cursor-pointer hover:bg-black/40 hover:text-white transition-all duration-200"
+          >
+            <Camera className="w-3 h-3" />
+            <span className="hidden sm:inline">Editar portada</span>
+          </button>
         </div>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-4 gap-2 mt-4">
-          {[
-            { label: 'Rol', value: userData?.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1) : '—' },
-            { label: 'Estado', value: userData?.is_active ? 'Activo' : 'Inactivo' },
-            { label: 'Desde', value: userData?.membership_date ? safeFormatDate(userData.membership_date, 'yyyy') : '—' },
-            { label: 'Discip.', value: userData?.discipleship_level ?? 0 },
-          ].map(stat => (
-            <div key={stat.label} className="text-center bg-white/10 backdrop-blur-sm rounded-xl py-2 px-1">
-              <div className="text-sm font-bold text-white leading-tight">{stat.value}</div>
-              <div className="text-[10px] text-white/60 mt-0.5 leading-tight">{stat.label}</div>
+        {/* Content area — zona limpia */}
+        <div className="px-4 sm:px-6 pb-5">
+
+          {/* Avatar row — solapa el cover */}
+          <div className="flex items-end justify-between -mt-8 sm:-mt-10 mb-4">
+            <div className="relative">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden ring-4 ring-card shadow-xl">
+                <Avatar className="w-full h-full rounded-2xl">
+                  <AvatarImage src="" alt="Foto de perfil" />
+                  <AvatarFallback className="text-xl sm:text-2xl font-extrabold bg-gradient-to-br from-violet-500 to-blue-600 text-white w-full h-full rounded-none">
+                    {initialWordName()}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+              <button
+                aria-label="Cambiar foto de perfil"
+                className="absolute -bottom-1.5 -right-1.5 w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-primary border-2 border-card flex items-center justify-center shadow-md cursor-pointer hover:scale-110 active:scale-95 transition-transform duration-150"
+              >
+                <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary-foreground" />
+              </button>
             </div>
-          ))}
+
+            {/* Status badge */}
+            <div className={`mb-1 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${
+              userData?.is_active
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50'
+                : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${userData?.is_active ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              {userData?.is_active ? 'Activo' : 'Inactivo'}
+            </div>
+          </div>
+
+          {/* Nombre + rol */}
+          <div className="flex items-start gap-2 flex-wrap mb-1">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground leading-tight">
+              {userData?.first_name} {userData?.last_name}
+            </h1>
+            <span className="mt-0.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-primary/10 text-primary capitalize border border-primary/20 leading-tight">
+              {userData?.role}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-5">{userData?.email}</p>
+
+          {/* Stats strip */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              {
+                label: 'Discipulado',
+                value: userData?.discipleship_level ?? '—',
+              },
+              {
+                label: 'Miembro desde',
+                value: userData?.membership_date
+                  ? safeFormatDate(userData.membership_date, 'yyyy')
+                  : 'N/A',
+              },
+              {
+                label: 'Célula',
+                value: userData?.cell_group || '—',
+              },
+              {
+                label: 'ID',
+                value: userData?.id_number
+                  ? `#${String(userData.id_number).slice(-4)}`
+                  : '—',
+              },
+            ].map(stat => (
+              <div
+                key={stat.label}
+                className="flex flex-col items-center justify-center bg-muted/40 hover:bg-muted/70 rounded-xl py-3 px-1 border border-border/40 transition-colors duration-200 cursor-default"
+              >
+                <span className="text-sm font-bold text-foreground leading-tight truncate w-full text-center">
+                  {String(stat.value)}
+                </span>
+                <span className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 font-medium uppercase tracking-wider text-center leading-tight">
+                  {stat.label}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <Tabs defaultValue="personal" className="space-y-3 sm:space-y-4 px-2 sm:px-0">
-        <TabsList className="grid w-full grid-cols-4 h-auto p-1">
+      {/* ── Tabs ── */}
+      <Tabs defaultValue="personal" className="space-y-4 px-2 sm:px-0">
+        <TabsList className="grid w-full grid-cols-4 h-auto bg-muted/60 p-1 rounded-xl gap-1">
           {[
             { value: 'personal', icon: User, label: 'Personal' },
             { value: 'church', icon: Heart, label: 'Iglesia' },
@@ -248,134 +315,149 @@ const ProfilePage = () => {
             <TabsTrigger
               key={value}
               value={value}
-              className="group flex flex-col items-center gap-1 py-2 px-1 h-auto"
+              className="flex flex-col items-center gap-1 py-2.5 px-1 h-auto rounded-lg transition-all duration-200
+                data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md"
             >
               <Icon className="w-4 h-4 shrink-0" />
-              {/* Mobile: solo visible en el tab activo. sm+: siempre visible */}
-              <span className="text-[11px] leading-tight w-full text-center truncate invisible group-data-[state=active]:visible sm:visible">
+              <span className="text-[10px] sm:text-[11px] leading-tight font-semibold">
                 {label}
               </span>
             </TabsTrigger>
           ))}
         </TabsList>
 
-        <TabsContent value="personal" className="space-y-3 sm:space-y-4">
-          {/* Personal Information */}
-          <Card>
-            <CardHeader className="p-3 sm:p-4 pb-0 sm:pb-0">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <User className="w-4 h-4 text-primary" />
-                Información Personal
-              </CardTitle>
-              <CardDescription className="text-xs sm:text-sm">Mantén tu información actualizada</CardDescription>
+        {/* ── Personal Tab ── */}
+        <TabsContent value="personal" className="space-y-4">
+          <Card className="border-0 shadow-sm">
+            {/* Section header */}
+            <CardHeader className="px-4 sm:px-6 pt-5 pb-4 border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-semibold">Información Personal</CardTitle>
+                  <CardDescription className="text-xs mt-0.5">Mantén tu información actualizada</CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="p-3 sm:p-4 pt-3">
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+            <CardContent className="px-4 sm:px-6 py-5">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+
+                {/* Nombre + Apellido */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="first_name" className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      Nombres
+                  <div className="space-y-1.5">
+                    <Label htmlFor="first_name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <User className="w-3 h-3" /> Nombres
                     </Label>
                     <Input
                       id="first_name"
                       {...register('first_name')}
-                      className={errors.first_name ? 'border-red-500' : ''}
+                      className={`h-10 ${errors.first_name ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                     />
-                    {errors.first_name && (
-                      <p className="text-sm text-red-500">{errors.first_name.message}</p>
-                    )}
+                    {errors.first_name && <p className="text-xs text-red-500">{errors.first_name.message}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="last_name" className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      Apellidos
+                  <div className="space-y-1.5">
+                    <Label htmlFor="last_name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <User className="w-3 h-3" /> Apellidos
                     </Label>
                     <Input
                       id="last_name"
                       {...register('last_name')}
-                      className={errors.last_name ? 'border-red-500' : ''}
+                      className={`h-10 ${errors.last_name ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                     />
-                    {errors.last_name && (
-                      <p className="text-sm text-red-500">{errors.last_name.message}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone" className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      Teléfono
-                    </Label>
-                    <Input id="phone" {...register('phone')} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="birth_date" className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      Fecha de Nacimiento
-                    </Label>
-                    <Input id="birth_date" type="date" {...register('birth_date')} />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="address" className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      Dirección
-                    </Label>
-                    <GeolocationInput
-                      value={geolocation || undefined}
-                      onChange={(value) => {
-                        setGeolocation(value);
-                        if (value) {
-                          setValue('address', value.address, { shouldValidate: true });
-                          setValue('latitude', getCoordValue(value.latitude), { shouldValidate: true });
-                          setValue('longitude', getCoordValue(value.longitude), { shouldValidate: true });
-                        } else {
-                          setValue('address', '', { shouldValidate: true });
-                          setValue('latitude', undefined);
-                          setValue('longitude', undefined);
-                        }
-                      }}
-                      label="Ubicación en el mapa (opcional)"
-                      placeholder="Buscar dirección o seleccionar en el mapa..."
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Busca una dirección o haz clic en el mapa para seleccionar tu ubicación.
-                      Esto permite verte en el mapa de discipulado.
-                    </p>
+                    {errors.last_name && <p className="text-xs text-red-500">{errors.last_name.message}</p>}
                   </div>
                 </div>
 
-                <Separator />
+                {/* Teléfono + Fecha */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phone" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Phone className="w-3 h-3" /> Teléfono
+                    </Label>
+                    <Input id="phone" {...register('phone')} className="h-10" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="birth_date" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3" /> Fecha de Nacimiento
+                    </Label>
+                    <Input id="birth_date" type="date" {...register('birth_date')} className="h-10" />
+                  </div>
+                </div>
 
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2 text-sm">
-                    <Users className="w-4 h-4" />
-                    Contacto de Emergencia
-                  </h4>
+                {/* Dirección */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <MapPin className="w-3 h-3" /> Dirección
+                  </Label>
+                  <GeolocationInput
+                    value={geolocation || undefined}
+                    onChange={(value) => {
+                      setGeolocation(value);
+                      if (value) {
+                        setValue('address', value.address, { shouldValidate: true });
+                        setValue('latitude', getCoordValue(value.latitude), { shouldValidate: true });
+                        setValue('longitude', getCoordValue(value.longitude), { shouldValidate: true });
+                      } else {
+                        setValue('address', '', { shouldValidate: true });
+                        setValue('latitude', undefined);
+                        setValue('longitude', undefined);
+                      }
+                    }}
+                    label="Ubicación en el mapa (opcional)"
+                    placeholder="Buscar dirección o seleccionar en el mapa..."
+                  />
+                  <p className="text-xs text-muted-foreground/70 flex items-start gap-1 mt-1">
+                    <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
+                    Permite que tu liderazgo te ubique en el mapa de discipulado.
+                  </p>
+                </div>
+
+                {/* Contacto de Emergencia */}
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 dark:border-amber-800/40 dark:bg-amber-950/20 p-4 space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                      <Users className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Contacto de Emergencia</h4>
+                      <p className="text-xs text-amber-700/70 dark:text-amber-300/60">Persona a contactar en caso de emergencia</p>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="emergency_contact_name" className="text-xs sm:text-sm">Nombre del Contacto</Label>
+                      <Label htmlFor="emergency_contact_name" className="text-xs text-amber-800/80 dark:text-amber-200/80 font-medium">Nombre completo</Label>
                       <Input
                         id="emergency_contact_name"
                         placeholder="Nombre completo"
+                        className="bg-white dark:bg-background h-10 border-amber-200 dark:border-amber-800/40 focus-visible:ring-amber-400"
                         {...register('emergency_contact_name')}
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="emergency_contact_phone" className="text-xs sm:text-sm">Teléfono del Contacto</Label>
+                      <Label htmlFor="emergency_contact_phone" className="text-xs text-amber-800/80 dark:text-amber-200/80 font-medium">Teléfono</Label>
                       <Input
                         id="emergency_contact_phone"
                         placeholder="Número de teléfono"
+                        className="bg-white dark:bg-background h-10 border-amber-200 dark:border-amber-800/40 focus-visible:ring-amber-400"
                         {...register('emergency_contact_phone')}
                       />
                     </div>
                   </div>
                 </div>
 
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Guardando...</>
-                  ) : 'Guardar Cambios'}
+                {/* Submit */}
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-11 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white font-semibold shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all duration-200 cursor-pointer"
+                >
+                  {loading
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Guardando...</>
+                    : 'Guardar Cambios'
+                  }
                 </Button>
               </form>
             </CardContent>
@@ -398,7 +480,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Bautizado</h4>
                       <p className="text-sm text-muted-foreground">
-                        {safeFormatDate(userData?.baptism_date, 'MMMM yyyy')}
+                        {safeFormatDate(userData?.baptism_date, 'MMMM yyyy') || '—'}
                       </p>
                     </div>
                     <Badge variant="default">Sí</Badge>
@@ -408,7 +490,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Miembro Activo</h4>
                       <p className="text-sm text-muted-foreground">
-                        {safeFormatDate(userData?.membership_date, 'MMMM yyyy')}
+                        {safeFormatDate(userData?.membership_date, 'MMMM yyyy') || '—'}
                       </p>
                     </div>
                     <Badge variant="default">Activo</Badge>
@@ -429,8 +511,8 @@ const ProfilePage = () => {
                   <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 min-h-[80px]">
                     <div>
                       <h4 className="font-medium">Ministerio</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1)}
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {userData?.role || '—'}
                       </p>
                     </div>
                   </div>
@@ -439,7 +521,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Primera Visita</h4>
                       <p className="text-sm text-muted-foreground">
-                        {safeFormatDate(userData?.first_visit_date, 'MMMM yyyy')}
+                        {safeFormatDate(userData?.first_visit_date, 'MMMM yyyy') || '—'}
                       </p>
                     </div>
                   </div>
@@ -448,7 +530,7 @@ const ProfilePage = () => {
                     <div>
                       <h4 className="font-medium">Nivel de Discipulado</h4>
                       <p className="text-sm text-muted-foreground">
-                        {userData?.discipleship_level || 'Sin asignar'}
+                        {userData?.discipleship_level ?? '—'}
                       </p>
                     </div>
                   </div>

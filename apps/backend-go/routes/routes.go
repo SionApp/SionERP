@@ -25,6 +25,9 @@ func SetupRoutes(e *echo.Echo) {
 		})
 	})
 
+	// Dev-only: Postman Collection export → GET /api/v1/__postman
+	api.GET("/__postman", handlers.NewPostmanHandler().ExportCollection)
+
 	// Auth routes (públicas)
 	api.POST("/auth/login", authHandler.Login)
 	api.POST("/auth/logout", authHandler.Logout)
@@ -174,6 +177,18 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.POST("/goals/:id/extend", goalsHandler.ExtendDeadline)
 		discipleship.POST("/goals/:id/close-incomplete", goalsHandler.CloseIncomplete)
 		discipleship.POST("/goals/:id/auto-update", goalsHandler.AutoUpdateProgress)
+
+		// Cascade assignments (Phase 1)
+		discipleship.POST("/goals/:id/assignments", goalsHandler.CreateAssignments)
+		discipleship.POST("/goals/:id/assignments/batch-zones", goalsHandler.BatchAssignToZones)
+		discipleship.GET("/goals/:id/assignments", goalsHandler.GetAssignmentTree)
+		discipleship.GET("/goals/:id/available-assignees", goalsHandler.GetAvailableAssignees)
+		discipleship.GET("/goals/:id/activity", goalsHandler.GetGoalActivity)
+		discipleship.DELETE("/assignments/:id", goalsHandler.DeleteAssignment)
+		discipleship.POST("/assignments/:id/progress", goalsHandler.CreateProgress)
+
+		// Active manual assignments (Phase 2)
+		discipleship.GET("/me/active-manual-assignments", goalsHandler.GetActiveManualAssignments)
 
 		// Alertas
 		discipleship.GET("/alerts", alertsHandler.GetAlerts)

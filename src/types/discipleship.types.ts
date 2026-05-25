@@ -427,6 +427,7 @@ export interface Goal {
 export interface DiscipleshipGoal {
   id: string;
   goal_type: string;
+  title?: string;
   target_metric: string;
   description?: string;
   target_value: number;
@@ -434,8 +435,11 @@ export interface DiscipleshipGoal {
   progress_percentage: number;
   deadline: string;
   status: string;
+  priority?: number;
+  created_by?: string;
   zone_id?: string;
   zone_name?: string;
+  measurement_type?: 'automatic' | 'manual';
 }
 
 // =====================================================

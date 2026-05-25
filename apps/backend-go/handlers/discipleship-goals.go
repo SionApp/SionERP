@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"backend-sion/config"
+	"backend-sion/utils"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -52,6 +54,15 @@ func NewDiscipleshipGoalsHandler() *DiscipleshipGoalsHandler {
 	return &DiscipleshipGoalsHandler{}
 }
 
+// logGoalAudit writes a row to audit_logs for goal-related events.
+// Designed to run in a goroutine (fire-and-forget). goalID is used as record_id.
+func logGoalAudit(db *config.Database, goalID, userID, action, tableName, newValues string) {
+	db.DB.Exec(`
+		INSERT INTO audit_logs (table_name, record_id, action, new_values, changed_by, changed_at)
+		VALUES ($1, $2::uuid, $3, $4::jsonb, $5::uuid, NOW())
+	`, tableName, goalID, action, newValues, userID)
+}
+
 // CreateGoal crea un nuevo objetivo estratégico
 func (h *DiscipleshipGoalsHandler) CreateGoal(c echo.Context) error {
 	db, err := validateDB(c)
@@ -64,31 +75,30 @@ func (h *DiscipleshipGoalsHandler) CreateGoal(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
 	
-	// Verificar que el usuario puede crear goals (pastor 400+ o supervisor 200+)
-	var userLevel int
-	err = db.DB.QueryRow("SELECT COALESCE((SELECT r.role_level FROM discipleship_hierarchy r WHERE r.user_id = $1), (SELECT utils.GetRoleLevel(role) FROM users WHERE id = $1))", userID).Scan(&userLevel)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Error verificando permisos",
-		})
-	}
+	// Solo nivel jerárquico 4-5 (Coordinador/Pastoral) o rol ERP admin/pastor/staff pueden crear goals
+	var userRole string
+	db.DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&userRole)
 
-	// Solo pastor (400) y supervisores (200+) pueden crear goals
-	if userLevel < 200 {
+	var hierarchyLevel sql.NullInt64
+	db.DB.QueryRow("SELECT hierarchy_level FROM discipleship_hierarchy WHERE user_id = $1", userID).Scan(&hierarchyLevel)
+
+	canCreate := utils.IsAdminRole(userRole) || (hierarchyLevel.Valid && hierarchyLevel.Int64 >= 4)
+	if !canCreate {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes permisos para crear objetivos",
 		})
 	}
 
 	type CreateGoalRequest struct {
-		GoalType      string  `json:"goal_type" validate:"required"`
-		Title         string  `json:"title" validate:"required"`
-		Description   string  `json:"description"`
-		TargetMetric  string  `json:"target_metric" validate:"required"`
-		TargetValue   int     `json:"target_value" validate:"required,gt=0"`
-		Deadline      string  `json:"deadline" validate:"required"`
-		ZoneID        *string `json:"zone_id"`
-		Priority      int     `json:"priority" default:"2"`
+		GoalType        string  `json:"goal_type" validate:"required"`
+		Title           string  `json:"title" validate:"required"`
+		Description     string  `json:"description"`
+		TargetMetric    string  `json:"target_metric" validate:"required"`
+		TargetValue     int     `json:"target_value" validate:"required,gt=0"`
+		Deadline        string  `json:"deadline" validate:"required"`
+		ZoneID          *string `json:"zone_id"`
+		Priority        int     `json:"priority" default:"2"`
+		MeasurementType string  `json:"measurement_type"` // "automatic" | "manual"
 	}
 
 	var req CreateGoalRequest
@@ -99,7 +109,7 @@ func (h *DiscipleshipGoalsHandler) CreateGoal(c echo.Context) error {
 	}
 
 	// Validar goal_type
-	validTypes := []string{"growth", "attendance", "conversions", "baptisms", "new_groups", "multiplications", "spiritual_health"}
+	validTypes := []string{"growth", "attendance", "conversions", "baptisms", "new_groups", "multiplications", "spiritual_health", "personalizado"}
 	valid := false
 	for _, t := range validTypes {
 		if req.GoalType == t {
@@ -135,16 +145,26 @@ func (h *DiscipleshipGoalsHandler) CreateGoal(c echo.Context) error {
 		zoneID = *req.ZoneID
 	}
 
+	// Normalizar measurement_type
+	measurementType := req.MeasurementType
+	if measurementType != "automatic" && measurementType != "manual" {
+		measurementType = "manual"
+	}
+	// personalizado siempre es manual
+	if req.GoalType == "personalizado" {
+		measurementType = "manual"
+	}
+
 	// Insertar goal
 	var goalID string
 	err = db.DB.QueryRow(`
 		INSERT INTO discipleship_goals (
 			goal_type, title, description, target_metric, target_value,
-			deadline, status, priority, created_by, zone_id
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			deadline, status, priority, created_by, zone_id, measurement_type
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id
 	`, req.GoalType, req.Title, req.Description, req.TargetMetric,
-		req.TargetValue, deadline, "active", req.Priority, userID, zoneID,
+		req.TargetValue, deadline, "active", req.Priority, userID, zoneID, measurementType,
 	).Scan(&goalID)
 
 	if err != nil {
@@ -153,6 +173,10 @@ func (h *DiscipleshipGoalsHandler) CreateGoal(c echo.Context) error {
 			"error": "Error al crear objetivo",
 		})
 	}
+
+	go logGoalAudit(db, goalID, userID, "INSERT", "discipleship_goals",
+		fmt.Sprintf(`{"title":%q,"goal_type":%q,"target_value":%d,"measurement_type":%q}`,
+			req.Title, req.GoalType, req.TargetValue, measurementType))
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"message":        "Objetivo creado exitosamente",
@@ -187,11 +211,11 @@ func (h *DiscipleshipGoalsHandler) GetGoals(c echo.Context) error {
 	}
 
 	query := `
-		SELECT 
-			g.id, g.goal_type, g.target_metric,
-			g.target_value, g.current_value, g.progress_percentage, 
-			g.deadline, g.status, g.zone_name,
-			g.supervisor_id, g.created_at, g.updated_at
+		SELECT
+			g.id, g.goal_type, g.title, g.description, g.target_metric,
+			g.target_value, g.current_value, g.progress_percentage,
+			g.deadline, g.status, g.priority, g.created_by,
+			g.zone_id, COALESCE(g.zone_name, ''), g.created_at, g.updated_at
 		FROM discipleship_goals g
 		WHERE 1=1
 	`
@@ -391,21 +415,37 @@ func (h *DiscipleshipGoalsHandler) UpdateGoal(c echo.Context) error {
 	})
 }
 
-// DeleteGoal elimina un objetivo (solo admin 500)
+// DeleteGoal elimina un objetivo.
+// Permitido si: canSeeAll (pastor/admin) O el usuario es quien lo creó.
 func (h *DiscipleshipGoalsHandler) DeleteGoal(c echo.Context) error {
 	db, err := validateDB(c)
 	if err != nil {
 		return err
 	}
 
-	userLevel := getContextRoleLevel(c)
-	if userLevel < 500 {
+	goalID := c.Param("id")
+	userID, _, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+
+	// Verificar existencia y quién lo creó
+	var createdBy string
+	err = db.DB.QueryRow("SELECT created_by FROM discipleship_goals WHERE id = $1", goalID).Scan(&createdBy)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Objetivo no encontrado"})
+	}
+
+	if !canSeeAll && createdBy != userID {
 		return c.JSON(http.StatusForbidden, map[string]string{
-			"error": "Solo admin puede eliminar objetivos",
+			"error": "Solo podés eliminar objetivos que vos creaste",
 		})
 	}
 
-	goalID := c.Param("id")
+	// Leer título antes de eliminar para el audit log
+	var goalTitle string
+	db.DB.QueryRow("SELECT title FROM discipleship_goals WHERE id = $1", goalID).Scan(&goalTitle)
+
 	_, err = db.DB.Exec("DELETE FROM discipleship_goals WHERE id = $1", goalID)
 	if err != nil {
 		c.Logger().Error("Error deleting goal:", err)
@@ -413,6 +453,9 @@ func (h *DiscipleshipGoalsHandler) DeleteGoal(c echo.Context) error {
 			"error": "Error al eliminar objetivo",
 		})
 	}
+
+	go logGoalAudit(db, goalID, userID, "DELETE", "discipleship_goals",
+		fmt.Sprintf(`{"title":%q}`, goalTitle))
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Objetivo eliminado exitosamente",
@@ -740,4 +783,750 @@ func (h *DiscipleshipGoalsHandler) AutoUpdateProgress(c echo.Context) error {
 		"progress_percentage": progressPercentage,
 		"status":              newStatus,
 	})
+}
+
+// =====================================================
+// PHASE 1 — CASCADE ASSIGNMENT HANDLERS
+// =====================================================
+
+// canAssignTo checks whether a creator at creatorLevel can assign to a user at assigneeLevel.
+// Only adjacent level-down assignments are permitted (creator == assignee+1), or canSeeAll.
+func canAssignTo(creatorLevel *int, assigneeLevel int, canSeeAll bool) bool {
+	if canSeeAll {
+		return true
+	}
+	return creatorLevel != nil && *creatorLevel == assigneeLevel+1
+}
+
+// CreateAssignments handles POST /goals/:id/assignments
+// Accepts an array of assignments; checks canAssignTo per row.
+// Returns {created: [...], skipped: [...]} where skipped entries had permission errors.
+func (h *DiscipleshipGoalsHandler) CreateAssignments(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	goalID := c.Param("id")
+	userID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+
+	type AssignmentItem struct {
+		AssignedTo         string  `json:"assigned_to"`
+		TargetValue        float64 `json:"target_value"`
+		ParentAssignmentID *string `json:"parent_assignment_id,omitempty"`
+		Notes              *string `json:"notes,omitempty"`
+	}
+	type CreateAssignmentsRequest struct {
+		Assignments []AssignmentItem `json:"assignments"`
+	}
+
+	var req CreateAssignmentsRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Datos inválidos: " + err.Error()})
+	}
+	if len(req.Assignments) == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Se requiere al menos una asignación"})
+	}
+
+	// Verify the goal exists
+	var goalExists bool
+	err = db.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM discipleship_goals WHERE id = $1)", goalID).Scan(&goalExists)
+	if err != nil || !goalExists {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Objetivo no encontrado"})
+	}
+
+	type CreatedAssignment struct {
+		ID                 string   `json:"id"`
+		GoalID             string   `json:"goal_id"`
+		AssignedTo         string   `json:"assigned_to"`
+		AssignedBy         string   `json:"assigned_by"`
+		AssignedLevel      int      `json:"assigned_level"`
+		TargetValue        float64  `json:"target_value"`
+		CurrentValue       float64  `json:"current_value"`
+		ParentAssignmentID *string  `json:"parent_assignment_id,omitempty"`
+		Status             string   `json:"status"`
+		CreatedAt          string   `json:"created_at"`
+	}
+	type SkippedAssignment struct {
+		AssignedTo string `json:"assigned_to"`
+		Reason     string `json:"reason"`
+	}
+
+	var created []CreatedAssignment
+	var skipped []SkippedAssignment
+
+	for _, item := range req.Assignments {
+		// Fetch assignee's hierarchy level
+		var assigneeLevel int
+		err = db.DB.QueryRow("SELECT hierarchy_level FROM discipleship_hierarchy WHERE user_id = $1", item.AssignedTo).Scan(&assigneeLevel)
+		if err != nil {
+			skipped = append(skipped, SkippedAssignment{AssignedTo: item.AssignedTo, Reason: "usuario sin nivel jerárquico"})
+			continue
+		}
+
+		if !canAssignTo(hierarchyLevel, assigneeLevel, canSeeAll) {
+			skipped = append(skipped, SkippedAssignment{AssignedTo: item.AssignedTo, Reason: "nivel jerárquico no permitido (solo nivel adyacente)"})
+			continue
+		}
+
+		var newID, createdAt string
+		var currentVal float64
+		err = db.DB.QueryRow(`
+			INSERT INTO goal_assignments (goal_id, assigned_to, assigned_by, assigned_level, target_value, parent_assignment_id, notes)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (goal_id, assigned_to, parent_assignment_id) DO UPDATE
+				SET target_value = EXCLUDED.target_value, updated_at = NOW()
+			RETURNING id, current_value, created_at
+		`, goalID, item.AssignedTo, userID, assigneeLevel, item.TargetValue, item.ParentAssignmentID, item.Notes).Scan(&newID, &currentVal, &createdAt)
+		if err != nil {
+			c.Logger().Error("Error creating assignment:", err)
+			skipped = append(skipped, SkippedAssignment{AssignedTo: item.AssignedTo, Reason: "error al insertar"})
+			continue
+		}
+
+		created = append(created, CreatedAssignment{
+			ID:                 newID,
+			GoalID:             goalID,
+			AssignedTo:         item.AssignedTo,
+			AssignedBy:         userID,
+			AssignedLevel:      assigneeLevel,
+			TargetValue:        item.TargetValue,
+			CurrentValue:       currentVal,
+			ParentAssignmentID: item.ParentAssignmentID,
+			Status:             "active",
+			CreatedAt:          createdAt,
+		})
+	}
+
+	// Audit log para cada asignación creada
+	for _, ca := range created {
+		caCopy := ca
+		go logGoalAudit(db, goalID, userID, "INSERT", "goal_assignments",
+			fmt.Sprintf(`{"assigned_to":%q,"target_value":%g,"goal_id":%q}`,
+				caCopy.AssignedTo, caCopy.TargetValue, goalID))
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"created": created,
+		"skipped": skipped,
+	})
+}
+
+// BatchAssignToZones handles POST /goals/:id/assignments/batch-zones
+// Pastor-only: assigns goal to all level-3 users across all zones.
+func (h *DiscipleshipGoalsHandler) BatchAssignToZones(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	goalID := c.Param("id")
+	userID, _, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+	if !canSeeAll {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Solo el pastor puede asignar a todas las zonas"})
+	}
+
+	type BatchRequest struct {
+		DefaultTargetValue *float64 `json:"default_target_value,omitempty"`
+	}
+	var req BatchRequest
+	c.Bind(&req) // optional body — ignore error
+
+	defaultTarget := 0.0
+	if req.DefaultTargetValue != nil {
+		defaultTarget = *req.DefaultTargetValue
+	}
+
+	// Fetch all level-3 users (Supervisor General) across all zones
+	rows, err := db.DB.Query(`
+		SELECT user_id FROM discipleship_hierarchy WHERE hierarchy_level = 3
+	`)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error consultando supervisores"})
+	}
+	defer rows.Close()
+
+	type CreatedAssignment struct {
+		ID           string  `json:"id"`
+		GoalID       string  `json:"goal_id"`
+		AssignedTo   string  `json:"assigned_to"`
+		AssignedBy   string  `json:"assigned_by"`
+		AssignedLevel int    `json:"assigned_level"`
+		TargetValue  float64 `json:"target_value"`
+		CreatedAt    string  `json:"created_at"`
+	}
+	type SkippedAssignment struct {
+		AssignedTo string `json:"assigned_to"`
+		Reason     string `json:"reason"`
+	}
+
+	var created []CreatedAssignment
+	var skipped []SkippedAssignment
+
+	for rows.Next() {
+		var supervisorID string
+		if err := rows.Scan(&supervisorID); err != nil {
+			continue
+		}
+
+		var newID, createdAt string
+		err = db.DB.QueryRow(`
+			INSERT INTO goal_assignments (goal_id, assigned_to, assigned_by, assigned_level, target_value)
+			VALUES ($1, $2, $3, 3, $4)
+			ON CONFLICT (goal_id, assigned_to, parent_assignment_id) DO UPDATE
+				SET target_value = EXCLUDED.target_value, updated_at = NOW()
+			RETURNING id, created_at
+		`, goalID, supervisorID, userID, defaultTarget).Scan(&newID, &createdAt)
+		if err != nil {
+			skipped = append(skipped, SkippedAssignment{AssignedTo: supervisorID, Reason: "error al insertar"})
+			continue
+		}
+		created = append(created, CreatedAssignment{
+			ID: newID, GoalID: goalID, AssignedTo: supervisorID,
+			AssignedBy: userID, AssignedLevel: 3, TargetValue: defaultTarget, CreatedAt: createdAt,
+		})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"created": created,
+		"skipped": skipped,
+	})
+}
+
+// GetAssignmentTree handles GET /goals/:id/assignments
+// Returns the full cascade tree via recursive CTE.
+func (h *DiscipleshipGoalsHandler) GetAssignmentTree(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	goalID := c.Param("id")
+	userID, _, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+
+	query := `
+		WITH RECURSIVE assignment_tree AS (
+			SELECT ga.id, ga.goal_id, ga.assigned_to, ga.assigned_by, ga.assigned_level,
+				ga.target_value, ga.current_value, ga.progress_percentage,
+				ga.parent_assignment_id, ga.status, ga.notes, ga.created_at, ga.updated_at,
+				0 AS depth
+			FROM goal_assignments ga
+			WHERE ga.goal_id = $1 AND ga.parent_assignment_id IS NULL
+			UNION ALL
+			SELECT child.id, child.goal_id, child.assigned_to, child.assigned_by, child.assigned_level,
+				child.target_value, child.current_value, child.progress_percentage,
+				child.parent_assignment_id, child.status, child.notes, child.created_at, child.updated_at,
+				parent.depth + 1
+			FROM goal_assignments child
+			JOIN assignment_tree parent ON child.parent_assignment_id = parent.id
+		)
+		SELECT at.id, at.goal_id, at.assigned_to, at.assigned_by, at.assigned_level,
+			at.target_value, at.current_value, at.progress_percentage,
+			at.parent_assignment_id, at.status, at.notes, at.created_at, at.updated_at,
+			at.depth, COALESCE(u.first_name || ' ' || u.last_name, u.first_name, '') AS assigned_to_name
+		FROM assignment_tree at
+		JOIN users u ON u.id = at.assigned_to
+		ORDER BY at.depth, at.created_at
+	`
+
+	rows, err := db.DB.Query(query, goalID)
+	if err != nil {
+		c.Logger().Error("Error fetching assignment tree:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener árbol de asignaciones"})
+	}
+	defer rows.Close()
+
+	type FlatNode struct {
+		ID                 string  `json:"id"`
+		GoalID             string  `json:"goal_id"`
+		AssignedTo         string  `json:"assigned_to"`
+		AssignedBy         string  `json:"assigned_by"`
+		AssignedLevel      int     `json:"assigned_level"`
+		TargetValue        float64 `json:"target_value"`
+		CurrentValue       float64 `json:"current_value"`
+		ProgressPercentage float64 `json:"progress_percentage"`
+		ParentAssignmentID *string `json:"parent_assignment_id,omitempty"`
+		Status             string  `json:"status"`
+		Notes              *string `json:"notes,omitempty"`
+		CreatedAt          string  `json:"created_at"`
+		UpdatedAt          string  `json:"updated_at"`
+		Depth              int     `json:"-"`
+		AssignedToName     string  `json:"assigned_to_name"`
+		Children           []interface{} `json:"children"`
+	}
+
+	allNodes := map[string]*FlatNode{}
+	var orderedIDs []string
+
+	for rows.Next() {
+		var n FlatNode
+		var notes sql.NullString
+		var parentID sql.NullString
+		err := rows.Scan(
+			&n.ID, &n.GoalID, &n.AssignedTo, &n.AssignedBy, &n.AssignedLevel,
+			&n.TargetValue, &n.CurrentValue, &n.ProgressPercentage,
+			&parentID, &n.Status, &notes, &n.CreatedAt, &n.UpdatedAt,
+			&n.Depth, &n.AssignedToName,
+		)
+		if err != nil {
+			c.Logger().Error("Error scanning assignment row:", err)
+			continue
+		}
+		if parentID.Valid {
+			n.ParentAssignmentID = &parentID.String
+		}
+		if notes.Valid {
+			n.Notes = &notes.String
+		}
+		n.Children = []interface{}{}
+		allNodes[n.ID] = &n
+		orderedIDs = append(orderedIDs, n.ID)
+	}
+
+	// Visibility filter for non-pastor: only show subtrees where assigned_to == me
+	var roots []*FlatNode
+	for _, id := range orderedIDs {
+		n := allNodes[id]
+		if n.ParentAssignmentID == nil {
+			if canSeeAll || n.AssignedTo == userID {
+				roots = append(roots, n)
+			}
+		} else {
+			if parent, ok := allNodes[*n.ParentAssignmentID]; ok {
+				parent.Children = append(parent.Children, n)
+			}
+		}
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"goal_id": goalID,
+		"tree":    roots,
+	})
+}
+
+// DeleteAssignment handles DELETE /assignments/:id
+// Requires assigned_by == me OR canSeeAll. FK ON DELETE CASCADE removes children.
+func (h *DiscipleshipGoalsHandler) DeleteAssignment(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	assignmentID := c.Param("id")
+	userID, _, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+
+	var assignedBy string
+	err = db.DB.QueryRow("SELECT assigned_by FROM goal_assignments WHERE id = $1", assignmentID).Scan(&assignedBy)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "Asignación no encontrada"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error consultando asignación"})
+	}
+
+	if !canSeeAll && assignedBy != userID {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "No tenés permiso para eliminar esta asignación"})
+	}
+
+	_, err = db.DB.Exec("DELETE FROM goal_assignments WHERE id = $1", assignmentID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al eliminar asignación"})
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+// CreateProgress handles POST /assignments/:id/progress
+// Inserts a goal_manual_progress row and runs 3-step upward aggregation in one transaction.
+func (h *DiscipleshipGoalsHandler) CreateProgress(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	assignmentID := c.Param("id")
+	userID, _, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+
+	// Fetch assignment to verify ownership and get goal_id
+	var assignedTo, goalID string
+	err = db.DB.QueryRow("SELECT assigned_to, goal_id FROM goal_assignments WHERE id = $1", assignmentID).Scan(&assignedTo, &goalID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "Asignación no encontrada"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error consultando asignación"})
+	}
+
+	if !canSeeAll && assignedTo != userID {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Solo el asignado puede reportar progreso"})
+	}
+
+	type CreateProgressRequest struct {
+		ValueReported float64 `json:"value_reported"`
+		PeriodStart   *string `json:"period_start,omitempty"`
+		PeriodEnd     *string `json:"period_end,omitempty"`
+		ReportID      *string `json:"report_id,omitempty"`
+		Notes         *string `json:"notes,omitempty"`
+	}
+	var req CreateProgressRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Datos inválidos: " + err.Error()})
+	}
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error iniciando transacción"})
+	}
+	defer tx.Rollback()
+
+	// Insert progress (idempotent via ON CONFLICT)
+	var progressID string
+	err = tx.QueryRow(`
+		INSERT INTO goal_manual_progress (assignment_id, reporter_id, report_id, value_reported, period_start, period_end, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (assignment_id, report_id) DO UPDATE
+			SET value_reported = EXCLUDED.value_reported
+		RETURNING id
+	`, assignmentID, userID, req.ReportID, req.ValueReported, req.PeriodStart, req.PeriodEnd, req.Notes).Scan(&progressID)
+	if err != nil {
+		c.Logger().Error("Error inserting progress:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al guardar progreso"})
+	}
+
+	// Step A: Recompute leaf assignment from its progress entries
+	_, err = tx.Exec(`
+		UPDATE goal_assignments
+		SET current_value = COALESCE(
+			(SELECT SUM(value_reported) FROM goal_manual_progress WHERE assignment_id = $1), 0),
+			updated_at = NOW()
+		WHERE id = $1
+	`, assignmentID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error actualizando progreso (Step A)"})
+	}
+
+	// Step B: Walk ancestors via CTE and recompute each as SUM of children
+	_, err = tx.Exec(`
+		WITH RECURSIVE ancestors AS (
+			SELECT parent_assignment_id AS id
+			FROM goal_assignments WHERE id = $1 AND parent_assignment_id IS NOT NULL
+			UNION ALL
+			SELECT ga.parent_assignment_id
+			FROM goal_assignments ga
+			JOIN ancestors a ON ga.id = a.id
+			WHERE ga.parent_assignment_id IS NOT NULL
+		)
+		UPDATE goal_assignments ga
+		SET current_value = COALESCE(
+			(SELECT SUM(c.current_value) FROM goal_assignments c WHERE c.parent_assignment_id = ga.id), 0),
+			updated_at = NOW()
+		FROM ancestors a WHERE ga.id = a.id
+	`, assignmentID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error actualizando progreso (Step B)"})
+	}
+
+	// Step C: Sync root assignment total into discipleship_goals.current_value
+	_, err = tx.Exec(`
+		UPDATE discipleship_goals g
+		SET current_value = COALESCE(
+			(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0)
+		WHERE g.id = $1
+	`, goalID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error actualizando progreso (Step C)"})
+	}
+
+	if err = tx.Commit(); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al confirmar transacción"})
+	}
+
+	go logGoalAudit(db, goalID, userID, "UPDATE", "goal_manual_progress",
+		fmt.Sprintf(`{"value_reported":%g,"assignment_id":%q}`, req.ValueReported, assignmentID))
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"id":             progressID,
+		"assignment_id":  assignmentID,
+		"value_reported": req.ValueReported,
+		"message":        "Progreso registrado y propagado",
+	})
+}
+
+// GetGoalActivity handles GET /goals/:id/activity
+// Returns chronological audit log for a specific goal.
+func (h *DiscipleshipGoalsHandler) GetGoalActivity(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	goalID := c.Param("id")
+	userID, _, _, _ := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+
+	rows, err := db.DB.Query(`
+		SELECT
+			a.id, a.action, a.table_name, a.new_values,
+			COALESCE(u.first_name || ' ' || u.last_name, 'Sistema') AS user_name,
+			a.changed_at
+		FROM audit_logs a
+		LEFT JOIN users u ON a.changed_by = u.id
+		WHERE a.record_id = $1::uuid
+		ORDER BY a.changed_at DESC
+		LIMIT 50
+	`, goalID)
+	if err != nil {
+		c.Logger().Error("Error fetching goal activity:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener actividad"})
+	}
+	defer rows.Close()
+
+	type ActivityEntry struct {
+		ID        string `json:"id"`
+		Action    string `json:"action"`
+		Table     string `json:"table"`
+		Meta      string `json:"meta"`
+		UserName  string `json:"user_name"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	var entries []ActivityEntry
+	for rows.Next() {
+		var e ActivityEntry
+		var newValues sql.NullString
+		var changedAt time.Time
+		if err := rows.Scan(&e.ID, &e.Action, &e.Table, &newValues, &e.UserName, &changedAt); err != nil {
+			continue
+		}
+		e.Meta = newValues.String
+		e.CreatedAt = changedAt.Format(time.RFC3339)
+		entries = append(entries, e)
+	}
+	if entries == nil {
+		entries = []ActivityEntry{}
+	}
+	return c.JSON(http.StatusOK, entries)
+}
+
+// GetActiveManualAssignments handles GET /me/active-manual-assignments?period=YYYY-WW
+// Returns all active manual goal assignments for the current user, with already_reported_for_period flag.
+func (h *DiscipleshipGoalsHandler) GetActiveManualAssignments(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	userID, _, _, _ := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+
+	// Parse period param (YYYY-WW) and compute ISO week start/end
+	period := c.QueryParam("period")
+	var periodStart, periodEnd string
+	if period != "" {
+		t, parseErr := parseISOWeek(period)
+		if parseErr == nil {
+			periodStart = t.Format("2006-01-02")
+			// ISO week ends on Sunday (6 days after Monday)
+			periodEnd = t.AddDate(0, 0, 6).Format("2006-01-02")
+		}
+	}
+
+	rows, err := db.DB.Query(`
+		SELECT
+			ga.id AS assignment_id,
+			ga.goal_id,
+			dg.title AS goal_title,
+			dg.goal_type,
+			ga.target_value,
+			ga.current_value,
+			dg.deadline::text AS deadline,
+			CASE WHEN $2 != '' AND EXISTS (
+				SELECT 1 FROM goal_manual_progress gmp
+				WHERE gmp.assignment_id = ga.id
+				  AND gmp.period_start >= $2::date
+				  AND gmp.period_end <= $3::date
+			) THEN true ELSE false END AS already_reported_for_period
+		FROM goal_assignments ga
+		JOIN discipleship_goals dg ON dg.id = ga.goal_id
+		WHERE ga.assigned_to = $1
+		  AND dg.measurement_type = 'manual'
+		  AND ga.status = 'active'
+		  AND dg.deadline >= NOW()
+		ORDER BY dg.deadline ASC
+	`, userID, periodStart, periodEnd)
+	if err != nil {
+		c.Logger().Error("Error fetching active manual assignments:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener asignaciones"})
+	}
+	defer rows.Close()
+
+	type ActiveAssignment struct {
+		AssignmentID            string  `json:"assignment_id"`
+		GoalID                  string  `json:"goal_id"`
+		GoalTitle               string  `json:"goal_title"`
+		GoalType                string  `json:"goal_type"`
+		TargetValue             float64 `json:"target_value"`
+		CurrentValue            float64 `json:"current_value"`
+		Deadline                string  `json:"deadline"`
+		AlreadyReportedForPeriod bool   `json:"already_reported_for_period"`
+	}
+
+	var assignments []ActiveAssignment
+	for rows.Next() {
+		var a ActiveAssignment
+		if err := rows.Scan(
+			&a.AssignmentID, &a.GoalID, &a.GoalTitle, &a.GoalType,
+			&a.TargetValue, &a.CurrentValue, &a.Deadline, &a.AlreadyReportedForPeriod,
+		); err != nil {
+			continue
+		}
+		assignments = append(assignments, a)
+	}
+
+	if assignments == nil {
+		assignments = []ActiveAssignment{}
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"assignments": assignments,
+	})
+}
+
+// parseISOWeek parses a "YYYY-WW" string and returns the Monday of that ISO week.
+func parseISOWeek(s string) (time.Time, error) {
+	var year, week int
+	if _, err := fmt.Sscanf(s, "%d-W%d", &year, &week); err != nil {
+		return time.Time{}, fmt.Errorf("formato de semana inválido: %s", s)
+	}
+	// Jan 4 is always in week 1 of ISO year
+	jan4 := time.Date(year, 1, 4, 0, 0, 0, 0, time.UTC)
+	// Monday of week 1
+	weekday := int(jan4.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	mondayWeek1 := jan4.AddDate(0, 0, -(weekday - 1))
+	// Add (week-1) * 7 days
+	return mondayWeek1.AddDate(0, 0, (week-1)*7), nil
+}
+
+// GetAvailableAssignees handles GET /goals/:id/available-assignees
+// Returns users eligible to be assigned to this goal (not already assigned).
+// Rules:
+//   - Pastor / canSeeAll → only Coordinadores (level 4)
+//   - Coordinador (level 4) → all subordinates in their zone (levels 3, 2, 1)
+//   - Other levels → direct subordinates (level - 1) in their zone
+func (h *DiscipleshipGoalsHandler) GetAvailableAssignees(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	goalID := c.Param("id")
+	userID, hierarchyLevel, zoneID, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	if userID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Usuario no autenticado"})
+	}
+
+	type Assignee struct {
+		UserID         string `json:"user_id"`
+		UserName       string `json:"user_name"`
+		HierarchyLevel int    `json:"hierarchy_level"`
+	}
+
+	var rows *sql.Rows
+
+	if canSeeAll || (hierarchyLevel != nil && *hierarchyLevel >= 5) {
+		// Pastor / admin → Coordinadores (level 4) no asignados aún
+		rows, err = db.DB.Query(`
+			SELECT u.id, COALESCE(u.first_name || ' ' || u.last_name, u.first_name, '') AS user_name, h.hierarchy_level
+			FROM discipleship_hierarchy h
+			JOIN users u ON u.id = h.user_id
+			WHERE h.hierarchy_level = 4
+			  AND h.user_id NOT IN (
+			  	SELECT assigned_to FROM goal_assignments WHERE goal_id = $1 AND status != 'cancelled'
+			  )
+			ORDER BY u.first_name
+		`, goalID)
+	} else if hierarchyLevel != nil && *hierarchyLevel == 4 {
+		// Coordinador → todos en su zona (niveles 3, 2, 1) no asignados
+		zoneFilter := ""
+		args := []interface{}{goalID}
+		if zoneID != nil && *zoneID != "" {
+			args = append(args, *zoneID)
+			zoneFilter = fmt.Sprintf(" AND h.zone_id = $%d", len(args))
+		}
+		rows, err = db.DB.Query(`
+			SELECT u.id, COALESCE(u.first_name || ' ' || u.last_name, u.first_name, '') AS user_name, h.hierarchy_level
+			FROM discipleship_hierarchy h
+			JOIN users u ON u.id = h.user_id
+			WHERE h.hierarchy_level < 4
+			`+zoneFilter+`
+			  AND h.user_id NOT IN (
+			  	SELECT assigned_to FROM goal_assignments WHERE goal_id = $1 AND status != 'cancelled'
+			  )
+			ORDER BY h.hierarchy_level DESC, u.first_name
+		`, args...)
+	} else if hierarchyLevel != nil {
+		// Otros niveles → subordinados directos (nivel - 1)
+		targetLevel := *hierarchyLevel - 1
+		zoneFilter := ""
+		args := []interface{}{goalID, targetLevel}
+		if zoneID != nil && *zoneID != "" {
+			args = append(args, *zoneID)
+			zoneFilter = fmt.Sprintf(" AND h.zone_id = $%d", len(args))
+		}
+		rows, err = db.DB.Query(`
+			SELECT u.id, COALESCE(u.first_name || ' ' || u.last_name, u.first_name, '') AS user_name, h.hierarchy_level
+			FROM discipleship_hierarchy h
+			JOIN users u ON u.id = h.user_id
+			WHERE h.hierarchy_level = $2
+			`+zoneFilter+`
+			  AND h.user_id NOT IN (
+			  	SELECT assigned_to FROM goal_assignments WHERE goal_id = $1 AND status != 'cancelled'
+			  )
+			ORDER BY u.first_name
+		`, args...)
+	} else {
+		return c.JSON(http.StatusOK, []Assignee{})
+	}
+
+	if err != nil {
+		c.Logger().Error("Error fetching available assignees:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener asignables"})
+	}
+	defer rows.Close()
+
+	var assignees []Assignee
+	for rows.Next() {
+		var a Assignee
+		if err := rows.Scan(&a.UserID, &a.UserName, &a.HierarchyLevel); err != nil {
+			continue
+		}
+		assignees = append(assignees, a)
+	}
+	if assignees == nil {
+		assignees = []Assignee{}
+	}
+
+	return c.JSON(http.StatusOK, assignees)
 }
