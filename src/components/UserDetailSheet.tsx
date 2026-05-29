@@ -5,7 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import {
+  DiscipleshipGroup,
+  DiscipleshipHierarchy,
+  DiscipleshipReport,
+} from '@/types/discipleship.types';
 import { User as UserType } from '@/types/user.types';
+import { parseGoTime } from '@/lib/go-time';
 import {
   Activity,
   AlertCircle,
@@ -21,6 +28,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface UserDetailSheetProps {
   user: UserType | null;
@@ -29,9 +37,20 @@ interface UserDetailSheetProps {
   onEdit?: (user: UserType) => void;
 }
 
+const LEVEL_NAMES: Record<number, string> = {
+  1: 'Líder',
+  2: 'Supervisor Auxiliar',
+  3: 'Supervisor General',
+  4: 'Coordinador',
+  5: 'Pastoral',
+};
+
 export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailSheetProps) => {
-  const [discipleshipData, setDiscipleshipData] = useState<any>(null);
-  const [metricsData, setMetricsData] = useState<any>(null);
+  const navigate = useNavigate();
+  const [hierarchy, setHierarchy] = useState<DiscipleshipHierarchy | null>(null);
+  const [groups, setGroups] = useState<DiscipleshipGroup[]>([]);
+  const [subordinates, setSubordinates] = useState<DiscipleshipHierarchy[]>([]);
+  const [reports, setReports] = useState<DiscipleshipReport[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -45,17 +64,25 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 
     setLoading(true);
     try {
-      // Aquí cargarías todas las relaciones del usuario
-      // - Grupos de discipulado donde es líder
-      // - Jerarquía de discipulado
-      // - Métricas
-      // - Reportes
-      // - Alertas
-      // TODO: Implementar servicios para cargar esta data
-      // const hierarchy = await DiscipleshipService.getUserHierarchy(user.id);
-      // const groups = await DiscipleshipService.getUserGroups(user.id);
-      // const metrics = await DiscipleshipService.getUserMetrics(user.id);
-      // etc...
+      const [hierarchyRes, groupsRes, subordinatesRes, reportsRes] = await Promise.allSettled([
+        DiscipleshipService.getHierarchy(user.id),
+        DiscipleshipService.getGroups({ leader_id: user.id }),
+        DiscipleshipService.getSubordinates(user.id),
+        DiscipleshipService.getReports({ reporter_id: user.id, limit: 10 }),
+      ]);
+
+      if (hierarchyRes.status === 'fulfilled') {
+        setHierarchy((hierarchyRes.value ?? [])[0] ?? null);
+      }
+      if (groupsRes.status === 'fulfilled') {
+        setGroups(groupsRes.value?.data ?? []);
+      }
+      if (subordinatesRes.status === 'fulfilled') {
+        setSubordinates(subordinatesRes.value ?? []);
+      }
+      if (reportsRes.status === 'fulfilled') {
+        setReports(reportsRes.value ?? []);
+      }
     } catch (error) {
       console.error('Error loading user relations:', error);
     } finally {
@@ -292,39 +319,124 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 
           {/* TAB: DISCIPULADO */}
           <TabsContent value="discipleship" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Información de Discipulado
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <InfoRow
-                  label="Nivel de Discipulado"
-                  value={user.discipleship_level?.toString() || 'No asignado'}
-                />
-                <InfoRow label="Zona" value={user.zone_name || 'No asignada'} />
-                <InfoRow label="Territorio" value={user.territory || 'No asignado'} />
-                <InfoRow
-                  label="Grupos Activos"
-                  value={user.active_groups_count?.toString() || '0'}
-                />
+            {loading ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">
+                Cargando información de discipulado...
+              </div>
+            ) : (
+              <>
+                {/* Posición jerárquica */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Posición Jerárquica
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <InfoRow
+                      label="Nivel"
+                      value={
+                        hierarchy
+                          ? `${LEVEL_NAMES[hierarchy.hierarchy_level] ?? `Nivel ${hierarchy.hierarchy_level}`}`
+                          : 'No asignado'
+                      }
+                    />
+                    <InfoRow
+                      label="Supervisor"
+                      value={hierarchy?.supervisor_name || 'Sin supervisor'}
+                    />
+                    <InfoRow
+                      label="Zona"
+                      value={hierarchy?.zone_name || user.zone_name || 'No asignada'}
+                    />
+                    <InfoRow
+                      label="Territorio"
+                      value={hierarchy?.territory || user.territory || 'No asignado'}
+                    />
+                    <InfoRow
+                      label="Grupos asignados"
+                      value={
+                        hierarchy?.active_groups_assigned?.toString() ??
+                        user.active_groups_count?.toString() ??
+                        '0'
+                      }
+                    />
+                  </CardContent>
+                </Card>
 
-                {loading && (
-                  <div className="py-4 text-center text-muted-foreground">
-                    Cargando información de discipulado...
-                  </div>
+                {/* Grupos que lidera */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Grupos que Lidera
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {groups.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No lidera ningún grupo.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {groups.map(group => (
+                          <div key={group.id} className="border rounded-md p-3 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-sm">{group.group_name}</span>
+                              <Badge
+                                variant={group.status === 'active' ? 'default' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {group.status === 'active'
+                                  ? 'Activo'
+                                  : group.status === 'multiplying'
+                                    ? 'Multiplicando'
+                                    : 'Inactivo'}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              {group.meeting_day && (
+                                <p>
+                                  {group.meeting_day}
+                                  {group.meeting_time ? ` · ${group.meeting_time}` : ''}
+                                </p>
+                              )}
+                              {group.meeting_location && <p>{group.meeting_location}</p>}
+                              <p>
+                                {group.active_members} / {group.member_count} miembros activos
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Subordinados */}
+                {subordinates.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Subordinados ({subordinates.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {subordinates.map(sub => (
+                          <div key={sub.id} className="flex items-center justify-between text-sm">
+                            <span>{sub.user_name || sub.user_email || sub.user_id}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {LEVEL_NAMES[sub.hierarchy_level] ?? `Nivel ${sub.hierarchy_level}`}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-
-                {/* TODO: Aquí cargarías y mostrarías:
-                    - Grupos que lidera
-                    - Supervisor asignado
-                    - Subordinados (si es supervisor)
-                    - Jerarquía completa
-                */}
-              </CardContent>
-            </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* TAB: MÉTRICAS */}
@@ -340,14 +452,36 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 {loading ? (
                   <div className="py-4 text-center text-muted-foreground">Cargando métricas...</div>
                 ) : (
-                  <div className="text-sm text-muted-foreground">
-                    {/* TODO: Aquí mostrarías:
-                        - Asistencia promedio de sus grupos
-                        - Tendencias de crecimiento
-                        - Temperatura espiritual
-                        - Charts con recharts
-                    */}
-                    No hay métricas disponibles para este usuario.
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-muted/50 p-3 text-center">
+                        <p className="text-2xl font-bold">{groups.length}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Grupos liderados</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/50 p-3 text-center">
+                        <p className="text-2xl font-bold">{subordinates.length}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Subordinados</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/50 p-3 text-center">
+                        <p className="text-2xl font-bold">{reports.length}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Reportes enviados</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/50 p-3 text-center">
+                        <p className="text-2xl font-bold">
+                          {hierarchy
+                            ? (LEVEL_NAMES[hierarchy.hierarchy_level] ??
+                              `Nivel ${hierarchy.hierarchy_level}`)
+                            : '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Nivel jerárquico</p>
+                      </div>
+                    </div>
+                    {hierarchy?.zone_name && (
+                      <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                        <span className="text-muted-foreground">Zona: </span>
+                        <span className="font-medium">{hierarchy.zone_name}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -366,14 +500,39 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
               <CardContent>
                 {loading ? (
                   <div className="py-4 text-center text-muted-foreground">Cargando reportes...</div>
+                ) : reports.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    Este usuario no tiene reportes registrados
+                  </p>
                 ) : (
-                  <div className="text-sm text-muted-foreground">
-                    {/* TODO: Aquí mostrarías:
-                        - Lista de reportes enviados
-                        - Estado de reportes pendientes
-                        - Botón para ver historial completo
-                    */}
-                    No hay reportes disponibles para este usuario.
+                  <div className="space-y-2">
+                    {reports.map(r => (
+                      <div
+                        key={r.id}
+                        className="flex items-start justify-between gap-2 p-3 border rounded-lg text-sm"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium truncate capitalize">{r.report_type}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {parseGoTime(r.period_end)?.toLocaleDateString('es-AR', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            }) ?? r.period_end}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={r.status === 'submitted' ? 'secondary' : 'outline'}
+                          className="text-[10px] shrink-0"
+                        >
+                          {r.status === 'submitted'
+                            ? 'Enviado'
+                            : r.status === 'draft'
+                              ? 'Borrador'
+                              : 'En revisión'}
+                        </Badge>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -383,13 +542,7 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 
         {/* Footer con acciones */}
         <div className="flex gap-2 pt-6 pb-2 border-t mt-6">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => {
-              /* TODO: Ver auditoría */
-            }}
-          >
+          <Button variant="outline" className="flex-1" onClick={() => navigate('/dashboard')}>
             <History className="h-4 w-4 mr-2" />
             Ver Auditoría
           </Button>
@@ -413,6 +566,7 @@ const InfoRow = ({
   label: string;
   value?: string;
   icon?: React.ReactNode;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   badge?: { variant: any; text: string };
 }) => (
   <div className="flex justify-between items-center py-1">

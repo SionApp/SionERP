@@ -1,4 +1,5 @@
 import { GoalsDashboard } from '@/pages/dashboard/GoalsDashboard';
+import { MinistryHealthTab } from './MinistryHealthTab';
 import { AlertDetailSheet } from './AlertDetailSheet';
 import { ReportDetailSheet } from './ReportDetailSheet';
 import { Badge } from '@/components/ui/badge';
@@ -308,7 +309,10 @@ const PastoralDashboard: React.FC = React.memo(() => {
               {weeklyTrends.length > 0 ? (
                 <div style={{ width: '100%', height: 300, minHeight: 250 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={weeklyTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <AreaChart
+                      data={weeklyTrends}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
                       <defs>
                         <linearGradient id="pgradAttendance" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -324,7 +328,12 @@ const PastoralDashboard: React.FC = React.memo(() => {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
                       <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                       <Tooltip
                         contentStyle={{
@@ -385,7 +394,11 @@ const PastoralDashboard: React.FC = React.memo(() => {
                 {zoneStats.length > 0 ? (
                   <div style={{ width: '100%', height: 250, minHeight: 200 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={zoneStats} margin={{ top: 5, right: 10, left: -20, bottom: 0 }} barCategoryGap="35%">
+                      <BarChart
+                        data={zoneStats}
+                        margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+                        barCategoryGap="35%"
+                      >
                         <defs>
                           <linearGradient id="pgradBar1" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#3b82f6" />
@@ -396,7 +409,12 @@ const PastoralDashboard: React.FC = React.memo(() => {
                             <stop offset="100%" stopColor="#4ade80" stopOpacity={0.7} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} horizontal={true} vertical={false} />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          strokeOpacity={0.4}
+                          horizontal={true}
+                          vertical={false}
+                        />
                         <XAxis
                           dataKey="zoneName"
                           tick={{ fontSize: 10 }}
@@ -414,8 +432,20 @@ const PastoralDashboard: React.FC = React.memo(() => {
                           }}
                           cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
                         />
-                        <Bar dataKey="totalGroups" fill="url(#pgradBar1)" name="Grupos" radius={[4, 4, 0, 0]} maxBarSize={20} />
-                        <Bar dataKey="totalMembers" fill="url(#pgradBar2)" name="Miembros" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                        <Bar
+                          dataKey="totalGroups"
+                          fill="url(#pgradBar1)"
+                          name="Grupos"
+                          radius={[4, 4, 0, 0]}
+                          maxBarSize={20}
+                        />
+                        <Bar
+                          dataKey="totalMembers"
+                          fill="url(#pgradBar2)"
+                          name="Miembros"
+                          radius={[4, 4, 0, 0]}
+                          maxBarSize={20}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -616,98 +646,12 @@ const PastoralDashboard: React.FC = React.memo(() => {
         </TabsContent>
 
         <TabsContent value="health" className="space-y-4">
-          {/* System Health */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Salud del Sistema de Discipulado</CardTitle>
-              <CardDescription>Métricas generales del ministerio</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <h4 className="font-medium mb-4">Métricas de Salud</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Asistencia Promedio</span>
-                        <span>{Math.round(stats.average_attendance || 0)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full bg-blue-500"
-                          style={{ width: `${stats.average_attendance || 0}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Salud Espiritual</span>
-                        <span>{(stats.spiritual_health || 0).toFixed(1)}/10</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full bg-green-500"
-                          style={{
-                            width: `${Math.min(100, ((stats.spiritual_health || 0) / 10) * 100)}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Cobertura de Liderazgo</span>
-                        <span>
-                          {(stats.total_groups || 0) > 0
-                            ? Math.round(
-                                ((stats.active_leaders || 0) / (stats.total_groups || 1)) * 100
-                              )
-                            : 0}
-                          %
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full bg-purple-500"
-                          style={{
-                            width: `${
-                              (stats.total_groups || 0) > 0
-                                ? Math.min(
-                                    100,
-                                    ((stats.active_leaders || 0) / (stats.total_groups || 1)) * 100
-                                  )
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-medium mb-4">Resumen del Sistema</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between p-3 bg-muted rounded-lg">
-                      <span>Total de Zonas</span>
-                      <span className="font-bold">{zoneStats.length}</span>
-                    </div>
-                    <div className="flex justify-between p-3 bg-muted rounded-lg">
-                      <span>Grupos Activos</span>
-                      <span className="font-bold">{stats.total_groups}</span>
-                    </div>
-                    <div className="flex justify-between p-3 bg-muted rounded-lg">
-                      <span>Líderes en el Sistema</span>
-                      <span className="font-bold">{stats.active_leaders || 0}</span>
-                    </div>
-                    <div className="flex justify-between p-3 bg-muted rounded-lg">
-                      <span>Multiplicaciones este Año</span>
-                      <span className="font-bold">{stats.multiplications || 0}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <MinistryHealthTab
+            stats={stats}
+            zoneStats={zoneStats}
+            weeklyTrends={weeklyTrends}
+            alerts={alerts as DiscipleshipAlert[]}
+          />
         </TabsContent>
       </Tabs>
 

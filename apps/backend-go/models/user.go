@@ -6,33 +6,33 @@ import (
 )
 
 type User struct {
-	ID               string     `json:"id" db:"id"`
-	FirstName        string     `json:"first_name" db:"first_name"`
-	LastName         string     `json:"last_name" db:"last_name"`
-	IdNumber         string     `json:"id_number" db:"id_number"`
-	Email            string     `json:"email" db:"email"`
-	Phone            string     `json:"phone" db:"phone"`
-	Address          string     `json:"address" db:"address"`
-	BirthDate        *string    `json:"birth_date" db:"birth_date"`
-	BaptismDate      *string    `json:"baptism_date" db:"baptism_date"`
-	Baptized         bool       `json:"baptized" db:"baptized"`
-	Role             string     `json:"role" db:"role"`
-	WhatsApp         bool       `json:"whatsapp" db:"whatsapp"`
-	PasswordHash     string     `json:"-" db:"password_hash"`
-	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at" db:"updated_at"`
-	MaritalStatus    *string    `json:"marital_status" db:"marital_status"`
-	Occupation       *string    `json:"occupation" db:"occupation"`
-	EducationLevel   *string    `json:"education_level" db:"education_level"`
-	HowFoundChurch   *string    `json:"how_found_church" db:"how_found_church"`
-	MinistryInterest *string    `json:"ministry_interest" db:"ministry_interest"`
-	FirstVisitDate   *string    `json:"first_visit_date" db:"first_visit_date"`
-	CellGroup        *string    `json:"cell_group" db:"cell_group"`
-	CellLeaderID     *string    `json:"cell_leader_id" db:"cell_leader_id"`
-	PastoralNotes    *string    `json:"pastoral_notes" db:"pastoral_notes"`
-	IsActive         bool       `json:"is_active" db:"is_active"`
-	IsActiveMember   bool       `json:"is_active_member" db:"is_active_member"`
-	MembershipDate   *string    `json:"membership_date" db:"membership_date"`
+	ID               string    `json:"id" db:"id"`
+	FirstName        string    `json:"first_name" db:"first_name"`
+	LastName         string    `json:"last_name" db:"last_name"`
+	IdNumber         string    `json:"id_number" db:"id_number"`
+	Email            string    `json:"email" db:"email"`
+	Phone            string    `json:"phone" db:"phone"`
+	Address          string    `json:"address" db:"address"`
+	BirthDate        *string   `json:"birth_date" db:"birth_date"`
+	BaptismDate      *string   `json:"baptism_date" db:"baptism_date"`
+	Baptized         bool      `json:"baptized" db:"baptized"`
+	Role             string    `json:"role" db:"role"`
+	WhatsApp         bool      `json:"whatsapp" db:"whatsapp"`
+	PasswordHash     string    `json:"-" db:"password_hash"`
+	CreatedAt        time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
+	MaritalStatus    *string   `json:"marital_status" db:"marital_status"`
+	Occupation       *string   `json:"occupation" db:"occupation"`
+	EducationLevel   *string   `json:"education_level" db:"education_level"`
+	HowFoundChurch   *string   `json:"how_found_church" db:"how_found_church"`
+	MinistryInterest *string   `json:"ministry_interest" db:"ministry_interest"`
+	FirstVisitDate   *string   `json:"first_visit_date" db:"first_visit_date"`
+	CellGroup        *string   `json:"cell_group" db:"cell_group"`
+	CellLeaderID     *string   `json:"cell_leader_id" db:"cell_leader_id"`
+	PastoralNotes    *string   `json:"pastoral_notes" db:"pastoral_notes"`
+	IsActive         bool      `json:"is_active" db:"is_active"`
+	IsActiveMember   bool      `json:"is_active_member" db:"is_active_member"`
+	MembershipDate   *string   `json:"membership_date" db:"membership_date"`
 
 	ZoneID                *string `json:"zone_id" db:"zone_id"`
 	Territory             *string `json:"territory" db:"territory"`
@@ -73,10 +73,10 @@ type UpdateUserRequest struct {
 	FirstVisitDate   *string `json:"first_visit_date,omitempty"`
 
 	// Church membership
-	Baptized       *bool      `json:"baptized,omitempty"`
-	BaptismDate    *string    `json:"baptism_date,omitempty"`
-	IsActiveMember *bool      `json:"is_active_member,omitempty"`
-	MembershipDate *string    `json:"membership_date,omitempty"`
+	Baptized       *bool   `json:"baptized,omitempty"`
+	BaptismDate    *string `json:"baptism_date,omitempty"`
+	IsActiveMember *bool   `json:"is_active_member,omitempty"`
+	MembershipDate *string `json:"membership_date,omitempty"`
 
 	// Cell group
 	CellGroup *string `json:"cell_group,omitempty"`
@@ -97,7 +97,8 @@ type UpdateUserRequest struct {
 	// Role
 	Role *string `json:"role,omitempty"`
 
-	// ID Number
+	// Avatar
+	AvatarURL *string `json:"avatar_url,omitempty" db:"avatar_url"`
 }
 
 type LiveStream struct {

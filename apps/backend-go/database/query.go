@@ -80,8 +80,8 @@ func BuildUpdateQueryFromMap(data map[string]interface{}, tableName, idColumn, i
 	argPos := 1
 
 	for key, value := range data {
-		// Skip nil values and the id column
-		if value == nil || key == idColumn || key == "id" {
+		// Skip nil values, id columns, and timestamp columns managed by the builder
+		if value == nil || key == idColumn || key == "id" || key == "updated_at" || key == "created_at" {
 			continue
 		}
 

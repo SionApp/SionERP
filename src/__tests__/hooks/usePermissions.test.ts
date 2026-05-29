@@ -1,13 +1,29 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { usePermissions } from '@/hooks/usePermissions';
 
-// usePermissions tiene DOS dependencias:
+// usePermissions tiene tres dependencias:
 //   1. useAuth → el usuario autenticado
 //   2. fetchPermissions → la llamada a la API de permisos
-// Mockeamos ambas para controlar 100% lo que recibe el hook.
+//   3. supabase → consulta role_module_access para roles no-pastor
+
+// role_module_access rows returned by the supabase mock (mutable per test)
+let mockRoleModuleRows: { module_key: string; enabled: boolean }[] = [];
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: vi.fn(),
+}));
+
+// Supabase mock: from().select().eq() resolves with mockRoleModuleRows
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi
+          .fn()
+          .mockImplementation(() => Promise.resolve({ data: mockRoleModuleRows, error: null })),
+      }),
+    }),
+  },
 }));
 
 vi.mock('@/lib/permissions', () => ({
@@ -29,6 +45,7 @@ import { fetchPermissions, invalidatePermissionsCache } from '@/lib/permissions'
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockRoleModuleRows = []; // reset per test
 });
 
 describe('usePermissions — estado inicial', () => {
@@ -152,5 +169,69 @@ describe('usePermissions — computed values', () => {
 
     expect(result.current.canManageRoles).toBe(true);
     expect(result.current.canManageUsers).toBe(true);
+  });
+});
+
+describe('usePermissions.hasAccess — doble check role_module_access', () => {
+  // Este bloque testea la nueva lógica: módulo instalado Y permitido para el rol.
+  // Para pastor/admin el check de role_module_access se bypasea siempre.
+
+  async function mountWithSupervisor(installedModules: string[], allowedByRole: string[]) {
+    vi.mocked(useAuth).mockReturnValue({ user: { id: 'u1' } } as any);
+    vi.mocked(fetchPermissions).mockResolvedValue({
+      role: 'supervisor',
+      role_level: 200,
+      has_admin_access: false,
+      installed_modules: installedModules,
+    });
+    mockRoleModuleRows = allowedByRole.map(m => ({ module_key: m, enabled: true }));
+
+    const { result } = renderHook(() => usePermissions());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    return result;
+  }
+
+  test('módulo instalado Y permitido para el rol → acceso concedido', async () => {
+    const result = await mountWithSupervisor(['discipleship'], ['discipleship']);
+
+    expect(result.current.hasAccess(200, 'discipleship')).toBe(true);
+  });
+
+  test('módulo instalado pero NO permitido para el rol → acceso denegado', async () => {
+    // discipleship está instalado en la iglesia pero el supervisor no tiene acceso
+    const result = await mountWithSupervisor(['discipleship'], []); // no modules allowed
+
+    expect(result.current.hasAccess(200, 'discipleship')).toBe(false);
+  });
+
+  test('módulo NO instalado (aunque esté permitido) → acceso denegado', async () => {
+    // eventos no está instalado aunque el rol lo permita
+    const result = await mountWithSupervisor([], ['events']);
+
+    expect(result.current.hasAccess(200, 'events')).toBe(false);
+  });
+
+  test('pastor bypasea role_module_access y accede aunque el array esté vacío', async () => {
+    vi.mocked(useAuth).mockReturnValue({ user: { id: 'u1' } } as any);
+    vi.mocked(fetchPermissions).mockResolvedValue({
+      role: 'pastor',
+      role_level: 400,
+      has_admin_access: true,
+      installed_modules: ['discipleship', 'events'],
+    });
+    // mockRoleModuleRows está vacío — no importa para pastor
+
+    const { result } = renderHook(() => usePermissions());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.hasAccess(400, 'discipleship')).toBe(true);
+    expect(result.current.hasAccess(400, 'events')).toBe(true);
+  });
+
+  test('módulo base siempre es accesible (bypass de role_module_access)', async () => {
+    const result = await mountWithSupervisor([], []); // nada instalado ni permitido
+
+    // 'base' no requiere ni instalación ni permiso de rol
+    expect(result.current.hasAccess(200, 'base')).toBe(true);
   });
 });

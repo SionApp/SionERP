@@ -19,6 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
+import { applyBrandColors } from '@/hooks/useBrandColors';
 import { SettingsService } from '@/services/settings.service';
 import type { ChurchInfo, NotificationConfig, SystemSettings } from '@/types/settings.types';
 import {
@@ -146,7 +147,12 @@ const SettingsPage = () => {
             Administra y personaliza la configuración de tu iglesia
           </p>
         </div>
-        <Button variant="outline" onClick={loadAllSettings} disabled={isLoading} className="w-full sm:w-auto">
+        <Button
+          variant="outline"
+          onClick={loadAllSettings}
+          disabled={isLoading}
+          className="w-full sm:w-auto"
+        >
           <RotateCcw className="w-4 h-4 mr-2" />
           Recargar
         </Button>
@@ -155,12 +161,42 @@ const SettingsPage = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <TabsList className="inline-flex w-full lg:grid lg:grid-cols-6 h-auto min-w-max lg:min-w-0 gap-1 lg:gap-0">
-            <TabsTrigger value="general" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">General</TabsTrigger>
-            <TabsTrigger value="church" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Iglesia</TabsTrigger>
-            <TabsTrigger value="zones" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Zonas</TabsTrigger>
-<TabsTrigger value="notifications" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Notificaciones</TabsTrigger>
-            <TabsTrigger value="security" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Seguridad</TabsTrigger>
-            <TabsTrigger value="backup" className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3">Respaldos</TabsTrigger>
+            <TabsTrigger
+              value="general"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              General
+            </TabsTrigger>
+            <TabsTrigger
+              value="church"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Iglesia
+            </TabsTrigger>
+            <TabsTrigger
+              value="zones"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Zonas
+            </TabsTrigger>
+            <TabsTrigger
+              value="notifications"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Notificaciones
+            </TabsTrigger>
+            <TabsTrigger
+              value="security"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Seguridad
+            </TabsTrigger>
+            <TabsTrigger
+              value="backup"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Respaldos
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -213,15 +249,24 @@ const SettingsPage = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="America/Argentina/Buenos_Aires">
+                            América/Buenos_Aires (UTC-3)
+                          </SelectItem>
+                          <SelectItem value="America/Santiago">América/Santiago (UTC-3)</SelectItem>
+                          <SelectItem value="America/Sao_Paulo">
+                            América/São Paulo (UTC-3)
+                          </SelectItem>
                           <SelectItem value="America/Santo_Domingo">
-                            America/Santo_Domingo (UTC-4)
+                            América/Santo_Domingo (UTC-4)
                           </SelectItem>
-                          <SelectItem value="America/Caracas">America/Caracas (UTC-4)</SelectItem>
-                          <SelectItem value="America/Bogota">America/Bogotá (UTC-5)</SelectItem>
-                          <SelectItem value="America/Lima">America/Lima (UTC-5)</SelectItem>
+                          <SelectItem value="America/Caracas">América/Caracas (UTC-4)</SelectItem>
+                          <SelectItem value="America/Bogota">América/Bogotá (UTC-5)</SelectItem>
+                          <SelectItem value="America/Lima">América/Lima (UTC-5)</SelectItem>
                           <SelectItem value="America/Mexico_City">
-                            America/Mexico_City (UTC-6)
+                            América/Mexico_City (UTC-6)
                           </SelectItem>
+                          <SelectItem value="Europe/Madrid">Europa/Madrid (UTC+1)</SelectItem>
+                          <SelectItem value="UTC">UTC</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -500,23 +545,22 @@ const SettingsPage = () => {
                             <input
                               type="color"
                               value={churchInfo.primary_color}
-                              onChange={e =>
-                                setChurchInfo({
-                                  ...churchInfo,
-                                  primary_color: e.target.value,
-                                })
-                              }
+                              onChange={e => {
+                                const next = { ...churchInfo, primary_color: e.target.value };
+                                setChurchInfo(next);
+                                applyBrandColors(next.primary_color, next.secondary_color);
+                              }}
                               className="w-10 h-10 rounded-lg border cursor-pointer"
                             />
                             <Input
                               id="primary_color"
                               value={churchInfo.primary_color}
-                              onChange={e =>
-                                setChurchInfo({
-                                  ...churchInfo,
-                                  primary_color: e.target.value,
-                                })
-                              }
+                              onChange={e => {
+                                const next = { ...churchInfo, primary_color: e.target.value };
+                                setChurchInfo(next);
+                                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value))
+                                  applyBrandColors(next.primary_color, next.secondary_color);
+                              }}
                               placeholder="#1e40af"
                               className="flex-1"
                             />
@@ -529,27 +573,60 @@ const SettingsPage = () => {
                             <input
                               type="color"
                               value={churchInfo.secondary_color}
-                              onChange={e =>
-                                setChurchInfo({
-                                  ...churchInfo,
-                                  secondary_color: e.target.value,
-                                })
-                              }
+                              onChange={e => {
+                                const next = { ...churchInfo, secondary_color: e.target.value };
+                                setChurchInfo(next);
+                                applyBrandColors(next.primary_color, next.secondary_color);
+                              }}
                               className="w-10 h-10 rounded-lg border cursor-pointer"
                             />
                             <Input
                               id="secondary_color"
                               value={churchInfo.secondary_color}
-                              onChange={e =>
-                                setChurchInfo({
-                                  ...churchInfo,
-                                  secondary_color: e.target.value,
-                                })
-                              }
+                              onChange={e => {
+                                const next = { ...churchInfo, secondary_color: e.target.value };
+                                setChurchInfo(next);
+                                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value))
+                                  applyBrandColors(next.primary_color, next.secondary_color);
+                              }}
                               placeholder="#fbbf24"
                               className="flex-1"
                             />
                           </div>
+                        </div>
+
+                        {/* Live preview */}
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="text-xs text-muted-foreground font-medium">Vista previa</p>
+                          <div className="flex flex-wrap gap-2 items-center">
+                            <span
+                              className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white"
+                              style={{ background: churchInfo.primary_color }}
+                            >
+                              Botón primario
+                            </span>
+                            <span
+                              className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium"
+                              style={{
+                                background: churchInfo.secondary_color,
+                                color: '#1a1a1a',
+                              }}
+                            >
+                              Botón secundario
+                            </span>
+                            <span
+                              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                              style={{ background: churchInfo.primary_color }}
+                            >
+                              Badge
+                            </span>
+                          </div>
+                          <div
+                            className="h-2 w-full rounded-full"
+                            style={{
+                              background: `linear-gradient(to right, ${churchInfo.primary_color}, ${churchInfo.secondary_color})`,
+                            }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -1032,42 +1109,25 @@ const SettingsPage = () => {
               <CardDescription>Gestión de respaldos del sistema</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
-                <Card className="p-4 border-dashed">
-                  <div className="text-center space-y-2">
-                    <Database className="w-8 h-8 mx-auto text-muted-foreground" />
-                    <h4 className="font-medium">Exportar Datos</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Descarga una copia completa de los datos
-                    </p>
-                    <Button variant="outline" className="mt-2">
-                      Exportar
-                    </Button>
-                  </div>
-                </Card>
-
-                <Card className="p-4 border-dashed">
-                  <div className="text-center space-y-2">
-                    <Database className="w-8 h-8 mx-auto text-muted-foreground" />
-                    <h4 className="font-medium">Importar Datos</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Restaurar desde un archivo de respaldo
-                    </p>
-                    <Button variant="outline" className="mt-2">
-                      Importar
-                    </Button>
-                  </div>
-                </Card>
+              <div className="rounded-lg border border-dashed p-6 text-center space-y-3">
+                <Database className="w-10 h-10 mx-auto text-muted-foreground/50" />
+                <div>
+                  <h4 className="font-medium">Respaldos en desarrollo</h4>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    La exportación e importación de datos estará disponible en una próxima versión.
+                    Por ahora, Supabase realiza respaldos automáticos diariamente.
+                  </p>
+                </div>
+                <Badge variant="outline">Supabase Backup: Activo</Badge>
               </div>
 
-              <div className="p-4 bg-muted rounded-lg">
-                <h4 className="font-medium mb-2">Último Respaldo</h4>
-                <p className="text-sm text-muted-foreground">
-                  Los respaldos automáticos se realizan diariamente a las 3:00 AM
-                </p>
-                <Badge variant="outline" className="mt-2">
-                  Automático: Habilitado
-                </Badge>
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <h4 className="font-medium text-sm">Información de respaldo</h4>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Respaldo automático cada 24 horas vía Supabase</li>
+                  <li>Retención de 7 días en plan gratuito</li>
+                  <li>Restauración disponible desde el panel de Supabase</li>
+                </ul>
               </div>
             </CardContent>
           </Card>

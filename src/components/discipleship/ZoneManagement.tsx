@@ -42,20 +42,25 @@ import {
 import {
   AlertCircle,
   Building,
+  ChevronLeft,
+  ChevronRight,
   Edit2,
   Loader2,
   MapPin,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Target,
   Trash2,
   Users,
 } from 'lucide-react';
 import { Can } from '@/components/Can';
 import { ROLE_LEVELS } from '@/lib/permissions';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import UserZoneAssignment from './UserZoneAssignment';
+
+const PAGE_SIZE = 9;
 
 // Helper para normalizar valores sql.NullString que vienen como {String, Valid}
 const normalizeNullString = (value: unknown): string | null => {
@@ -73,6 +78,9 @@ const ZoneManagement: React.FC = () => {
     useZones();
 
   const { supervisors, loading: loadingSupervisors } = useAvailableSupervisors();
+
+  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -95,6 +103,26 @@ const ZoneManagement: React.FC = () => {
     supervisor_id: '',
     boundaries: null,
   });
+
+  const filteredZones = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return zones;
+    return zones.filter(
+      z =>
+        z.name.toLowerCase().includes(q) ||
+        (normalizeNullString(z.description) || '').toLowerCase().includes(q)
+    );
+  }, [zones, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredZones.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pagedZones = filteredZones.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setCurrentPage(1);
+  };
 
   const handleSave = async () => {
     if (!formData.name.trim()) return;
@@ -224,255 +252,326 @@ const ZoneManagement: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg md:text-xl">
+              <CardTitle className="flex items-center gap-2 text-xl leading-none">
                 <MapPin className="w-5 h-5 flex-shrink-0 text-blue-500" />
-                <span>Gestión de Zonas Geográficas</span>
+                Zonas Geográficas
               </CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Administra las zonas donde operan las células de discipulado
+              <CardDescription className="mt-1">
+                {filteredZones.length} zona{filteredZones.length !== 1 ? 's' : ''}
+                {search ? ` de ${zones.length}` : ' en total'}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={refetch}
-                disabled={loading}
-                className="flex-1 md:flex-none"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Actualizar
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  className="h-8 w-full pl-8 sm:w-48"
+                  placeholder="Buscar zona..."
+                  value={search}
+                  onChange={e => handleSearchChange(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline ml-1">Actualizar</span>
               </Button>
               <Can I={ROLE_LEVELS.staff}>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={resetForm} size="sm" className="flex-1 md:flex-none">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nueva Zona
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>{editingZone ? 'Editar Zona' : 'Nueva Zona'}</DialogTitle>
-                    <DialogDescription>
-                      {editingZone
-                        ? 'Modifica los datos de la zona geográfica'
-                        : 'Crea una nueva zona para organizar las células'}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="zone-name">Nombre de la Zona *</Label>
-                      <Input
-                        id="zone-name"
-                        value={formData.name}
-                        onChange={e => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="Ej: Zona Norte"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="zone-description">Descripción</Label>
-                      <Textarea
-                        id="zone-description"
-                        value={formData.description}
-                        onChange={e => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Describe los sectores de esta zona"
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="zone-supervisor">Supervisor</Label>
-                      <Select
-                        value={formData.supervisor_id || 'none'}
-                        onValueChange={value =>
-                          setFormData({ ...formData, supervisor_id: value === 'none' ? '' : value })
-                        }
-                        disabled={loadingSupervisors}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un supervisor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sin supervisor</SelectItem>
-                          {Array.isArray(supervisors) &&
-                            supervisors.map(supervisor => (
-                              <SelectItem key={supervisor.id} value={supervisor.id}>
-                                {supervisor.full_name ||
-                                  `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() ||
-                                  supervisor.email}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="zone-color">Color Identificativo</Label>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-8 h-8 rounded border"
-                          style={{ backgroundColor: formData.color }}
-                        />
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button onClick={resetForm} size="sm" className="flex-1 md:flex-none">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nueva Zona
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>{editingZone ? 'Editar Zona' : 'Nueva Zona'}</DialogTitle>
+                      <DialogDescription>
+                        {editingZone
+                          ? 'Modifica los datos de la zona geográfica'
+                          : 'Crea una nueva zona para organizar las células'}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="zone-name">Nombre de la Zona *</Label>
                         <Input
-                          id="zone-color"
-                          type="color"
-                          value={formData.color}
-                          onChange={e => setFormData({ ...formData, color: e.target.value })}
-                          className="w-20"
+                          id="zone-name"
+                          value={formData.name}
+                          onChange={e => setFormData({ ...formData, name: e.target.value })}
+                          placeholder="Ej: Zona Norte"
                         />
-                        <span className="text-sm text-muted-foreground">{formData.color}</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="zone-description">Descripción</Label>
+                        <Textarea
+                          id="zone-description"
+                          value={formData.description}
+                          onChange={e => setFormData({ ...formData, description: e.target.value })}
+                          placeholder="Describe los sectores de esta zona"
+                          rows={3}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="zone-supervisor">Supervisor</Label>
+                        <Select
+                          value={formData.supervisor_id || 'none'}
+                          onValueChange={value =>
+                            setFormData({
+                              ...formData,
+                              supervisor_id: value === 'none' ? '' : value,
+                            })
+                          }
+                          disabled={loadingSupervisors}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un supervisor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin supervisor</SelectItem>
+                            {Array.isArray(supervisors) &&
+                              supervisors.map(supervisor => (
+                                <SelectItem key={supervisor.id} value={supervisor.id}>
+                                  {supervisor.full_name ||
+                                    `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() ||
+                                    supervisor.email}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="zone-color">Color Identificativo</Label>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-8 h-8 rounded border"
+                            style={{ backgroundColor: formData.color }}
+                          />
+                          <Input
+                            id="zone-color"
+                            type="color"
+                            value={formData.color}
+                            onChange={e => setFormData({ ...formData, color: e.target.value })}
+                            className="w-20"
+                          />
+                          <span className="text-sm text-muted-foreground">{formData.color}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Área de la Zona</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => {
+                            setIsMapEditorOpen(true);
+                            setMapEditorKey(prev => prev + 1);
+                          }}
+                        >
+                          <MapPin className="w-4 h-4 mr-2" />
+                          {formData.boundaries
+                            ? 'Editar polígono en el mapa'
+                            : 'Definir área en el mapa (Opcional)'}
+                        </Button>
+                        {formData.boundaries && (
+                          <p className="text-xs text-green-600 mt-1">
+                            Polígono definido correctamente.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleSave} disabled={saving || !formData.name.trim()}>
+                          {saving ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4 mr-2" />
+                          )}
+                          {editingZone ? 'Actualizar' : 'Crear'}
+                        </Button>
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label>Área de la Zona</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => {
-                          setIsMapEditorOpen(true);
-                          setMapEditorKey(prev => prev + 1);
-                        }}
-                      >
-                        <MapPin className="w-4 h-4 mr-2" />
-                        {formData.boundaries
-                          ? 'Editar polígono en el mapa'
-                          : 'Definir área en el mapa (Opcional)'}
-                      </Button>
-                      {formData.boundaries && (
-                        <p className="text-xs text-green-600 mt-1">
-                          Polígono definido correctamente.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-4">
-                      <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleSave} disabled={saving || !formData.name.trim()}>
-                        {saving ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4 mr-2" />
-                        )}
-                        {editingZone ? 'Actualizar' : 'Crear'}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
               </Can>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {zones.length === 0 ? (
+          {filteredZones.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p className="mb-2">No hay zonas configuradas</p>
-              <p className="text-sm">Crea la primera zona para comenzar</p>
+              {search ? (
+                <p>No hay zonas que coincidan con "{search}"</p>
+              ) : (
+                <>
+                  <p className="mb-2">No hay zonas configuradas</p>
+                  <p className="text-sm">Crea la primera zona para comenzar</p>
+                </>
+              )}
             </div>
           ) : (
-            <div className="space-y-4">
-              {zones.map(zone => {
-                const stats = getZoneStatsById(zone.id);
+            <>
+              <div className="space-y-4">
+                {pagedZones.map(zone => {
+                  const stats = getZoneStatsById(zone.id);
 
-                return (
-                  <div
-                    key={zone.id}
-                    className="p-4 border rounded-xl hover:bg-accent/50 transition-all space-y-4 shadow-sm"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm"
-                          style={{ backgroundColor: zone.color }}
-                        />
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-base sm:text-lg truncate">{zone.name}</h3>
-                          <Badge
-                            variant="secondary"
-                            className="mt-1 font-normal text-[10px] sm:text-xs"
-                          >
-                            {getSupervisorName(zone.supervisor_id)}
-                          </Badge>
+                  return (
+                    <div
+                      key={zone.id}
+                      className="p-4 border rounded-xl hover:bg-accent/50 transition-all space-y-4 shadow-sm"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm"
+                            style={{ backgroundColor: zone.color }}
+                          />
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-base sm:text-lg truncate">{zone.name}</h3>
+                            <Badge
+                              variant="secondary"
+                              className="mt-1 font-normal text-[10px] sm:text-xs"
+                            >
+                              {getSupervisorName(zone.supervisor_id)}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                      <Can I={ROLE_LEVELS.staff}>
-                      <div className="flex items-center gap-1 ml-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleEdit(zone)}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Can I={ROLE_LEVELS.pastor}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDeleteClick(zone)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <Can I={ROLE_LEVELS.staff}>
+                          <div className="flex items-center gap-1 ml-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleEdit(zone)}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Can I={ROLE_LEVELS.pastor}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleDeleteClick(zone)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </Can>
+                          </div>
                         </Can>
                       </div>
-                      </Can>
-                    </div>
 
-                    {normalizeNullString(zone.description) && (
-                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
-                        {normalizeNullString(zone.description)}
-                      </p>
-                    )}
+                      {normalizeNullString(zone.description) && (
+                        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
+                          {normalizeNullString(zone.description)}
+                        </p>
+                      )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="flex items-center gap-3 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100/50 dark:border-blue-800/30 rounded-xl p-3">
-                        <Building className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                            Células
-                          </p>
-                          <p className="text-base font-bold text-blue-700 dark:text-blue-300">
-                            {stats?.total_groups ?? zone.total_groups ?? 0}
-                          </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="flex items-center gap-3 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100/50 dark:border-blue-800/30 rounded-xl p-3">
+                          <Building className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                              Células
+                            </p>
+                            <p className="text-base font-bold text-blue-700 dark:text-blue-300">
+                              {stats?.total_groups ?? zone.total_groups ?? 0}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3 bg-emerald-50/50 dark:bg-emerald-900/20 border border-emerald-100/50 dark:border-emerald-800/30 rounded-xl p-3">
-                        <Users className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                            Miembros
-                          </p>
-                          <p className="text-base font-bold text-emerald-700 dark:text-emerald-300">
-                            {stats?.total_members ?? zone.total_members ?? 0}
-                          </p>
+                        <div className="flex items-center gap-3 bg-emerald-50/50 dark:bg-emerald-900/20 border border-emerald-100/50 dark:border-emerald-800/30 rounded-xl p-3">
+                          <Users className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                              Miembros
+                            </p>
+                            <p className="text-base font-bold text-emerald-700 dark:text-emerald-300">
+                              {stats?.total_members ?? zone.total_members ?? 0}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3 bg-amber-50/50 dark:bg-amber-900/20 border border-amber-100/50 dark:border-amber-800/30 rounded-xl p-3">
-                        <Target className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                            Asistencia
-                          </p>
-                          <p className="text-base font-bold text-amber-700 dark:text-amber-300">
-                            {(stats?.avg_attendance ?? zone.avg_attendance ?? 0).toFixed(0)}%
-                          </p>
+                        <div className="flex items-center gap-3 bg-amber-50/50 dark:bg-amber-900/20 border border-amber-100/50 dark:border-amber-800/30 rounded-xl p-3">
+                          <Target className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                              Asistencia
+                            </p>
+                            <p className="text-base font-bold text-amber-700 dark:text-amber-300">
+                              {(stats?.avg_attendance ?? zone.avg_attendance ?? 0).toFixed(0)}%
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 border-t mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Mostrando{' '}
+                    <span className="font-medium text-foreground">
+                      {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredZones.length)}
+                    </span>{' '}
+                    de <span className="font-medium text-foreground">{filteredZones.length}</span>
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={safePage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                      .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((item, idx) =>
+                        item === 'ellipsis' ? (
+                          <span key={`e-${idx}`} className="px-1 text-muted-foreground text-sm">
+                            …
+                          </span>
+                        ) : (
+                          <Button
+                            key={item}
+                            variant={safePage === item ? 'default' : 'outline'}
+                            size="icon"
+                            className="h-8 w-8 text-xs"
+                            onClick={() => setCurrentPage(item as number)}
+                          >
+                            {item}
+                          </Button>
+                        )
+                      )}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={safePage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

@@ -26,7 +26,7 @@ describe('UserService', () => {
 
       const result = await UserService.getAllUsers();
 
-      expect(ApiService.get).toHaveBeenCalledWith('/users');
+      expect(ApiService.get).toHaveBeenCalledWith('/users?limit=100');
       expect(result[0].full_name).toBe('John Doe');
       expect(result[1].full_name).toBe('Jane Smith');
     });

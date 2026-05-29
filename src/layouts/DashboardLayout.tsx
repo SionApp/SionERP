@@ -2,7 +2,17 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { SetupModal } from '@/components/SetupModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { PreferencesPanel } from '@/components/PreferencesPanel';
+import { useBrandColors } from '@/hooks/useBrandColors';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { NotificationCenter } from '@/components/ui/notifications';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
@@ -11,7 +21,7 @@ import { useNotificationsData } from '@/hooks/useNotificationsData';
 import { useSetupShortcut } from '@/hooks/useSetupShortcut';
 import { invalidatePermissionsCache } from '@/lib/permissions';
 import { UserService } from '@/services/user.service';
-import { Bell, LogOut } from 'lucide-react';
+import { Bell, LogOut, Palette, UserCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -21,10 +31,12 @@ const ONBOARDING_ALLOWED = [PROFILE_PATH, '/dashboard'];
 
 const DashboardLayout = () => {
   const { user, logout: authLogout } = useAuth();
+  useBrandColors();
   const { notifications, unreadCount, markAsRead, markAllAsRead, dismiss } = useNotificationsData();
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
   const navigate = useNavigate();
   const location = useLocation();
   const { isOpen: isSetupOpen, setIsOpen: setSetupOpen } = useSetupShortcut();
@@ -40,6 +52,7 @@ const DashboardLayout = () => {
       try {
         const userData = await UserService.getCurrentUser();
         setUserRole(userData.role || '');
+        setAvatarUrl(userData.avatar_url || '');
         if (!userData.onboarding_completed) {
           setNeedsOnboarding(true);
         }
@@ -125,23 +138,51 @@ const DashboardLayout = () => {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-            <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-2xl bg-accent/30 backdrop-blur-sm border border-border/30">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md">
-                <span className="text-primary-foreground font-semibold text-xs">
-                  {user?.user_metadata?.first_name?.[0] || user?.email?.[0] || 'U'}
-                </span>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium">
-                  {user?.user_metadata?.first_name || user?.email?.split('@')[0]}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : 'Cargando...'}
-                </p>
-              </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-accent/30 backdrop-blur-sm border border-border/30 hover:bg-accent/50 transition-colors cursor-pointer">
+                  <Avatar className="w-8 h-8 shrink-0">
+                    <AvatarImage src={avatarUrl} alt="Avatar" />
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/70 text-primary-foreground font-semibold text-xs">
+                      {user?.user_metadata?.first_name?.[0] || user?.email?.[0] || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="text-left">
+                    <p className="text-sm font-medium leading-tight">
+                      {user?.user_metadata?.first_name || user?.email?.split('@')[0]}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-tight">
+                      {userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : ''}
+                    </p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={() => navigate('/dashboard/profile')}
+                  className="cursor-pointer"
+                >
+                  <UserCircle className="h-4 w-4 mr-2" /> Mi Perfil
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => navigate('/dashboard/settings')}
+                  className="cursor-pointer"
+                >
+                  <Palette className="h-4 w-4 mr-2" /> Colores del sistema
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <LogOut className="h-4 w-4 mr-2" /> Salir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <ThemeToggle />
+
+            <PreferencesPanel />
 
             <Popover>
               <PopoverTrigger asChild>
@@ -168,18 +209,9 @@ const DashboardLayout = () => {
               variant="ghost"
               size="icon"
               onClick={handleLogout}
-              className="sm:hidden flex items-center justify-center rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
+              className="md:hidden flex items-center justify-center rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
             >
               <LogOut className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Salir</span>
             </Button>
           </div>
         </header>

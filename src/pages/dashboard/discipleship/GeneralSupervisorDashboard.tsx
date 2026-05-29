@@ -1,5 +1,8 @@
 import { ReportDetailSheet } from './ReportDetailSheet';
 import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
+import { UserDetailSheet } from '@/components/UserDetailSheet';
+import { CreateGoalModal } from '@/components/discipleship/CreateGoalModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,6 +70,9 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<DiscipleshipReport | null>(null);
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [selectedSupervisor, setSelectedSupervisor] = useState<Subordinate | null>(null);
+  const [supervisorSheetOpen, setSupervisorSheetOpen] = useState(false);
+  const [goalModalOpen, setGoalModalOpen] = useState(false);
 
   // Usar hook específico del supervisor general
   const {
@@ -133,8 +139,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
             Dashboard Supervisor General
           </h1>
           <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate">
-            {user?.email} -{' '}
-            {stats?.zone_name || 'Zona no asignada'}
+            {user?.email} - {stats?.zone_name || 'Zona no asignada'}
           </p>
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -349,7 +354,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => toast.info('Definir objetivos - Funcionalidad próximamente')}
+                  onClick={() => setGoalModalOpen(true)}
                 >
                   <Target className="w-4 h-4 mr-2" />
                   Definir Objetivos
@@ -357,7 +362,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => toast.info('Agregar supervisor - Ve a Gestión de Usuarios')}
+                  onClick={() => navigate('/dashboard/register')}
                 >
                   <UserPlus className="w-4 h-4 mr-2" />
                   Agregar Supervisor
@@ -410,7 +415,10 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => toast.info(`Detalles de: ${supervisor.user_name}`)}
+                            onClick={() => {
+                              setSelectedSupervisor(supervisor);
+                              setSupervisorSheetOpen(true);
+                            }}
                           >
                             Ver Detalle
                           </Button>
@@ -523,7 +531,6 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
           </Card>
         </TabsContent>
 
-
         <TabsContent value="approvals" className="space-y-4">
           <Card>
             <CardHeader>
@@ -604,6 +611,39 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
         onApprove={handleApproveReport}
         onReject={handleRejectReport}
       />
+
+      <UserDetailSheet
+        user={
+          selectedSupervisor
+            ? {
+                id: selectedSupervisor.user_id,
+                email: selectedSupervisor.user_email,
+                first_name: selectedSupervisor.user_name.split(' ')[0] ?? '',
+                last_name: selectedSupervisor.user_name.split(' ').slice(1).join(' '),
+                role: 'supervisor',
+                is_active: true,
+                id_number: '',
+                phone: '',
+                created_at: '',
+                updated_at: '',
+              }
+            : null
+        }
+        isOpen={supervisorSheetOpen}
+        onClose={() => {
+          setSupervisorSheetOpen(false);
+          setSelectedSupervisor(null);
+        }}
+      />
+
+      <Dialog open={goalModalOpen} onOpenChange={setGoalModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Crear Objetivo Estratégico</DialogTitle>
+          </DialogHeader>
+          <CreateGoalModal onSuccess={() => setGoalModalOpen(false)} canSeeAll={false} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });
