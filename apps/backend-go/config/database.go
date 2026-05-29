@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -21,11 +20,6 @@ var (
 )
 
 func NewDatabase() (*Database, error) {
-	// Cargar variables de entorno desde el archivo .env
-	if err := godotenv.Load(); err != nil {
-		return nil, fmt.Errorf("failed to load environment variables: %w", err)
-	}
-
 	dbURL := os.Getenv("SUPABASE_DB_URL")
 	if dbURL == "" {
 		return nil, fmt.Errorf("SUPABASE_DB_URL environment variable is required")
