@@ -281,14 +281,32 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
 
   // Sincronizar con value externo
   useEffect(() => {
-    if (value) {
-      setAddress(value.address);
-      if (lat !== undefined && lng !== undefined) {
-        setMapPosition([lat, lng]);
-        setMapZoom(prev => (prev < 14 ? 15 : prev));
-      }
+    if (!value) return;
+    setAddress(value.address);
+    if (lat !== undefined && lng !== undefined) {
+      setMapPosition([lat, lng]);
+      setMapZoom(prev => (prev < 14 ? 15 : prev));
+    } else if (value.address) {
+      // Tiene address pero no coords — geocodificar para posicionar el mapa
+      const geocode = async () => {
+        try {
+          const url = `${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(value.address)}&limit=1&addressdetails=1`;
+          const res = await fetch(url, { headers: { 'User-Agent': 'SionERP/1.0' } });
+          const data: NominatimFeature[] = await res.json();
+          if (data?.length > 0) {
+            const resolvedLat = parseFloat(data[0].lat);
+            const resolvedLng = parseFloat(data[0].lon);
+            setMapPosition([resolvedLat, resolvedLng]);
+            setMapZoom(15);
+            onChange({ address: value.address, latitude: resolvedLat, longitude: resolvedLng });
+          }
+        } catch {
+          // silently fail — mapa queda en posición default
+        }
+      };
+      geocode();
     }
-  }, [value, lat, lng]);
+  }, [value, lat, lng, onChange]);
 
   return (
     <div className="space-y-2">

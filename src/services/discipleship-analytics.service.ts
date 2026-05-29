@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ApiService } from './api.service';
 
 // =====================================================
@@ -222,6 +223,15 @@ export class DiscipleshipAnalyticsService {
     }));
   }
 
+  static async getGroupPerformanceList(): Promise<GroupPerformance[]> {
+    try {
+      const data = (await ApiService.get('/discipleship/analytics')) as Record<string, unknown>;
+      return this.mapGroupPerformance((data?.group_performance as any[]) || []);
+    } catch {
+      return [];
+    }
+  }
+
   private static mapGroupPerformance(list: any[]): GroupPerformance[] {
     return (list || []).map((g: any) => ({
       groupId: g.group_id || '',
@@ -274,7 +284,7 @@ export class DiscipleshipAnalyticsService {
     const url = `/discipleship/weekly-trends?weeks=${weeks}`;
     const data = await ApiService.get(url);
 
-    return (data || []).map((trend: any) => ({
+    return ((data as any[]) || []).map((trend: any) => ({
       week: trend.week_start || '',
       week_start: trend.week_start || '',
       attendance: trend.total_attendance || 0,
@@ -313,7 +323,7 @@ export class DiscipleshipAnalyticsService {
   static async getLeaderGroupStats(leaderId: string): Promise<LeaderStats | null> {
     try {
       const response = await ApiService.get(`/discipleship/groups?leader_id=${leaderId}`);
-      const groups = response.data || [];
+      const groups = (response as any).data || [];
 
       if (groups.length === 0) return null;
 
@@ -420,7 +430,11 @@ export class DiscipleshipAnalyticsService {
     });
   }
 
-  static async closeIncomplete(id: string, reason: string, achievedPercentage: number): Promise<any> {
+  static async closeIncomplete(
+    id: string,
+    reason: string,
+    achievedPercentage: number
+  ): Promise<any> {
     return await ApiService.post(`/discipleship/goals/${id}/close-incomplete`, {
       reason,
       achieved_percentage: achievedPercentage,
@@ -431,12 +445,23 @@ export class DiscipleshipAnalyticsService {
   // PHASE 1+2+3: CASCADE ASSIGNMENT & MANUAL PROGRESS
   // =====================================================
 
-  static async getGoalActivity(goalId: string): Promise<{ id: string; action: string; table: string; meta: string; user_name: string; created_at: string }[]> {
+  static async getGoalActivity(goalId: string): Promise<
+    {
+      id: string;
+      action: string;
+      table: string;
+      meta: string;
+      user_name: string;
+      created_at: string;
+    }[]
+  > {
     const data = await ApiService.get(`/discipleship/goals/${goalId}/activity`);
     return (data as any[]) ?? [];
   }
 
-  static async getAvailableAssignees(goalId: string): Promise<{ user_id: string; user_name: string; hierarchy_level: number }[]> {
+  static async getAvailableAssignees(
+    goalId: string
+  ): Promise<{ user_id: string; user_name: string; hierarchy_level: number }[]> {
     const data = await ApiService.get(`/discipleship/goals/${goalId}/available-assignees`);
     return (data as { user_id: string; user_name: string; hierarchy_level: number }[]) ?? [];
   }
@@ -446,19 +471,31 @@ export class DiscipleshipAnalyticsService {
     return data as AssignmentTreeNode;
   }
 
-  static async createAssignments(goalId: string, payload: CreateAssignmentsPayload): Promise<GoalAssignment[]> {
+  static async createAssignments(
+    goalId: string,
+    payload: CreateAssignmentsPayload
+  ): Promise<GoalAssignment[]> {
     const data = await ApiService.post(`/discipleship/goals/${goalId}/assignments`, payload);
     return (data as { created: GoalAssignment[] }).created ?? [];
   }
 
-  static async batchAssignToZones(goalId: string, defaultTargetValue?: number): Promise<GoalAssignment[]> {
-    const body = defaultTargetValue !== undefined ? { default_target_value: defaultTargetValue } : {};
-    const data = await ApiService.post(`/discipleship/goals/${goalId}/assignments/batch-zones`, body);
+  static async batchAssignToZones(
+    goalId: string,
+    defaultTargetValue?: number
+  ): Promise<GoalAssignment[]> {
+    const body =
+      defaultTargetValue !== undefined ? { default_target_value: defaultTargetValue } : {};
+    const data = await ApiService.post(
+      `/discipleship/goals/${goalId}/assignments/batch-zones`,
+      body
+    );
     return (data as { created: GoalAssignment[] }).created ?? [];
   }
 
   static async getActiveManualAssignments(period: string): Promise<ActiveAssignment[]> {
-    const data = await ApiService.get(`/discipleship/me/active-manual-assignments?period=${period}`);
+    const data = await ApiService.get(
+      `/discipleship/me/active-manual-assignments?period=${period}`
+    );
     return (data as { assignments: ActiveAssignment[] }).assignments ?? [];
   }
 

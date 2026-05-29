@@ -66,13 +66,11 @@ const RegisterUserPage = () => {
           user.longitude as number | TypeGeolocalization | undefined
         );
 
-        if (userLatitude !== undefined && userLongitude !== undefined) {
-          setGeolocation({
-            address: user.address || '',
-            latitude: userLatitude,
-            longitude: userLongitude,
-          });
-        }
+        setGeolocation({
+          address: user.address || '',
+          latitude: userLatitude,
+          longitude: userLongitude,
+        });
 
         reset({
           email: user.email,
@@ -140,6 +138,18 @@ const RegisterUserPage = () => {
 
   const baptized = watch('baptized');
   const isActiveMember = watch('is_active_member');
+
+  const handleGeolocationChange = useCallback(
+    (value: GeolocationResult | null) => {
+      setGeolocation(value);
+      if (value) {
+        setValue('address', value.address);
+        setValue('latitude', getNumericCoord(value.latitude));
+        setValue('longitude', getNumericCoord(value.longitude));
+      }
+    },
+    [setValue]
+  );
 
   // Handler para mostrar errores de validación
   const onError = (errors: Record<string, { message?: string }>) => {
@@ -295,15 +305,8 @@ const RegisterUserPage = () => {
               <div className="space-y-2">
                 <Label>Dirección y Ubicación</Label>
                 <GeolocationInput
-                  value={geolocation || undefined}
-                  onChange={value => {
-                    setGeolocation(value);
-                    if (value) {
-                      setValue('address', value.address);
-                      setValue('latitude', getNumericCoord(value.latitude));
-                      setValue('longitude', getNumericCoord(value.longitude));
-                    }
-                  }}
+                  value={geolocation}
+                  onChange={handleGeolocationChange}
                   label="Ubicación en el mapa (opcional)"
                   placeholder="Buscar dirección o seleccionar en el mapa..."
                 />

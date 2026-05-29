@@ -46,6 +46,8 @@ export interface User {
   active_groups_count?: number;
   cell_leader_id?: string;
 
+  avatar_url?: string;
+
   // Campo computado (opcional para compatibilidad)
   full_name?: string;
 }

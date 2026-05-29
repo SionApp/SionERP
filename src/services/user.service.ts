@@ -3,16 +3,43 @@ import type { ImportResult, UserImportRow } from '@/types/user-import.types';
 import { CreateUserData, UpdateUserData, UpdateUserRequest, User } from '@/types/user.types';
 import { ApiService } from './api.service';
 
-export class UserService {
-  static async getUsers(): Promise<User[]> {
-    try {
-      const res = await ApiService.get<{ users: User[] }>('/users');
+export interface UserFilters {
+  search?: string;
+  role?: string;
+  page?: number;
+  limit?: number;
+}
 
-      // Add full_name field from first_name + last_name
-      return (res?.users || []).map(user => ({
+export interface PaginatedUsers {
+  users: User[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export class UserService {
+  static async getUsers(filters?: UserFilters): Promise<PaginatedUsers> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.search) params.append('search', filters.search);
+      if (filters?.role) params.append('role', filters.role);
+      if (filters?.page) params.append('page', filters.page.toString());
+      if (filters?.limit) params.append('limit', filters.limit.toString());
+
+      const qs = params.toString();
+      const res = await ApiService.get<{
+        users: User[];
+        total: number;
+        page: number;
+        limit: number;
+      }>(`/users${qs ? `?${qs}` : ''}`);
+
+      const users = (res?.users || []).map(user => ({
         ...user,
         full_name: `${user.first_name} ${user.last_name}`.trim(),
       }));
+
+      return { users, total: res?.total ?? 0, page: res?.page ?? 1, limit: res?.limit ?? 20 };
     } catch (error) {
       console.error('Error fetching users:', error);
       throw error;
@@ -20,7 +47,8 @@ export class UserService {
   }
 
   static async getAllUsers(): Promise<User[]> {
-    return this.getUsers();
+    const res = await this.getUsers({ limit: 100 });
+    return res.users;
   }
 
   static async getCurrentUser(): Promise<User> {

@@ -1,6 +1,8 @@
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -21,8 +23,17 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useZones } from '@/hooks/useZones';
 import { DiscipleshipService, type UserForHierarchy } from '@/services/discipleship.service';
-import type { AssignHierarchyRequest, DiscipleshipHierarchy } from '@/types/discipleship.types';
-import { ChevronLeft, ChevronRight, Edit, Loader2, MapPin, Search, UserCheck, Users } from 'lucide-react';
+import type { AssignHierarchyRequest } from '@/types/discipleship.types';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Edit,
+  Loader2,
+  MapPin,
+  Search,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -48,6 +59,27 @@ const normalizeNullString = (value: unknown): string | null => {
 };
 
 const PAGE_SIZE = 10;
+
+const AVATAR_TONES = [
+  'bg-amber-100 text-amber-700',
+  'bg-orange-100 text-orange-700',
+  'bg-rose-100 text-rose-700',
+  'bg-pink-100 text-pink-700',
+  'bg-purple-100 text-purple-700',
+  'bg-violet-100 text-violet-700',
+  'bg-indigo-100 text-indigo-700',
+  'bg-sky-100 text-sky-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-teal-100 text-teal-700',
+];
+
+function getAvatarTone(name: string) {
+  return AVATAR_TONES[name.length % AVATAR_TONES.length];
+}
+
+function getInitials(firstName: string, lastName: string) {
+  return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
+}
 
 const HierarchyManagement = () => {
   const { zones } = useZones();
@@ -191,7 +223,11 @@ const HierarchyManagement = () => {
   // tienen su supervisor_id apuntando a él — no al revés.
   // → buscar nivel N+1. Excepción: Pastoral (N5) supervisa a todos los
   //   coordinadores sin importar zona (suele haber uno solo).
-  const getAvailableSupervisors = (currentUserId: string, currentLevel: number, zoneName?: string) => {
+  const getAvailableSupervisors = (
+    currentUserId: string,
+    currentLevel: number,
+    zoneName?: string
+  ) => {
     if (!Array.isArray(users)) return [];
 
     const targetLevel = currentLevel + 1;
@@ -300,7 +336,8 @@ const HierarchyManagement = () => {
             <Users className="h-5 w-5" />
             Usuarios
             <span className="text-sm font-normal text-muted-foreground">
-              ({filteredUsers.length}{searchTerm ? ` de ${users.length}` : ''})
+              ({filteredUsers.length}
+              {searchTerm ? ` de ${users.length}` : ''})
             </span>
           </CardTitle>
           <CardDescription>
@@ -328,18 +365,30 @@ const HierarchyManagement = () => {
                       className="group relative flex flex-col gap-4 p-4 sm:p-5 border border-border/50 rounded-2xl bg-card hover:bg-accent/5 transition-all duration-300 shadow-sm hover:shadow-md"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-bold text-base sm:text-lg truncate">
-                              {user.first_name || ''} {user.last_name || ''}
-                            </h3>
-                            {getLevelBadge(user.hierarchy_level ?? undefined)}
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <Avatar className="h-10 w-10 shrink-0">
+                            <AvatarFallback
+                              className={cn(
+                                'text-xs font-semibold',
+                                getAvatarTone(`${user.first_name || ''}${user.last_name || ''}`)
+                              )}
+                            >
+                              {getInitials(user.first_name || '', user.last_name || '')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                              <h3 className="font-bold text-base truncate">
+                                {user.first_name || ''} {user.last_name || ''}
+                              </h3>
+                              {getLevelBadge(user.hierarchy_level ?? undefined)}
+                            </div>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {user.email || ''}
+                            </p>
                           </div>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {user.email || ''}
-                          </p>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -417,8 +466,7 @@ const HierarchyManagement = () => {
                 <span className="font-medium text-foreground">
                   {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredUsers.length)}
                 </span>{' '}
-                de{' '}
-                <span className="font-medium text-foreground">{filteredUsers.length}</span>{' '}
+                de <span className="font-medium text-foreground">{filteredUsers.length}</span>{' '}
                 usuarios
               </p>
 
@@ -438,11 +486,7 @@ const HierarchyManagement = () => {
                   {Array.from({ length: totalPages }, (_, i) => i + 1)
                     .filter(page => {
                       // Mostrar primera, última, actual y adyacentes
-                      return (
-                        page === 1 ||
-                        page === totalPages ||
-                        Math.abs(page - safePage) <= 1
-                      );
+                      return page === 1 || page === totalPages || Math.abs(page - safePage) <= 1;
                     })
                     .reduce<(number | 'ellipsis')[]>((acc, page, idx, arr) => {
                       if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
@@ -453,7 +497,10 @@ const HierarchyManagement = () => {
                     }, [])
                     .map((item, idx) =>
                       item === 'ellipsis' ? (
-                        <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
+                        <span
+                          key={`ellipsis-${idx}`}
+                          className="px-1 text-muted-foreground text-sm"
+                        >
                           …
                         </span>
                       ) : (
@@ -587,7 +634,7 @@ const HierarchyManagement = () => {
                     {getAvailableSupervisors(
                       formData.user_id || '',
                       formData.hierarchy_level || 2,
-                      formData.zone_name || undefined,
+                      formData.zone_name || undefined
                     ).map(sup => (
                       <SelectItem key={sup.id} value={sup.id}>
                         {sup.name}

@@ -102,7 +102,7 @@ export function AppSidebar() {
   // (module installation has licensing/payment implications).
   const isSuperAdmin = permissions?.role === 'admin';
   const adminItems = isSuperAdmin
-    ? [{ title: 'Gestión de Módulos', url: '/setup', icon: Sparkles }]
+    ? [{ title: 'Gestión de Módulos', url: '/dashboard/modules', icon: Sparkles }]
     : [];
 
   return (

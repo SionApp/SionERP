@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -104,7 +105,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 		args = append(args, requestingUserID)
 	}
 
-	// Optional role filter (only applies within the resource-level constraint)
+	// Optional role filter
 	roleParam := c.QueryParam("role")
 	if roleParam != "" {
 		rolesStr := strings.Split(roleParam, ",")
@@ -126,7 +127,45 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 		}
 	}
 
-	query += " ORDER BY u.created_at DESC"
+	// Optional search filter
+	search := c.QueryParam("search")
+	if search != "" {
+		argCount++
+		query += fmt.Sprintf(
+			" AND (u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.email ILIKE $%d OR u.id_number ILIKE $%d)",
+			argCount, argCount, argCount, argCount,
+		)
+		args = append(args, "%"+search+"%")
+	}
+
+	// Pagination params
+	page := 1
+	limit := 20
+	if p, err2 := strconv.Atoi(c.QueryParam("page")); err2 == nil && p > 0 {
+		page = p
+	}
+	if l, err2 := strconv.Atoi(c.QueryParam("limit")); err2 == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+
+	// Count total matching rows (reuse same WHERE clauses)
+	var total int
+	countQuery := "SELECT COUNT(*) FROM (" + query + ") sub"
+	if err = db.DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		c.Logger().Error("Count query error in GetUsers: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Error counting users",
+		})
+	}
+
+	// Add ORDER BY + LIMIT + OFFSET
+	offset := (page - 1) * limit
+	argCount++
+	query += fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d", argCount)
+	args = append(args, limit)
+	argCount++
+	query += fmt.Sprintf(" OFFSET $%d", argCount)
+	args = append(args, offset)
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {
@@ -179,7 +218,9 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"users": users,
-		"total": len(users),
+		"total": total,
+		"page":  page,
+		"limit": limit,
 	})
 }
 

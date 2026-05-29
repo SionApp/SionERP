@@ -1,4 +1,5 @@
 import { GoalsDashboard } from '@/pages/dashboard/GoalsDashboard';
+import { MinistryHealthTab } from './MinistryHealthTab';
 import { ReportDetailSheet } from './ReportDetailSheet';
 import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
 import { Badge } from '@/components/ui/badge';
@@ -218,7 +219,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-5 h-auto min-w-max sm:min-w-0 gap-1">
+          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-6 h-auto min-w-max sm:min-w-0 gap-1">
             <TabsTrigger
               value="overview"
               className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
@@ -254,6 +255,12 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
                   {stats.pending_reports}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="health"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Salud
             </TabsTrigger>
           </TabsList>
         </div>
@@ -563,6 +570,15 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="health" className="space-y-4">
+          <MinistryHealthTab
+            stats={stats}
+            zoneStats={zoneStats}
+            weeklyTrends={weeklyTrends}
+            alerts={[]}
+          />
         </TabsContent>
       </Tabs>
 
