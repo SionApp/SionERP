@@ -51,11 +51,14 @@ import type {
   DiscipleshipReport,
 } from '@/types/discipleship.types';
 import { parseGoTime } from '@/lib/go-time';
+import { MobileProfileScreen } from '@/components/mobile/screens/ProfileScreen';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
 const ProfilePage = () => {
+  const isMobileApp = useMobileMode();
   const [loading, setLoading] = useState(false);
   const { preferences, loading: preferencesLoading, updatePreference } = usePreferences();
   const { user, refreshCurrentUser } = useAuth();
@@ -289,6 +292,48 @@ const ProfilePage = () => {
       setLoading(false);
     }
   };
+
+  // ── Modo mobile exclusivo ──
+  if (isMobileApp) {
+    return (
+      <MobileProfileScreen
+        userData={userData}
+        authUser={user}
+        saving={loading}
+        avatarUploading={avatarUploading}
+        avatarInputRef={avatarInputRef}
+        onAvatarUpload={handleAvatarUpload}
+        initialWordName={initialWordName}
+        safeFormatDate={safeFormatDate}
+        register={register}
+        errors={errors}
+        handleSubmit={handleSubmit}
+        onSubmit={onSubmit}
+        geolocation={geolocation}
+        onGeolocationChange={setGeolocation}
+        setFormValue={(field, value) => setValue(field, value as never)}
+        hierarchy={hierarchy}
+        myGroups={myGroups}
+        subordinates={subordinates}
+        myReports={myReports}
+        ministryLoading={ministryLoading}
+        ministryLoaded={ministryLoaded}
+        onLoadMinistry={() => userData && loadMinistryData(userData.id)}
+        pwForm={pwForm}
+        onPwChange={(field, value) => setPwForm(p => ({ ...p, [field]: value }))}
+        pwLoading={pwLoading}
+        pwError={pwError}
+        showNew={showNew}
+        showConfirm={showConfirm}
+        setShowNew={setShowNew}
+        setShowConfirm={setShowConfirm}
+        onPasswordSubmit={handlePasswordChange}
+        preferences={preferences as never}
+        preferencesLoading={preferencesLoading}
+        onUpdatePreference={updatePreference}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 p-0 sm:p-3 md:p-6">

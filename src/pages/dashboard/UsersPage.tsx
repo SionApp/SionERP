@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Can } from '@/components/Can';
+import { MobileUsersScreen } from '@/components/mobile/screens/UsersScreen';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ROLE_LEVELS } from '@/lib/permissions';
 import { UserService } from '@/services/user.service';
@@ -43,6 +45,7 @@ const ROLE_OPTIONS = [
 
 const UsersPage = () => {
   const navigate = useNavigate();
+  const isMobileApp = useMobileMode();
   const { canManageUsers, canManageRoles, isLoading: isLoadingPermissions } = usePermissions();
 
   // Data state
@@ -72,23 +75,38 @@ const UsersPage = () => {
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadUsers = useCallback(async (p: number, lim: number, q: string, role: string) => {
-    try {
-      setLoading(true);
-      const res = await UserService.getUsers({
-        page: p,
-        limit: lim,
-        search: q || undefined,
-        role: role !== 'all' ? role : undefined,
-      });
-      setUsers(res.users);
-      setTotal(res.total);
-    } catch {
-      toast.error('Error al cargar los usuarios');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Mobile: paginación acumulativa ("Cargar más")
+  const [mobilePage, setMobilePage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadUsers = useCallback(
+    async (p: number, lim: number, q: string, role: string, append = false) => {
+      try {
+        if (append) setLoadingMore(true);
+        else setLoading(true);
+        const res = await UserService.getUsers({
+          page: p,
+          limit: lim,
+          search: q || undefined,
+          role: role !== 'all' ? role : undefined,
+        });
+        setUsers(prev => (append ? [...prev, ...res.users] : res.users));
+        setTotal(res.total);
+      } catch {
+        toast.error('Error al cargar los usuarios');
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    []
+  );
+
+  const handleLoadMore = async () => {
+    const next = mobilePage + 1;
+    setMobilePage(next);
+    await loadUsers(next, limit, search, roleFilter, true);
+  };
 
   useEffect(() => {
     loadUsers(page, limit, search, roleFilter);
@@ -99,6 +117,7 @@ const UsersPage = () => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       setPage(1);
+      setMobilePage(1);
       loadUsers(1, limit, value, roleFilter);
     }, 400);
   };
@@ -106,6 +125,7 @@ const UsersPage = () => {
   const handleRoleChange = (value: string) => {
     setRoleFilter(value);
     setPage(1);
+    setMobilePage(1);
   };
 
   const columns = useMemo(
@@ -150,6 +170,71 @@ const UsersPage = () => {
       setIsDeleting(false);
     }
   };
+
+  // ── Modales compartidos entre web y mobile (viven fuera del branch) ──
+  const sharedModals = (
+    <>
+      <UserDetailSheet
+        user={selectedUserId ? (users.find(u => u.id === selectedUserId) ?? null) : null}
+        isOpen={!!selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+        onEdit={u => navigate('/dashboard/register-user', { state: { userId: u.id } })}
+      />
+
+      <DeleteUserDialog
+        user={deletingUser}
+        isOpen={!!deletingUser}
+        isDeleting={isDeleting}
+        onClose={() => setDeletingUser(null)}
+        onConfirm={confirmDeleteUser}
+      />
+
+      <InviteUserModal
+        user={showInviteModalUser}
+        isOpen={!!showInviteModalUser}
+        onClose={() => setShowInviteModalUser(null)}
+        onInviteSent={() => loadUsers(page, limit, search, roleFilter)}
+      />
+
+      <ImportUsersModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onComplete={() => {
+          setImportOpen(false);
+          loadUsers(page, limit, search, roleFilter);
+        }}
+      />
+    </>
+  );
+
+  // ── Modo mobile exclusivo ──
+  if (isMobileApp) {
+    return (
+      <>
+        <MobileUsersScreen
+          users={users}
+          total={total}
+          loading={loading || isLoadingPermissions}
+          loadingMore={loadingMore}
+          search={search}
+          onSearchChange={handleSearchChange}
+          roleFilter={roleFilter}
+          onRoleChange={handleRoleChange}
+          roleOptions={ROLE_OPTIONS.map(o => ({
+            value: o.value,
+            label: o.value === 'all' ? 'Todos' : o.label,
+          }))}
+          canCreate={canManageUsers}
+          onCreate={() => navigate('/dashboard/register-user')}
+          onImport={() => setImportOpen(true)}
+          onSelectUser={u => setSelectedUserId(u.id)}
+          hasMore={users.length < total}
+          onLoadMore={handleLoadMore}
+        />
+        {sharedModals}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-4 p-2 sm:p-4 md:p-6">
@@ -244,36 +329,7 @@ const UsersPage = () => {
         </CardContent>
       </Card>
 
-      <UserDetailSheet
-        user={selectedUserId ? (users.find(u => u.id === selectedUserId) ?? null) : null}
-        isOpen={!!selectedUserId}
-        onClose={() => setSelectedUserId(null)}
-        onEdit={u => navigate('/dashboard/register-user', { state: { userId: u.id } })}
-      />
-
-      <DeleteUserDialog
-        user={deletingUser}
-        isOpen={!!deletingUser}
-        isDeleting={isDeleting}
-        onClose={() => setDeletingUser(null)}
-        onConfirm={confirmDeleteUser}
-      />
-
-      <InviteUserModal
-        user={showInviteModalUser}
-        isOpen={!!showInviteModalUser}
-        onClose={() => setShowInviteModalUser(null)}
-        onInviteSent={() => loadUsers(page, limit, search, roleFilter)}
-      />
-
-      <ImportUsersModal
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onComplete={() => {
-          setImportOpen(false);
-          loadUsers(page, limit, search, roleFilter);
-        }}
-      />
+      {sharedModals}
     </div>
   );
 };
