@@ -17,6 +17,7 @@ import { NotificationCenter } from '@/components/ui/notifications';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { useNotificationsData } from '@/hooks/useNotificationsData';
 import { useSetupShortcut } from '@/hooks/useSetupShortcut';
 import { invalidatePermissionsCache } from '@/lib/permissions';
@@ -40,6 +41,7 @@ const DashboardLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isOpen: isSetupOpen, setIsOpen: setSetupOpen } = useSetupShortcut();
+  const isMobileApp = useMobileMode();
 
   // Fetch user role from API — re-runs whenever the auth user changes
   useEffect(() => {
@@ -110,6 +112,25 @@ const DashboardLayout = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
+    );
+  }
+
+  // ── Modo mobile EXCLUSIVO (app nativa o preview ?m=1) ──
+  // Sin sidebar ni header web: cada pantalla trae su propio header (MobileScreen).
+  // Modales compartidos viven FUERA del branch.
+  if (isMobileApp) {
+    return (
+      <>
+        {/* Contenedor principal SIN overflow-hidden para no romper fixed children en Safari */}
+        <div className="h-[100dvh] w-full bg-background fixed inset-0">
+          <main className="h-full overflow-x-hidden overflow-y-auto pb-16">
+            <Outlet />
+          </main>
+        </div>
+        {/* Bottom nav FUERA del contenedor — fixed respecto al viewport */}
+        <MobileBottomNav exclusive />
+        <SetupModal isOpen={isSetupOpen} onClose={() => setSetupOpen(false)} />
+      </>
     );
   }
 
