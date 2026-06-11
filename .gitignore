@@ -40,3 +40,10 @@ apps/backend-go/tmp/
 *.njsproj
 *.sln
 *.sw?
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Datos sensibles de la iglesia (PII)
+data/
