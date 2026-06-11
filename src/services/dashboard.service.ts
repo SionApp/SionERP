@@ -73,7 +73,8 @@ export class DashboardService {
       const token = session?.access_token;
 
       // Llamar al backend Go
-      const response = await fetch('http://localhost:8181/api/v1/dashboard/stats', {
+      const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8181';
+      const response = await fetch(`${apiBase}/api/v1/dashboard/stats`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
