@@ -31,6 +31,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { ZoneEditor } from '@/components/zones/ZoneEditor';
+import { MobileListItem } from '@/components/mobile/MobileListItem';
+import { MobileSectionHeader } from '@/components/mobile/MobileSectionHeader';
+import { useMobileMode } from '@/hooks/useMobileMode';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useAvailableSupervisors, useZones } from '@/hooks/useZones';
 import {
   CreateZoneRequest,
@@ -74,6 +78,8 @@ const normalizeNullString = (value: unknown): string | null => {
 };
 
 const ZoneManagement: React.FC = () => {
+  const isMobileApp = useMobileMode();
+  const { hasAccess } = usePermissions();
   const { zones, zoneStats, loading, error, refetch, createZone, updateZone, deleteZone } =
     useZones();
 
@@ -246,6 +252,246 @@ const ZoneManagement: React.FC = () => {
     );
   }
 
+  // ── Dialogs compartidos entre web y mobile (controlados, sin trigger) ──
+  const sharedDialogs = (
+    <>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingZone ? 'Editar Zona' : 'Nueva Zona'}</DialogTitle>
+            <DialogDescription>
+              {editingZone
+                ? 'Modifica los datos de la zona geográfica'
+                : 'Crea una nueva zona para organizar las células'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="zone-name">Nombre de la Zona *</Label>
+              <Input
+                id="zone-name"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Ej: Zona Norte"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="zone-description">Descripción</Label>
+              <Textarea
+                id="zone-description"
+                value={formData.description}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Describe los sectores de esta zona"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="zone-supervisor">Supervisor</Label>
+              <Select
+                value={formData.supervisor_id || 'none'}
+                onValueChange={value =>
+                  setFormData({
+                    ...formData,
+                    supervisor_id: value === 'none' ? '' : value,
+                  })
+                }
+                disabled={loadingSupervisors}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un supervisor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin supervisor</SelectItem>
+                  {Array.isArray(supervisors) &&
+                    supervisors.map(supervisor => (
+                      <SelectItem key={supervisor.id} value={supervisor.id}>
+                        {supervisor.full_name ||
+                          `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() ||
+                          supervisor.email}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="zone-color">Color Identificativo</Label>
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-8 h-8 rounded border"
+                  style={{ backgroundColor: formData.color }}
+                />
+                <Input
+                  id="zone-color"
+                  type="color"
+                  value={formData.color}
+                  onChange={e => setFormData({ ...formData, color: e.target.value })}
+                  className="w-20"
+                />
+                <span className="text-sm text-muted-foreground">{formData.color}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Área de la Zona</Label>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setIsMapEditorOpen(true);
+                  setMapEditorKey(prev => prev + 1);
+                }}
+              >
+                <MapPin className="w-4 h-4 mr-2" />
+                {formData.boundaries
+                  ? 'Editar polígono en el mapa'
+                  : 'Definir área en el mapa (Opcional)'}
+              </Button>
+              {formData.boundaries && (
+                <p className="text-xs text-green-600 mt-1">Polígono definido correctamente.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} disabled={saving || !formData.name.trim()}>
+                {saving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {editingZone ? 'Actualizar' : 'Crear'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar zona?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará la zona "{zoneToDelete?.name}". Los grupos y usuarios quedarán
+              sin zona asignada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={isMapEditorOpen} onOpenChange={setIsMapEditorOpen}>
+        <DialogContent key={`zone-editor-${mapEditorKey}`} className="sm:max-w-[700px] p-0 w-full">
+          <div className="p-4 bg-muted/40 border-b">
+            <DialogTitle>Dibujar área de la zona</DialogTitle>
+          </div>
+          <div className="p-4">
+            <ZoneEditor
+              initialBoundaries={formData.boundaries as GeoJSON.Polygon | null}
+              onSave={boundaries => {
+                setFormData(prev => ({ ...prev, boundaries }));
+                setIsMapEditorOpen(false);
+              }}
+              onCancel={() => setIsMapEditorOpen(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
+  // ── Modo mobile exclusivo: asignación + lista compacta de zonas ──
+  if (isMobileApp) {
+    const canManageZones = hasAccess(ROLE_LEVELS.staff);
+    const canDeleteZones = hasAccess(ROLE_LEVELS.pastor);
+    return (
+      <>
+        {sharedDialogs}
+        <UserZoneAssignment />
+        <div className="-mx-3 pb-4">
+          <MobileSectionHeader
+            title="Zonas geográficas"
+            action={
+              canManageZones ? (
+                <button
+                  onClick={() => {
+                    resetForm();
+                    setIsDialogOpen(true);
+                  }}
+                  aria-label="Nueva zona"
+                  className="w-8 h-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              ) : undefined
+            }
+          />
+          {filteredZones.length === 0 ? (
+            <div className="flex flex-col items-center py-10 gap-2 text-muted-foreground px-4">
+              <MapPin className="h-10 w-10 opacity-20" />
+              <p className="text-sm">No hay zonas configuradas</p>
+            </div>
+          ) : (
+            <div className="mx-4 rounded-2xl border border-border divide-y divide-border bg-card overflow-hidden">
+              {filteredZones.map(zone => {
+                const stats = getZoneStatsById(zone.id);
+                const groupCount = stats?.total_groups ?? zone.total_groups ?? 0;
+                const memberCount = stats?.total_members ?? zone.total_members ?? 0;
+                const attendance = (stats?.avg_attendance ?? zone.avg_attendance ?? 0).toFixed(0);
+                return (
+                  <MobileListItem
+                    key={zone.id}
+                    leading={
+                      <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${zone.color}20` }}
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: zone.color }}
+                        />
+                      </div>
+                    }
+                    title={zone.name}
+                    subtitle={`${groupCount} células · ${memberCount} miembros · ${attendance}% asist.`}
+                    trailing={
+                      canDeleteZones ? (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            handleDeleteClick(zone);
+                          }}
+                          aria-label={`Eliminar ${zone.name}`}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive active:bg-destructive/10 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      ) : undefined
+                    }
+                    onClick={canManageZones ? () => handleEdit(zone) : undefined}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <UserZoneAssignment />
@@ -278,130 +524,17 @@ const ZoneManagement: React.FC = () => {
                 <span className="hidden sm:inline ml-1">Actualizar</span>
               </Button>
               <Can I={ROLE_LEVELS.staff}>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button onClick={resetForm} size="sm" className="flex-1 md:flex-none">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Nueva Zona
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>{editingZone ? 'Editar Zona' : 'Nueva Zona'}</DialogTitle>
-                      <DialogDescription>
-                        {editingZone
-                          ? 'Modifica los datos de la zona geográfica'
-                          : 'Crea una nueva zona para organizar las células'}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="zone-name">Nombre de la Zona *</Label>
-                        <Input
-                          id="zone-name"
-                          value={formData.name}
-                          onChange={e => setFormData({ ...formData, name: e.target.value })}
-                          placeholder="Ej: Zona Norte"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="zone-description">Descripción</Label>
-                        <Textarea
-                          id="zone-description"
-                          value={formData.description}
-                          onChange={e => setFormData({ ...formData, description: e.target.value })}
-                          placeholder="Describe los sectores de esta zona"
-                          rows={3}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="zone-supervisor">Supervisor</Label>
-                        <Select
-                          value={formData.supervisor_id || 'none'}
-                          onValueChange={value =>
-                            setFormData({
-                              ...formData,
-                              supervisor_id: value === 'none' ? '' : value,
-                            })
-                          }
-                          disabled={loadingSupervisors}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona un supervisor" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sin supervisor</SelectItem>
-                            {Array.isArray(supervisors) &&
-                              supervisors.map(supervisor => (
-                                <SelectItem key={supervisor.id} value={supervisor.id}>
-                                  {supervisor.full_name ||
-                                    `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() ||
-                                    supervisor.email}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="zone-color">Color Identificativo</Label>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-8 h-8 rounded border"
-                            style={{ backgroundColor: formData.color }}
-                          />
-                          <Input
-                            id="zone-color"
-                            type="color"
-                            value={formData.color}
-                            onChange={e => setFormData({ ...formData, color: e.target.value })}
-                            className="w-20"
-                          />
-                          <span className="text-sm text-muted-foreground">{formData.color}</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Área de la Zona</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full justify-start"
-                          onClick={() => {
-                            setIsMapEditorOpen(true);
-                            setMapEditorKey(prev => prev + 1);
-                          }}
-                        >
-                          <MapPin className="w-4 h-4 mr-2" />
-                          {formData.boundaries
-                            ? 'Editar polígono en el mapa'
-                            : 'Definir área en el mapa (Opcional)'}
-                        </Button>
-                        {formData.boundaries && (
-                          <p className="text-xs text-green-600 mt-1">
-                            Polígono definido correctamente.
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex justify-end gap-2 pt-4">
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                          Cancelar
-                        </Button>
-                        <Button onClick={handleSave} disabled={saving || !formData.name.trim()}>
-                          {saving ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <Save className="w-4 h-4 mr-2" />
-                          )}
-                          {editingZone ? 'Actualizar' : 'Crear'}
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Button
+                  onClick={() => {
+                    resetForm();
+                    setIsDialogOpen(true);
+                  }}
+                  size="sm"
+                  className="flex-1 md:flex-none"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nueva Zona
+                </Button>
               </Can>
             </div>
           </div>
@@ -576,44 +709,7 @@ const ZoneManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar zona?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará la zona "{zoneToDelete?.name}". Los grupos y usuarios quedarán
-              sin zona asignada.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground"
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={isMapEditorOpen} onOpenChange={setIsMapEditorOpen}>
-        <DialogContent key={`zone-editor-${mapEditorKey}`} className="sm:max-w-[700px] p-0 w-full">
-          <div className="p-4 bg-muted/40 border-b">
-            <DialogTitle>Dibujar área de la zona</DialogTitle>
-          </div>
-          <div className="p-4">
-            <ZoneEditor
-              initialBoundaries={formData.boundaries as GeoJSON.Polygon | null}
-              onSave={boundaries => {
-                setFormData(prev => ({ ...prev, boundaries }));
-                setIsMapEditorOpen(false);
-              }}
-              onCancel={() => setIsMapEditorOpen(false)}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      {sharedDialogs}
     </div>
   );
 };

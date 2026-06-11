@@ -9,7 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,11 +19,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { PaginatedTable } from '@/components/ui/paginated-table';
+import { MobileListItem } from '@/components/mobile/MobileListItem';
+import { MobileSegment } from '@/components/mobile/MobileSegment';
+import { setMobileNavHidden } from '@/components/mobile/mobile-nav-state';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { CreateGroupRequest, DiscipleshipGroup } from '@/types/discipleship.types';
 import { useZones } from '@/hooks/useZones';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import {
   GeolocationInput,
   type GeolocationResult,
@@ -37,7 +41,8 @@ import {
   useReactTable,
   type PaginationState,
 } from '@tanstack/react-table';
-import { ChevronLeft, Loader2, Plus, Search, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { ChevronLeft, Loader2, Pencil, Plus, Search, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -60,6 +65,13 @@ interface User {
 
 const DAYS_OF_WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
+const STATUS_PILLS = [
+  { value: 'all', label: 'Todos' },
+  { value: 'active', label: 'Activos' },
+  { value: 'multiplying', label: 'Multiplicando' },
+  { value: 'inactive', label: 'Inactivos' },
+];
+
 const normalizeNullString = (value: unknown): string | null => {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string') return value;
@@ -73,6 +85,7 @@ const normalizeNullString = (value: unknown): string | null => {
 const GroupManagement = () => {
   const { zones } = useZones();
   const { hasAccess, isLoading: isLoadingPermissions } = usePermissions();
+  const isMobileApp = useMobileMode();
 
   const canEditGroup = hasAccess(ROLE_LEVELS.supervisor);
   const canDeleteGroup = hasAccess(ROLE_LEVELS.staff);
@@ -113,6 +126,13 @@ const GroupManagement = () => {
     status: 'active',
   });
   const [geolocation, setGeolocation] = useState<GeolocationResult | null>(null);
+
+  // Mobile: hide bottom nav when pushed into member detail
+  useEffect(() => {
+    if (!isMobileApp) return;
+    setMobileNavHidden(!!selectedGroupForMembers);
+    return () => setMobileNavHidden(false);
+  }, [isMobileApp, selectedGroupForMembers]);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -307,295 +327,449 @@ const GroupManagement = () => {
     getPaginationRowModel: getPaginationRowModel(),
   });
 
-  if (selectedGroupForMembers) {
+  // Shared Dialog — same form for mobile and web; controlled imperatively via isDialogOpen
+  const groupDialog = canEditGroup ? (
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{editingGroup ? 'Editar Grupo' : 'Crear Nuevo Grupo'}</DialogTitle>
+          <DialogDescription>
+            {editingGroup
+              ? 'Modifica la información del grupo de discipulado'
+              : 'Completa la información para crear un nuevo grupo'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="group_name">Nombre del Grupo *</Label>
+              <Input
+                id="group_name"
+                value={formData.group_name}
+                onChange={e => setFormData({ ...formData, group_name: e.target.value })}
+                placeholder="Ej: Célula Esperanza"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="zone_name">Zona</Label>
+              <Select
+                value={String(normalizeNullString(formData.zone_name) || '')}
+                onValueChange={value => setFormData({ ...formData, zone_name: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar zona" />
+                </SelectTrigger>
+                <SelectContent>
+                  {zones.map(z => (
+                    <SelectItem key={z.id} value={z.name}>
+                      {z.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="leader_id">Líder *</Label>
+              <Select
+                value={String(normalizeNullString(formData.leader_id) || '')}
+                onValueChange={value => setFormData({ ...formData, leader_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar líder" />
+                </SelectTrigger>
+                <SelectContent>
+                  {leaders.map(leader => (
+                    <SelectItem key={String(leader.id)} value={String(leader.id)}>
+                      {String(leader.first_name || '')} {String(leader.last_name || '')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="supervisor_id">Supervisor</Label>
+              <Select
+                value={formData.supervisor_id || 'none'}
+                onValueChange={value =>
+                  setFormData({
+                    ...formData,
+                    supervisor_id: value === 'none' ? '' : value,
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar supervisor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin supervisor</SelectItem>
+                  {supervisors.map(sup => (
+                    <SelectItem key={String(sup.id)} value={String(sup.id)}>
+                      {String(sup.first_name || '')} {String(sup.last_name || '')} (
+                      {String(sup.role || '')})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="status">Estado</Label>
+              <Select
+                value={formData.status || 'active'}
+                onValueChange={value => setFormData({ ...formData, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="inactive">Inactivo</SelectItem>
+                  <SelectItem value="multiplying">Multiplicando</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="meeting_day">Día de Reunión</Label>
+              <Select
+                value={String(normalizeNullString(formData.meeting_day) || '')}
+                onValueChange={value => setFormData({ ...formData, meeting_day: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar día" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DAYS_OF_WEEK.map(day => (
+                    <SelectItem key={day} value={day}>
+                      {day}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="meeting_time">Hora</Label>
+              <Input
+                id="meeting_time"
+                type="time"
+                value={String(normalizeNullString(formData.meeting_time) || '')}
+                onChange={e => setFormData({ ...formData, meeting_time: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <GeolocationInput
+              value={geolocation || undefined}
+              onChange={value => {
+                setGeolocation(value);
+                if (value) {
+                  setFormData({
+                    ...formData,
+                    meeting_address: value.address,
+                    latitude: getNumericCoord(value.latitude),
+                    longitude: getNumericCoord(value.longitude),
+                    meeting_location: value.address,
+                  });
+                } else {
+                  setFormData({
+                    ...formData,
+                    meeting_address: '',
+                    latitude: undefined,
+                    longitude: undefined,
+                  });
+                }
+              }}
+              label="Ubicación de Reunión"
+              placeholder="Buscar dirección o seleccionar en el mapa..."
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Guardando...
+              </>
+            ) : editingGroup ? (
+              'Actualizar'
+            ) : (
+              'Crear Grupo'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ) : null;
+
+  // ── Mobile: pushed-detail (miembros del grupo) ──
+  if (isMobileApp && selectedGroupForMembers) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(null)}>
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Volver a grupos
-            </Button>
+      <>
+        {groupDialog}
+        <div className="-mx-3 -mt-3">
+          <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-lg border-b border-border/40 px-3 h-12 flex items-center gap-2">
+            <button
+              onClick={() => setSelectedGroupForMembers(null)}
+              className="p-1.5 -ml-1 rounded-xl hover:bg-accent/60 active:bg-accent transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="font-semibold truncate flex-1 text-sm">
+              {selectedGroupForMembers.group_name}
+            </span>
+            {canEditGroup && (
+              <button
+                onClick={() => handleOpenDialog(selectedGroupForMembers)}
+                className="p-1.5 rounded-xl hover:bg-accent/60 active:bg-accent transition-colors cursor-pointer text-muted-foreground"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
           </div>
           <GroupMembers
             groupId={selectedGroupForMembers.id}
             groupName={selectedGroupForMembers.group_name}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </>
     );
   }
 
-  return (
-    <Card>
-      <CardHeader className="border-b px-4 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-xl leading-none">
-              <Users className="w-5 h-5" />
-              Gestión de Grupos
-            </CardTitle>
-            <CardDescription className="mt-1">
-              {total} grupo{total !== 1 ? 's' : ''} en total
-            </CardDescription>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                className="h-8 w-full pl-8 sm:w-56"
-                placeholder="Buscar grupos..."
-                value={search}
-                onChange={e => handleSearchChange(e.target.value)}
-              />
+  // ── Mobile: lista de grupos ──
+  if (isMobileApp) {
+    return (
+      <>
+        {groupDialog}
+        <div className="-mx-3 -mt-3">
+          {/* Sticky search + status pills */}
+          <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-lg border-b border-border/30 px-4 pt-3 pb-2 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="h-9 pl-9 rounded-xl"
+                  placeholder="Buscar grupos..."
+                  value={search}
+                  onChange={e => handleSearchChange(e.target.value)}
+                />
+              </div>
+              {canEditGroup && (
+                <button
+                  onClick={() => handleOpenDialog()}
+                  className="w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 cursor-pointer active:scale-95 transition-transform"
+                  aria-label="Nuevo grupo"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
             </div>
-            <Can I={ROLE_LEVELS.supervisor}>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" onClick={() => handleOpenDialog()}>
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden sm:inline ml-1">Nuevo Grupo</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>{editingGroup ? 'Editar Grupo' : 'Crear Nuevo Grupo'}</DialogTitle>
-                    <DialogDescription>
-                      {editingGroup
-                        ? 'Modifica la información del grupo de discipulado'
-                        : 'Completa la información para crear un nuevo grupo'}
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="group_name">Nombre del Grupo *</Label>
-                        <Input
-                          id="group_name"
-                          value={formData.group_name}
-                          onChange={e => setFormData({ ...formData, group_name: e.target.value })}
-                          placeholder="Ej: Célula Esperanza"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="zone_name">Zona</Label>
-                        <Select
-                          value={String(normalizeNullString(formData.zone_name) || '')}
-                          onValueChange={value => setFormData({ ...formData, zone_name: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar zona" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {zones.map(z => (
-                              <SelectItem key={z.id} value={z.name}>
-                                {z.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="leader_id">Líder *</Label>
-                        <Select
-                          value={String(normalizeNullString(formData.leader_id) || '')}
-                          onValueChange={value => setFormData({ ...formData, leader_id: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar líder" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {leaders.map(leader => (
-                              <SelectItem key={String(leader.id)} value={String(leader.id)}>
-                                {String(leader.first_name || '')} {String(leader.last_name || '')}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="supervisor_id">Supervisor</Label>
-                        <Select
-                          value={formData.supervisor_id || 'none'}
-                          onValueChange={value =>
-                            setFormData({
-                              ...formData,
-                              supervisor_id: value === 'none' ? '' : value,
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar supervisor" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sin supervisor</SelectItem>
-                            {supervisors.map(sup => (
-                              <SelectItem key={String(sup.id)} value={String(sup.id)}>
-                                {String(sup.first_name || '')} {String(sup.last_name || '')} (
-                                {String(sup.role || '')})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="status">Estado</Label>
-                        <Select
-                          value={formData.status || 'active'}
-                          onValueChange={value => setFormData({ ...formData, status: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar estado" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">Activo</SelectItem>
-                            <SelectItem value="inactive">Inactivo</SelectItem>
-                            <SelectItem value="multiplying">Multiplicando</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="meeting_day">Día de Reunión</Label>
-                        <Select
-                          value={String(normalizeNullString(formData.meeting_day) || '')}
-                          onValueChange={value => setFormData({ ...formData, meeting_day: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar día" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DAYS_OF_WEEK.map(day => (
-                              <SelectItem key={day} value={day}>
-                                {day}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="meeting_time">Hora</Label>
-                        <Input
-                          id="meeting_time"
-                          type="time"
-                          value={String(normalizeNullString(formData.meeting_time) || '')}
-                          onChange={e => setFormData({ ...formData, meeting_time: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <GeolocationInput
-                        value={geolocation || undefined}
-                        onChange={value => {
-                          setGeolocation(value);
-                          if (value) {
-                            setFormData({
-                              ...formData,
-                              meeting_address: value.address,
-                              latitude: getNumericCoord(value.latitude),
-                              longitude: getNumericCoord(value.longitude),
-                              meeting_location: value.address,
-                            });
-                          } else {
-                            setFormData({
-                              ...formData,
-                              meeting_address: '',
-                              latitude: undefined,
-                              longitude: undefined,
-                            });
-                          }
-                        }}
-                        label="Ubicación de Reunión"
-                        placeholder="Buscar dirección o seleccionar en el mapa..."
-                      />
-                    </div>
-                  </div>
-
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleSubmit} disabled={saving}>
-                      {saving ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Guardando...
-                        </>
-                      ) : editingGroup ? (
-                        'Actualizar'
-                      ) : (
-                        'Crear Grupo'
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </Can>
+            <MobileSegment
+              scrollable
+              options={STATUS_PILLS}
+              value={filterStatus}
+              onChange={v => handleFilterChange('status', v)}
+            />
           </div>
-        </div>
-      </CardHeader>
 
-      <CardContent className="flex flex-col gap-3 px-0 py-0">
-        {/* Filter bar */}
-        <div className="flex items-center gap-3 border-b px-4 py-3">
-          <Select value={filterZone} onValueChange={v => handleFilterChange('zone', v)}>
-            <SelectTrigger className="h-8 w-auto gap-1 text-sm">
-              <span className="text-muted-foreground">Zona:</span>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="start">
-              <SelectItem value="all">Todas</SelectItem>
-              {zones.map(zone => (
-                <SelectItem key={zone.id} value={zone.id}>
-                  {zone.name}
-                </SelectItem>
+          <p className="px-4 py-2 text-xs text-muted-foreground">
+            {total} grupo{total !== 1 ? 's' : ''}
+          </p>
+
+          {loading ? (
+            <div className="px-4 space-y-2">
+              {[1, 2, 3, 4].map(i => (
+                <Skeleton key={i} className="h-16 w-full rounded-xl" />
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          ) : groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-12">
+              No se encontraron grupos
+            </p>
+          ) : (
+            <div className="mx-4 rounded-2xl border border-border divide-y divide-border bg-card overflow-hidden">
+              {groups.map(group => (
+                <MobileListItem
+                  key={group.id}
+                  leading={
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                      {group.group_name.charAt(0).toUpperCase()}
+                    </div>
+                  }
+                  title={group.group_name}
+                  subtitle={`${group.leader_name ?? 'Sin líder'} · ${group.zone_name ?? 'Sin zona'}`}
+                  trailing={
+                    <div className="flex flex-col items-end gap-1">
+                      <span
+                        className={cn(
+                          'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                          group.status === 'active'
+                            ? 'bg-emerald-500/10 text-emerald-600'
+                            : group.status === 'multiplying'
+                              ? 'bg-blue-500/10 text-blue-600'
+                              : 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {group.status === 'active'
+                          ? 'Activo'
+                          : group.status === 'multiplying'
+                            ? 'Multiplicando'
+                            : 'Inactivo'}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">
+                        {group.active_members ?? 0}/{group.member_count ?? 0}
+                      </span>
+                    </div>
+                  }
+                  onClick={() => setSelectedGroupForMembers(group)}
+                />
+              ))}
+            </div>
+          )}
 
-          <Select value={filterStatus} onValueChange={v => handleFilterChange('status', v)}>
-            <SelectTrigger className="h-8 w-auto gap-1 text-sm">
-              <span className="text-muted-foreground">Estado:</span>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="start">
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="active">Activos</SelectItem>
-              <SelectItem value="multiplying">Multiplicando</SelectItem>
-              <SelectItem value="inactive">Inactivos</SelectItem>
-            </SelectContent>
-          </Select>
+          {groups.length < total && (
+            <div className="px-4 py-4">
+              <button
+                onClick={() => {
+                  const next = page + 1;
+                  setPage(next);
+                  loadGroups(next, limit, search, filterZone, filterStatus);
+                }}
+                className="w-full py-2.5 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground cursor-pointer active:bg-accent transition-colors"
+              >
+                Cargar más ({groups.length} de {total})
+              </button>
+            </div>
+          )}
         </div>
+      </>
+    );
+  }
 
-        {!isLoadingPermissions && (
-          <PaginatedTable
-            table={table}
-            loading={loading}
-            emptyMessage="No se encontraron grupos"
-            serverPage={page}
-            serverTotal={total}
-            serverLimit={limit}
-            onPageChange={setPage}
-            onLimitChange={lim => {
-              setLimit(lim);
-              setPage(1);
-            }}
-          />
-        )}
-      </CardContent>
-    </Card>
+  // ── Web: vista de detalle (miembros) ──
+  if (selectedGroupForMembers) {
+    return (
+      <>
+        {groupDialog}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedGroupForMembers(null)}>
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Volver a grupos
+              </Button>
+            </div>
+            <GroupMembers
+              groupId={selectedGroupForMembers.id}
+              groupName={selectedGroupForMembers.group_name}
+            />
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
+
+  // ── Web: lista de grupos ──
+  return (
+    <>
+      {groupDialog}
+      <Card>
+        <CardHeader className="border-b px-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl leading-none">
+                <Users className="w-5 h-5" />
+                Gestión de Grupos
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {total} grupo{total !== 1 ? 's' : ''} en total
+              </CardDescription>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  className="h-8 w-full pl-8 sm:w-56"
+                  placeholder="Buscar grupos..."
+                  value={search}
+                  onChange={e => handleSearchChange(e.target.value)}
+                />
+              </div>
+              <Can I={ROLE_LEVELS.supervisor}>
+                <Button size="sm" onClick={() => handleOpenDialog()}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Nuevo Grupo</span>
+                </Button>
+              </Can>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="flex flex-col gap-3 px-0 py-0">
+          {/* Filter bar */}
+          <div className="flex items-center gap-3 border-b px-4 py-3">
+            <Select value={filterZone} onValueChange={v => handleFilterChange('zone', v)}>
+              <SelectTrigger className="h-8 w-auto gap-1 text-sm">
+                <span className="text-muted-foreground">Zona:</span>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectItem value="all">Todas</SelectItem>
+                {zones.map(zone => (
+                  <SelectItem key={zone.id} value={zone.id}>
+                    {zone.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterStatus} onValueChange={v => handleFilterChange('status', v)}>
+              <SelectTrigger className="h-8 w-auto gap-1 text-sm">
+                <span className="text-muted-foreground">Estado:</span>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="active">Activos</SelectItem>
+                <SelectItem value="multiplying">Multiplicando</SelectItem>
+                <SelectItem value="inactive">Inactivos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {!isLoadingPermissions && (
+            <PaginatedTable
+              table={table}
+              loading={loading}
+              emptyMessage="No se encontraron grupos"
+              serverPage={page}
+              serverTotal={total}
+              serverLimit={limit}
+              onPageChange={setPage}
+              onLimitChange={lim => {
+                setLimit(lim);
+                setPage(1);
+              }}
+            />
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 };
 
