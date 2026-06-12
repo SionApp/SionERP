@@ -1,4 +1,4 @@
-import { BarChart3, Heart, Home, UserCog, Users } from 'lucide-react';
+import { BarChart3, Heart, Home, Music2, UserCog, Users } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useMobileNavHidden } from '@/components/mobile/mobile-nav-state';
 import { useSystem } from '@/contexts/SystemContext';
@@ -28,6 +28,13 @@ const NAV_ITEMS: BottomNavItem[] = [
     url: '/dashboard/users',
     icon: Users,
     minRole: ROLE_LEVELS.staff,
+  },
+  {
+    title: 'Música',
+    url: '/dashboard/music',
+    icon: Music2,
+    requiredModule: 'music',
+    minRole: ROLE_LEVELS.member,
   },
   {
     title: 'Reportes',

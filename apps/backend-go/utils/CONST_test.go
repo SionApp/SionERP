@@ -95,7 +95,7 @@ func TestAdminRoles(t *testing.T) {
 
 func TestAllModules(t *testing.T) {
 	modules := AllModules()
-	want := 5
+	want := 6
 	if len(modules) != want {
 		t.Errorf("AllModules() = %d modules; want %d", len(modules), want)
 	}
@@ -104,9 +104,19 @@ func TestAllModules(t *testing.T) {
 	for _, m := range modules {
 		found[m] = true
 	}
-	for _, key := range []string{ModuleBase, ModuleDiscipleship, ModuleZones, ModuleEvents, ModuleReports} {
+	for _, key := range []string{ModuleBase, ModuleDiscipleship, ModuleZones, ModuleEvents, ModuleReports, ModuleMusic} {
 		if !found[key] {
 			t.Errorf("AllModules() missing expected key %q", key)
 		}
 	}
+}
+
+func TestAllModulesIncludesMusic(t *testing.T) {
+	modules := AllModules()
+	for _, m := range modules {
+		if m == ModuleMusic {
+			return
+		}
+	}
+	t.Errorf("AllModules() does not include %q", ModuleMusic)
 }
