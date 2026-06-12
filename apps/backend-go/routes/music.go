@@ -34,7 +34,8 @@ func SetupMusicRoutes(protected *echo.Group) {
 	// Assignments
 	music.GET("/events/:id/assignments", h.GetAssignments)
 	music.POST("/events/:id/assignments", h.CreateAssignment, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
-	music.PUT("/assignments/:id", h.UpdateAssignment, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
+	// UpdateAssignment at level 1 — servidores can self-report confirmado/no_puedo (INV-1)
+	music.PUT("/assignments/:id", h.UpdateAssignment, middleware.RequireModuleLevel(utils.ModuleMusic, 1))
 	music.DELETE("/assignments/:id", h.DeleteAssignment, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
 
 	// Songs — /songs/stats must come before /songs to avoid conflict
@@ -42,4 +43,16 @@ func SetupMusicRoutes(protected *echo.Group) {
 	music.GET("/songs", h.GetSongs)
 	music.POST("/events/:id/songs", h.AddSongToEvent, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
 	music.DELETE("/events/:eventId/songs/:songId", h.RemoveEventSong, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
+
+	// Unavailability — self-service at level 1; director (level 5) can manage any member
+	music.GET("/members/:id/unavailability", h.GetUnavailability)
+	music.POST("/members/:id/unavailability", h.CreateUnavailability, middleware.RequireModuleLevel(utils.ModuleMusic, 1))
+	music.DELETE("/unavailability/:id", h.DeleteUnavailability, middleware.RequireModuleLevel(utils.ModuleMusic, 1))
+
+	// Self-view for servidores (level 1)
+	music.GET("/me/assignments", h.GetMeAssignments, middleware.RequireModuleLevel(utils.ModuleMusic, 1))
+	music.GET("/me/unavailability", h.GetMeUnavailability, middleware.RequireModuleLevel(utils.ModuleMusic, 1))
+
+	// Replacement suggestions (director reads; level 5)
+	music.GET("/assignments/:id/suggestions", h.GetSuggestions, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
 }
