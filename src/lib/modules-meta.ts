@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, Church, LucideIcon, Map, Package } from 'lucide-react';
+import { BarChart3, CalendarDays, Church, LucideIcon, Map, Music2, Package } from 'lucide-react';
 
 export interface ModuleMeta {
   icon: LucideIcon;
@@ -55,6 +55,19 @@ const MODULE_META: Record<string, ModuleMeta> = {
       'Exportación de datos',
       'Análisis histórico y comparativo',
       'Métricas cruzadas entre módulos',
+    ],
+  },
+  music: {
+    icon: Music2,
+    gradient: 'from-pink-500 to-rose-600',
+    bg: 'bg-pink-500/10',
+    text: 'text-pink-600 dark:text-pink-400',
+    features: [
+      'Gestión del equipo de alabanza',
+      'Cronograma de cultos por trimestre',
+      'Asignaciones con señales de opt-out',
+      'Catálogo de canciones con estadísticas',
+      'Sugerencias de reemplazo automáticas',
     ],
   },
 };
