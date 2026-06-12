@@ -442,7 +442,7 @@ const DiscipleshipPage = () => {
       ...(canViewMap ? [{ value: 'map', label: 'Mapa' }] : []),
     ];
 
-    const { state: pullState, progress: pullProgress, isRefreshing } = pullToRefresh;
+    const { state: pullState, isRefreshing } = pullToRefresh;
 
     return (
       <MobileScreen
