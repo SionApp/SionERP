@@ -207,8 +207,8 @@ CREATE POLICY "Pastor staff manage music_unavailability"
 -- ─────────────────────────────────────────────────────────────
 -- 9. Module registry seed
 -- ─────────────────────────────────────────────────────────────
-INSERT INTO modules (key, is_active)
-VALUES ('music', false)
+INSERT INTO modules (key, name, description, is_installed)
+VALUES ('music', 'Música', 'Gestión del equipo de alabanza y cultos', false)
 ON CONFLICT (key) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────
