@@ -13,6 +13,8 @@
  *  - Grupos: "Grupo de [nombre líder]", asignado a la zona predominante
  *  - discipleship_hierarchy nivel 1 para cada líder
  *  - discipleship_group_members para cada miembro según columna LIDER
+ *  - Jerarquía completa desde DATOS SUPERVISORES (coordinadores 4, generales 3, auxiliares 2, líderes 1)
+ *  - Cableado supervisor_id: generales → coordinador de zona, auxiliares → general (si es único en la zona)
  */
 
 import * as XLSX from 'xlsx';
@@ -22,7 +24,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
-const EXCEL_PATH = '/Users/danzt/Downloads/DATA IGLESIA SION ACT. 14-12-25.xlsx';
+const EXCEL_PATH = path.resolve(__dirname, '../data/DATA IGLESIA SION ACT. 14-12-25 (1).xlsx');
 const OUTPUT_PATH = path.resolve(__dirname, '../supabase/seed.sql');
 
 // ─── Zonas (UUIDs fijos para consistencia entre resets) ───────────────────────
@@ -195,12 +197,17 @@ for (let i = 0; i < rawRows.length; i++) {
   const zoneName    = cleanStr(raw['ZONA']);
   const zoneId      = zoneIdMap[zoneName] ?? null;
 
-  if (seenEmails.has(email)) {
-    importErrors.push({ row: rowNum, reason: `Email duplicado: ${email}` });
-    skipped++;
-    continue;
+  // Email duplicado → no descartamos a la persona: placeholder único
+  let finalEmail = email;
+  if (seenEmails.has(finalEmail)) {
+    const ced = cleanStr(cedula).replace(/\D/g, '');
+    finalEmail = ced && !seenEmails.has(`${ced}@sionerp.local`)
+      ? `${ced}@sionerp.local`
+      : `import.${rowNum}@sionerp.local`;
+    importErrors.push({ row: rowNum, reason: `Email duplicado: ${email} → ${finalEmail}` });
+    generated++;
   }
-  seenEmails.add(email);
+  seenEmails.add(finalEmail);
 
   if (cedula && seenCedulas.has(cedula)) {
     importErrors.push({ row: rowNum, reason: `Cédula duplicada: ${cedula}` });
@@ -210,7 +217,7 @@ for (let i = 0; i < rawRows.length; i++) {
   if (cedula) seenCedulas.add(cedula);
 
   const id = randomUUID();
-  const row = [id, firstName, lastName, email, phone || '', address || '',
+  const row = [id, firstName, lastName, finalEmail, phone || '', address || '',
                cedula || '', birthDate, baptismDate, baptized, whatsapp, zoneId, zoneName || null];
   memberRows.push(row);
 
@@ -238,13 +245,13 @@ for (let start = 0; start < memberRows.length; start += CHUNK) {
   const vals  = chunk.map(([id, fn, ln, em, ph, addr, ced, bd, bapd, bap, wa, zid, zn]) =>
     `  (${q(id)}, ${q(fn)}, ${q(ln)}, ${q(em)}, ${q(ph)}, ${q(addr)}, ` +
     `${q(ced)}, 'server', ${bd ? q(bd) : 'NULL'}, ${bapd ? q(bapd) : 'NULL'}, ` +
-    `${bap}, ${wa}, ${zid ? q(zid) : 'NULL'}, ${zn ? q(zn) : 'NULL'}, true, NOW(), NOW())`
+    `${bap}, ${wa}, ${zid ? q(zid) : 'NULL'}, ${zn ? q(zn) : 'NULL'}, true, true, NOW(), NOW())`
   );
   push(
     `INSERT INTO public.users (`,
     `  id, first_name, last_name, email, phone, address,`,
     `  id_number, role, birth_date, baptism_date, baptized,`,
-    `  whatsapp, zone_id, zone_name, is_active, created_at, updated_at`,
+    `  whatsapp, zone_id, zone_name, is_active, is_active_member, created_at, updated_at`,
     `) VALUES`,
     vals.join(',\n'),
     `ON CONFLICT DO NOTHING;`,
@@ -329,11 +336,11 @@ if (newLeaders.length > 0) {
       const idNumber = `LIDER-${l.id}`; // UUID único por líder → no conflicto en users_cedula_key
       return (
         `  (${q(l.id)}, ${q(l.firstName)}, ${q(l.lastName)}, ${q(email)}, ` +
-        `'', '', ${q(idNumber)}, 'server', true, NOW(), NOW())`
+        `'', '', ${q(idNumber)}, 'server', true, true, NOW(), NOW())`
       );
     });
     push(
-      `INSERT INTO public.users (id, first_name, last_name, email, phone, address, id_number, role, is_active, created_at, updated_at) VALUES`,
+      `INSERT INTO public.users (id, first_name, last_name, email, phone, address, id_number, role, is_active, is_active_member, created_at, updated_at) VALUES`,
       vals.join(',\n'),
       `ON CONFLICT DO NOTHING;`,
       ``,
@@ -433,6 +440,165 @@ for (let start = 0; start < gmRows.length; start += CHUNK) {
   );
 }
 
+// ── PASO 3: Jerarquía de supervisores (sheet DATOS SUPERVISORES) ──────────────
+//
+// El sheet es tipo "pizarra": secciones por zona → rol → filas de personas.
+// Headers con typos reales: "SUPERSORES", "COORINADORES".
+// Coordinadores van hardcodeados (en el Excel son texto inline sin cédula).
+
+const ROLE_LEVEL = { lider: 1, supervisor_auxiliar: 2, supervisor_general: 3, coordinador: 4 };
+
+const COORDINADORES = [
+  { cedula: '9507199',  firstName: 'María del Valle', lastName: 'Ollarves',         email: 'coordinadora.ollarves@sionerp.local', phone: '04121603266', address: '', zone: 'OESTE 1' },
+  { cedula: '7356713',  firstName: 'Alilia Josefina', lastName: 'Sánchez de Gómez', email: 'alilia@gmail.com',                    phone: '04126815571', address: 'Calle Ralcocer, Casco Histórico, Coro, Parroquia San Gabriel, Municipio Miranda, Estado Falcón, Venezuela', zone: 'OESTE 2' },
+  { cedula: '16709124', firstName: 'Ruthdy Esther',   lastName: 'Lameda Gómez',     email: 'coordinadora.lameda@sionerp.local',   phone: '04120601377', address: '', zone: 'OESTE 3' },
+  { cedula: '19617387', firstName: 'Elvis Rafael',    lastName: 'Laguna Medina',    email: 'coordinador.laguna@sionerp.local',    phone: '04246327629', address: '', zone: 'ESTE' },
+];
+
+/** Fecha de la pizarra: Date | 'DD/MM/YYYY' | 'D/M/YY' → 'YYYY-MM-DD' o null */
+function supDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) return normalizeDate(val);
+  const s = cleanStr(val).split(' ')[0];
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return s;
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    let [, d, mo, y] = m;
+    if (y.length === 2) y = Number(y) > 26 ? `19${y}` : `20${y}`;
+    const day = Number(d), mon = Number(mo);
+    if (mon > 12 || day > 31) return null;
+    if (Number(y) < 1900 || Number(y) > 2026) return null;
+    return `${y}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+const wsSup = wb.Sheets['DATOS SUPERVISORES'];
+const supervisors = new Map(); // cedula → persona (nivel más alto gana)
+
+if (wsSup) {
+  const supRows = XLSX.utils.sheet_to_json(wsSup, { header: 1, defval: '' });
+  let zone = null, role = null;
+
+  for (const row of supRows) {
+    const first = cleanStr(row[0]);
+    const u = normalizeName(first);
+
+    if (u.startsWith('ZONA ')) { zone = u.replace('ZONA ', '').trim(); continue; }
+    if (u.includes('COORDINADOR') || u.includes('COORINADOR')) { role = 'coordinador'; continue; }
+    if ((u.includes('SUPERVISOR') || u.includes('SUPERSOR')) && u.includes('GENERAL')) { role = 'supervisor_general'; continue; }
+    if (u.includes('AUXILIAR')) { role = 'supervisor_auxiliar'; continue; }
+    if (u === 'LIDERES') { role = 'lider'; continue; }
+    if (u === 'CEDULA' || !first) continue;
+    if (role === 'coordinador') continue; // inline, van hardcodeados
+
+    const cedula = first.replace(/\D/g, '');
+    const nombres = cleanStr(row[1]);
+    if (!cedula || !nombres || !zone || !role) continue;
+
+    const lvl = ROLE_LEVEL[role];
+    const prev = supervisors.get(cedula);
+    if (prev && ROLE_LEVEL[prev.role] >= lvl) continue; // nivel más alto gana
+
+    supervisors.set(cedula, {
+      cedula, role, zone,
+      nombres,
+      apellidos: cleanStr(row[2]),
+      direccion: cleanStr(row[3]),
+      correo: cleanStr(row[4]).toLowerCase(),
+      fechaNac: supDate(row[6]),
+      telefono: normalizePhone(row[7]),
+      bautizada: normalizeBool(row[8]),
+      fechaBaut: supDate(row[9]),
+    });
+  }
+}
+
+push(
+  `-- ========================`,
+  `-- JERARQUÍA DE SUPERVISORES (${COORDINADORES.length} coordinadores + ${supervisors.size} del sheet DATOS SUPERVISORES)`,
+  `-- ========================`,
+);
+
+/** Emite INSERT-si-no-existe + UPDATE + upsert de jerarquía para una persona */
+function emitHierarchyPerson({ cedula, firstName, lastName, email, phone, address, birthDate, baptized, baptismDate, level, zone }) {
+  const zoneId = zoneIdMap[zone];
+  if (!zoneId) return;
+  const safeEmail = (email && EMAIL_RE.test(email)) ? email : `${cedula}@sionerp.local`;
+  const emailSql = `CASE WHEN EXISTS (SELECT 1 FROM public.users WHERE email = ${q(safeEmail)}) THEN ${q(`${cedula}@sionerp.local`)} ELSE ${q(safeEmail)} END`;
+  const birthSql = birthDate ? q(birthDate) : 'NULL';
+  const bautSql  = baptismDate ? q(baptismDate) : 'NULL';
+
+  push(
+    `-- ${firstName} ${lastName} | nivel ${level} | ${zone}`,
+    `INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)`,
+    `SELECT ${q(cedula)}, ${q(firstName)}, ${q(lastName)}, ${q(phone || '')}, ${q(address || '')}, ${emailSql}, 'server', ${baptized}, ${bautSql}, ${birthSql}, ${level}, ${q(zoneId)}, ${q(zone)}, true, true, NOW(), NOW()`,
+    `WHERE NOT EXISTS (SELECT 1 FROM public.users WHERE regexp_replace(id_number, '\\D', '', 'g') = ${q(cedula)});`,
+    `UPDATE public.users SET`,
+    `  discipleship_level = ${level}, zone_name = ${q(zone)}, zone_id = ${q(zoneId)},`,
+    `  phone   = CASE WHEN phone = '' THEN ${q(phone || '')} ELSE phone END,`,
+    `  address = CASE WHEN address = '' THEN ${q(address || '')} ELSE address END,`,
+    `  birth_date   = COALESCE(birth_date, ${birthSql}),`,
+    `  baptism_date = COALESCE(baptism_date, ${bautSql}),`,
+    `  baptized = baptized OR ${baptized}, updated_at = NOW()`,
+    `WHERE regexp_replace(id_number, '\\D', '', 'g') = ${q(cedula)};`,
+    `INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)`,
+    `SELECT id, ${level}, ${q(zoneId)}, ${q(zone)}, NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\\D', '', 'g') = ${q(cedula)}`,
+    `ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = ${level}, zone_id = ${q(zoneId)}, zone_name = ${q(zone)}, updated_at = NOW();`,
+    ``,
+  );
+}
+
+for (const c of COORDINADORES) {
+  emitHierarchyPerson({
+    cedula: c.cedula, firstName: c.firstName, lastName: c.lastName,
+    email: c.email, phone: c.phone, address: c.address,
+    birthDate: null, baptized: false, baptismDate: null,
+    level: 4, zone: c.zone,
+  });
+}
+
+for (const p of supervisors.values()) {
+  emitHierarchyPerson({
+    cedula: p.cedula, firstName: p.nombres, lastName: p.apellidos,
+    email: p.correo, phone: p.telefono, address: p.direccion,
+    birthDate: p.fechaNac, baptized: p.bautizada, baptismDate: p.fechaBaut,
+    level: ROLE_LEVEL[p.role], zone: p.zone,
+  });
+}
+
+// ── Cableado supervisor_id ────────────────────────────────────────────────────
+push(
+  `-- ========================`,
+  `-- CABLEADO DE SUPERVISIÓN`,
+  `-- generales → coordinador de su zona; auxiliares → general (solo si es único en la zona)`,
+  `-- ========================`,
+);
+
+for (const c of COORDINADORES) {
+  const zoneId = zoneIdMap[c.zone];
+  push(
+    `UPDATE public.discipleship_hierarchy h SET supervisor_id = (SELECT id FROM public.users WHERE regexp_replace(id_number,'\\D','','g') = ${q(c.cedula)})`,
+    `WHERE h.hierarchy_level = 3 AND h.zone_id = ${q(zoneId)} AND h.supervisor_id IS NULL;`,
+  );
+}
+
+// Auxiliares → general, solo en zonas con exactamente 1 supervisor general
+const generalsByZone = {};
+for (const p of supervisors.values()) {
+  if (p.role === 'supervisor_general') (generalsByZone[p.zone] ??= []).push(p);
+}
+for (const [zoneName, gens] of Object.entries(generalsByZone)) {
+  if (gens.length !== 1) continue;
+  const zoneId = zoneIdMap[zoneName];
+  push(
+    `UPDATE public.discipleship_hierarchy h SET supervisor_id = (SELECT id FROM public.users WHERE regexp_replace(id_number,'\\D','','g') = ${q(gens[0].cedula)})`,
+    `WHERE h.hierarchy_level = 2 AND h.zone_id = ${q(zoneId)} AND h.supervisor_id IS NULL;`,
+  );
+}
+push(``);
+
 // ── Footer ────────────────────────────────────────────────────────────────────
 push(`SET session_replication_role = DEFAULT;`);
 
@@ -451,6 +617,7 @@ console.log(`\n👥 Líderes únicos:  ${leaderMap.size}`);
 console.log(`   ✓ Ya en miembros: ${existingLeaders.length}`);
 console.log(`   ✨ Nuevos (placeholder): ${newLeaders.length}`);
 console.log(`\n📦 Grupos creados: ${groupInsertRows.length}`);
+console.log(`\n🏛️  Jerarquía: ${COORDINADORES.length} coordinadores + ${supervisors.size} supervisores/líderes del sheet`);
 console.log(`\n🔗 Miembros asignados a grupo: ${withLider}`);
 if (sinLider > 0) console.log(`   ⚠️  Sin grupo (sin LIDER en Excel): ${sinLider}`);
 if (importErrors.length > 0) {

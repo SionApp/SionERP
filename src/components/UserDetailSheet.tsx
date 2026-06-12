@@ -142,13 +142,13 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 <Badge variant={getRoleBadgeVariant(user.role)}>
                   {getRoleDisplayName(user.role)}
                 </Badge>
-                {user.is_active ? (
+                {user.is_active_member ? (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    Activo
+                    Miembro Activo
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                    Inactivo
+                    Miembro Inactivo
                   </Badge>
                 )}
               </div>

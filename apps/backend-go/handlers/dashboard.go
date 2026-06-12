@@ -25,7 +25,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	err := db.DB.QueryRow(`
     	SELECT COUNT(*)
 			FROM users
-			WHERE is_active = true
+			WHERE is_active = true AND is_active_member = true
 		`).Scan(&totalUser)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -319,11 +319,11 @@ func formatAction(action, tableName string) string {
 		"DELETE": "eliminó",
 	}
 	tableTextMap := map[string]string{
-		"users":               "usuario",
-		"events":              "evento",
-		"reports":             "reporte",
-		"discipleship_goals":  "objetivo",
-		"goal_assignments":    "asignación de objetivo",
+		"users":                "usuario",
+		"events":               "evento",
+		"reports":              "reporte",
+		"discipleship_goals":   "objetivo",
+		"goal_assignments":     "asignación de objetivo",
 		"goal_manual_progress": "progreso de objetivo",
 	}
 

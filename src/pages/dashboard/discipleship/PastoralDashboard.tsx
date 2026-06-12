@@ -5,10 +5,14 @@ import { ReportDetailSheet } from './ReportDetailSheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useNavigate } from 'react-router-dom';
+import { MobileSectionHeader } from '@/components/mobile/MobileSectionHeader';
+import { MobileSegment } from '@/components/mobile/MobileSegment';
+import { MobileStatTile } from '@/components/mobile/MobileStatTile';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiscipleshipData } from '@/hooks/useDiscipleshipData';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipAlert, DiscipleshipReport } from '@/types/discipleship.types';
 import {
@@ -18,11 +22,7 @@ import {
   Clock,
   Crown,
   Loader2,
-  Map,
   PartyPopper,
-  Plus,
-  Settings,
-  Target,
   TrendingUp,
   Users,
   Zap,
@@ -93,7 +93,7 @@ function parseGoNullTime(value: unknown): Date | null {
 
 const PastoralDashboard: React.FC = React.memo(() => {
   const { user, currentUser } = useAuth();
-  const navigate = useNavigate();
+  const isMobileApp = useMobileMode();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [selectedAlert, setSelectedAlert] = useState<DiscipleshipAlert | null>(null);
   const [alertSheetOpen, setAlertSheetOpen] = useState(false);
@@ -150,10 +150,405 @@ const PastoralDashboard: React.FC = React.memo(() => {
   };
 
   if (loading) {
+    if (isMobileApp) {
+      return (
+        <div className="px-4 pt-4 space-y-3">
+          <div className="flex gap-2">
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} className="h-20 w-24 rounded-2xl shrink-0" />
+            ))}
+          </div>
+          <Skeleton className="h-9 w-full rounded-full" />
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin" />
         <span className="ml-2">Cargando dashboard pastoral...</span>
+      </div>
+    );
+  }
+
+  // ── Contenido compartido entre web y mobile ──
+
+  const growthChart =
+    weeklyTrends.length > 0 ? (
+      <div style={{ width: '100%', height: 280, minHeight: 240 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={weeklyTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="pgradAttendance" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="pgradGroups" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="pgradConversions" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: '12px',
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="miembros"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              fill="url(#pgradAttendance)"
+              dot={false}
+              activeDot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
+              name="Asistencia"
+            />
+            <Area
+              type="monotone"
+              dataKey="grupos"
+              stroke="#22c55e"
+              strokeWidth={2}
+              fill="url(#pgradGroups)"
+              dot={false}
+              activeDot={{ r: 4, fill: '#22c55e', strokeWidth: 0 }}
+              name="Grupos Activos"
+            />
+            <Area
+              type="monotone"
+              dataKey="conversiones"
+              stroke="#f59e0b"
+              strokeWidth={2}
+              fill="url(#pgradConversions)"
+              dot={false}
+              activeDot={{ r: 4, fill: '#f59e0b', strokeWidth: 0 }}
+              name="Conversiones"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    ) : (
+      <p className="text-center text-muted-foreground py-8 md:py-12 text-sm">
+        No hay datos de tendencias disponibles
+      </p>
+    );
+
+  const zoneChart =
+    zoneStats.length > 0 ? (
+      <div style={{ width: '100%', height: 250, minHeight: 200 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={zoneStats}
+            margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+            barCategoryGap="35%"
+          >
+            <defs>
+              <linearGradient id="pgradBar1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3b82f6" />
+                <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.7} />
+              </linearGradient>
+              <linearGradient id="pgradBar2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#16a34a" />
+                <stop offset="100%" stopColor="#4ade80" stopOpacity={0.7} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              strokeOpacity={0.4}
+              horizontal={true}
+              vertical={false}
+            />
+            <XAxis
+              dataKey="zoneName"
+              tick={{ fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v: string) => v.replace('Zona ', 'Z')}
+            />
+            <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: '12px',
+              }}
+              cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
+            />
+            <Bar
+              dataKey="totalGroups"
+              fill="url(#pgradBar1)"
+              name="Grupos"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={20}
+            />
+            <Bar
+              dataKey="totalMembers"
+              fill="url(#pgradBar2)"
+              name="Miembros"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={20}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    ) : (
+      <p className="text-center text-muted-foreground py-8 text-sm">No hay datos de zonas</p>
+    );
+
+  const kpiGrid = (
+    <div className="grid gap-3 md:gap-4 grid-cols-2">
+      <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+        <div className="text-2xl font-bold text-green-600">
+          {Math.round(stats.average_attendance || 0)}%
+        </div>
+        <div className="text-sm text-green-700 dark:text-green-300">Asistencia</div>
+      </div>
+      <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+        <div className="text-2xl font-bold text-blue-600">{stats.active_leaders || 0}</div>
+        <div className="text-sm text-blue-700 dark:text-blue-300">Líderes Activos</div>
+      </div>
+      <div className="text-center p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
+        <div className="text-2xl font-bold text-purple-600">{stats.multiplications || 0}</div>
+        <div className="text-sm text-purple-700 dark:text-purple-300">Multiplicaciones</div>
+      </div>
+      <div className="text-center p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
+        <div className="text-2xl font-bold text-orange-600">{zoneStats.length}</div>
+        <div className="text-sm text-orange-700 dark:text-orange-300">Zonas Activas</div>
+      </div>
+    </div>
+  );
+
+  const approvalsList =
+    pendingReports.length === 0 ? (
+      <div className="text-center py-8">
+        <CheckCircle className="w-12 h-12 mx-auto text-green-500 mb-4" />
+        <p className="text-muted-foreground">No hay reportes pendientes</p>
+      </div>
+    ) : (
+      <div className="space-y-4">
+        {(pendingReports as unknown as DiscipleshipReport[]).map(report => (
+          <div
+            key={report.id}
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg"
+          >
+            <div className="min-w-0">
+              <h4 className="font-medium text-sm truncate">{report.reporter_name}</h4>
+              <p className="text-xs text-muted-foreground truncate">
+                {report.report_type} - Período:{' '}
+                {parseGoNullTime(report.period_end)?.toLocaleDateString('es-AR', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                }) ?? report.period_end}
+              </p>
+              <p className="text-xs text-muted-foreground flex items-center mt-1">
+                <Clock className="w-3 h-3 mr-1 shrink-0" />
+                Enviado:{' '}
+                {parseGoNullTime(report.submitted_at)?.toLocaleDateString('es-AR', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                }) ?? 'Sin fecha'}
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="flex-1 sm:flex-none"
+                onClick={() => {
+                  setSelectedReport(report);
+                  setReportSheetOpen(true);
+                }}
+              >
+                Ver
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleApproveReport(report.id)}
+                className="flex-1 sm:flex-none"
+              >
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Aprobar
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+
+  const alertsList =
+    alerts.length === 0 ? (
+      <div className="text-center py-8">
+        <CheckCircle className="w-12 h-12 mx-auto text-green-500 mb-4" />
+        <p className="text-muted-foreground">No hay alertas pendientes</p>
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {(alerts as unknown as DiscipleshipAlert[]).map(alert => (
+          <button
+            key={alert.id}
+            type="button"
+            className="w-full text-left flex items-start gap-3 p-3 sm:p-4 border rounded-xl hover:bg-muted/50 active:bg-muted transition-colors"
+            onClick={() => {
+              setSelectedAlert(alert);
+              setAlertSheetOpen(true);
+            }}
+          >
+            {alert.priority >= 5 ? (
+              <PartyPopper className="w-4 h-4 mt-0.5 shrink-0 text-green-500" />
+            ) : (
+              <AlertTriangle
+                className={`w-4 h-4 mt-0.5 shrink-0 ${
+                  alert.priority >= 3
+                    ? 'text-red-500'
+                    : alert.priority === 2
+                      ? 'text-orange-500'
+                      : 'text-yellow-500'
+                }`}
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-medium leading-snug truncate">{alert.title}</p>
+                <Badge
+                  variant={getAlertPriorityColor(alert.priority)}
+                  className="text-[10px] shrink-0"
+                >
+                  {alert.priority >= 5
+                    ? 'Celebración'
+                    : alert.priority >= 3
+                      ? 'Alta'
+                      : alert.priority === 2
+                        ? 'Media'
+                        : 'Baja'}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{alert.message}</p>
+              <p className="text-xs text-muted-foreground mt-1 opacity-70">
+                {new Date(alert.created_at).toLocaleDateString('es-AR', {
+                  day: 'numeric',
+                  month: 'short',
+                })}
+                {' · '}
+                Toca para ver detalles
+              </p>
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+
+  const detailSheets = (
+    <>
+      <AlertDetailSheet
+        alert={selectedAlert}
+        open={alertSheetOpen}
+        onOpenChange={open => {
+          setAlertSheetOpen(open);
+          if (!open) setSelectedAlert(null);
+        }}
+        onResolve={handleResolveAlert}
+      />
+      <ReportDetailSheet
+        report={selectedReport}
+        open={reportSheetOpen}
+        onOpenChange={open => {
+          setReportSheetOpen(open);
+          if (!open) setSelectedReport(null);
+        }}
+        onApprove={handleApproveReport}
+        onReject={handleRejectReport}
+      />
+    </>
+  );
+
+  // ── Modo mobile exclusivo ──
+  if (isMobileApp) {
+    const mobileSubTabs = [
+      { value: 'overview', label: 'Vista General' },
+      { value: 'strategic', label: 'Estratégico' },
+      {
+        value: 'approvals',
+        label:
+          (stats.pending_reports ?? 0) > 0
+            ? `Aprobaciones · ${stats.pending_reports}`
+            : 'Aprobaciones',
+      },
+      {
+        value: 'alerts',
+        label: stats.pending_alerts > 0 ? `Alertas · ${stats.pending_alerts}` : 'Alertas',
+      },
+      { value: 'health', label: 'Salud' },
+    ];
+
+    return (
+      <div className="pb-4">
+        {/* ── Stats: chips compactos horizontales ── */}
+        <div className="flex gap-2 px-4 pt-4 overflow-x-auto snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <MobileStatTile label="Grupos" value={stats.total_groups || 0} />
+          <MobileStatTile label="Miembros" value={stats.total_members || 0} />
+          <MobileStatTile label="Multiplicaciones" value={stats.multiplications || 0} />
+          <MobileStatTile label="Salud" value={`${(stats.spiritual_health || 0).toFixed(1)}/10`} />
+        </div>
+
+        {/* ── Sub-tabs ── */}
+        <MobileSegment
+          scrollable
+          options={mobileSubTabs}
+          value={selectedTab}
+          onChange={setSelectedTab}
+          className="px-4 pt-4"
+        />
+
+        {selectedTab === 'overview' && (
+          <>
+            <MobileSectionHeader title="Crecimiento · 24 semanas" />
+            <div className="px-4">{growthChart}</div>
+            <MobileSectionHeader title="Distribución por zonas" />
+            <div className="px-4">{zoneChart}</div>
+            <MobileSectionHeader title="Indicadores clave" />
+            <div className="px-4">{kpiGrid}</div>
+          </>
+        )}
+
+        {selectedTab === 'strategic' && <GoalsDashboard />}
+
+        {selectedTab === 'approvals' && (
+          <>
+            <MobileSectionHeader title="Cola de aprobaciones" />
+            <div className="px-4">{approvalsList}</div>
+          </>
+        )}
+
+        {selectedTab === 'alerts' && (
+          <>
+            <MobileSectionHeader title="Alertas del sistema" />
+            <div className="px-4">{alertsList}</div>
+          </>
+        )}
+
+        {selectedTab === 'health' && (
+          <MinistryHealthTab
+            stats={stats}
+            zoneStats={zoneStats}
+            weeklyTrends={weeklyTrends}
+            alerts={alerts as DiscipleshipAlert[]}
+          />
+        )}
+
+        {detailSheets}
       </div>
     );
   }
@@ -305,83 +700,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
                 Tendencias de las últimas 24 semanas
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {weeklyTrends.length > 0 ? (
-                <div style={{ width: '100%', height: 300, minHeight: 250 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={weeklyTrends}
-                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient id="pgradAttendance" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="pgradGroups" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="pgradConversions" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} vertical={false} />
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fontSize: 10 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                          fontSize: '12px',
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="miembros"
-                        stroke="#3b82f6"
-                        strokeWidth={2}
-                        fill="url(#pgradAttendance)"
-                        dot={false}
-                        activeDot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
-                        name="Asistencia"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="grupos"
-                        stroke="#22c55e"
-                        strokeWidth={2}
-                        fill="url(#pgradGroups)"
-                        dot={false}
-                        activeDot={{ r: 4, fill: '#22c55e', strokeWidth: 0 }}
-                        name="Grupos Activos"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="conversiones"
-                        stroke="#f59e0b"
-                        strokeWidth={2}
-                        fill="url(#pgradConversions)"
-                        dot={false}
-                        activeDot={{ r: 4, fill: '#f59e0b', strokeWidth: 0 }}
-                        name="Conversiones"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground py-8 md:py-12 text-sm">
-                  No hay datos de tendencias disponibles
-                </p>
-              )}
-            </CardContent>
+            <CardContent>{growthChart}</CardContent>
           </Card>
 
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
@@ -390,71 +709,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
               <CardHeader>
                 <CardTitle className="text-base md:text-lg">Distribución por Zonas</CardTitle>
               </CardHeader>
-              <CardContent>
-                {zoneStats.length > 0 ? (
-                  <div style={{ width: '100%', height: 250, minHeight: 200 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={zoneStats}
-                        margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
-                        barCategoryGap="35%"
-                      >
-                        <defs>
-                          <linearGradient id="pgradBar1" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#3b82f6" />
-                            <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.7} />
-                          </linearGradient>
-                          <linearGradient id="pgradBar2" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#16a34a" />
-                            <stop offset="100%" stopColor="#4ade80" stopOpacity={0.7} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          strokeOpacity={0.4}
-                          horizontal={true}
-                          vertical={false}
-                        />
-                        <XAxis
-                          dataKey="zoneName"
-                          tick={{ fontSize: 10 }}
-                          axisLine={false}
-                          tickLine={false}
-                          tickFormatter={(v: string) => v.replace('Zona ', 'Z')}
-                        />
-                        <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                            fontSize: '12px',
-                          }}
-                          cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
-                        />
-                        <Bar
-                          dataKey="totalGroups"
-                          fill="url(#pgradBar1)"
-                          name="Grupos"
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={20}
-                        />
-                        <Bar
-                          dataKey="totalMembers"
-                          fill="url(#pgradBar2)"
-                          name="Miembros"
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={20}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <p className="text-center text-muted-foreground py-8 text-sm">
-                    No hay datos de zonas
-                  </p>
-                )}
-              </CardContent>
+              <CardContent>{zoneChart}</CardContent>
             </Card>
 
             {/* Key Performance Indicators */}
@@ -462,36 +717,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
               <CardHeader>
                 <CardTitle className="text-base md:text-lg">Indicadores Clave</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 md:gap-4 grid-cols-2">
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">
-                      {Math.round(stats.average_attendance || 0)}%
-                    </div>
-                    <div className="text-sm text-green-700 dark:text-green-300">Asistencia</div>
-                  </div>
-                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {stats.active_leaders || 0}
-                    </div>
-                    <div className="text-sm text-blue-700 dark:text-blue-300">Líderes Activos</div>
-                  </div>
-                  <div className="text-center p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {stats.multiplications || 0}
-                    </div>
-                    <div className="text-sm text-purple-700 dark:text-purple-300">
-                      Multiplicaciones
-                    </div>
-                  </div>
-                  <div className="text-center p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
-                    <div className="text-2xl font-bold text-orange-600">{zoneStats.length}</div>
-                    <div className="text-sm text-orange-700 dark:text-orange-300">
-                      Zonas Activas
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
+              <CardContent>{kpiGrid}</CardContent>
             </Card>
           </div>
         </TabsContent>
@@ -507,66 +733,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
               <CardTitle>Cola de Aprobaciones</CardTitle>
               <CardDescription>Reportes pendientes de tu aprobación</CardDescription>
             </CardHeader>
-            <CardContent>
-              {pendingReports.length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="w-12 h-12 mx-auto text-green-500 mb-4" />
-                  <p className="text-muted-foreground">No hay reportes pendientes</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {(pendingReports as unknown as DiscipleshipReport[]).map(report => (
-                    <div
-                      key={report.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg"
-                    >
-                      <div className="min-w-0">
-                        <h4 className="font-medium text-sm truncate">{report.reporter_name}</h4>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {report.report_type} - Período:{' '}
-                          {parseGoNullTime(report.period_end)?.toLocaleDateString('es-AR', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          }) ?? report.period_end}
-                        </p>
-                        <p className="text-xs text-muted-foreground flex items-center mt-1">
-                          <Clock className="w-3 h-3 mr-1 shrink-0" />
-                          Enviado:{' '}
-                          {parseGoNullTime(report.submitted_at)?.toLocaleDateString('es-AR', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          }) ?? 'Sin fecha'}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 shrink-0">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="flex-1 sm:flex-none"
-                          onClick={() => {
-                            setSelectedReport(report);
-                            setReportSheetOpen(true);
-                          }}
-                        >
-                          Ver
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleApproveReport(report.id)}
-                          className="flex-1 sm:flex-none"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Aprobar
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
+            <CardContent>{approvalsList}</CardContent>
           </Card>
         </TabsContent>
 
@@ -579,68 +746,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
               </CardDescription>
             </CardHeader>
             <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
-              {alerts.length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="w-12 h-12 mx-auto text-green-500 mb-4" />
-                  <p className="text-muted-foreground">No hay alertas pendientes</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {(alerts as unknown as DiscipleshipAlert[]).map(alert => (
-                    <button
-                      key={alert.id}
-                      type="button"
-                      className="w-full text-left flex items-start gap-3 p-3 sm:p-4 border rounded-xl hover:bg-muted/50 active:bg-muted transition-colors"
-                      onClick={() => {
-                        setSelectedAlert(alert);
-                        setAlertSheetOpen(true);
-                      }}
-                    >
-                      {alert.priority >= 5 ? (
-                        <PartyPopper className="w-4 h-4 mt-0.5 shrink-0 text-green-500" />
-                      ) : (
-                        <AlertTriangle
-                          className={`w-4 h-4 mt-0.5 shrink-0 ${
-                            alert.priority >= 3
-                              ? 'text-red-500'
-                              : alert.priority === 2
-                                ? 'text-orange-500'
-                                : 'text-yellow-500'
-                          }`}
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium leading-snug truncate">{alert.title}</p>
-                          <Badge
-                            variant={getAlertPriorityColor(alert.priority)}
-                            className="text-[10px] shrink-0"
-                          >
-                            {alert.priority >= 5
-                              ? 'Celebración'
-                              : alert.priority >= 3
-                                ? 'Alta'
-                                : alert.priority === 2
-                                  ? 'Media'
-                                  : 'Baja'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                          {alert.message}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1 opacity-70">
-                          {new Date(alert.created_at).toLocaleDateString('es-AR', {
-                            day: 'numeric',
-                            month: 'short',
-                          })}
-                          {' · '}
-                          Toca para ver detalles
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+              {alertsList}
             </CardContent>
           </Card>
         </TabsContent>
@@ -655,28 +761,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
         </TabsContent>
       </Tabs>
 
-      {/* Alert Detail Sheet */}
-      <AlertDetailSheet
-        alert={selectedAlert}
-        open={alertSheetOpen}
-        onOpenChange={open => {
-          setAlertSheetOpen(open);
-          if (!open) setSelectedAlert(null);
-        }}
-        onResolve={handleResolveAlert}
-      />
-
-      {/* Report Detail Sheet */}
-      <ReportDetailSheet
-        report={selectedReport}
-        open={reportSheetOpen}
-        onOpenChange={open => {
-          setReportSheetOpen(open);
-          if (!open) setSelectedReport(null);
-        }}
-        onApprove={handleApproveReport}
-        onReject={handleRejectReport}
-      />
+      {detailSheets}
     </div>
   );
 });

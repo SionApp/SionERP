@@ -2,6 +2,13 @@ import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
 import GroupManagement from '@/components/discipleship/GroupManagement';
 import HierarchyManagement from '@/components/discipleship/HierarchyManagement';
 import ZoneManagement from '@/components/discipleship/ZoneManagement';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
+import { MobileSegment } from '@/components/mobile/MobileSegment';
+import { AnimatedTabContent } from '@/components/mobile/AnimatedTabContent';
+import { MobileDiscipleshipOverview } from '@/components/mobile/screens/DiscipleshipScreen';
+import { MobileLeaderOverview } from '@/components/mobile/screens/LeaderOverview';
+import { useMobileMode } from '@/hooks/useMobileMode';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,9 +22,23 @@ import {
   getDiscipleshipAccess,
   type DiscipleshipAccess,
 } from '@/utils/discipleship-access';
-import { AlertCircle, BarChart3, Calendar, CheckCircle, ClipboardList, MapPin, Plus, Target, TrendingUp, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  AlertCircle,
+  BarChart3,
+  Calendar,
+  CheckCircle,
+  ClipboardList,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Target,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { DiscipleshipService } from '@/services/discipleship.service';
+import type { DiscipleshipGroup } from '@/types/discipleship.types';
 import { toast } from 'sonner';
 import AuxiliarySupervisorDashboard from './discipleship/AuxiliarySupervisorDashboard';
 import CoordinatorDashboard from './discipleship/CoordinatorDashboard';
@@ -44,8 +65,8 @@ function formatTimestamp(timestamp: string): string {
 // ─────────────────────────────────────────────
 function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
   const { user } = useAuth();
-  const [group, setGroup] = useState<any>(null);
-  const [lastReport, setLastReport] = useState<any>(null);
+  const [group, setGroup] = useState<DiscipleshipGroup | null>(null);
+  const [lastReport, setLastReport] = useState<{ status: string } | null>(null);
   const [memberCount, setMemberCount] = useState<{ total: number; active: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -60,7 +81,9 @@ function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
         ]);
 
         if (groupsRes.status === 'fulfilled') {
-          const list = Array.isArray(groupsRes.value) ? groupsRes.value : groupsRes.value?.data ?? [];
+          const list = Array.isArray(groupsRes.value)
+            ? groupsRes.value
+            : (groupsRes.value?.data ?? []);
           const g = list[0] ?? null;
           setGroup(g);
           if (g) {
@@ -68,7 +91,9 @@ function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
           }
         }
         if (reportsRes.status === 'fulfilled') {
-          const list = Array.isArray(reportsRes.value) ? reportsRes.value : reportsRes.value ?? [];
+          const list = Array.isArray(reportsRes.value)
+            ? reportsRes.value
+            : (reportsRes.value ?? []);
           setLastReport(list[0] ?? null);
         }
       } finally {
@@ -100,7 +125,9 @@ function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
             <div className="flex items-center gap-2">
               <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">{loading ? '—' : memberCount?.total ?? 0}</p>
+                <p className="text-xl sm:text-2xl font-bold">
+                  {loading ? '—' : (memberCount?.total ?? 0)}
+                </p>
                 <p className="text-xs sm:text-sm text-muted-foreground">Miembros</p>
               </div>
             </div>
@@ -112,7 +139,9 @@ function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
             <div className="flex items-center gap-2">
               <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 shrink-0" />
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">{loading ? '—' : memberCount?.active ?? 0}</p>
+                <p className="text-xl sm:text-2xl font-bold">
+                  {loading ? '—' : (memberCount?.active ?? 0)}
+                </p>
                 <p className="text-xs sm:text-sm text-muted-foreground">Activos</p>
               </div>
             </div>
@@ -124,7 +153,9 @@ function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
             <div className="flex items-center gap-2">
               <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 shrink-0" />
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold truncate">{loading ? '—' : (group?.meeting_day ?? 'No definido')}</p>
+                <p className="text-xl sm:text-2xl font-bold truncate">
+                  {loading ? '—' : (group?.meeting_day ?? 'No definido')}
+                </p>
                 <p className="text-xs sm:text-sm text-muted-foreground">Día de reunión</p>
               </div>
             </div>
@@ -139,7 +170,9 @@ function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
                 {loading ? (
                   <p className="text-xl sm:text-2xl font-bold">—</p>
                 ) : lastReport ? (
-                  <p className={`text-sm font-semibold ${reportStatusColor[lastReport.status] ?? 'text-muted-foreground'}`}>
+                  <p
+                    className={`text-sm font-semibold ${reportStatusColor[lastReport.status] ?? 'text-muted-foreground'}`}
+                  >
                     {reportStatusLabel[lastReport.status] ?? lastReport.status}
                   </p>
                 ) : (
@@ -156,9 +189,7 @@ function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
       <Card>
         <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
           <CardTitle className="text-base sm:text-xl">Acciones Rápidas</CardTitle>
-          <CardDescription className="text-xs sm:text-sm">
-            Gestiona tu célula
-          </CardDescription>
+          <CardDescription className="text-xs sm:text-sm">Gestiona tu célula</CardDescription>
         </CardHeader>
         <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
@@ -173,13 +204,7 @@ function LeaderOverview({ onGoToDashboard }: { onGoToDashboard: () => void }) {
   );
 }
 
-function NoAccessCard({
-  module,
-  requiredLevel,
-}: {
-  module: string;
-  requiredLevel: number;
-}) {
+function NoAccessCard({ module, requiredLevel }: { module: string; requiredLevel: number }) {
   const levelNames: Record<number, string> = {
     2: 'Supervisor Auxiliar',
     3: 'Supervisor General',
@@ -217,19 +242,38 @@ const DiscipleshipPage = () => {
   const [user, setUser] = useState<UserType | null>(null);
   const [discipleshipAccess, setDiscipleshipAccess] = useState<DiscipleshipAccess | null>(null);
   const [loading, setLoading] = useState(true);
-  const { activities: recentActivities, loading: activityLoading } =
-    useRecentDiscipleshipActivity(
-      8,
-      discipleshipAccess?.canAccess && !discipleshipAccess?.isFullAccess && discipleshipAccess?.level === 1
-        ? (authUser?.id ?? undefined)
-        : undefined
-    );
-  const { discipleshipStats, loading: statsLoading } = useDashboardStats();
+  const isMobileApp = useMobileMode();
+  const {
+    activities: recentActivities,
+    loading: activityLoading,
+    refetch: refetchActivity,
+  } = useRecentDiscipleshipActivity(
+    8,
+    discipleshipAccess?.canAccess &&
+      !discipleshipAccess?.isFullAccess &&
+      discipleshipAccess?.level === 1
+      ? (authUser?.id ?? undefined)
+      : undefined
+  );
+  const { discipleshipStats, loading: statsLoading, refetch: refetchStats } = useDashboardStats();
+
+  // ── Pull-to-refresh (unconditional — Rules of Hooks) ──
+  const handleRefresh = async () => {
+    await Promise.allSettled([refetchStats(), refetchActivity()]);
+    toast.success('Datos actualizados');
+  };
+  const pullToRefresh = usePullToRefresh({
+    onRefresh: handleRefresh,
+    threshold: 60,
+    maxPull: 110,
+  });
 
   useEffect(() => {
     if (discipleshipAccess) {
       const defaultTab = discipleshipAccess.canAccess
-        ? (getDiscipleshipLevel() >= 2 ? 'dashboard' : 'overview')
+        ? getDiscipleshipLevel() >= 2
+          ? 'dashboard'
+          : 'overview'
         : 'overview';
       setActiveTab(defaultTab);
     }
@@ -384,6 +428,140 @@ const DiscipleshipPage = () => {
     );
   }
 
+  // ── Modo mobile exclusivo ──
+  if (isMobileApp) {
+    const firstName =
+      authUser?.user_metadata?.first_name || authUser?.email?.split('@')[0] || 'Usuario';
+
+    const mobileTabs = [
+      { value: 'overview', label: 'Resumen' },
+      { value: 'dashboard', label: 'Dashboard' },
+      ...(canManageGroups ? [{ value: 'manage', label: 'Gestión' }] : []),
+      ...(canManageHierarchy ? [{ value: 'hierarchy', label: 'Jerarquías' }] : []),
+      ...(canViewZones ? [{ value: 'zones', label: 'Zonas' }] : []),
+      ...(canViewMap ? [{ value: 'map', label: 'Mapa' }] : []),
+    ];
+
+    const { state: pullState, progress: pullProgress, isRefreshing } = pullToRefresh;
+
+    return (
+      <MobileScreen
+        title={activeTab === 'overview' ? `Hola, ${firstName}` : 'Discipulado'}
+        subtitle={
+          activeTab === 'overview'
+            ? `${getLevelName()} · Nivel ${getDiscipleshipLevel()}`
+            : getLevelName()
+        }
+      >
+        {/* ── Indicador de pull-to-refresh ── */}
+        <div
+          className={cn(
+            'flex items-center justify-center h-0 overflow-hidden transition-[height] duration-200',
+            pullState !== 'idle' && pullState !== 'refreshing' && 'h-14',
+            isRefreshing && 'h-14'
+          )}
+        >
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <RefreshCw
+              className={cn(
+                'w-4 h-4 transition-transform duration-200',
+                isRefreshing ? 'animate-spin' : '',
+                pullState === 'reached' && !isRefreshing ? 'rotate-180' : ''
+              )}
+            />
+            <span>
+              {isRefreshing
+                ? 'Actualizando...'
+                : pullState === 'reached'
+                  ? 'Suelta para actualizar'
+                  : 'Tira para actualizar'}
+            </span>
+          </div>
+        </div>
+
+        {discipleshipAccess?.canAccess && (
+          <MobileSegment
+            scrollable
+            options={mobileTabs}
+            value={activeTab}
+            onChange={setActiveTab}
+            className="px-4 pt-1"
+          />
+        )}
+
+        {!discipleshipAccess?.canAccess ? (
+          <AnimatedTabContent key={activeTab}>
+            <div className="px-4 pt-6 text-center space-y-3">
+              <AlertCircle className="w-10 h-10 mx-auto text-muted-foreground" />
+              <h3 className="text-base font-semibold">Sin Acceso al Módulo</h3>
+              <p className="text-sm text-muted-foreground">
+                No tienes un nivel jerárquico asignado. Contacta a un administrador.
+              </p>
+            </div>
+          </AnimatedTabContent>
+        ) : (
+          <>
+            {activeTab === 'overview' && (
+              <AnimatedTabContent key="overview">
+                {getDiscipleshipLevel() === 1 ? (
+                  <MobileLeaderOverview onGoToDashboard={() => setActiveTab('dashboard')} />
+                ) : (
+                  <MobileDiscipleshipOverview
+                    firstName={firstName}
+                    stats={discipleshipStats}
+                    statsLoading={statsLoading}
+                    activities={recentActivities}
+                    activityLoading={activityLoading}
+                    canManageGroups={canManageGroups}
+                    onGoToTab={setActiveTab}
+                  />
+                )}
+              </AnimatedTabContent>
+            )}
+
+            {activeTab === 'dashboard' && (
+              <AnimatedTabContent key="dashboard">
+                {renderDiscipleshipDashboard()}
+              </AnimatedTabContent>
+            )}
+
+            {activeTab === 'manage' && canManageGroups && (
+              <AnimatedTabContent key="manage">
+                <div className="px-3 pt-3">
+                  <GroupManagement />
+                </div>
+              </AnimatedTabContent>
+            )}
+
+            {activeTab === 'hierarchy' && canManageHierarchy && (
+              <AnimatedTabContent key="hierarchy">
+                <div className="px-3 pt-3">
+                  <HierarchyManagement />
+                </div>
+              </AnimatedTabContent>
+            )}
+
+            {activeTab === 'zones' && canViewZones && (
+              <AnimatedTabContent key="zones">
+                <div className="px-3 pt-3">
+                  <ZoneManagement />
+                </div>
+              </AnimatedTabContent>
+            )}
+
+            {activeTab === 'map' && canViewMap && (
+              <AnimatedTabContent key="map">
+                <div className="px-3 pt-3">
+                  <DiscipleshipMap />
+                </div>
+              </AnimatedTabContent>
+            )}
+          </>
+        )}
+      </MobileScreen>
+    );
+  }
+
   return (
     <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
@@ -410,11 +588,16 @@ const DiscipleshipPage = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
         {/* Mobile: Scroll horizontal, Desktop: Grid */}
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <TabsList className="inline-flex w-full md:grid h-auto min-w-max md:min-w-0 gap-1 md:gap-0"
+          <TabsList
+            className="inline-flex w-full md:grid h-auto min-w-max md:min-w-0 gap-1 md:gap-0"
             style={{
               gridTemplateColumns: `repeat(${
-                2 + (canManageGroups ? 1 : 0) + (canManageHierarchy ? 1 : 0) + (canViewZones ? 1 : 0) + (canViewMap ? 1 : 0)
-              }, minmax(0, 1fr))`
+                2 +
+                (canManageGroups ? 1 : 0) +
+                (canManageHierarchy ? 1 : 0) +
+                (canViewZones ? 1 : 0) +
+                (canViewMap ? 1 : 0)
+              }, minmax(0, 1fr))`,
             }}
           >
             <TabsTrigger
@@ -487,130 +670,159 @@ const DiscipleshipPage = () => {
           ) : (
             <>
               {getDiscipleshipLevel() === 1 ? (
-            /* ── Resumen para LÍDERES (nivel 1) ── */
-            <LeaderOverview onGoToDashboard={() => setActiveTab('dashboard')} />
-          ) : (
-            /* ── Resumen para SUPERVISORES y superiores (nivel 2+) ── */
-            <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-6">
-              <Card>
-                <CardContent className="p-3 sm:p-4 md:p-6">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.totalGroups}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Grupos Activos</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 sm:p-4 md:p-6">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.totalMembers}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Miembros Activos</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 sm:p-4 md:p-6">
-                  <div className="flex items-center gap-2">
-                    <Target className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.multiplications}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Multiplicando</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 sm:p-4 md:p-6">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xl sm:text-2xl font-bold">{discipleshipStats.alertsCount}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Necesitan Atención</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quick Actions — solo para nivel 2+ */}
-            <Card>
-              <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
-                <CardTitle className="text-base sm:text-xl">Acciones Rápidas</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  Gestiona los aspectos más importantes del discipulado
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
-                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
-                  {canManageGroups && (
-                    <Button onClick={() => setActiveTab('manage')} className="w-full sm:w-auto">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Crear Nuevo Grupo
-                    </Button>
-                  )}
-                  <Button variant="outline" onClick={() => setActiveTab('dashboard')} className="w-full sm:w-auto">
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Ver Dashboard
-                  </Button>
-                  {canManageGroups && (
-                    <Button variant="outline" onClick={() => setActiveTab('map')} className="w-full sm:w-auto">
-                      <MapPin className="w-4 h-4 mr-2" />
-                      Ver Mapa
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            </>
-          )}
-
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
-              <CardTitle className="text-base">Actividad Reciente</CardTitle>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
-              {activityLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="text-center space-y-2">
-                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-                    <p className="text-sm text-muted-foreground">Cargando actividad...</p>
-                  </div>
-                </div>
-              ) : recentActivities.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground">No hay actividad reciente</p>
-                </div>
+                /* ── Resumen para LÍDERES (nivel 1) ── */
+                <LeaderOverview onGoToDashboard={() => setActiveTab('dashboard')} />
               ) : (
-                <div className="space-y-2">
-                  {recentActivities.map(activity => (
-                    <div
-                      key={activity.id}
-                      className="flex items-start gap-3 rounded-lg p-3 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${activity.color}`} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium leading-none">{activity.title}</p>
-                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                          {activity.description}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {formatTimestamp(activity.timestamp)}
-                        </p>
+                /* ── Resumen para SUPERVISORES y superiores (nivel 2+) ── */
+                <>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-6">
+                    <Card>
+                      <CardContent className="p-3 sm:p-4 md:p-6">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xl sm:text-2xl font-bold">
+                              {discipleshipStats.totalGroups}
+                            </p>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                              Grupos Activos
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-3 sm:p-4 md:p-6">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xl sm:text-2xl font-bold">
+                              {discipleshipStats.totalMembers}
+                            </p>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                              Miembros Activos
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-3 sm:p-4 md:p-6">
+                        <div className="flex items-center gap-2">
+                          <Target className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xl sm:text-2xl font-bold">
+                              {discipleshipStats.multiplications}
+                            </p>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                              Multiplicando
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-3 sm:p-4 md:p-6">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xl sm:text-2xl font-bold">
+                              {discipleshipStats.alertsCount}
+                            </p>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                              Necesitan Atención
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Quick Actions — solo para nivel 2+ */}
+                  <Card>
+                    <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
+                      <CardTitle className="text-base sm:text-xl">Acciones Rápidas</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Gestiona los aspectos más importantes del discipulado
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
+                        {canManageGroups && (
+                          <Button
+                            onClick={() => setActiveTab('manage')}
+                            className="w-full sm:w-auto"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Crear Nuevo Grupo
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          onClick={() => setActiveTab('dashboard')}
+                          className="w-full sm:w-auto"
+                        >
+                          <BarChart3 className="w-4 h-4 mr-2" />
+                          Ver Dashboard
+                        </Button>
+                        {canManageGroups && (
+                          <Button
+                            variant="outline"
+                            onClick={() => setActiveTab('map')}
+                            className="w-full sm:w-auto"
+                          >
+                            <MapPin className="w-4 h-4 mr-2" />
+                            Ver Mapa
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {/* Recent Activity */}
+              <Card>
+                <CardHeader className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-6 pb-2 sm:pb-3">
+                  <CardTitle className="text-base">Actividad Reciente</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 sm:px-4 md:px-6 pb-3 sm:pb-4 md:pb-6">
+                  {activityLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center space-y-2">
+                        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+                        <p className="text-sm text-muted-foreground">Cargando actividad...</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  ) : recentActivities.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-muted-foreground">No hay actividad reciente</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentActivities.map(activity => (
+                        <div
+                          key={activity.id}
+                          className="flex items-start gap-3 rounded-lg p-3 hover:bg-muted/50 transition-colors"
+                        >
+                          <div
+                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${activity.color}`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium leading-none">{activity.title}</p>
+                            <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                              {activity.description}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {formatTimestamp(activity.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </>
           )}
         </TabsContent>
@@ -638,22 +850,13 @@ const DiscipleshipPage = () => {
 
         {/* Zones Tab */}
         <TabsContent value="zones">
-          {canViewZones ? (
-            <ZoneManagement />
-          ) : (
-            <NoAccessCard module="Zonas" requiredLevel={2} />
-          )}
+          {canViewZones ? <ZoneManagement /> : <NoAccessCard module="Zonas" requiredLevel={2} />}
         </TabsContent>
 
         {/* Map Tab */}
         <TabsContent value="map">
-          {canViewMap ? (
-            <DiscipleshipMap />
-          ) : (
-            <NoAccessCard module="Mapa" requiredLevel={2} />
-          )}
+          {canViewMap ? <DiscipleshipMap /> : <NoAccessCard module="Mapa" requiredLevel={2} />}
         </TabsContent>
-
       </Tabs>
     </div>
   );

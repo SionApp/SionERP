@@ -1,5 +1,6 @@
-import { BarChart3, Heart, Home, UserCog } from 'lucide-react';
+import { BarChart3, Heart, Home, UserCog, Users } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useMobileNavHidden } from '@/components/mobile/mobile-nav-state';
 import { useSystem } from '@/contexts/SystemContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ROLE_LEVELS } from '@/lib/permissions';
@@ -23,6 +24,12 @@ const NAV_ITEMS: BottomNavItem[] = [
     minRole: ROLE_LEVELS.member,
   },
   {
+    title: 'Miembros',
+    url: '/dashboard/users',
+    icon: Users,
+    minRole: ROLE_LEVELS.staff,
+  },
+  {
     title: 'Reportes',
     url: '/dashboard/reports',
     icon: BarChart3,
@@ -32,10 +39,16 @@ const NAV_ITEMS: BottomNavItem[] = [
   { title: 'Perfil', url: '/dashboard/profile', icon: UserCog, minRole: ROLE_LEVELS.member },
 ];
 
-export function MobileBottomNav() {
+interface MobileBottomNavProps {
+  /** Modo mobile exclusivo (useMobileMode): siempre visible sin importar el viewport */
+  exclusive?: boolean;
+}
+
+export function MobileBottomNav({ exclusive = false }: MobileBottomNavProps) {
   const location = useLocation();
   const { isModuleInstalled } = useSystem();
   const { hasAccess } = usePermissions();
+  const navHidden = useMobileNavHidden();
 
   const visibleItems = NAV_ITEMS.filter(item => {
     if (!hasAccess(item.minRole)) return false;
@@ -43,12 +56,17 @@ export function MobileBottomNav() {
     return isModuleInstalled(item.requiredModule);
   });
 
+  // Patrón pushed-detail: las pantallas de detalle ocultan el nav
+  if (navHidden) return null;
+
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--glass-background)] backdrop-blur-lg border-t border-border/30 shadow-[0_-4px_24px_rgba(0,0,0,0.15)]">
-      <div
-        className="flex items-stretch"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
+    <nav
+      className={cn(
+        'fixed bottom-0 left-0 right-0 z-50 bg-[var(--glass-background)] backdrop-blur-lg border-t border-border/30 shadow-[0_-4px_24px_rgba(0,0,0,0.15)]',
+        !exclusive && 'md:hidden'
+      )}
+    >
+      <div className="flex items-stretch" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {visibleItems.map(item => {
           const isActive =
             item.url === '/dashboard'
@@ -75,7 +93,12 @@ export function MobileBottomNav() {
                 >
                   <item.icon className={cn('h-5 w-5', isActive && 'scale-110')} />
                 </div>
-                <span className={cn('text-[10px] font-medium leading-none', isActive && 'font-semibold')}>
+                <span
+                  className={cn(
+                    'text-[10px] font-medium leading-none',
+                    isActive && 'font-semibold'
+                  )}
+                >
                   {item.title}
                 </span>
               </div>

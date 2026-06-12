@@ -5,6 +5,8 @@ import {
 import type { DiscipleshipAlert } from '@/types/discipleship.types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MobileSectionHeader } from '@/components/mobile/MobileSectionHeader';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
@@ -274,6 +276,7 @@ export function MinistryHealthTab({
   weeklyTrends: _weeklyTrends,
   alerts,
 }: MinistryHealthTabProps) {
+  const isMobileApp = useMobileMode();
   const [groupPerformance, setGroupPerformance] = useState<GroupPerformance[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groupPage, setGroupPage] = useState(0);
@@ -338,6 +341,261 @@ export function MinistryHealthTab({
     (groupPage + 1) * GROUP_PAGE_SIZE
   );
 
+  // ── Bloques de contenido compartidos entre web y mobile ──
+
+  const healthRingContent = (
+    <div className="flex flex-col items-center gap-4">
+      <div className="relative w-48 h-48">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={donutData}
+              innerRadius="68%"
+              outerRadius="88%"
+              startAngle={90}
+              endAngle={-270}
+              dataKey="value"
+              strokeWidth={0}
+            >
+              {donutData.map((entry, i) => (
+                <Cell key={i} fill={entry.fill} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-4xl font-bold" style={{ color: healthCfg.hex }}>
+            {healthScore.toFixed(1)}
+          </span>
+          <span className="text-xs text-muted-foreground">de 10</span>
+          <span className={cn('text-sm font-semibold mt-1', healthCfg.tailwindText)}>
+            {healthCfg.label}
+          </span>
+        </div>
+      </div>
+
+      {/* 4 sub-indicators */}
+      <div className="grid grid-cols-2 gap-2 w-full">
+        {[
+          {
+            icon: <TrendingUp className="h-3.5 w-3.5" />,
+            label: 'Asistencia',
+            value: `${avgAttendance}%`,
+            color: getHealthConfig(avgAttendance / 10),
+          },
+          {
+            icon: <Users className="h-3.5 w-3.5" />,
+            label: 'Líderes',
+            value: String(activeLeaders),
+            color: {
+              tailwindBg: 'bg-blue-50 dark:bg-blue-950',
+              tailwindText: 'text-blue-600',
+              hex: '#3b82f6',
+              label: '',
+            },
+          },
+          {
+            icon: <Zap className="h-3.5 w-3.5" />,
+            label: 'Multiplicaciones',
+            value: String(multiplications),
+            color: {
+              tailwindBg: 'bg-purple-50 dark:bg-purple-950',
+              tailwindText: 'text-purple-600',
+              hex: '#7c3aed',
+              label: '',
+            },
+          },
+          {
+            icon: <TrendingUp className="h-3.5 w-3.5" />,
+            label: 'Zonas activas',
+            value: String(zoneStats.length),
+            color: {
+              tailwindBg: 'bg-sky-50 dark:bg-sky-950',
+              tailwindText: 'text-sky-600',
+              hex: '#0284c7',
+              label: '',
+            },
+          },
+        ].map(item => (
+          <div
+            key={item.label}
+            className={cn('rounded-lg px-3 py-2 flex items-center gap-2', item.color.tailwindBg)}
+          >
+            <span className={cn(item.color.tailwindText)}>{item.icon}</span>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">{item.label}</p>
+              <p className={cn('text-base font-bold', item.color.tailwindText)}>{item.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const alertsSummaryContent =
+    activeAlerts.length === 0 && positiveAlerts.length === 0 ? (
+      <div className="flex flex-col items-center justify-center py-8 text-center">
+        <PartyPopper className="h-10 w-10 text-green-500 mb-2" />
+        <p className="text-sm text-muted-foreground">¡Todo en orden!</p>
+      </div>
+    ) : (
+      <div className="space-y-1">
+        {activeAlerts.map(alert => (
+          <div key={alert.id} className="flex items-start gap-2 p-2.5 rounded-lg border bg-card">
+            {getAlertIcon(alert)}
+            <div className="min-w-0">
+              <p className="text-sm font-medium leading-snug truncate">{alert.title}</p>
+              <p className="text-xs text-muted-foreground line-clamp-1">{alert.message}</p>
+              {alert.zone_name && (
+                <p className="text-xs text-muted-foreground mt-0.5">📍 {alert.zone_name}</p>
+              )}
+            </div>
+          </div>
+        ))}
+        {positiveAlerts.map(alert => (
+          <div
+            key={alert.id}
+            className="flex items-start gap-2 p-2.5 rounded-lg border bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800"
+          >
+            {getAlertIcon(alert)}
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 leading-snug truncate">
+                {alert.title}
+              </p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 line-clamp-1">
+                {alert.message}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+
+  const zonesGrid = (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {zoneStats.map((zone, i) => (
+        <ZoneCard key={i} zone={zone} />
+      ))}
+    </div>
+  );
+
+  const funnelContent = (
+    <div className="space-y-3">
+      {funnelItems.map((item, i) => {
+        const pct = funnelMax > 0 ? Math.max((item.value / funnelMax) * 100, 4) : 4;
+        return (
+          <div key={i} className="flex items-center gap-3">
+            <span className="w-36 text-sm text-muted-foreground text-right shrink-0 hidden sm:inline">
+              {item.label}
+            </span>
+            <span className="text-xs text-muted-foreground sm:hidden shrink-0 w-24 text-right">
+              {item.label}
+            </span>
+            <div className="flex-1 h-9 bg-muted rounded-lg overflow-hidden">
+              <div
+                className="h-full rounded-lg flex items-center px-3 transition-all duration-700"
+                style={{ width: `${pct}%`, backgroundColor: item.hex }}
+              >
+                <span className="text-white text-sm font-bold whitespace-nowrap">
+                  {item.value.toLocaleString()}
+                </span>
+              </div>
+            </div>
+            {i < funnelItems.length - 1 && (
+              <span className="text-xs text-muted-foreground shrink-0 hidden md:block">
+                {funnelItems[i + 1].value > 0 && item.value > 0
+                  ? `${Math.round((funnelItems[i + 1].value / item.value) * 100)}%`
+                  : '—'}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const groupPerformanceContent = loadingGroups ? (
+    <div className="space-y-3">
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} className="flex items-center gap-3 py-2">
+          <Skeleton className="size-2 rounded-full" />
+          <Skeleton className="h-4 flex-1" />
+          <Skeleton className="h-4 w-20 hidden sm:block" />
+        </div>
+      ))}
+    </div>
+  ) : sortedGroups.length === 0 ? (
+    <p className="text-center text-muted-foreground py-8 text-sm">
+      No hay datos de grupos disponibles
+    </p>
+  ) : (
+    <div className="space-y-1">
+      {pagedGroups.map(group => (
+        <GroupRow key={group.groupId} group={group} />
+      ))}
+      {totalGroupPages > 1 && (
+        <div className="flex items-center justify-between pt-3 border-t mt-2">
+          <span className="text-xs text-muted-foreground">
+            {groupPage * GROUP_PAGE_SIZE + 1}–
+            {Math.min((groupPage + 1) * GROUP_PAGE_SIZE, sortedGroups.length)} de{' '}
+            {sortedGroups.length} grupos
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              disabled={groupPage === 0}
+              onClick={() => setGroupPage(p => p - 1)}
+              className="p-1 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-xs px-2">
+              {groupPage + 1} / {totalGroupPages}
+            </span>
+            <button
+              disabled={groupPage >= totalGroupPages - 1}
+              onClick={() => setGroupPage(p => p + 1)}
+              className="p-1 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Modo mobile exclusivo: secciones full-width sin chrome de Cards ──
+  if (isMobileApp) {
+    return (
+      <div className="pb-4">
+        <MobileSectionHeader title="Temperatura general" className="pt-2" />
+        <div className="px-4">{healthRingContent}</div>
+
+        <MobileSectionHeader
+          title={
+            activeAlerts.length > 0
+              ? `Situaciones activas (${activeAlerts.length})`
+              : 'Situaciones activas'
+          }
+        />
+        <div className="px-4">{alertsSummaryContent}</div>
+
+        {zoneStats.length > 0 && (
+          <>
+            <MobileSectionHeader title="Temperatura por zona" />
+            <div className="px-4">{zonesGrid}</div>
+          </>
+        )}
+
+        <MobileSectionHeader title="Embudo de discipulado" />
+        <div className="px-4">{funnelContent}</div>
+
+        <MobileSectionHeader title="Rendimiento por grupo" />
+        <div className="px-4">{groupPerformanceContent}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* ── Row 1: Health Ring + KPIs ── */}
@@ -351,97 +609,7 @@ export function MinistryHealthTab({
             </CardTitle>
             <CardDescription>Salud espiritual promedio del ministerio</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <div className="relative w-48 h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={donutData}
-                    innerRadius="68%"
-                    outerRadius="88%"
-                    startAngle={90}
-                    endAngle={-270}
-                    dataKey="value"
-                    strokeWidth={0}
-                  >
-                    {donutData.map((entry, i) => (
-                      <Cell key={i} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-bold" style={{ color: healthCfg.hex }}>
-                  {healthScore.toFixed(1)}
-                </span>
-                <span className="text-xs text-muted-foreground">de 10</span>
-                <span className={cn('text-sm font-semibold mt-1', healthCfg.tailwindText)}>
-                  {healthCfg.label}
-                </span>
-              </div>
-            </div>
-
-            {/* 4 sub-indicators */}
-            <div className="grid grid-cols-2 gap-2 w-full">
-              {[
-                {
-                  icon: <TrendingUp className="h-3.5 w-3.5" />,
-                  label: 'Asistencia',
-                  value: `${avgAttendance}%`,
-                  color: getHealthConfig(avgAttendance / 10),
-                },
-                {
-                  icon: <Users className="h-3.5 w-3.5" />,
-                  label: 'Líderes',
-                  value: String(activeLeaders),
-                  color: {
-                    tailwindBg: 'bg-blue-50 dark:bg-blue-950',
-                    tailwindText: 'text-blue-600',
-                    hex: '#3b82f6',
-                    label: '',
-                  },
-                },
-                {
-                  icon: <Zap className="h-3.5 w-3.5" />,
-                  label: 'Multiplicaciones',
-                  value: String(multiplications),
-                  color: {
-                    tailwindBg: 'bg-purple-50 dark:bg-purple-950',
-                    tailwindText: 'text-purple-600',
-                    hex: '#7c3aed',
-                    label: '',
-                  },
-                },
-                {
-                  icon: <TrendingUp className="h-3.5 w-3.5" />,
-                  label: 'Zonas activas',
-                  value: String(zoneStats.length),
-                  color: {
-                    tailwindBg: 'bg-sky-50 dark:bg-sky-950',
-                    tailwindText: 'text-sky-600',
-                    hex: '#0284c7',
-                    label: '',
-                  },
-                },
-              ].map(item => (
-                <div
-                  key={item.label}
-                  className={cn(
-                    'rounded-lg px-3 py-2 flex items-center gap-2',
-                    item.color.tailwindBg
-                  )}
-                >
-                  <span className={cn(item.color.tailwindText)}>{item.icon}</span>
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground truncate">{item.label}</p>
-                    <p className={cn('text-base font-bold', item.color.tailwindText)}>
-                      {item.value}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
+          <CardContent>{healthRingContent}</CardContent>
         </Card>
 
         {/* Alerts summary */}
@@ -457,48 +625,7 @@ export function MinistryHealthTab({
                 : `${activeAlerts.length} requieren atención`}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-1">
-            {activeAlerts.length === 0 && positiveAlerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <PartyPopper className="h-10 w-10 text-green-500 mb-2" />
-                <p className="text-sm text-muted-foreground">¡Todo en orden!</p>
-              </div>
-            ) : (
-              <>
-                {activeAlerts.map(alert => (
-                  <div
-                    key={alert.id}
-                    className="flex items-start gap-2 p-2.5 rounded-lg border bg-card"
-                  >
-                    {getAlertIcon(alert)}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium leading-snug truncate">{alert.title}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-1">{alert.message}</p>
-                      {alert.zone_name && (
-                        <p className="text-xs text-muted-foreground mt-0.5">📍 {alert.zone_name}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {positiveAlerts.map(alert => (
-                  <div
-                    key={alert.id}
-                    className="flex items-start gap-2 p-2.5 rounded-lg border bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800"
-                  >
-                    {getAlertIcon(alert)}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 leading-snug truncate">
-                        {alert.title}
-                      </p>
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400 line-clamp-1">
-                        {alert.message}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </CardContent>
+          <CardContent>{alertsSummaryContent}</CardContent>
         </Card>
       </div>
 
@@ -509,13 +636,7 @@ export function MinistryHealthTab({
             <CardTitle>Temperatura por Zona</CardTitle>
             <CardDescription>Asistencia promedio como indicador de salud zonal</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {zoneStats.map((zone, i) => (
-                <ZoneCard key={i} zone={zone} />
-              ))}
-            </div>
-          </CardContent>
+          <CardContent>{zonesGrid}</CardContent>
         </Card>
       )}
 
@@ -525,40 +646,7 @@ export function MinistryHealthTab({
           <CardTitle>Embudo de Discipulado</CardTitle>
           <CardDescription>Del registro a la multiplicación</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {funnelItems.map((item, i) => {
-              const pct = funnelMax > 0 ? Math.max((item.value / funnelMax) * 100, 4) : 4;
-              return (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="w-36 text-sm text-muted-foreground text-right shrink-0 hidden sm:inline">
-                    {item.label}
-                  </span>
-                  <span className="text-xs text-muted-foreground sm:hidden shrink-0 w-24 text-right">
-                    {item.label}
-                  </span>
-                  <div className="flex-1 h-9 bg-muted rounded-lg overflow-hidden">
-                    <div
-                      className="h-full rounded-lg flex items-center px-3 transition-all duration-700"
-                      style={{ width: `${pct}%`, backgroundColor: item.hex }}
-                    >
-                      <span className="text-white text-sm font-bold whitespace-nowrap">
-                        {item.value.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  {i < funnelItems.length - 1 && (
-                    <span className="text-xs text-muted-foreground shrink-0 hidden md:block">
-                      {funnelItems[i + 1].value > 0 && item.value > 0
-                        ? `${Math.round((funnelItems[i + 1].value / item.value) * 100)}%`
-                        : '—'}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
+        <CardContent>{funnelContent}</CardContent>
       </Card>
 
       {/* ── Row 4: Group Performance ── */}
@@ -567,57 +655,7 @@ export function MinistryHealthTab({
           <CardTitle>Rendimiento por Grupo</CardTitle>
           <CardDescription>Ordenado por temperatura espiritual (últimas 4 semanas)</CardDescription>
         </CardHeader>
-        <CardContent>
-          {loadingGroups ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="flex items-center gap-3 py-2">
-                  <Skeleton className="size-2 rounded-full" />
-                  <Skeleton className="h-4 flex-1" />
-                  <Skeleton className="h-4 w-20 hidden sm:block" />
-                </div>
-              ))}
-            </div>
-          ) : sortedGroups.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8 text-sm">
-              No hay datos de grupos disponibles
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {pagedGroups.map(group => (
-                <GroupRow key={group.groupId} group={group} />
-              ))}
-              {totalGroupPages > 1 && (
-                <div className="flex items-center justify-between pt-3 border-t mt-2">
-                  <span className="text-xs text-muted-foreground">
-                    {groupPage * GROUP_PAGE_SIZE + 1}–
-                    {Math.min((groupPage + 1) * GROUP_PAGE_SIZE, sortedGroups.length)} de{' '}
-                    {sortedGroups.length} grupos
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      disabled={groupPage === 0}
-                      onClick={() => setGroupPage(p => p - 1)}
-                      className="p-1 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <span className="text-xs px-2">
-                      {groupPage + 1} / {totalGroupPages}
-                    </span>
-                    <button
-                      disabled={groupPage >= totalGroupPages - 1}
-                      onClick={() => setGroupPage(p => p + 1)}
-                      className="p-1 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
+        <CardContent>{groupPerformanceContent}</CardContent>
       </Card>
     </div>
   );

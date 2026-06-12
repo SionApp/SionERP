@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AuditLogModal } from '@/components/AuditLogModal';
+import { MobileDashboardScreen } from '@/components/mobile/screens/DashboardScreen';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { supabase } from '@/integrations/supabase/client';
 import { AuditLog } from '@/types/audit.types';
 import { RecentActivity } from '@/services/dashboard.service';
@@ -134,6 +136,7 @@ const DashboardHome = () => {
 
   const { stats, discipleshipStats, recentActivity, currentUserRole, installedModules, loading } =
     useDashboardStats();
+  const isMobileApp = useMobileMode();
 
   // Fetch zones count independently (not in Go dashboard endpoint yet)
   useEffect(() => {
@@ -165,6 +168,75 @@ const DashboardHome = () => {
       setIsModalOpen(true);
     }
   };
+
+  // ── Modo mobile exclusivo: pantalla presentacional, modal compartido fuera del branch ──
+  if (isMobileApp) {
+    const moduleLinks = [
+      ...(installedModules.includes('discipleship')
+        ? [
+            {
+              key: 'discipleship',
+              title: 'Discipulado',
+              subtitle: loading
+                ? '—'
+                : `${discipleshipStats.totalGroups} grupos · ${discipleshipStats.totalMembers} miembros`,
+              to: '/dashboard/discipleship',
+              badge:
+                discipleshipStats.alertsCount > 0
+                  ? `${discipleshipStats.alertsCount} alerta${discipleshipStats.alertsCount !== 1 ? 's' : ''}`
+                  : undefined,
+            },
+          ]
+        : []),
+      ...(installedModules.includes('zones')
+        ? [
+            {
+              key: 'zones',
+              title: 'Zonas',
+              subtitle:
+                zonesCount === null
+                  ? '—'
+                  : `${zonesCount} zona${zonesCount !== 1 ? 's' : ''} configurada${zonesCount !== 1 ? 's' : ''}`,
+              to: '/dashboard/zones',
+            },
+          ]
+        : []),
+      {
+        key: 'roles',
+        title: 'Roles y permisos',
+        subtitle: loading ? '—' : `${stats.activeRoles} roles · ${stats.totalUsers} usuarios`,
+        to: '/dashboard/roles',
+      },
+    ];
+
+    return (
+      <>
+        <MobileDashboardScreen
+          firstName={firstName}
+          roleLabel={
+            currentUserRole ? (ROLE_LABELS[currentUserRole] ?? currentUserRole) : undefined
+          }
+          stats={{
+            totalUsers: stats.totalUsers,
+            newRegistrations: stats.newRegistrations,
+            totalGroups: discipleshipStats.totalGroups,
+            alertsCount: discipleshipStats.alertsCount,
+          }}
+          actions={visibleActions}
+          modules={moduleLinks}
+          activity={recentActivity}
+          loading={loading}
+          onNavigate={navigate}
+          onActivityClick={handleActivityClick}
+        />
+        <AuditLogModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          auditLog={selectedAuditLog}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
