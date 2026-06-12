@@ -32,6 +32,7 @@ import type {
   CreateUnavailabilityRequest,
 } from '@/types/music.types';
 import MusicMembers from './music/MusicMembers';
+import { MobileMusicPage } from './music/MobileMusicPage';
 
 function useMusicAccess() {
   const { permissions } = usePermissions();
@@ -695,7 +696,7 @@ export default function MusicPage() {
   const isMobileApp = useMobileMode();
   const { isDirector } = useMusicAccess();
 
-  if (isMobileApp) return null;
+  if (isMobileApp) return <MobileMusicPage isDirector={isDirector} />;
 
   if (!isDirector) {
     return (
