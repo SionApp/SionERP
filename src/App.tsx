@@ -15,6 +15,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SetupPage from './pages/SetupPage';
+import MobilePreviewPage from './pages/MobilePreviewPage';
 import DashboardHome from './pages/dashboard/DashboardHome';
 import DiscipleshipPage from './pages/dashboard/DiscipleshipPage';
 import EventsPage from './pages/dashboard/EventsPage';
@@ -57,7 +58,7 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    const publicRoutes = ['/setup', '/login', '/register'];
+    const publicRoutes = ['/setup', '/login', '/register', '/mobile-preview'];
     if (publicRoutes.includes(location.pathname)) {
       _setupVerified = true;
       setIsChecking(false);
@@ -75,9 +76,10 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
           _setupRedirect = '/setup';
           setShouldRedirect('/setup');
         }
-      } catch (error: any) {
-        if (error.status !== 401 && error.status !== 403) {
-          if (error.message?.includes('modules') || error.message?.includes('table')) {
+      } catch (error) {
+        const err = error as { status?: number; message?: string };
+        if (err.status !== 401 && err.status !== 403) {
+          if (err.message?.includes('modules') || err.message?.includes('table')) {
             _setupRedirect = '/setup';
             setShouldRedirect('/setup');
           }
@@ -137,6 +139,7 @@ const AppContent = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/setup" element={<SetupPage />} />
+            <Route path="/mobile-preview" element={<MobilePreviewPage />} />
             <Route
               path="/dashboard"
               element={
@@ -146,27 +149,122 @@ const AppContent = () => {
               }
             >
               {/* Member+ (base access) */}
-              <Route index element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro"><DashboardHome /></ProtectedRoute>} />
-              <Route path="profile" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro"><ProfilePage /></ProtectedRoute>} />
+              <Route
+                index
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro">
+                    <DashboardHome />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="profile"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro">
+                    <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Staff+ (staff, supervisor, pastor, admin) */}
-              <Route path="users" element={<ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff"><UsersPage /></ProtectedRoute>} />
-              <Route path="register-user" element={<ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff"><RegisterUserPage /></ProtectedRoute>} />
+              <Route
+                path="users"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
+                    <UsersPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="register-user"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
+                    <RegisterUserPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Supervisor+ (supervisor, pastor, admin) */}
-              <Route path="reports" element={<ProtectedRoute minRole={ROLE_LEVELS.supervisor} requiredModule="reports" requiredRoleName="Supervisor"><ReportsPage /></ProtectedRoute>} />
+              <Route
+                path="reports"
+                element={
+                  <ProtectedRoute
+                    minRole={ROLE_LEVELS.supervisor}
+                    requiredModule="reports"
+                    requiredRoleName="Supervisor"
+                  >
+                    <ReportsPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Admin access (pastor or admin — defined by backend has_admin_access flag) */}
-              <Route path="settings" element={<ProtectedRoute requireAdminAccess><SettingsPage /></ProtectedRoute>} />
-              <Route path="modules" element={<ProtectedRoute requireAdminAccess><ModulesManagementPage /></ProtectedRoute>} />
-              <Route path="roles" element={<ProtectedRoute requireAdminAccess><RolesPage /></ProtectedRoute>} />
-              <Route path="role-management" element={<ProtectedRoute requireAdminAccess><RoleManagementPage /></ProtectedRoute>} />
+              <Route
+                path="settings"
+                element={
+                  <ProtectedRoute requireAdminAccess>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="modules"
+                element={
+                  <ProtectedRoute requireAdminAccess>
+                    <ModulesManagementPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="roles"
+                element={
+                  <ProtectedRoute requireAdminAccess>
+                    <RolesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="role-management"
+                element={
+                  <ProtectedRoute requireAdminAccess>
+                    <RoleManagementPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Module-based (member+ but requires module installed) */}
-              <Route path="discipleship" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship"><DiscipleshipPage /></ProtectedRoute>} />
-              <Route path="discipleship/goals" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship"><GoalsDashboard /></ProtectedRoute>} />
-              <Route path="zones" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="zones"><ZonesPage /></ProtectedRoute>} />
-              <Route path="events" element={<ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="events"><EventsPage /></ProtectedRoute>} />
+              <Route
+                path="discipleship"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship">
+                    <DiscipleshipPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="discipleship/goals"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship">
+                    <GoalsDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="zones"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="zones">
+                    <ZonesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="events"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="events">
+                    <EventsPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
           </Routes>
         </SetupGuard>
@@ -203,14 +301,16 @@ const App = () => {
 };
 
 const SentryWrappedApp = () => (
-  <Sentry.ErrorBoundary fallback={({ error }) => (
-    <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-      <div className="text-center space-y-2">
-        <p className="text-lg font-semibold">Ocurrió un error inesperado</p>
-        <p className="text-sm text-muted-foreground">{String(error)}</p>
+  <Sentry.ErrorBoundary
+    fallback={({ error }) => (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+        <div className="text-center space-y-2">
+          <p className="text-lg font-semibold">Ocurrió un error inesperado</p>
+          <p className="text-sm text-muted-foreground">{String(error)}</p>
+        </div>
       </div>
-    </div>
-  )}>
+    )}
+  >
     <App />
   </Sentry.ErrorBoundary>
 );

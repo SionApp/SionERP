@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MobileListItem } from '@/components/mobile/MobileListItem';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { useZones } from '@/hooks/useZones';
 import { DiscipleshipService, type UserForHierarchy } from '@/services/discipleship.service';
 import type { AssignHierarchyRequest } from '@/types/discipleship.types';
@@ -82,6 +84,7 @@ function getInitials(firstName: string, lastName: string) {
 }
 
 const HierarchyManagement = () => {
+  const isMobileApp = useMobileMode();
   const { zones } = useZones();
   const [users, setUsers] = useState<UserForHierarchy[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +93,7 @@ const HierarchyManagement = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserForHierarchy | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(25);
 
   const [formData, setFormData] = useState<AssignHierarchyRequest>({
     user_id: '',
@@ -144,6 +148,7 @@ const HierarchyManagement = () => {
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
     setCurrentPage(1);
+    setMobileVisibleCount(25);
   };
 
   // Abrir diálogo para editar jerarquía
@@ -278,7 +283,39 @@ const HierarchyManagement = () => {
     return <Badge className={config.className}>{config.label}</Badge>;
   };
 
+  // Pill compacto de nivel para las filas mobile
+  const getMobileLevelPill = (level: number | undefined) => {
+    const configs: Record<number, { label: string; className: string }> = {
+      1: { label: 'Líder', className: 'bg-emerald-500/10 text-emerald-600' },
+      2: { label: 'Sup. Aux.', className: 'bg-blue-500/10 text-blue-600' },
+      3: { label: 'Sup. Gral.', className: 'bg-indigo-500/10 text-indigo-600' },
+      4: { label: 'Coord.', className: 'bg-purple-500/10 text-purple-600' },
+      5: { label: 'Pastoral', className: 'bg-amber-500/10 text-amber-600' },
+    };
+    const config = level ? configs[level] : undefined;
+    return (
+      <span
+        className={cn(
+          'text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap',
+          config?.className ?? 'bg-muted text-muted-foreground'
+        )}
+      >
+        {config?.label ?? 'Sin jerarquía'}
+      </span>
+    );
+  };
+
   if (loading) {
+    if (isMobileApp) {
+      return (
+        <div className="px-4 pt-4 space-y-2">
+          <Skeleton className="h-9 w-full rounded-xl" />
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="space-y-4">
         <Skeleton className="h-12 w-full" />
@@ -299,6 +336,236 @@ const HierarchyManagement = () => {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  // ── Dialog compartido entre web y mobile — key fuerza remount limpio al cambiar usuario ──
+  const hierarchyDialog = (
+    <Dialog
+      key={selectedUser?.id ?? 'new'}
+      open={isDialogOpen}
+      onOpenChange={open => {
+        setIsDialogOpen(open);
+        if (!open) setSelectedUser(null);
+      }}
+    >
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {selectedUser
+              ? `Asignar Jerarquía - ${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`
+              : 'Asignar Jerarquía'}
+          </DialogTitle>
+          <DialogDescription>
+            Define el nivel de jerarquía y la estructura de supervisión para este usuario en el
+            módulo de discipulado
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* Nivel de Jerarquía */}
+          <div>
+            <Label htmlFor="hierarchy_level">Nivel de Jerarquía *</Label>
+            <Select
+              value={(formData.hierarchy_level || 1).toString()}
+              onValueChange={value => {
+                const level = parseInt(value, 10);
+                if (!isNaN(level)) {
+                  // Al cambiar nivel limpiamos el supervisor porque cambia el tipo esperado
+                  setFormData(prev => ({ ...prev, hierarchy_level: level, supervisor_id: '' }));
+                }
+              }}
+            >
+              <SelectTrigger id="hierarchy_level">
+                <SelectValue placeholder="Selecciona un nivel" />
+              </SelectTrigger>
+              <SelectContent>
+                {HIERARCHY_LEVELS.map(level => (
+                  <SelectItem key={level.value} value={level.value.toString()}>
+                    {level.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              El nivel determina qué dashboard verá el usuario y sus permisos en discipulado
+            </p>
+          </div>
+
+          {/* Zona — va ANTES del supervisor para que filtre las opciones */}
+          <div>
+            <Label htmlFor="zone_name">Zona</Label>
+            <Select
+              value={formData.zone_name || '__none__'}
+              onValueChange={value =>
+                setFormData(prev => ({
+                  ...prev,
+                  zone_name: value === '__none__' ? '' : value,
+                  supervisor_id: '', // limpiar supervisor al cambiar zona
+                }))
+              }
+            >
+              <SelectTrigger id="zone_name">
+                <SelectValue placeholder="Selecciona una zona (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin zona</SelectItem>
+                {zones.map(zone => (
+                  <SelectItem key={zone.id} value={zone.name}>
+                    {zone.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Supervisor — filtrado por zona y nivel. Nivel 5 (Pastoral) no tiene supervisor */}
+          {formData.hierarchy_level >= 1 && formData.hierarchy_level < 5 && (
+            <div>
+              <Label htmlFor="supervisor_id">
+                {supervisorLabelForLevel(formData.hierarchy_level || 2)}
+              </Label>
+              <Select
+                value={formData.supervisor_id || '__none__'}
+                onValueChange={value =>
+                  setFormData(prev => ({
+                    ...prev,
+                    supervisor_id: value === '__none__' ? '' : value,
+                  }))
+                }
+              >
+                <SelectTrigger id="supervisor_id">
+                  <SelectValue placeholder="Selecciona (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin asignar</SelectItem>
+                  {getAvailableSupervisors(
+                    formData.user_id || '',
+                    formData.hierarchy_level || 2,
+                    formData.zone_name || undefined
+                  ).map(sup => (
+                    <SelectItem key={sup.id} value={sup.id}>
+                      {sup.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {formData.zone_name && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Mostrando solo usuarios de <strong>{formData.zone_name}</strong>
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Territorio */}
+          <div>
+            <Label htmlFor="territory">Territorio</Label>
+            <Input
+              id="territory"
+              placeholder="Descripción del territorio (opcional)"
+              value={formData.territory || ''}
+              onChange={e => setFormData(prev => ({ ...prev, territory: e.target.value }))}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Descripción del área geográfica o territorio asignado
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSaveHierarchy} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar Jerarquía'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // ── Modo mobile exclusivo: lista compacta con paginación lazy ──
+  if (isMobileApp) {
+    return (
+      <>
+        {hierarchyDialog}
+        <div className="-mx-3 -mt-3">
+          {/* Sticky search */}
+          <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-lg border-b border-border/30 px-4 pt-3 pb-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="h-9 pl-9 rounded-xl"
+                placeholder="Buscar por nombre, email o cédula..."
+                value={searchTerm}
+                onChange={e => handleSearchChange(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <p className="px-4 py-2 text-xs text-muted-foreground">
+            {filteredUsers.length} usuario{filteredUsers.length !== 1 ? 's' : ''}
+            {searchTerm ? ` de ${users.length}` : ''}
+          </p>
+
+          {filteredUsers.length === 0 ? (
+            <div className="flex flex-col items-center py-10 gap-2 text-muted-foreground">
+              <Users className="h-10 w-10 opacity-20" />
+              <p className="text-sm">No se encontraron usuarios</p>
+            </div>
+          ) : (
+            <div className="mx-4 rounded-2xl border border-border divide-y divide-border bg-card overflow-hidden">
+              {filteredUsers.slice(0, mobileVisibleCount).map(user => {
+                const supervisor = user.supervisor_id
+                  ? users.find(u => u && u.id === user.supervisor_id)
+                  : null;
+                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                const subtitle = supervisor
+                  ? `${user.zone_name || 'Sin zona'} · Rep. a ${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim()
+                  : user.zone_name || 'Sin zona';
+                return (
+                  <MobileListItem
+                    key={user.id}
+                    leading={
+                      <div
+                        className={cn(
+                          'w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                          getAvatarTone(`${user.first_name || ''}${user.last_name || ''}`)
+                        )}
+                      >
+                        {getInitials(user.first_name || '', user.last_name || '')}
+                      </div>
+                    }
+                    title={fullName || 'Sin nombre'}
+                    subtitle={subtitle}
+                    trailing={getMobileLevelPill(user.hierarchy_level ?? undefined)}
+                    onClick={() => handleEditHierarchy(user)}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {filteredUsers.length > mobileVisibleCount && (
+            <div className="px-4 py-4">
+              <button
+                onClick={() => setMobileVisibleCount(c => c + 25)}
+                className="w-full py-2.5 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground cursor-pointer active:bg-accent transition-colors"
+              >
+                Cargar más ({mobileVisibleCount} de {filteredUsers.length})
+              </button>
+            </div>
+          )}
+        </div>
+      </>
     );
   }
 
@@ -532,156 +799,7 @@ const HierarchyManagement = () => {
         </CardContent>
       </Card>
 
-      {/* Dialog para editar jerarquía — key fuerza remount limpio al cambiar usuario */}
-      <Dialog
-        key={selectedUser?.id ?? 'new'}
-        open={isDialogOpen}
-        onOpenChange={open => {
-          setIsDialogOpen(open);
-          if (!open) setSelectedUser(null);
-        }}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedUser
-                ? `Asignar Jerarquía - ${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`
-                : 'Asignar Jerarquía'}
-            </DialogTitle>
-            <DialogDescription>
-              Define el nivel de jerarquía y la estructura de supervisión para este usuario en el
-              módulo de discipulado
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Nivel de Jerarquía */}
-            <div>
-              <Label htmlFor="hierarchy_level">Nivel de Jerarquía *</Label>
-              <Select
-                value={(formData.hierarchy_level || 1).toString()}
-                onValueChange={value => {
-                  const level = parseInt(value, 10);
-                  if (!isNaN(level)) {
-                    // Al cambiar nivel limpiamos el supervisor porque cambia el tipo esperado
-                    setFormData(prev => ({ ...prev, hierarchy_level: level, supervisor_id: '' }));
-                  }
-                }}
-              >
-                <SelectTrigger id="hierarchy_level">
-                  <SelectValue placeholder="Selecciona un nivel" />
-                </SelectTrigger>
-                <SelectContent>
-                  {HIERARCHY_LEVELS.map(level => (
-                    <SelectItem key={level.value} value={level.value.toString()}>
-                      {level.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                El nivel determina qué dashboard verá el usuario y sus permisos en discipulado
-              </p>
-            </div>
-
-            {/* Zona — va ANTES del supervisor para que filtre las opciones */}
-            <div>
-              <Label htmlFor="zone_name">Zona</Label>
-              <Select
-                value={formData.zone_name || '__none__'}
-                onValueChange={value =>
-                  setFormData(prev => ({
-                    ...prev,
-                    zone_name: value === '__none__' ? '' : value,
-                    supervisor_id: '', // limpiar supervisor al cambiar zona
-                  }))
-                }
-              >
-                <SelectTrigger id="zone_name">
-                  <SelectValue placeholder="Selecciona una zona (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sin zona</SelectItem>
-                  {zones.map(zone => (
-                    <SelectItem key={zone.id} value={zone.name}>
-                      {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Supervisor — filtrado por zona y nivel. Nivel 5 (Pastoral) no tiene supervisor */}
-            {formData.hierarchy_level >= 1 && formData.hierarchy_level < 5 && (
-              <div>
-                <Label htmlFor="supervisor_id">
-                  {supervisorLabelForLevel(formData.hierarchy_level || 2)}
-                </Label>
-                <Select
-                  value={formData.supervisor_id || '__none__'}
-                  onValueChange={value =>
-                    setFormData(prev => ({
-                      ...prev,
-                      supervisor_id: value === '__none__' ? '' : value,
-                    }))
-                  }
-                >
-                  <SelectTrigger id="supervisor_id">
-                    <SelectValue placeholder="Selecciona (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin asignar</SelectItem>
-                    {getAvailableSupervisors(
-                      formData.user_id || '',
-                      formData.hierarchy_level || 2,
-                      formData.zone_name || undefined
-                    ).map(sup => (
-                      <SelectItem key={sup.id} value={sup.id}>
-                        {sup.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formData.zone_name && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Mostrando solo usuarios de <strong>{formData.zone_name}</strong>
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Territorio */}
-            <div>
-              <Label htmlFor="territory">Territorio</Label>
-              <Input
-                id="territory"
-                placeholder="Descripción del territorio (opcional)"
-                value={formData.territory || ''}
-                onChange={e => setFormData(prev => ({ ...prev, territory: e.target.value }))}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Descripción del área geográfica o territorio asignado
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveHierarchy} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                'Guardar Jerarquía'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {hierarchyDialog}
     </div>
   );
 };
