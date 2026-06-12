@@ -214,6 +214,9 @@ func SetupRoutes(e *echo.Echo) {
 	notifications.PUT("/:id/read", notificationsHandler.MarkAsRead)
 	notifications.DELETE("/:id", notificationsHandler.DismissNotification)
 
+	// Music routes
+	SetupMusicRoutes(protected)
+
 	// Zones routes
 	zonesHandler := handlers.NewZonesHandler()
 	zones := protected.Group("/zones")
