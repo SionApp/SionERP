@@ -87,11 +87,12 @@ const (
 	ModuleZones        = "zones"
 	ModuleEvents       = "events"
 	ModuleReports      = "reports"
+	ModuleMusic        = "music"
 )
 
 // AllModules returns all valid module keys.
 func AllModules() []string {
-	return []string{ModuleBase, ModuleDiscipleship, ModuleZones, ModuleEvents, ModuleReports}
+	return []string{ModuleBase, ModuleDiscipleship, ModuleZones, ModuleEvents, ModuleReports, ModuleMusic}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
