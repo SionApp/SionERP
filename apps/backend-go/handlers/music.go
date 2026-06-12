@@ -565,12 +565,12 @@ func (h *MusicHandler) BatchCreateQuarterEvents(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"year":          req.Year,
-		"quarter":       req.Quarter,
-		"total_dates":   len(dates),
-		"new_rows":      inserted,
-		"skipped_rows":  len(dates) - inserted,
-		"message":       fmt.Sprintf("%d eventos creados, %d ya existían", inserted, len(dates)-inserted),
+		"year":         req.Year,
+		"quarter":      req.Quarter,
+		"total_dates":  len(dates),
+		"new_rows":     inserted,
+		"skipped_rows": len(dates) - inserted,
+		"message":      fmt.Sprintf("%d eventos creados, %d ya existían", inserted, len(dates)-inserted),
 	})
 }
 
@@ -579,14 +579,14 @@ func (h *MusicHandler) BatchCreateQuarterEvents(c echo.Context) error {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type assignmentRow struct {
-	ID                  string  `json:"id"`
-	EventID             string  `json:"event_id"`
-	MemberID            string  `json:"member_id"`
-	Funcion             string  `json:"funcion"`
-	State               string  `json:"state"`
-	AssignedBy          *string `json:"assigned_by"`
-	CreatedAt           string  `json:"created_at"`
-	UpdatedAt           string  `json:"updated_at"`
+	ID         string  `json:"id"`
+	EventID    string  `json:"event_id"`
+	MemberID   string  `json:"member_id"`
+	Funcion    string  `json:"funcion"`
+	State      string  `json:"state"`
+	AssignedBy *string `json:"assigned_by"`
+	CreatedAt  string  `json:"created_at"`
+	UpdatedAt  string  `json:"updated_at"`
 }
 
 func (h *MusicHandler) GetAssignments(c echo.Context) error {
@@ -711,6 +711,12 @@ func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "funcion inválida"})
 	}
 
+	// Read previous state for idempotency guard on no_puedo notifications
+	var prevState string
+	if req.State != nil && *req.State == "no_puedo" {
+		_ = db.DB.QueryRow(`SELECT state FROM music_assignments WHERE id = $1`, id).Scan(&prevState)
+	}
+
 	res, err := db.DB.Exec(`
 		UPDATE music_assignments
 		SET state      = COALESCE($2, state),
@@ -725,6 +731,13 @@ func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
 	if n == 0 {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Asignación no encontrada"})
 	}
+
+	// Phase 8: emit no_puedo notifications only on state TRANSITION (INV-1: advisory, never blocks)
+	// Idempotency guard: skip if state was already no_puedo (no duplicate notifications)
+	if req.State != nil && *req.State == "no_puedo" && prevState != "no_puedo" {
+		emitNoPuedoNotifications(db.DB, id)
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{"message": "Asignación actualizada"})
 }
 
@@ -981,6 +994,476 @@ func (h *MusicHandler) GetSongStats(c echo.Context) error {
 		stats = append(stats, s)
 	}
 	return c.JSON(http.StatusOK, stats)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UNAVAILABILITY — CRUD + self-view (Phase 5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+type unavailabilityRow struct {
+	ID        string  `json:"id"`
+	MemberID  string  `json:"member_id"`
+	StartDate string  `json:"start_date"`
+	EndDate   *string `json:"end_date"`
+	Reason    *string `json:"reason"`
+	CreatedAt string  `json:"created_at"`
+}
+
+// GetUnavailability returns unavailability rows.
+// Director (level 5): all rows, optional ?member_id= filter.
+// Servidor: only own member's rows.
+func (h *MusicHandler) GetUnavailability(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	info, err := getMusicAccessInfo(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+
+	query := `
+		SELECT id, member_id,
+		       to_char(start_date,'YYYY-MM-DD'),
+		       to_char(end_date,'YYYY-MM-DD'),
+		       reason,
+		       to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM music_unavailability
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	if info.level >= 5 {
+		// Director: filter by route param :id (the member whose unavailability we want)
+		if memberIDFilter := c.Param("id"); memberIDFilter != "" {
+			args = append(args, memberIDFilter)
+			query += fmt.Sprintf(` AND member_id = $%d`, len(args))
+		}
+	} else {
+		// Servidor: own rows only — route :id is ignored for security
+		if info.memberID == "" {
+			return c.JSON(http.StatusOK, []unavailabilityRow{})
+		}
+		args = append(args, info.memberID)
+		query += fmt.Sprintf(` AND member_id = $%d`, len(args))
+	}
+
+	query += ` ORDER BY start_date DESC`
+
+	rows, err := db.DB.Query(query, args...)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener disponibilidad"})
+	}
+	defer rows.Close()
+
+	result := []unavailabilityRow{}
+	for rows.Next() {
+		var u unavailabilityRow
+		var endDate, reason sql.NullString
+		if err := rows.Scan(&u.ID, &u.MemberID, &u.StartDate, &endDate, &reason, &u.CreatedAt); err != nil {
+			continue
+		}
+		if endDate.Valid {
+			u.EndDate = &endDate.String
+		}
+		if reason.Valid {
+			u.Reason = &reason.String
+		}
+		result = append(result, u)
+	}
+	return c.JSON(http.StatusOK, result)
+}
+
+// CreateUnavailability inserts a new unavailability range.
+// Servidor: can only create for themselves.
+// Director: can create for any member_id.
+func (h *MusicHandler) CreateUnavailability(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	info, err := getMusicAccessInfo(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+
+	var req struct {
+		MemberID  string  `json:"member_id"`
+		StartDate string  `json:"start_date"`
+		EndDate   *string `json:"end_date"`
+		Reason    *string `json:"reason"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
+	}
+	if req.StartDate == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "start_date es requerido"})
+	}
+
+	// Resolve effective member_id: route param :id is the target member
+	routeMemberID := c.Param("id")
+	var effectiveMemberID string
+	if info.level < 5 {
+		// Servidor: always use own member_id (ignore route param — security)
+		if info.memberID == "" {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "No sos miembro del equipo de música"})
+		}
+		effectiveMemberID = info.memberID
+	} else {
+		// Director: prefer route param :id, fall back to body member_id
+		if routeMemberID != "" {
+			effectiveMemberID = routeMemberID
+		} else {
+			effectiveMemberID = req.MemberID
+		}
+	}
+	if effectiveMemberID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "member_id es requerido"})
+	}
+
+	var id string
+	err = db.DB.QueryRow(`
+		INSERT INTO music_unavailability (member_id, start_date, end_date, reason)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id
+	`, effectiveMemberID, req.StartDate, req.EndDate, req.Reason).Scan(&id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al crear rango de indisponibilidad"})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]string{"id": id, "message": "Indisponibilidad registrada"})
+}
+
+// DeleteUnavailability deletes an unavailability row.
+// Own record: any music member.
+// Other records: director only.
+func (h *MusicHandler) DeleteUnavailability(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	info, err := getMusicAccessInfo(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+
+	unavailID := c.Param("id")
+
+	// Fetch the row to check ownership
+	var ownerMemberID string
+	err = db.DB.QueryRow(
+		`SELECT member_id FROM music_unavailability WHERE id = $1`, unavailID,
+	).Scan(&ownerMemberID)
+	if err == sql.ErrNoRows {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Registro no encontrado"})
+	}
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al verificar registro"})
+	}
+
+	// Enforce ownership: non-director can only delete own rows
+	if info.level < 5 && ownerMemberID != info.memberID {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "No tenés permiso para eliminar este registro"})
+	}
+
+	res, err := db.DB.Exec(`DELETE FROM music_unavailability WHERE id = $1`, unavailID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al eliminar registro"})
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Registro no encontrado"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "Indisponibilidad eliminada"})
+}
+
+// GetMeAssignments returns assignments for the caller's own member record.
+func (h *MusicHandler) GetMeAssignments(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	info, err := getMusicAccessInfo(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+	if info.memberID == "" {
+		return c.JSON(http.StatusOK, []interface{}{})
+	}
+
+	type meAssignmentRow struct {
+		ID        string `json:"id"`
+		EventID   string `json:"event_id"`
+		EventDate string `json:"event_date"`
+		EventType string `json:"event_type"`
+		Funcion   string `json:"funcion"`
+		State     string `json:"state"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	rows, err := db.DB.Query(`
+		SELECT ma.id, ma.event_id,
+		       to_char(me.event_date,'YYYY-MM-DD'),
+		       me.event_type,
+		       ma.funcion, ma.state,
+		       to_char(ma.created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM music_assignments ma
+		JOIN music_events me ON me.id = ma.event_id
+		WHERE ma.member_id = $1
+		ORDER BY me.event_date DESC
+	`, info.memberID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener asignaciones"})
+	}
+	defer rows.Close()
+
+	result := []meAssignmentRow{}
+	for rows.Next() {
+		var a meAssignmentRow
+		if err := rows.Scan(&a.ID, &a.EventID, &a.EventDate, &a.EventType, &a.Funcion, &a.State, &a.CreatedAt); err != nil {
+			continue
+		}
+		result = append(result, a)
+	}
+	return c.JSON(http.StatusOK, result)
+}
+
+// GetMeUnavailability returns unavailability rows for the caller's own member record.
+func (h *MusicHandler) GetMeUnavailability(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	info, err := getMusicAccessInfo(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+	if info.memberID == "" {
+		return c.JSON(http.StatusOK, []unavailabilityRow{})
+	}
+
+	rows, err := db.DB.Query(`
+		SELECT id, member_id,
+		       to_char(start_date,'YYYY-MM-DD'),
+		       to_char(end_date,'YYYY-MM-DD'),
+		       reason,
+		       to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM music_unavailability
+		WHERE member_id = $1
+		ORDER BY start_date DESC
+	`, info.memberID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener disponibilidad"})
+	}
+	defer rows.Close()
+
+	result := []unavailabilityRow{}
+	for rows.Next() {
+		var u unavailabilityRow
+		var endDate, reason sql.NullString
+		if err := rows.Scan(&u.ID, &u.MemberID, &u.StartDate, &endDate, &reason, &u.CreatedAt); err != nil {
+			continue
+		}
+		if endDate.Valid {
+			u.EndDate = &endDate.String
+		}
+		if reason.Valid {
+			u.Reason = &reason.String
+		}
+		result = append(result, u)
+	}
+	return c.JSON(http.StatusOK, result)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPLACEMENT SUGGESTIONS (Phase 6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GetSuggestions returns candidate members for replacing the given assignment.
+// Single set-based query: same funcion, not already assigned to the culto (any funcion),
+// no overlapping unavailability range covering the culto date.
+func (h *MusicHandler) GetSuggestions(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	assignmentID := c.Param("id")
+
+	// Resolve assignment to get funcion + event_id + culto_date
+	var funcion, eventID, cultoDate string
+	err = db.DB.QueryRow(`
+		SELECT ma.funcion, ma.event_id, to_char(me.event_date,'YYYY-MM-DD')
+		FROM music_assignments ma
+		JOIN music_events me ON me.id = ma.event_id
+		WHERE ma.id = $1
+	`, assignmentID).Scan(&funcion, &eventID, &cultoDate)
+	if err == sql.ErrNoRows {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Asignación no encontrada"})
+	}
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener asignación"})
+	}
+
+	// Single set-based query — no per-member loop
+	rows, err := db.DB.Query(`
+		SELECT m.id,
+		       u.first_name,
+		       u.last_name,
+		       m.funciones,
+		       m.instrument
+		FROM music_members m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.is_active = true
+		  AND $1 = ANY(m.funciones)
+		  AND m.id NOT IN (
+		      SELECT member_id FROM music_assignments
+		      WHERE event_id = $2
+		  )
+		  AND NOT EXISTS (
+		      SELECT 1 FROM music_unavailability mu
+		      WHERE mu.member_id = m.id
+		        AND mu.start_date <= $3::date
+		        AND (mu.end_date IS NULL OR mu.end_date >= $3::date)
+		  )
+		ORDER BY u.first_name, u.last_name
+	`, funcion, eventID, cultoDate)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener sugerencias"})
+	}
+	defer rows.Close()
+
+	type suggestionRow struct {
+		ID         string   `json:"id"`
+		FirstName  string   `json:"first_name"`
+		LastName   string   `json:"last_name"`
+		Funciones  []string `json:"funciones"`
+		Instrument *string  `json:"instrument"`
+	}
+	suggestions := []suggestionRow{}
+	for rows.Next() {
+		var s suggestionRow
+		var funciones []byte
+		if err := rows.Scan(&s.ID, &s.FirstName, &s.LastName, &funciones, &s.Instrument); err != nil {
+			continue
+		}
+		s.Funciones = parsePGArray(string(funciones))
+		suggestions = append(suggestions, s)
+	}
+	return c.JSON(http.StatusOK, suggestions)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATION ROUTING — exported logic for testability (Phase 8/9)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// NoPuedoTarget describes how no_puedo notification recipients are resolved.
+// UseAssignedBy=true means route to the single assigned_by director.
+// UseAssignedBy=false means fallback to all current directors.
+type NoPuedoTarget struct {
+	UseAssignedBy bool
+	AssignedByID  string // only set when UseAssignedBy=true
+}
+
+// ResolveNoPuedoTarget applies Design Decision 2:
+//   - If assignedByID is non-empty AND isStillDirector is true → route to that director.
+//   - Otherwise → fallback (all current directors).
+//
+// This is a pure function — no DB access — exported for unit testing.
+func ResolveNoPuedoTarget(assignedByID string, isStillDirector bool) NoPuedoTarget {
+	if assignedByID != "" && isStillDirector {
+		return NoPuedoTarget{UseAssignedBy: true, AssignedByID: assignedByID}
+	}
+	return NoPuedoTarget{UseAssignedBy: false}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATIONS — no_puedo emit helper (Phase 8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// emitNoPuedoNotifications inserts notification rows when an assignment becomes no_puedo.
+// Design Decision 2: route to assigned_by director if still active; fallback to all directors.
+// This is advisory — errors are logged but never block the HTTP response.
+func emitNoPuedoNotifications(db *sql.DB, assignmentID string) {
+	if db == nil {
+		return
+	}
+
+	// Fetch assignment details: assigned_by, member user_id, event_date, funcion
+	var assignedBy sql.NullString
+	var memberUserID, eventDate, funcion string
+	err := db.QueryRow(`
+		SELECT ma.assigned_by::text,
+		       mm.user_id::text,
+		       to_char(me.event_date,'YYYY-MM-DD'),
+		       ma.funcion
+		FROM music_assignments ma
+		JOIN music_members mm ON mm.id = ma.member_id
+		JOIN music_events me ON me.id = ma.event_id
+		WHERE ma.id = $1
+	`, assignmentID).Scan(&assignedBy, &memberUserID, &eventDate, &funcion)
+	if err != nil {
+		return
+	}
+
+	// Fetch member's display name
+	var firstName, lastName string
+	_ = db.QueryRow(
+		`SELECT first_name, last_name FROM users WHERE id = $1`, memberUserID,
+	).Scan(&firstName, &lastName)
+
+	msg := fmt.Sprintf("%s %s no puede en el culto del %s (%s)", firstName, lastName, eventDate, funcion)
+	actionURL := "/dashboard/music"
+	entityType := "music_assignment"
+
+	// Determine recipients
+	var recipients []string
+
+	if assignedBy.Valid && assignedBy.String != "" {
+		// Check if assigned_by user is still a director-level music member
+		var dirLevel int
+		err = db.QueryRow(`
+			SELECT role_level FROM module_user_roles
+			WHERE user_id = $1 AND module_key = 'music'
+			LIMIT 1
+		`, assignedBy.String).Scan(&dirLevel)
+		if err == nil && dirLevel >= 5 {
+			recipients = []string{assignedBy.String}
+		}
+	}
+
+	// Fallback: assigned_by is NULL, not found, or no longer director
+	if len(recipients) == 0 {
+		rows, err := db.Query(`
+			SELECT DISTINCT user_id::text
+			FROM module_user_roles
+			WHERE module_key = 'music' AND role_level >= 5
+		`)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var uid string
+				if scanErr := rows.Scan(&uid); scanErr == nil {
+					recipients = append(recipients, uid)
+				}
+			}
+		}
+	}
+
+	// Insert one notification per recipient
+	for _, recipientID := range recipients {
+		_, _ = db.Exec(`
+			INSERT INTO notifications (user_id, type, title, message, action_url,
+			                           related_entity_type, related_entity_id, is_read)
+			VALUES ($1, 'music_no_puedo', 'Cambio de disponibilidad', $2, $3,
+			        $4, $5, false)
+		`, recipientID, msg, actionURL, entityType, assignmentID)
+	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
