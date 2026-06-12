@@ -750,6 +750,9 @@ func (h *MusicHandler) DeleteAssignment(c echo.Context) error {
 // range covering cultoDate (format "YYYY-MM-DD"). Advisory only — caller
 // decides whether to warn; never a hard block.
 func CheckMemberUnavailability(db *sql.DB, memberID, cultoDate string) bool {
+	if db == nil {
+		return false
+	}
 	var count int
 	err := db.QueryRow(`
 		SELECT COUNT(*) FROM music_unavailability
