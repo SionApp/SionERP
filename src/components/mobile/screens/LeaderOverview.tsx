@@ -2,7 +2,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipGroup } from '@/types/discipleship.types';
 import { useAuth } from '@/contexts/AuthContext';
-import { cn } from '@/lib/utils';
 import { Activity, BarChart3, ChevronRight, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { MobileListItem } from '../MobileListItem';
