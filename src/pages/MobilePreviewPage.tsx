@@ -1,16 +1,4 @@
-import {
-  Activity,
-  AlertCircle,
-  BarChart3,
-  Bell,
-  DollarSign,
-  MapPin,
-  Package,
-  Plus,
-  ShoppingCart,
-  UserPlus,
-  Users,
-} from 'lucide-react';
+import { BarChart3, Bell, DollarSign, MapPin, UserPlus, Users } from 'lucide-react';
 import { MobileDashboardScreen } from '@/components/mobile/screens/DashboardScreen';
 import { MobileDiscipleshipOverview } from '@/components/mobile/screens/DiscipleshipScreen';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
