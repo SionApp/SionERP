@@ -3,6 +3,7 @@ import {
   Calendar,
   Heart,
   Home,
+  Music2,
   Settings,
   Shield,
   Sparkles,
@@ -59,6 +60,13 @@ const menuItems: MenuItemConfig[] = [
     url: '/dashboard/events',
     icon: Calendar,
     requiredModule: 'events',
+    minRole: ROLE_LEVELS.member,
+  },
+  {
+    title: 'Música',
+    url: '/dashboard/music',
+    icon: Music2,
+    requiredModule: 'music',
     minRole: ROLE_LEVELS.member,
   },
   {
