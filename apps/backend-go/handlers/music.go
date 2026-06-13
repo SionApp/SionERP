@@ -713,6 +713,9 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 		WHERE mm.id = $1
 	`, req.MemberID).Scan(&assignment.MemberName)
 
+	// Notify the servidor that they have been assigned (advisory — never blocks).
+	emitAssignmentNotification(db.DB, id, unavailabilityWarning)
+
 	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"assignment":             assignment,
 		"unavailability_warning": unavailabilityWarning,
@@ -1565,6 +1568,48 @@ func emitNoPuedoNotifications(db *sql.DB, assignmentID string) {
 			        $4, $5, false)
 		`, recipientID, msg, actionURL, entityType, assignmentID)
 	}
+}
+
+// emitAssignmentNotification notifies the servidor that they have been assigned
+// to a culto, so they can confirm or decline.
+// Advisory — errors are logged but never block the HTTP response.
+func emitAssignmentNotification(db *sql.DB, assignmentID string, withWarning bool) {
+	if db == nil {
+		return
+	}
+	var memberUserID, eventDate, eventType, funcion string
+	var title sql.NullString
+	err := db.QueryRow(`
+		SELECT mm.user_id::text,
+		       to_char(me.event_date,'YYYY-MM-DD'),
+		       me.event_type,
+		       me.title,
+		       ma.funcion
+		FROM music_assignments ma
+		JOIN music_members mm ON mm.id = ma.member_id
+		JOIN music_events me ON me.id = ma.event_id
+		WHERE ma.id = $1
+	`, assignmentID).Scan(&memberUserID, &eventDate, &eventType, &title, &funcion)
+	if err != nil {
+		return
+	}
+
+	titleSuffix := ""
+	if title.Valid && title.String != "" {
+		titleSuffix = " — " + title.String
+	}
+	msg := fmt.Sprintf("Fuiste asignado al culto del %s (%s) como %s%s. Confirmá tu participación.",
+		eventDate, eventType, funcion, titleSuffix)
+	warning := ""
+	if withWarning {
+		warning = " (atención: tenés una indisponibilidad declarada para esa fecha)"
+	}
+	_, _ = db.Exec(`
+		INSERT INTO notifications (user_id, type, title, message, action_url,
+		                           related_entity_type, related_entity_id, is_read)
+		VALUES ($1, 'music_assigned', 'Nueva asignación de música', $2, '/dashboard/music',
+		        'music_assignment', $3, false)
+	`, memberUserID, msg+warning, assignmentID)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
