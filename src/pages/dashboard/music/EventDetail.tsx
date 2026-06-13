@@ -1,7 +1,17 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ExternalLink, Music2, Plus, Trash2, UserPlus, Users } from 'lucide-react';
+import {
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Globe2,
+  Music2,
+  Plus,
+  Trash2,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +34,7 @@ import type {
   Funcion,
   AssignmentState,
 } from '@/types/music.types';
+import { ConfirmationProgress } from './MusicHero';
 
 const FUNCION_LABELS: Record<Funcion, string> = {
   corista: 'Coristas',
@@ -523,6 +534,34 @@ interface EventDetailDialogProps {
   isDirector: boolean;
 }
 
+function formatDateForShare(iso: string): string {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function EventDetailDialog({
   event,
   open,
@@ -534,7 +573,8 @@ export default function EventDetailDialog({
   const [titleDraft, setTitleDraft] = useState('');
 
   const updateEventMutation = useMutation({
-    mutationFn: (title: string) => MusicService.updateEvent(event!.id, { title }),
+    mutationFn: (data: { title?: string; published?: boolean }) =>
+      MusicService.updateEvent(event!.id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['music-events'] });
       setEditingTitle(false);
@@ -542,6 +582,64 @@ export default function EventDetailDialog({
     },
     onError: () => toast.error('No se pudo actualizar el culto'),
   });
+
+  const { data: assignments = [] } = useQuery({
+    queryKey: ['music-assignments', event?.id],
+    queryFn: () => MusicService.getAssignments(event!.id),
+    enabled: !!event,
+  });
+
+  const { data: songs = [] } = useQuery({
+    queryKey: ['music-event-songs', event?.id],
+    queryFn: () => MusicService.getEventSongs(event!.id),
+    enabled: !!event,
+  });
+
+  async function handleShareSetlist() {
+    if (!event) return;
+    const lines: string[] = [];
+    lines.push(`🎵 *Culto ${formatDateForShare(event.eventDate)}*`);
+    if (event.title) lines.push(`_${event.title}_`);
+    lines.push('');
+    if (songs.length === 0) {
+      lines.push('Sin canciones en el repertorio todavía.');
+    } else {
+      lines.push('*Repertorio:*');
+      songs.forEach((s, i) => {
+        const tono = s.tono ? `  (${s.tono})` : '';
+        lines.push(`${i + 1}. ${s.songName}${tono}`);
+        if (s.notes) lines.push(`   _${s.notes}_`);
+        if (s.link) lines.push(`   ${s.link}`);
+      });
+    }
+    if (assignments.length > 0) {
+      lines.push('');
+      lines.push('*Equipo:*');
+      const byFuncion = assignments.reduce<Record<string, MusicAssignment[]>>((acc, a) => {
+        (acc[a.funcion] ??= []).push(a);
+        return acc;
+      }, {});
+      const FUNCION_SHARE: Record<Funcion, string> = {
+        corista: 'Coristas',
+        musico: 'Músicos',
+        tecnico: 'Técnicos',
+        danzarina: 'Danzarinas',
+      };
+      (Object.keys(FUNCION_SHARE) as Funcion[]).forEach(f => {
+        const list = byFuncion[f];
+        if (!list?.length) return;
+        const names = list.map(a => {
+          const tag = a.state === 'confirmado' ? ' ✅' : a.state === 'no_puedo' ? ' ❌' : '';
+          return `${a.memberName || 'Sin nombre'}${tag}`;
+        });
+        lines.push(`• *${FUNCION_SHARE[f]}:* ${names.join(', ')}`);
+      });
+    }
+    const text = lines.join('\n');
+    const ok = await copyToClipboard(text);
+    if (ok) toast.success('Repertorio copiado — pegalo en el grupo');
+    else toast.error('No se pudo copiar al portapapeles');
+  }
 
   if (!event) return null;
 
@@ -574,7 +672,7 @@ export default function EventDetailDialog({
               <Button
                 size="sm"
                 className="h-8"
-                onClick={() => updateEventMutation.mutate(titleDraft)}
+                onClick={() => updateEventMutation.mutate({ title: titleDraft })}
                 disabled={updateEventMutation.isPending}
               >
                 Guardar
@@ -601,6 +699,38 @@ export default function EventDetailDialog({
             </div>
           )}
         </div>
+
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <ConfirmationProgress assignments={assignments} />
+        </div>
+
+        {isDirector && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={handleShareSetlist}>
+              <Copy className="h-3.5 w-3.5" />
+              Compartir al grupo
+            </Button>
+            <Button
+              size="sm"
+              variant={event.published ? 'secondary' : 'default'}
+              className="gap-1.5"
+              onClick={() => updateEventMutation.mutate({ published: !event.published })}
+              disabled={updateEventMutation.isPending}
+            >
+              {event.published ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Publicado
+                </>
+              ) : (
+                <>
+                  <Globe2 className="h-3.5 w-3.5" />
+                  Publicar cronograma
+                </>
+              )}
+            </Button>
+          </div>
+        )}
 
         <div className="space-y-5 pt-2">
           <TeamSection event={event} isDirector={isDirector} />

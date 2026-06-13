@@ -42,6 +42,8 @@ import type {
 } from '@/types/music.types';
 import MusicMembers from './music/MusicMembers';
 import EventDetailDialog from './music/EventDetail';
+import { DirectorMusicHero } from './music/MusicHero';
+import { ServidorMusicHero } from './music/ServidorHero';
 
 function useMusicAccess() {
   const { permissions } = usePermissions();
@@ -935,22 +937,24 @@ export default function MusicPage() {
 
   if (!isDirector) {
     return (
-      <div className="space-y-4 animate-fade-in p-3 sm:p-4 md:p-6">
+      <div className="space-y-5 animate-fade-in p-3 sm:p-4 md:p-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Música</h1>
-          <p className="text-sm text-muted-foreground">Módulo de equipo de alabanza</p>
+          <p className="text-sm text-muted-foreground">Equipo de alabanza</p>
         </div>
+        <ServidorMusicHero />
         <ServidorView />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 animate-fade-in p-3 sm:p-4 md:p-6">
+    <div className="space-y-5 animate-fade-in p-3 sm:p-4 md:p-6">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Música</h1>
         <p className="text-sm text-muted-foreground">Gestión del equipo de alabanza</p>
       </div>
+      <DirectorMusicHero onOpenEvent={setDetailEvent} />
       <Tabs defaultValue="cronograma">
         <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
