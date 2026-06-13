@@ -24,6 +24,7 @@ export interface MusicMember {
   id: string;
   userId: string;
   name?: string;
+  email?: string | null;
   funciones: Funcion[];
   instrument: string | null;
   active: boolean;
@@ -45,6 +46,9 @@ export interface MusicAssignment {
   eventId: string;
   memberId: string;
   memberName?: string;
+  instrument?: string | null;
+  eventDate?: string;
+  eventType?: MusicEventType;
   funcion: Funcion;
   state: AssignmentState;
   assignedBy: string | null;
@@ -56,6 +60,7 @@ export interface MusicSong {
   nameNormalized: string;
   author: string | null;
   defaultKey: string | null;
+  link: string | null;
   historicalKey: string | null;
 }
 
@@ -66,6 +71,8 @@ export interface EventSong {
   songName: string;
   tono: string | null;
   orderIndex: number;
+  link: string | null;
+  notes: string | null;
 }
 
 export interface MusicSongStat {
@@ -123,6 +130,8 @@ export interface AddSongToEventRequest {
   author?: string;
   tono?: string;
   orderIndex?: number;
+  link?: string;
+  notes?: string;
 }
 
 export interface CreateUnavailabilityRequest {

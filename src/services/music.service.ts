@@ -21,6 +21,7 @@ interface RawMember {
   id: string;
   user_id: string;
   name?: string;
+  email?: string | null;
   funciones: string[];
   instrument: string | null;
   is_active: boolean;
@@ -42,6 +43,9 @@ interface RawAssignment {
   event_id: string;
   member_id: string;
   member_name?: string;
+  instrument?: string | null;
+  event_date?: string;
+  event_type?: string;
   funcion: string;
   state: string;
   assigned_by: string | null;
@@ -53,6 +57,7 @@ interface RawSong {
   name_normalized: string;
   author: string | null;
   default_key: string | null;
+  link: string | null;
   historical_key: string | null;
 }
 
@@ -63,6 +68,8 @@ interface RawEventSong {
   song_name: string;
   tono: string | null;
   order_index: number;
+  link: string | null;
+  notes: string | null;
 }
 
 interface RawSongStat {
@@ -84,7 +91,7 @@ interface RawUnavailability {
 
 interface RawCreateAssignmentResponse {
   assignment: RawAssignment;
-  unavailability_warning: boolean;
+  unavailability_warning?: boolean;
 }
 
 function mapMember(r: RawMember): MusicMember {
@@ -92,6 +99,7 @@ function mapMember(r: RawMember): MusicMember {
     id: r.id,
     userId: r.user_id,
     name: r.name,
+    email: r.email,
     funciones: r.funciones as MusicMember['funciones'],
     instrument: r.instrument,
     active: r.is_active,
@@ -117,6 +125,9 @@ function mapAssignment(r: RawAssignment): MusicAssignment {
     eventId: r.event_id,
     memberId: r.member_id,
     memberName: r.member_name,
+    instrument: r.instrument,
+    eventDate: r.event_date,
+    eventType: r.event_type as MusicAssignment['eventType'],
     funcion: r.funcion as MusicAssignment['funcion'],
     state: r.state as MusicAssignment['state'],
     assignedBy: r.assigned_by,
@@ -130,6 +141,7 @@ function mapSong(r: RawSong): MusicSong {
     nameNormalized: r.name_normalized,
     author: r.author,
     defaultKey: r.default_key,
+    link: r.link,
     historicalKey: r.historical_key,
   };
 }
@@ -142,6 +154,8 @@ function mapEventSong(r: RawEventSong): EventSong {
     songName: r.song_name,
     tono: r.tono,
     orderIndex: r.order_index,
+    link: r.link,
+    notes: r.notes,
   };
 }
 
@@ -269,19 +283,15 @@ export class MusicService {
     });
     return {
       assignment: mapAssignment(raw.assignment),
-      unavailabilityWarning: raw.unavailability_warning,
+      unavailabilityWarning: raw.unavailability_warning ?? false,
     };
   }
 
-  static async updateAssignment(
-    id: string,
-    data: UpdateAssignmentRequest
-  ): Promise<MusicAssignment> {
-    const raw = await ApiService.put<RawAssignment, UpdateAssignmentRequest>(
+  static async updateAssignment(id: string, data: UpdateAssignmentRequest): Promise<void> {
+    await ApiService.put<{ message: string }, UpdateAssignmentRequest>(
       `${this.base}/assignments/${id}`,
       data
     );
-    return mapAssignment(raw);
   }
 
   static async deleteAssignment(id: string): Promise<void> {
@@ -301,15 +311,29 @@ export class MusicService {
   }
 
   static async addSongToEvent(eventId: string, data: AddSongToEventRequest): Promise<EventSong> {
-    const raw = await ApiService.post<RawEventSong, AddSongToEventRequest>(
-      `${this.base}/events/${eventId}/songs`,
-      data
-    );
+    const raw = await ApiService.post<
+      RawEventSong,
+      {
+        name: string;
+        author?: string;
+        tono?: string;
+        order_index?: number;
+        link?: string;
+        notes?: string;
+      }
+    >(`${this.base}/events/${eventId}/songs`, {
+      name: data.name,
+      author: data.author,
+      tono: data.tono,
+      order_index: data.orderIndex,
+      link: data.link,
+      notes: data.notes,
+    });
     return mapEventSong(raw);
   }
 
   static async removeSongFromEvent(eventId: string, songId: string): Promise<void> {
-    await ApiService.delete(`${this.base}/event-songs/${songId}`);
+    await ApiService.delete(`${this.base}/events/${eventId}/songs/${songId}`);
   }
 
   static async getSongs(q?: string): Promise<MusicSong[]> {
