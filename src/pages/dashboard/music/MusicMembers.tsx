@@ -131,6 +131,7 @@ interface MemberFormState {
   pickedUser: User | null;
   funciones: Funcion[];
   instrument: string;
+  isDirector: boolean;
 }
 
 interface MemberFormProps {
@@ -146,6 +147,7 @@ function MemberForm({ initial, excludeUserIds, onSave, onCancel, saving }: Membe
     pickedUser: null,
     funciones: initial?.funciones ?? [],
     instrument: initial?.instrument ?? '',
+    isDirector: initial?.isDirector ?? false,
   });
 
   function toggleFuncion(f: Funcion) {
@@ -169,12 +171,17 @@ function MemberForm({ initial, excludeUserIds, onSave, onCancel, saving }: Membe
     }
     const instrument = form.funciones.includes('musico') ? form.instrument.trim() || null : null;
     if (initial) {
-      onSave({ funciones: form.funciones, instrument } as UpdateMemberRequest);
+      onSave({
+        funciones: form.funciones,
+        instrument,
+        isDirector: form.isDirector,
+      } as UpdateMemberRequest);
     } else {
       onSave({
         userId: form.pickedUser!.id,
         funciones: form.funciones,
         instrument,
+        isDirector: form.isDirector,
       } as CreateMemberRequest);
     }
   }
@@ -229,6 +236,23 @@ function MemberForm({ initial, excludeUserIds, onSave, onCancel, saving }: Membe
           />
         </div>
       )}
+      <div className="flex items-start gap-3 rounded-lg border border-border p-3 bg-muted/30">
+        <Checkbox
+          id="is-director"
+          checked={form.isDirector}
+          onCheckedChange={v => setForm(prev => ({ ...prev, isDirector: v === true }))}
+          className="mt-0.5"
+        />
+        <div className="space-y-0.5">
+          <Label htmlFor="is-director" className="cursor-pointer">
+            Director de la banda
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Puede gestionar cultos, asignar servidores y editar el repertorio. No necesita ser
+            pastor.
+          </p>
+        </div>
+      </div>
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
           Cancelar
@@ -356,7 +380,19 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
             {filtered.map(m => (
               <div key={m.id} className="flex items-center justify-between px-3 py-3">
                 <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{m.name ?? m.userId}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-sm truncate">{m.name ?? m.userId}</p>
+                    {m.isDirector && (
+                      <Badge className="text-xs bg-primary/15 text-primary border-0 shrink-0">
+                        Director
+                      </Badge>
+                    )}
+                    {!m.active && (
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        Inactivo
+                      </Badge>
+                    )}
+                  </div>
                   {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
                   <div className="flex flex-wrap gap-1 mt-1">
                     {m.funciones.map(f => (

@@ -7,6 +7,7 @@ import type {
   MusicSongStat,
   EventSong,
   MusicUnavailability,
+  Funcion,
   CreateMemberRequest,
   UpdateMemberRequest,
   CreateEventRequest,
@@ -25,6 +26,7 @@ interface RawMember {
   funciones: string[];
   instrument: string | null;
   is_active: boolean;
+  is_director?: boolean;
   created_at: string;
 }
 
@@ -103,6 +105,7 @@ function mapMember(r: RawMember): MusicMember {
     funciones: r.funciones as MusicMember['funciones'],
     instrument: r.instrument,
     active: r.is_active,
+    isDirector: r.is_director ?? false,
     createdAt: r.created_at,
   };
 }
@@ -191,21 +194,49 @@ export class MusicService {
   static async createMember(data: CreateMemberRequest): Promise<MusicMember> {
     const raw = await ApiService.post<
       RawMember,
-      { user_id: string; funciones: string[]; instrument?: string | null }
+      {
+        user_id: string;
+        funciones: string[];
+        instrument?: string | null;
+        is_director?: boolean;
+      }
     >(`${this.base}/members`, {
       user_id: data.userId,
       funciones: data.funciones,
       instrument: data.instrument,
+      is_director: data.isDirector,
     });
     return mapMember(raw);
   }
 
   static async updateMember(id: string, data: UpdateMemberRequest): Promise<MusicMember> {
-    const raw = await ApiService.put<RawMember, UpdateMemberRequest>(
-      `${this.base}/members/${id}`,
-      data
-    );
+    const raw = await ApiService.put<
+      RawMember,
+      {
+        funciones?: Funcion[];
+        instrument?: string | null;
+        active?: boolean;
+        is_director?: boolean;
+      }
+    >(`${this.base}/members/${id}`, {
+      funciones: data.funciones,
+      instrument: data.instrument,
+      active: data.active,
+      is_director: data.isDirector,
+    });
     return mapMember(raw);
+  }
+
+  static async getMyModuleRole(): Promise<{ roleLevel: number; isDirector: boolean }> {
+    try {
+      const raw = await ApiService.get<{ role_level?: number }>(
+        '/permissions/module-role?module=music'
+      );
+      const level = raw.role_level ?? 0;
+      return { roleLevel: level, isDirector: level >= 5 };
+    } catch {
+      return { roleLevel: 0, isDirector: false };
+    }
   }
 
   static async deleteMember(id: string): Promise<void> {

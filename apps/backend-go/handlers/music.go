@@ -201,8 +201,40 @@ type memberRow struct {
 	Funciones  []string `json:"funciones"`
 	Instrument *string  `json:"instrument"`
 	IsActive   bool     `json:"is_active"`
+	IsDirector bool     `json:"is_director"`
 	CreatedAt  string   `json:"created_at"`
 	UpdatedAt  string   `json:"updated_at"`
+}
+
+// musicDirectorLevel is the module role_level that grants director privileges.
+const musicDirectorLevel = 5
+
+// musicServidorLevel is the module role_level for a regular servidor.
+const musicServidorLevel = 1
+
+// upsertMusicModuleRole writes the caller's music module role (director vs servidor).
+func upsertMusicModuleRole(db *sql.DB, userID string, isDirector bool, assignedBy string) {
+	if db == nil || userID == "" {
+		return
+	}
+	level := musicServidorLevel
+	roleName := "Servidor"
+	if isDirector {
+		level = musicDirectorLevel
+		roleName = "Director"
+	}
+	var assigner interface{}
+	if assignedBy != "" {
+		assigner = assignedBy
+	}
+	_, _ = db.Exec(`
+		INSERT INTO module_user_roles (user_id, module_key, role_level, role_name, assigned_by)
+		VALUES ($1, 'music', $2, $3, $4)
+		ON CONFLICT (user_id, module_key)
+		DO UPDATE SET role_level = EXCLUDED.role_level,
+		              role_name  = EXCLUDED.role_name,
+		              updated_at = now()
+	`, userID, level, roleName, assigner)
 }
 
 func (h *MusicHandler) GetMembers(c echo.Context) error {
@@ -216,10 +248,13 @@ func (h *MusicHandler) GetMembers(c echo.Context) error {
 		       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS name,
 		       u.email,
 		       mm.funciones, mm.instrument, mm.is_active,
+		       COALESCE(mur.role_level >= 5, false) AS is_director,
 		       to_char(mm.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(mm.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM music_members mm
 		JOIN users u ON u.id = mm.user_id
+		LEFT JOIN module_user_roles mur
+		       ON mur.user_id = mm.user_id AND mur.module_key = 'music'
 		ORDER BY name ASC
 	`)
 	if err != nil {
@@ -232,7 +267,7 @@ func (h *MusicHandler) GetMembers(c echo.Context) error {
 		var m memberRow
 		var funciones []byte
 		var email sql.NullString
-		if err := rows.Scan(&m.ID, &m.UserID, &m.Name, &email, &funciones, &m.Instrument, &m.IsActive, &m.CreatedAt, &m.UpdatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.UserID, &m.Name, &email, &funciones, &m.Instrument, &m.IsActive, &m.IsDirector, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			continue
 		}
 		if email.Valid {
@@ -251,11 +286,13 @@ func (h *MusicHandler) CreateMember(c echo.Context) error {
 		return err
 	}
 
+	callerID, _ := c.Get("user_id").(string)
 	var req struct {
 		UserID     string   `json:"user_id"`
 		Funciones  []string `json:"funciones"`
 		Instrument *string  `json:"instrument"`
 		IsActive   *bool    `json:"is_active"`
+		IsDirector *bool    `json:"is_director"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
@@ -285,6 +322,10 @@ func (h *MusicHandler) CreateMember(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al crear miembro"})
 	}
 
+	// Assign the module role (director vs servidor) — independent of system role.
+	isDirector := req.IsDirector != nil && *req.IsDirector
+	upsertMusicModuleRole(db.DB, req.UserID, isDirector, callerID)
+
 	return c.JSON(http.StatusCreated, map[string]string{"id": id, "message": "Miembro creado exitosamente"})
 }
 
@@ -294,11 +335,13 @@ func (h *MusicHandler) UpdateMember(c echo.Context) error {
 		return err
 	}
 
+	callerID, _ := c.Get("user_id").(string)
 	memberID := c.Param("id")
 	var req struct {
 		Funciones  []string `json:"funciones"`
 		Instrument *string  `json:"instrument"`
 		IsActive   *bool    `json:"is_active"`
+		IsDirector *bool    `json:"is_director"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
@@ -324,6 +367,15 @@ func (h *MusicHandler) UpdateMember(c echo.Context) error {
 	if n == 0 {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Miembro no encontrado"})
 	}
+
+	// Update the module role only when the flag is explicitly provided.
+	if req.IsDirector != nil {
+		var userID string
+		if scanErr := db.DB.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1`, memberID).Scan(&userID); scanErr == nil {
+			upsertMusicModuleRole(db.DB, userID, *req.IsDirector, callerID)
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{"message": "Miembro actualizado"})
 }
 
@@ -334,6 +386,11 @@ func (h *MusicHandler) DeleteMember(c echo.Context) error {
 	}
 
 	memberID := c.Param("id")
+	// Clean up the music module role for this user (best-effort).
+	var userID string
+	if scanErr := db.DB.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1`, memberID).Scan(&userID); scanErr == nil && userID != "" {
+		_, _ = db.DB.Exec(`DELETE FROM module_user_roles WHERE user_id = $1 AND module_key = 'music'`, userID)
+	}
 	res, err := db.DB.Exec(`DELETE FROM music_members WHERE id = $1`, memberID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al eliminar miembro"})
