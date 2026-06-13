@@ -41,6 +41,7 @@ func SetupMusicRoutes(protected *echo.Group) {
 	// Songs — /songs/stats must come before /songs to avoid conflict
 	music.GET("/songs/stats", h.GetSongStats)
 	music.GET("/songs", h.GetSongs)
+	music.GET("/events/:id/songs", h.GetEventSongs)
 	music.POST("/events/:id/songs", h.AddSongToEvent, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
 	music.DELETE("/events/:eventId/songs/:songId", h.RemoveEventSong, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
 

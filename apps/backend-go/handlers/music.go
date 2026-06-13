@@ -196,6 +196,8 @@ func GenerateQuarterDates(year, quarter int) []struct {
 type memberRow struct {
 	ID         string   `json:"id"`
 	UserID     string   `json:"user_id"`
+	Name       string   `json:"name"`
+	Email      *string  `json:"email"`
 	Funciones  []string `json:"funciones"`
 	Instrument *string  `json:"instrument"`
 	IsActive   bool     `json:"is_active"`
@@ -210,11 +212,15 @@ func (h *MusicHandler) GetMembers(c echo.Context) error {
 	}
 
 	rows, err := db.DB.Query(`
-		SELECT id, user_id, funciones, instrument, is_active,
-		       to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-		       to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-		FROM music_members
-		ORDER BY created_at DESC
+		SELECT mm.id, mm.user_id,
+		       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS name,
+		       u.email,
+		       mm.funciones, mm.instrument, mm.is_active,
+		       to_char(mm.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		       to_char(mm.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM music_members mm
+		JOIN users u ON u.id = mm.user_id
+		ORDER BY name ASC
 	`)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener miembros"})
@@ -225,8 +231,12 @@ func (h *MusicHandler) GetMembers(c echo.Context) error {
 	for rows.Next() {
 		var m memberRow
 		var funciones []byte
-		if err := rows.Scan(&m.ID, &m.UserID, &funciones, &m.Instrument, &m.IsActive, &m.CreatedAt, &m.UpdatedAt); err != nil {
+		var email sql.NullString
+		if err := rows.Scan(&m.ID, &m.UserID, &m.Name, &email, &funciones, &m.Instrument, &m.IsActive, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			continue
+		}
+		if email.Valid {
+			m.Email = &email.String
 		}
 		// Parse PostgreSQL array literal {val1,val2}
 		m.Funciones = parsePGArray(string(funciones))
@@ -582,6 +592,8 @@ type assignmentRow struct {
 	ID         string  `json:"id"`
 	EventID    string  `json:"event_id"`
 	MemberID   string  `json:"member_id"`
+	MemberName string  `json:"member_name"`
+	Instrument *string `json:"instrument"`
 	Funcion    string  `json:"funcion"`
 	State      string  `json:"state"`
 	AssignedBy *string `json:"assigned_by"`
@@ -597,13 +609,18 @@ func (h *MusicHandler) GetAssignments(c echo.Context) error {
 
 	eventID := c.Param("id")
 	rows, err := db.DB.Query(`
-		SELECT id, event_id, member_id, funcion, state,
-		       assigned_by::text,
-		       to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-		       to_char(updated_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-		FROM music_assignments
-		WHERE event_id = $1
-		ORDER BY funcion, created_at
+		SELECT ma.id, ma.event_id, ma.member_id,
+		       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS member_name,
+		       mm.instrument,
+		       ma.funcion, ma.state,
+		       ma.assigned_by::text,
+		       to_char(ma.created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		       to_char(ma.updated_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM music_assignments ma
+		JOIN music_members mm ON mm.id = ma.member_id
+		JOIN users u ON u.id = mm.user_id
+		WHERE ma.event_id = $1
+		ORDER BY ma.funcion, ma.created_at
 	`, eventID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener asignaciones"})
@@ -614,7 +631,7 @@ func (h *MusicHandler) GetAssignments(c echo.Context) error {
 	for rows.Next() {
 		var a assignmentRow
 		var assignedBy sql.NullString
-		if err := rows.Scan(&a.ID, &a.EventID, &a.MemberID, &a.Funcion, &a.State,
+		if err := rows.Scan(&a.ID, &a.EventID, &a.MemberID, &a.MemberName, &a.Instrument, &a.Funcion, &a.State,
 			&assignedBy, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			continue
 		}
@@ -680,14 +697,27 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al crear asignación"})
 	}
 
-	resp := map[string]interface{}{
-		"id":      id,
-		"message": "Asignación creada",
+	assignment := assignmentRow{
+		ID:       id,
+		EventID:  eventID,
+		MemberID: req.MemberID,
+		Funcion:  req.Funcion,
+		State:    "asignado",
 	}
-	if unavailabilityWarning {
-		resp["unavailability_warning"] = true
+	if callerID != "" {
+		assignment.AssignedBy = &callerID
 	}
-	return c.JSON(http.StatusCreated, resp)
+	_ = db.DB.QueryRow(`
+		SELECT TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,''))
+		FROM music_members mm JOIN users u ON u.id = mm.user_id
+		WHERE mm.id = $1
+	`, req.MemberID).Scan(&assignment.MemberName)
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"assignment":             assignment,
+		"unavailability_warning": unavailabilityWarning,
+		"message":                "Asignación creada",
+	})
 }
 
 func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
@@ -789,6 +819,7 @@ type songRow struct {
 	NameNormalized string  `json:"name_normalized"`
 	Author         *string `json:"author"`
 	DefaultKey     *string `json:"default_key"`
+	Link           *string `json:"link"`
 	CreatedAt      string  `json:"created_at"`
 	HistoricalKey  *string `json:"historical_key,omitempty"`
 }
@@ -802,7 +833,7 @@ func (h *MusicHandler) GetSongs(c echo.Context) error {
 	q := c.QueryParam("q")
 
 	query := `
-		SELECT s.id, s.name, s.name_normalized, s.author, s.default_key,
+		SELECT s.id, s.name, s.name_normalized, s.author, s.default_key, s.link,
 		       to_char(s.created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       es.tono AS historical_key
 		FROM music_songs s
@@ -835,13 +866,65 @@ func (h *MusicHandler) GetSongs(c echo.Context) error {
 	for rows.Next() {
 		var s songRow
 		var historicalKey sql.NullString
-		if err := rows.Scan(&s.ID, &s.Name, &s.NameNormalized, &s.Author, &s.DefaultKey, &s.CreatedAt, &historicalKey); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.NameNormalized, &s.Author, &s.DefaultKey, &s.Link, &s.CreatedAt, &historicalKey); err != nil {
 			continue
 		}
 		if historicalKey.Valid {
 			s.HistoricalKey = &historicalKey.String
 		}
 		songs = append(songs, s)
+	}
+	return c.JSON(http.StatusOK, songs)
+}
+
+type eventSongRow struct {
+	ID         string  `json:"id"`
+	EventID    string  `json:"event_id"`
+	SongID     string  `json:"song_id"`
+	SongName   string  `json:"song_name"`
+	Tono       *string `json:"tono"`
+	OrderIndex int     `json:"order_index"`
+	Link       *string `json:"link"`
+	Notes      *string `json:"notes"`
+}
+
+// GetEventSongs returns the repertorio (setlist) for an event, ordered.
+func (h *MusicHandler) GetEventSongs(c echo.Context) error {
+	db, err := validateDB(c)
+	if err != nil {
+		return err
+	}
+
+	eventID := c.Param("id")
+	rows, err := db.DB.Query(`
+		SELECT mes.id, mes.event_id, mes.song_id, s.name, mes.tono, mes.order_index, s.link, mes.notes
+		FROM music_event_songs mes
+		JOIN music_songs s ON s.id = mes.song_id
+		WHERE mes.event_id = $1
+		ORDER BY mes.order_index ASC, s.name ASC
+	`, eventID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener repertorio"})
+	}
+	defer rows.Close()
+
+	songs := []eventSongRow{}
+	for rows.Next() {
+		var es eventSongRow
+		var tono, link, notes sql.NullString
+		if err := rows.Scan(&es.ID, &es.EventID, &es.SongID, &es.SongName, &tono, &es.OrderIndex, &link, &notes); err != nil {
+			continue
+		}
+		if tono.Valid {
+			es.Tono = &tono.String
+		}
+		if link.Valid {
+			es.Link = &link.String
+		}
+		if notes.Valid {
+			es.Notes = &notes.String
+		}
+		songs = append(songs, es)
 	}
 	return c.JSON(http.StatusOK, songs)
 }
@@ -859,6 +942,8 @@ func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
 		Tono       *string `json:"tono"`
 		OrderIndex *int    `json:"order_index"`
 		Author     *string `json:"author"`
+		Link       *string `json:"link"`
+		Notes      *string `json:"notes"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
@@ -869,14 +954,17 @@ func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
 
 	normalized := NormalizeSongName(req.Name)
 
-	// Upsert song by normalized name
+	// Upsert song by normalized name; keep existing link/author when not provided
 	var songID string
 	err = db.DB.QueryRow(`
-		INSERT INTO music_songs (name, name_normalized, author)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (name_normalized) DO UPDATE SET name = EXCLUDED.name
+		INSERT INTO music_songs (name, name_normalized, author, link)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (name_normalized) DO UPDATE
+		SET name   = EXCLUDED.name,
+		    author = COALESCE(EXCLUDED.author, music_songs.author),
+		    link   = COALESCE(EXCLUDED.link, music_songs.link)
 		RETURNING id
-	`, strings.TrimSpace(req.Name), normalized, req.Author).Scan(&songID)
+	`, strings.TrimSpace(req.Name), normalized, req.Author, req.Link).Scan(&songID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al registrar canción"})
 	}
@@ -887,22 +975,35 @@ func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
 	}
 
 	// Link to event
-	var linkID string
+	es := eventSongRow{EventID: eventID, SongID: songID, OrderIndex: orderIndex}
+	var tono, link, notes sql.NullString
 	err = db.DB.QueryRow(`
-		INSERT INTO music_event_songs (event_id, song_id, tono, order_index)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (event_id, song_id) DO UPDATE SET tono = EXCLUDED.tono, order_index = EXCLUDED.order_index
-		RETURNING id
-	`, eventID, songID, req.Tono, orderIndex).Scan(&linkID)
+		INSERT INTO music_event_songs (event_id, song_id, tono, order_index, notes)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (event_id, song_id) DO UPDATE
+		SET tono        = EXCLUDED.tono,
+		    order_index = EXCLUDED.order_index,
+		    notes       = COALESCE(EXCLUDED.notes, music_event_songs.notes)
+		RETURNING id,
+		          (SELECT name FROM music_songs WHERE id = $2),
+		          tono,
+		          (SELECT link FROM music_songs WHERE id = $2),
+		          notes
+	`, eventID, songID, req.Tono, orderIndex, req.Notes).Scan(&es.ID, &es.SongName, &tono, &link, &notes)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al agregar canción al evento"})
 	}
+	if tono.Valid {
+		es.Tono = &tono.String
+	}
+	if link.Valid {
+		es.Link = &link.String
+	}
+	if notes.Valid {
+		es.Notes = &notes.String
+	}
 
-	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"id":      linkID,
-		"song_id": songID,
-		"message": "Canción agregada al evento",
-	})
+	return c.JSON(http.StatusCreated, es)
 }
 
 func (h *MusicHandler) RemoveEventSong(c echo.Context) error {

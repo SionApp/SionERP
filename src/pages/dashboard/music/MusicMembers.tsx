@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MusicService } from '@/services/music.service';
+import { UserService } from '@/services/user.service';
 import { Funciones } from '@/types/music.types';
 import type {
   MusicMember,
@@ -18,6 +19,7 @@ import type {
   CreateMemberRequest,
   UpdateMemberRequest,
 } from '@/types/music.types';
+import type { User } from '@/types/user.types';
 
 const FUNCION_LABELS: Record<Funcion, string> = {
   corista: 'Corista',
@@ -26,22 +28,122 @@ const FUNCION_LABELS: Record<Funcion, string> = {
   danzarina: 'Danzarina',
 };
 
+function useDebouncedValue<T>(value: T, ms = 250): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
+
+interface UserSearchPickerProps {
+  excludeUserIds: Set<string>;
+  selected: User | null;
+  onPick: (u: User | null) => void;
+}
+
+function UserSearchPicker({ excludeUserIds, selected, onPick }: UserSearchPickerProps) {
+  const [query, setQuery] = useState('');
+  const debounced = useDebouncedValue(query, 250);
+  const [focused, setFocused] = useState(false);
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['users-search', debounced],
+    queryFn: () => UserService.getUsers({ search: debounced, limit: 20 }),
+    enabled: focused && debounced.trim().length >= 1,
+  });
+
+  const results = useMemo(() => {
+    const list = data?.users ?? [];
+    return list.filter(u => !excludeUserIds.has(u.id)).slice(0, 8);
+  }, [data, excludeUserIds]);
+
+  if (selected) {
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 bg-muted/30">
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">
+            {selected.first_name} {selected.last_name}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">{selected.email}</p>
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 shrink-0"
+          onClick={() => onPick(null)}
+          type="button"
+          aria-label="Quitar selección"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          placeholder="Buscar por nombre, email o documento…"
+          className="pl-9"
+          autoComplete="off"
+        />
+      </div>
+      {focused && debounced.trim().length >= 1 && (
+        <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-64 overflow-y-auto">
+          {isFetching ? (
+            <div className="px-3 py-2 text-xs text-muted-foreground">Buscando…</div>
+          ) : results.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
+          ) : (
+            results.map(u => (
+              <button
+                key={u.id}
+                type="button"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => {
+                  onPick(u);
+                  setQuery('');
+                }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-muted border-b border-border last:border-b-0"
+              >
+                <p className="font-medium truncate">
+                  {u.first_name} {u.last_name}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface MemberFormState {
-  userId: string;
+  pickedUser: User | null;
   funciones: Funcion[];
   instrument: string;
 }
 
 interface MemberFormProps {
   initial?: MusicMember;
+  excludeUserIds: Set<string>;
   onSave: (data: CreateMemberRequest | UpdateMemberRequest) => void;
   onCancel: () => void;
   saving: boolean;
 }
 
-function MemberForm({ initial, onSave, onCancel, saving }: MemberFormProps) {
+function MemberForm({ initial, excludeUserIds, onSave, onCancel, saving }: MemberFormProps) {
   const [form, setForm] = useState<MemberFormState>({
-    userId: initial?.userId ?? '',
+    pickedUser: null,
     funciones: initial?.funciones ?? [],
     instrument: initial?.instrument ?? '',
   });
@@ -57,8 +159,8 @@ function MemberForm({ initial, onSave, onCancel, saving }: MemberFormProps) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!initial && !form.userId.trim()) {
-      toast.error('El ID de usuario es requerido');
+    if (!initial && !form.pickedUser) {
+      toast.error('Elegí un usuario');
       return;
     }
     if (form.funciones.length === 0) {
@@ -70,7 +172,7 @@ function MemberForm({ initial, onSave, onCancel, saving }: MemberFormProps) {
       onSave({ funciones: form.funciones, instrument } as UpdateMemberRequest);
     } else {
       onSave({
-        userId: form.userId.trim(),
+        userId: form.pickedUser!.id,
         funciones: form.funciones,
         instrument,
       } as CreateMemberRequest);
@@ -81,15 +183,22 @@ function MemberForm({ initial, onSave, onCancel, saving }: MemberFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {!initial && (
+      {!initial ? (
         <div className="space-y-1">
-          <Label htmlFor="userId">ID de usuario</Label>
-          <Input
-            id="userId"
-            value={form.userId}
-            onChange={e => setForm(prev => ({ ...prev, userId: e.target.value }))}
-            placeholder="UUID del usuario"
+          <Label>Usuario</Label>
+          <UserSearchPicker
+            excludeUserIds={excludeUserIds}
+            selected={form.pickedUser}
+            onPick={u => setForm(prev => ({ ...prev, pickedUser: u }))}
           />
+          <p className="text-xs text-muted-foreground">
+            Buscá por nombre, email o documento. Solo aparecen usuarios que aún no son integrantes.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-md border border-border px-3 py-2 bg-muted/30">
+          <p className="text-sm font-medium">{initial.name || initial.userId}</p>
+          {initial.email && <p className="text-xs text-muted-foreground">{initial.email}</p>}
         </div>
       )}
       <div className="space-y-2">
@@ -140,11 +249,14 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MusicMember | null>(null);
+  const [filter, setFilter] = useState('');
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['music-members'],
     queryFn: () => MusicService.getMembers(),
   });
+
+  const excludeUserIds = useMemo(() => new Set(members.map(m => m.userId)), [members]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreateMemberRequest) => MusicService.createMember(data),
@@ -197,6 +309,17 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
 
   const saving = createMutation.isPending || updateMutation.isPending;
 
+  const filtered = members.filter(m => {
+    if (!filter.trim()) return true;
+    const q = filter.toLowerCase();
+    return (
+      (m.name ?? '').toLowerCase().includes(q) ||
+      (m.email ?? '').toLowerCase().includes(q) ||
+      m.funciones.some(f => FUNCION_LABELS[f].toLowerCase().includes(q)) ||
+      (m.instrument ?? '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -208,23 +331,33 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
           </Button>
         )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            placeholder="Filtrar integrantes…"
+            className="pl-9"
+          />
+        </div>
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map(i => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
-        ) : members.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
-            No hay integrantes registrados.
+            {members.length === 0 ? 'No hay integrantes registrados.' : 'Sin coincidencias.'}
           </p>
         ) : (
-          <div className="divide-y divide-border">
-            {members.map(m => (
-              <div key={m.id} className="flex items-center justify-between py-3">
+          <div className="divide-y divide-border rounded-md border border-border">
+            {filtered.map(m => (
+              <div key={m.id} className="flex items-center justify-between px-3 py-3">
                 <div className="min-w-0">
                   <p className="font-medium text-sm truncate">{m.name ?? m.userId}</p>
+                  {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
                   <div className="flex flex-wrap gap-1 mt-1">
                     {m.funciones.map(f => (
                       <Badge key={f} variant="secondary" className="text-xs">
@@ -268,6 +401,7 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
           </DialogHeader>
           <MemberForm
             initial={editing ?? undefined}
+            excludeUserIds={excludeUserIds}
             onSave={handleSave}
             onCancel={() => {
               setDialogOpen(false);
