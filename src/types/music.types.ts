@@ -28,6 +28,7 @@ export interface MusicMember {
   funciones: Funcion[];
   instrument: string | null;
   active: boolean;
+  isDirector: boolean;
   createdAt: string;
 }
 
@@ -96,12 +97,14 @@ export interface CreateMemberRequest {
   userId: string;
   funciones: Funcion[];
   instrument?: string | null;
+  isDirector?: boolean;
 }
 
 export interface UpdateMemberRequest {
   funciones?: Funcion[];
   instrument?: string | null;
   active?: boolean;
+  isDirector?: boolean;
 }
 
 export interface CreateEventRequest {

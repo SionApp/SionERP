@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MusicService } from '@/services/music.service';
@@ -47,9 +48,19 @@ import { ServidorMusicHero } from './music/ServidorHero';
 
 function useMusicAccess() {
   const { permissions } = usePermissions();
-  const isDirector =
-    !!permissions &&
-    (permissions.has_admin_access || permissions.role === 'pastor' || permissions.role === 'staff');
+  // System pastor/admin always manage. Staff and others depend on their
+  // music module role (director vs servidor), independent of the system role.
+  const systemDirector =
+    !!permissions && (permissions.has_admin_access || permissions.role === 'pastor');
+
+  const { data: moduleRole } = useQuery({
+    queryKey: ['music-my-module-role'],
+    queryFn: () => MusicService.getMyModuleRole(),
+    enabled: !!permissions && !systemDirector,
+    staleTime: 60_000,
+  });
+
+  const isDirector = systemDirector || (moduleRole?.isDirector ?? false);
   return { isDirector };
 }
 
@@ -641,53 +652,154 @@ function CultosTab({
 // CANCIONES — stats globales
 // ─────────────────────────────────────────────
 function CancionesTab() {
+  const [filter, setFilter] = useState('');
   const { data: stats = [], isLoading } = useQuery({
     queryKey: ['music-song-stats'],
-    queryFn: () => MusicService.getSongStats(100),
+    queryFn: () => MusicService.getSongStats(500),
   });
 
+  const ranked = useMemo(
+    () =>
+      [...stats].sort((a, b) => {
+        if (b.timesPlayed !== a.timesPlayed) return b.timesPlayed - a.timesPlayed;
+        return (b.lastPlayedDate ?? '').localeCompare(a.lastPlayedDate ?? '');
+      }),
+    [stats]
+  );
+
+  const filtered = useMemo(
+    () =>
+      filter.trim()
+        ? ranked.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()))
+        : ranked,
+    [ranked, filter]
+  );
+
+  const maxPlays = ranked[0]?.timesPlayed ?? 0;
+  const totalPlays = stats.reduce((acc, s) => acc + s.timesPlayed, 0);
+  const neverPlayed = stats.filter(s => s.timesPlayed === 0).length;
+
+  function relativeLastPlayed(date: string | null): string {
+    if (!date) return 'Nunca tocada';
+    const d = new Date(`${date}T12:00:00`);
+    const diff = Math.round((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff <= 0) return 'Hoy';
+    if (diff === 1) return 'Ayer';
+    if (diff < 30) return `Hace ${diff} días`;
+    if (diff < 60) return 'Hace 1 mes';
+    return `Hace ${Math.floor(diff / 30)} meses`;
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Canciones</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3, 4].map(i => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl border border-border p-3 sm:p-4">
+          <div className="flex items-center gap-2 mb-1 text-muted-foreground">
+            <Music2 className="h-3.5 w-3.5" />
+            <span className="text-xs font-medium">En catálogo</span>
           </div>
-        ) : stats.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            No hay canciones en el repertorio. Agregalas desde el detalle de cada culto.
-          </p>
-        ) : (
-          <div className="divide-y divide-border rounded-md border border-border">
-            {stats.map(s => (
-              <div key={s.id} className="flex items-center justify-between px-3 py-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{s.name}</p>
-                  {s.lastPlayedDate && (
-                    <p className="text-xs text-muted-foreground">Último: {s.lastPlayedDate}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  {s.historicalKey && (
-                    <Badge variant="outline" className="text-xs">
-                      {s.historicalKey}
-                    </Badge>
-                  )}
-                  <Badge variant="secondary" className="text-xs">
-                    {s.timesPlayed}×
-                  </Badge>
-                </div>
-              </div>
-            ))}
+          <p className="text-xl sm:text-2xl font-bold tabular-nums">{stats.length}</p>
+        </div>
+        <div className="rounded-xl border border-border p-3 sm:p-4">
+          <div className="flex items-center gap-2 mb-1 text-muted-foreground">
+            <TrendingUp className="h-3.5 w-3.5" />
+            <span className="text-xs font-medium">Veces tocadas</span>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <p className="text-xl sm:text-2xl font-bold tabular-nums">{totalPlays}</p>
+        </div>
+        <div
+          className={cn(
+            'rounded-xl border p-3 sm:p-4',
+            neverPlayed > 0 ? 'border-amber-500/30 bg-amber-500/10' : 'border-border'
+          )}
+        >
+          <div className="flex items-center gap-2 mb-1 text-muted-foreground">
+            <CalendarIcon className="h-3.5 w-3.5" />
+            <span className="text-xs font-medium">Sin uso</span>
+          </div>
+          <p className="text-xl sm:text-2xl font-bold tabular-nums">{neverPlayed}</p>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Ranking del repertorio</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {stats.length > 0 && (
+            <Input
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder="Buscar canción…"
+            />
+          )}
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map(i => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              {stats.length === 0
+                ? 'No hay canciones en el repertorio. Agregalas desde el detalle de cada culto.'
+                : 'Sin coincidencias.'}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((s, i) => {
+                const pct = maxPlays > 0 ? Math.round((s.timesPlayed / maxPlays) * 100) : 0;
+                return (
+                  <div
+                    key={s.id}
+                    className="relative rounded-lg border border-border overflow-hidden"
+                  >
+                    <div
+                      className="absolute inset-y-0 left-0 bg-primary/10"
+                      style={{ width: `${pct}%` }}
+                    />
+                    <div className="relative flex items-center justify-between px-3 py-2.5 gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={cn(
+                            'text-xs font-bold tabular-nums w-5 text-center shrink-0',
+                            i === 0 && 'text-amber-500',
+                            i === 1 && 'text-zinc-400',
+                            i === 2 && 'text-orange-700',
+                            i > 2 && 'text-muted-foreground'
+                          )}
+                        >
+                          {i + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{s.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {relativeLastPlayed(s.lastPlayedDate)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {s.historicalKey && (
+                          <Badge variant="outline" className="text-xs">
+                            {s.historicalKey}
+                          </Badge>
+                        )}
+                        <Badge
+                          variant={s.timesPlayed === 0 ? 'outline' : 'secondary'}
+                          className="text-xs tabular-nums"
+                        >
+                          {s.timesPlayed}×
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -933,30 +1045,25 @@ export default function MusicPage() {
   const { isDirector } = useMusicAccess();
   const [detailEvent, setDetailEvent] = useState<MusicEvent | null>(null);
 
-  if (isMobileApp) return null;
+  const detailDialog = (
+    <EventDetailDialog
+      event={detailEvent}
+      open={!!detailEvent}
+      onOpenChange={o => !o && setDetailEvent(null)}
+      isDirector={isDirector}
+    />
+  );
 
-  if (!isDirector) {
-    return (
-      <div className="space-y-5 animate-fade-in p-3 sm:p-4 md:p-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Música</h1>
-          <p className="text-sm text-muted-foreground">Equipo de alabanza</p>
-        </div>
-        <ServidorMusicHero />
-        <ServidorView />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5 animate-fade-in p-3 sm:p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Música</h1>
-        <p className="text-sm text-muted-foreground">Gestión del equipo de alabanza</p>
-      </div>
+  const body = !isDirector ? (
+    <>
+      <ServidorMusicHero />
+      <ServidorView />
+    </>
+  ) : (
+    <>
       <DirectorMusicHero onOpenEvent={setDetailEvent} />
       <Tabs defaultValue="cronograma">
-        <TabsList className="w-full sm:w-auto">
+        <TabsList className="w-full sm:w-auto flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
           <TabsTrigger value="cultos">Cultos</TabsTrigger>
           <TabsTrigger value="integrantes">Integrantes</TabsTrigger>
@@ -975,12 +1082,31 @@ export default function MusicPage() {
           <CancionesTab />
         </TabsContent>
       </Tabs>
-      <EventDetailDialog
-        event={detailEvent}
-        open={!!detailEvent}
-        onOpenChange={o => !o && setDetailEvent(null)}
-        isDirector={isDirector}
-      />
+    </>
+  );
+
+  // Native mobile: wrap in MobileScreen chrome (sticky header), same responsive body.
+  if (isMobileApp) {
+    return (
+      <>
+        <MobileScreen title="Música" subtitle={isDirector ? 'Equipo de alabanza' : 'Mis cultos'}>
+          <div className="px-4 py-4 space-y-5">{body}</div>
+        </MobileScreen>
+        {detailDialog}
+      </>
+    );
+  }
+
+  return (
+    <div className="space-y-5 animate-fade-in p-3 sm:p-4 md:p-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Música</h1>
+        <p className="text-sm text-muted-foreground">
+          {isDirector ? 'Gestión del equipo de alabanza' : 'Equipo de alabanza'}
+        </p>
+      </div>
+      {body}
+      {detailDialog}
     </div>
   );
 }
