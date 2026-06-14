@@ -711,16 +711,31 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 
 	var req struct {
 		MemberID string `json:"member_id"`
+		UserID   string `json:"user_id"`
 		Funcion  string `json:"funcion"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
 	}
-	if req.MemberID == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "member_id es requerido"})
+	if req.MemberID == "" && req.UserID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "member_id o user_id es requerido"})
 	}
 	if !validFunciones[req.Funcion] {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "funcion inválida"})
+	}
+
+	// Resolve member: when only user_id is given, find-or-create the music_member
+	// (auto-onboard) and ensure the funcion is present in their funciones array.
+	memberID := req.MemberID
+	if memberID == "" {
+		mid, resolveErr := resolveOrCreateMember(db.DB, req.UserID, req.Funcion)
+		if resolveErr != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "No se pudo dar de alta al integrante"})
+		}
+		memberID = mid
+	} else {
+		// Existing member chosen directly — make sure they hold this funcion too.
+		ensureMemberFuncion(db.DB, memberID, req.Funcion)
 	}
 
 	// Resolve culto date for unavailability check
@@ -734,7 +749,7 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 	}
 
 	// Check unavailability (INV-3: advisory only — never 4xx)
-	unavailabilityWarning := CheckMemberUnavailability(db.DB, req.MemberID, cultoDate)
+	unavailabilityWarning := CheckMemberUnavailability(db.DB, memberID, cultoDate)
 
 	var assignedByVal interface{}
 	if callerID != "" {
@@ -746,7 +761,7 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 		INSERT INTO music_assignments (event_id, member_id, funcion, state, assigned_by)
 		VALUES ($1, $2, $3, 'asignado', $4)
 		RETURNING id
-	`, eventID, req.MemberID, req.Funcion, assignedByVal).Scan(&id)
+	`, eventID, memberID, req.Funcion, assignedByVal).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "El miembro ya está asignado a este evento"})
@@ -757,7 +772,7 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 	assignment := assignmentRow{
 		ID:       id,
 		EventID:  eventID,
-		MemberID: req.MemberID,
+		MemberID: memberID,
 		Funcion:  req.Funcion,
 		State:    "asignado",
 	}
@@ -765,10 +780,10 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 		assignment.AssignedBy = &callerID
 	}
 	_ = db.DB.QueryRow(`
-		SELECT TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,''))
+		SELECT TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), mm.instrument
 		FROM music_members mm JOIN users u ON u.id = mm.user_id
 		WHERE mm.id = $1
-	`, req.MemberID).Scan(&assignment.MemberName)
+	`, memberID).Scan(&assignment.MemberName, &assignment.Instrument)
 
 	// Notify the servidor that they have been assigned (advisory — never blocks).
 	emitAssignmentNotification(db.DB, id, unavailabilityWarning)
@@ -847,6 +862,48 @@ func (h *MusicHandler) DeleteAssignment(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Asignación no encontrada"})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"message": "Asignación eliminada"})
+}
+
+// resolveOrCreateMember returns the music_member id for the given userID,
+// creating the member (auto-onboard) with the given funcion if none exists.
+func resolveOrCreateMember(db *sql.DB, userID, funcion string) (string, error) {
+	if db == nil || userID == "" {
+		return "", fmt.Errorf("user_id requerido")
+	}
+	var memberID string
+	err := db.QueryRow(`SELECT id FROM music_members WHERE user_id = $1`, userID).Scan(&memberID)
+	if err == nil {
+		// Member already exists — ensure the funcion is in their array.
+		ensureMemberFuncion(db, memberID, funcion)
+		return memberID, nil
+	}
+	if err != sql.ErrNoRows {
+		return "", err
+	}
+	// Create the member with this single funcion.
+	err = db.QueryRow(`
+		INSERT INTO music_members (user_id, funciones, is_active)
+		VALUES ($1, $2, true)
+		RETURNING id
+	`, userID, sliceToPGArray([]string{funcion})).Scan(&memberID)
+	if err != nil {
+		return "", err
+	}
+	// Default module role: servidor (level 1).
+	upsertMusicModuleRole(db, userID, false, "")
+	return memberID, nil
+}
+
+// ensureMemberFuncion adds funcion to the member's funciones array if missing.
+func ensureMemberFuncion(db *sql.DB, memberID, funcion string) {
+	if db == nil || memberID == "" {
+		return
+	}
+	_, _ = db.Exec(`
+		UPDATE music_members
+		SET funciones = array_append(funciones, $2), updated_at = now()
+		WHERE id = $1 AND NOT ($2 = ANY(funciones))
+	`, memberID, funcion)
 }
 
 // CheckMemberUnavailability returns true if the member has an unavailability
