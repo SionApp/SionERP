@@ -34,7 +34,9 @@ import type {
   Funcion,
   AssignmentState,
 } from '@/types/music.types';
+import type { User } from '@/types/user.types';
 import { ConfirmationProgress } from './MusicHero';
+import { UserSearchPicker } from './UserSearchPicker';
 
 const FUNCION_LABELS: Record<Funcion, string> = {
   corista: 'Coristas',
@@ -85,7 +87,6 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [funcion, setFuncion] = useState<Funcion | ''>('');
-  const [memberId, setMemberId] = useState('');
   const [suggestionsFor, setSuggestionsFor] = useState<string | null>(null);
 
   const { data: assignments = [], isLoading } = useQuery({
@@ -93,6 +94,7 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
     queryFn: () => MusicService.getAssignments(event.id),
   });
 
+  // Members are needed only to exclude already-assigned users from the search.
   const { data: members = [] } = useQuery({
     queryKey: ['music-members'],
     queryFn: () => MusicService.getMembers(),
@@ -106,22 +108,21 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { memberId: string; funcion: Funcion }) =>
+    mutationFn: (data: { memberId?: string; userId?: string; funcion: Funcion }) =>
       MusicService.createAssignment(event.id, data),
     onSuccess: result => {
       qc.invalidateQueries({ queryKey: ['music-assignments', event.id] });
-      setAddOpen(false);
-      setMemberId('');
+      qc.invalidateQueries({ queryKey: ['music-members'] });
       setSuggestionsFor(null);
       if (result.unavailabilityWarning) {
-        toast.warning('Asignado, pero el integrante declaró indisponibilidad para esa fecha');
+        toast.warning('Asignado, pero la persona declaró indisponibilidad para esa fecha');
       } else {
         toast.success('Servidor asignado');
       }
     },
     onError: (err: Error & { status?: number }) => {
       toast.error(
-        err.status === 409 ? 'Ese integrante ya está asignado a este culto' : 'No se pudo asignar'
+        err.status === 409 ? 'Esa persona ya está asignada a este culto' : 'No se pudo asignar'
       );
     },
   });
@@ -135,22 +136,24 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
     onError: () => toast.error('No se pudo eliminar la asignación'),
   });
 
-  const assignedMemberIds = new Set(assignments.map(a => a.memberId));
-  const candidates = funcion
-    ? members.filter(m => m.active && m.funciones.includes(funcion) && !assignedMemberIds.has(m.id))
-    : [];
+  // user_ids already assigned to this culto (to exclude from the search).
+  const memberUserById = new Map(members.map(m => [m.id, m.userId]));
+  const assignedUserIds = new Set(
+    assignments.map(a => memberUserById.get(a.memberId)).filter((x): x is string => !!x)
+  );
 
   const byFuncion = assignments.reduce<Record<string, MusicAssignment[]>>((acc, a) => {
     (acc[a.funcion] ??= []).push(a);
     return acc;
   }, {});
 
-  function handleAdd() {
-    if (!funcion || !memberId) {
-      toast.error('Elegí función e integrante');
+  function handlePickUser(u: User | null) {
+    if (!u) return;
+    if (!funcion) {
+      toast.error('Elegí primero la función');
       return;
     }
-    createMutation.mutate({ memberId, funcion });
+    createMutation.mutate({ userId: u.id, funcion });
   }
 
   function handleSuggestionPick(s: MusicMember, originalFuncion: Funcion) {
@@ -179,16 +182,11 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
 
       {isDirector && addOpen && (
         <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/30">
-          <div className="grid grid-cols-2 gap-2">
-            <Select
-              value={funcion}
-              onValueChange={v => {
-                setFuncion(v as Funcion);
-                setMemberId('');
-              }}
-            >
+          <div className="space-y-1">
+            <Label className="text-xs">Función</Label>
+            <Select value={funcion} onValueChange={v => setFuncion(v as Funcion)}>
               <SelectTrigger className="h-9">
-                <SelectValue placeholder="Función" />
+                <SelectValue placeholder="Elegí la función" />
               </SelectTrigger>
               <SelectContent>
                 {(Object.keys(Funciones) as Funcion[]).map(f => (
@@ -198,36 +196,22 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
                 ))}
               </SelectContent>
             </Select>
-            <Select value={memberId} onValueChange={setMemberId} disabled={!funcion}>
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder={funcion ? 'Integrante' : 'Elegí función'} />
-              </SelectTrigger>
-              <SelectContent>
-                {candidates.length === 0 ? (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    Sin integrantes disponibles
-                  </div>
-                ) : (
-                  candidates.map(m => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name ?? m.userId}
-                      {m.instrument ? ` — ${m.instrument}` : ''}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
           </div>
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              className="h-8"
-              onClick={handleAdd}
-              disabled={createMutation.isPending}
-            >
-              {createMutation.isPending ? 'Asignando…' : 'Agregar al equipo'}
-            </Button>
+          <div className="space-y-1">
+            <Label className="text-xs">Persona</Label>
+            <UserSearchPicker
+              excludeUserIds={assignedUserIds}
+              placeholder={funcion ? 'Buscar en la iglesia…' : 'Elegí primero la función'}
+              onPick={handlePickUser}
+            />
+            <p className="text-xs text-muted-foreground">
+              Buscá cualquier persona de la iglesia. Si no es integrante todavía, se da de alta
+              automáticamente con esta función.
+            </p>
           </div>
+          {createMutation.isPending && (
+            <p className="text-xs text-muted-foreground text-right">Asignando…</p>
+          )}
         </div>
       )}
 

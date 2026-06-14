@@ -120,7 +120,8 @@ export interface BatchQuarterRequest {
 }
 
 export interface CreateAssignmentRequest {
-  memberId: string;
+  memberId?: string;
+  userId?: string;
   funcion: Funcion;
 }
 
