@@ -1,16 +1,4 @@
-import {
-  BarChart3,
-  Calendar,
-  Heart,
-  Home,
-  Music2,
-  Settings,
-  Shield,
-  Sparkles,
-  UserCog,
-  UserPlus,
-  Users,
-} from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import {
@@ -26,64 +14,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useSystem } from '@/contexts/SystemContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { ROLE_LEVELS } from '@/lib/permissions';
-
-interface MenuItemConfig {
-  title: string;
-  url: string;
-  icon: React.ComponentType<{ className?: string }>;
-  requiredModule?: string;
-  minRole: number;
-  requireAdminAccess?: boolean; // pastor + staff con has_admin_access
-}
-
-const menuItems: MenuItemConfig[] = [
-  { title: 'Inicio', url: '/dashboard', icon: Home, minRole: ROLE_LEVELS.member },
-  { title: 'Mi Perfil', url: '/dashboard/profile', icon: UserCog, minRole: ROLE_LEVELS.member },
-  { title: 'Usuarios', url: '/dashboard/users', icon: Users, minRole: ROLE_LEVELS.staff },
-  {
-    title: 'Registro',
-    url: '/dashboard/register-user',
-    icon: UserPlus,
-    minRole: ROLE_LEVELS.staff,
-  },
-  { title: 'Roles', url: '/dashboard/roles', icon: Shield, minRole: 0, requireAdminAccess: true },
-  {
-    title: 'Discipulado',
-    url: '/dashboard/discipleship',
-    icon: Heart,
-    requiredModule: 'discipleship',
-    minRole: ROLE_LEVELS.member,
-  },
-  {
-    title: 'Eventos',
-    url: '/dashboard/events',
-    icon: Calendar,
-    requiredModule: 'events',
-    minRole: ROLE_LEVELS.member,
-  },
-  {
-    title: 'Música',
-    url: '/dashboard/music',
-    icon: Music2,
-    requiredModule: 'music',
-    minRole: ROLE_LEVELS.member,
-  },
-  {
-    title: 'Reportes',
-    url: '/dashboard/reports',
-    icon: BarChart3,
-    requiredModule: 'reports',
-    minRole: ROLE_LEVELS.supervisor,
-  },
-  {
-    title: 'Configuración',
-    url: '/dashboard/settings',
-    icon: Settings,
-    minRole: 0,
-    requireAdminAccess: true,
-  },
-];
+import { menuItems, superAdminItems, filterNavItems } from '@/lib/nav-items';
 
 export function AppSidebar() {
   const { state, setOpenMobile } = useSidebar();
@@ -94,24 +25,13 @@ export function AppSidebar() {
 
   const isActive = (path: string) => currentPath === path;
 
-  const filteredItems = menuItems.filter(item => {
-    if (item.requireAdminAccess) {
-      if (!permissions?.has_admin_access) return false;
-    } else if (!hasAccess(item.minRole)) {
-      return false;
-    }
-
-    if (!item.requiredModule || item.requiredModule === 'base') return true;
-    return isModuleInstalled(item.requiredModule);
-  });
+  const filteredItems = filterNavItems(menuItems, { permissions, hasAccess, isModuleInstalled });
 
   // Show "Gestión de Módulos" ONLY for the admin role (500).
   // Pastors and staff have admin-level access but shouldn't manage modules
   // (module installation has licensing/payment implications).
   const isSuperAdmin = permissions?.role === 'admin';
-  const adminItems = isSuperAdmin
-    ? [{ title: 'Gestión de Módulos', url: '/dashboard/modules', icon: Sparkles }]
-    : [];
+  const adminItems = isSuperAdmin ? superAdminItems : [];
 
   return (
     <Sidebar
