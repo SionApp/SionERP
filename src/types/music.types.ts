@@ -84,6 +84,49 @@ export interface MusicSongStat {
   historicalKey: string | null;
 }
 
+export const InstrumentCategories = {
+  voz: 'voz',
+  cuerdas: 'cuerdas',
+  teclas: 'teclas',
+  percusion: 'percusion',
+  viento: 'viento',
+  tecnico: 'tecnico',
+  otro: 'otro',
+} as const;
+export type InstrumentCategory = (typeof InstrumentCategories)[keyof typeof InstrumentCategories];
+
+export interface Instrument {
+  id: string;
+  name: string;
+  category: InstrumentCategory;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface CreateInstrumentRequest {
+  name: string;
+  category: InstrumentCategory;
+  sortOrder?: number;
+}
+
+export interface UpdateInstrumentRequest {
+  name?: string;
+  category?: InstrumentCategory;
+  isActive?: boolean;
+  sortOrder?: number;
+}
+
+export interface TelegramFile {
+  id: string;
+  title: string;
+  fileName: string;
+  performer: string;
+  mimeType: string;
+  duration: number;
+  fileSize: number;
+  channelDate: string;
+}
+
 export interface MusicUnavailability {
   id: string;
   memberId: string;

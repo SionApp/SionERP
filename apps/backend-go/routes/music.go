@@ -56,4 +56,15 @@ func SetupMusicRoutes(protected *echo.Group) {
 
 	// Replacement suggestions (director reads; level 5)
 	music.GET("/assignments/:id/suggestions", h.GetSuggestions, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
+
+	// Instruments catalog — read at module level; write at level 5 (director)
+	music.GET("/instruments", h.GetInstruments)
+	music.POST("/instruments", h.CreateInstrument, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
+	music.PUT("/instruments/:id", h.UpdateInstrument, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
+	music.DELETE("/instruments/:id", h.DeleteInstrument, middleware.RequireModuleLevel(utils.ModuleMusic, 5))
+
+	// Telegram channel — status open to module; list/download at level 1 (musicians)
+	music.GET("/telegram/status", h.TelegramStatus)
+	music.GET("/telegram/files", h.ListTelegramFiles, middleware.RequireModuleLevel(utils.ModuleMusic, 1))
+	music.GET("/telegram/files/:id/download", h.DownloadTelegramFile, middleware.RequireModuleLevel(utils.ModuleMusic, 1))
 }

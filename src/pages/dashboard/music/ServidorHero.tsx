@@ -1,7 +1,15 @@
 import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CalendarDays, CheckCircle2, Music2, ThumbsDown, ThumbsUp, Sparkles } from 'lucide-react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  ExternalLink,
+  Music2,
+  ThumbsDown,
+  ThumbsUp,
+  Sparkles,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,6 +52,69 @@ function formatLongDate(iso: string): string {
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Songs the servidor will play at their next culto — front and center so that
+// walking in on Monday already shows Sunday's setlist.
+function NextCultoSongs({ eventId }: { eventId: string }) {
+  const { data: songs = [], isLoading } = useQuery({
+    queryKey: ['music-event-songs', eventId],
+    queryFn: () => MusicService.getEventSongs(eventId),
+  });
+
+  if (isLoading) return <Skeleton className="h-24 w-full rounded-2xl" />;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
+          <Music2 className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold leading-tight">Canciones del culto</p>
+          <p className="text-xs text-muted-foreground">Lo que vamos a tocar</p>
+        </div>
+        <Badge variant="secondary" className="ml-auto tabular-nums">
+          {songs.length}
+        </Badge>
+      </div>
+      {songs.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          El director todavía no cargó el repertorio.
+        </p>
+      ) : (
+        <ol className="space-y-1.5">
+          {songs.map((s, i) => (
+            <li
+              key={s.id}
+              className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2"
+            >
+              <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums text-muted-foreground">
+                {i + 1}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.songName}</span>
+              {s.tono && (
+                <Badge variant="outline" className="shrink-0 text-xs">
+                  {s.tono}
+                </Badge>
+              )}
+              {s.link && (
+                <a
+                  href={s.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-primary hover:opacity-70"
+                  aria-label={`Abrir ${s.songName}`}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
 }
 
 export function ServidorMusicHero() {
@@ -177,6 +248,8 @@ export function ServidorMusicHero() {
           </div>
         </div>
       </div>
+
+      <NextCultoSongs eventId={next.eventId} />
 
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-border p-3 sm:p-4">

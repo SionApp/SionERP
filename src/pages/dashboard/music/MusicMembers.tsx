@@ -10,16 +10,25 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { MusicService } from '@/services/music.service';
 import { UserService } from '@/services/user.service';
 import { Funciones } from '@/types/music.types';
 import type {
   MusicMember,
   Funcion,
+  Instrument,
   CreateMemberRequest,
   UpdateMemberRequest,
 } from '@/types/music.types';
 import type { User } from '@/types/user.types';
+import { FuncionChip, InstrumentChip, resolveCategory } from './instrument-visual';
 
 const FUNCION_LABELS: Record<Funcion, string> = {
   corista: 'Corista',
@@ -137,12 +146,20 @@ interface MemberFormState {
 interface MemberFormProps {
   initial?: MusicMember;
   excludeUserIds: Set<string>;
+  instruments: Instrument[];
   onSave: (data: CreateMemberRequest | UpdateMemberRequest) => void;
   onCancel: () => void;
   saving: boolean;
 }
 
-function MemberForm({ initial, excludeUserIds, onSave, onCancel, saving }: MemberFormProps) {
+function MemberForm({
+  initial,
+  excludeUserIds,
+  instruments,
+  onSave,
+  onCancel,
+  saving,
+}: MemberFormProps) {
   const [form, setForm] = useState<MemberFormState>({
     pickedUser: null,
     funciones: initial?.funciones ?? [],
@@ -169,7 +186,7 @@ function MemberForm({ initial, excludeUserIds, onSave, onCancel, saving }: Membe
       toast.error('Seleccioná al menos una función');
       return;
     }
-    const instrument = form.funciones.includes('musico') ? form.instrument.trim() || null : null;
+    const instrument = form.instrument.trim() || null;
     if (initial) {
       onSave({
         funciones: form.funciones,
@@ -186,7 +203,7 @@ function MemberForm({ initial, excludeUserIds, onSave, onCancel, saving }: Membe
     }
   }
 
-  const showInstrument = form.funciones.includes('musico');
+  const activeInstruments = instruments.filter(i => i.isActive);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -225,17 +242,33 @@ function MemberForm({ initial, excludeUserIds, onSave, onCancel, saving }: Membe
           ))}
         </div>
       </div>
-      {showInstrument && (
-        <div className="space-y-1">
-          <Label htmlFor="instrument">Instrumento</Label>
-          <Input
-            id="instrument"
-            value={form.instrument}
-            onChange={e => setForm(prev => ({ ...prev, instrument: e.target.value }))}
-            placeholder="Ej: guitarra, piano, batería"
-          />
-        </div>
-      )}
+      <div className="space-y-1">
+        <Label>Instrumento / voz</Label>
+        <Select
+          value={form.instrument || 'none'}
+          onValueChange={v => setForm(prev => ({ ...prev, instrument: v === 'none' ? '' : v }))}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Sin instrumento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Sin instrumento</SelectItem>
+            {form.instrument && !activeInstruments.some(i => i.name === form.instrument) && (
+              <SelectItem value={form.instrument}>{form.instrument}</SelectItem>
+            )}
+            {activeInstruments.map(ins => (
+              <SelectItem key={ins.id} value={ins.name}>
+                {ins.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {activeInstruments.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Cargá el set en la pestaña Instrumentos para poder elegir acá.
+          </p>
+        )}
+      </div>
       <div className="flex items-start gap-3 rounded-lg border border-border p-3 bg-muted/30">
         <Checkbox
           id="is-director"
@@ -278,6 +311,11 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['music-members'],
     queryFn: () => MusicService.getMembers(),
+  });
+
+  const { data: instruments = [] } = useQuery({
+    queryKey: ['music-instruments'],
+    queryFn: () => MusicService.getInstruments(),
   });
 
   const excludeUserIds = useMemo(() => new Set(members.map(m => m.userId)), [members]);
@@ -394,13 +432,16 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
                     )}
                   </div>
                   {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
-                  <div className="flex flex-wrap gap-1 mt-1">
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
                     {m.funciones.map(f => (
-                      <Badge key={f} variant="secondary" className="text-xs">
-                        {FUNCION_LABELS[f]}
-                        {f === 'musico' && m.instrument ? ` — ${m.instrument}` : ''}
-                      </Badge>
+                      <FuncionChip key={f} funcion={f} />
                     ))}
+                    {m.instrument && (
+                      <InstrumentChip
+                        name={m.instrument}
+                        category={resolveCategory(m.instrument, instruments)}
+                      />
+                    )}
                   </div>
                 </div>
                 {isDirector && (
@@ -438,6 +479,7 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
           <MemberForm
             initial={editing ?? undefined}
             excludeUserIds={excludeUserIds}
+            instruments={instruments}
             onSave={handleSave}
             onCancel={() => {
               setDialogOpen(false);
