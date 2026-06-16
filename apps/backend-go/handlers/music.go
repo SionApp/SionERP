@@ -817,9 +817,9 @@ func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "funcion inválida"})
 	}
 
-	// Read previous state for idempotency guard on no_puedo notifications
+	// Read previous state to fire director notifications only on a real transition.
 	var prevState string
-	if req.State != nil && *req.State == "no_puedo" {
+	if req.State != nil {
 		_ = db.DB.QueryRow(`SELECT state FROM music_assignments WHERE id = $1`, id).Scan(&prevState)
 	}
 
@@ -838,10 +838,14 @@ func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Asignación no encontrada"})
 	}
 
-	// Phase 8: emit no_puedo notifications only on state TRANSITION (INV-1: advisory, never blocks)
-	// Idempotency guard: skip if state was already no_puedo (no duplicate notifications)
-	if req.State != nil && *req.State == "no_puedo" && prevState != "no_puedo" {
-		emitNoPuedoNotifications(db.DB, id)
+	// Notify the director on a real state transition (advisory, never blocks).
+	if req.State != nil && prevState != *req.State {
+		switch *req.State {
+		case "no_puedo":
+			emitNoPuedoNotifications(db.DB, id)
+		case "confirmado":
+			emitConfirmedNotification(db.DB, id)
+		}
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "Asignación actualizada"})
@@ -1641,52 +1645,81 @@ func emitNoPuedoNotifications(db *sql.DB, assignmentID string) {
 	).Scan(&firstName, &lastName)
 
 	msg := fmt.Sprintf("%s %s no puede en el culto del %s (%s)", firstName, lastName, eventDate, funcion)
-	actionURL := "/dashboard/music"
-	entityType := "music_assignment"
 
-	// Determine recipients
-	var recipients []string
-
-	if assignedBy.Valid && assignedBy.String != "" {
-		// Check if assigned_by user is still a director-level music member
-		var dirLevel int
-		err = db.QueryRow(`
-			SELECT role_level FROM module_user_roles
-			WHERE user_id = $1 AND module_key = 'music'
-			LIMIT 1
-		`, assignedBy.String).Scan(&dirLevel)
-		if err == nil && dirLevel >= 5 {
-			recipients = []string{assignedBy.String}
-		}
-	}
-
-	// Fallback: assigned_by is NULL, not found, or no longer director
-	if len(recipients) == 0 {
-		rows, err := db.Query(`
-			SELECT DISTINCT user_id::text
-			FROM module_user_roles
-			WHERE module_key = 'music' AND role_level >= 5
-		`)
-		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var uid string
-				if scanErr := rows.Scan(&uid); scanErr == nil {
-					recipients = append(recipients, uid)
-				}
-			}
-		}
-	}
-
-	// Insert one notification per recipient
-	for _, recipientID := range recipients {
+	for _, recipientID := range directorRecipients(db, assignedBy) {
 		if _, err := db.Exec(`
 			INSERT INTO notifications (user_id, type, title, message, action_url,
 			                           related_entity_type, related_entity_id, read)
-			VALUES ($1, 'warning', 'Cambio de disponibilidad', $2, $3,
-			        $4, $5, false)
-		`, recipientID, msg, actionURL, entityType, assignmentID); err != nil {
+			VALUES ($1, 'warning', 'Cambio de disponibilidad', $2, '/dashboard/music',
+			        'music_assignment', $3, false)
+		`, recipientID, msg, assignmentID); err != nil {
 			log.Printf("[music] no_puedo notification insert failed: %v", err)
+		}
+	}
+}
+
+// directorRecipients returns the user ids that should receive a director-facing
+// notification for an assignment: the assigner if they're still a director,
+// otherwise every current music director.
+func directorRecipients(db *sql.DB, assignedBy sql.NullString) []string {
+	if assignedBy.Valid && assignedBy.String != "" {
+		var dirLevel int
+		err := db.QueryRow(`
+			SELECT role_level FROM module_user_roles
+			WHERE user_id = $1 AND module_key = 'music' LIMIT 1
+		`, assignedBy.String).Scan(&dirLevel)
+		if err == nil && dirLevel >= 5 {
+			return []string{assignedBy.String}
+		}
+	}
+	var recipients []string
+	rows, err := db.Query(`
+		SELECT DISTINCT user_id::text FROM module_user_roles
+		WHERE module_key = 'music' AND role_level >= 5
+	`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var uid string
+			if scanErr := rows.Scan(&uid); scanErr == nil {
+				recipients = append(recipients, uid)
+			}
+		}
+	}
+	return recipients
+}
+
+// emitConfirmedNotification tells the director that a servidor confirmed.
+func emitConfirmedNotification(db *sql.DB, assignmentID string) {
+	if db == nil {
+		return
+	}
+	var assignedBy sql.NullString
+	var memberUserID, eventDate, funcion string
+	err := db.QueryRow(`
+		SELECT ma.assigned_by::text, mm.user_id::text,
+		       to_char(me.event_date,'YYYY-MM-DD'), ma.funcion
+		FROM music_assignments ma
+		JOIN music_members mm ON mm.id = ma.member_id
+		JOIN music_events me ON me.id = ma.event_id
+		WHERE ma.id = $1
+	`, assignmentID).Scan(&assignedBy, &memberUserID, &eventDate, &funcion)
+	if err != nil {
+		return
+	}
+	var firstName, lastName string
+	_ = db.QueryRow(`SELECT first_name, last_name FROM users WHERE id = $1`, memberUserID).
+		Scan(&firstName, &lastName)
+	msg := fmt.Sprintf("%s %s confirmó para el culto del %s (%s)", firstName, lastName, eventDate, funcion)
+
+	for _, recipientID := range directorRecipients(db, assignedBy) {
+		if _, err := db.Exec(`
+			INSERT INTO notifications (user_id, type, title, message, action_url,
+			                           related_entity_type, related_entity_id, read)
+			VALUES ($1, 'success', 'Confirmación de música', $2, '/dashboard/music',
+			        'music_assignment', $3, false)
+		`, recipientID, msg, assignmentID); err != nil {
+			log.Printf("[music] confirmed notification insert failed: %v", err)
 		}
 	}
 }

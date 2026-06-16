@@ -1185,6 +1185,70 @@ function ServidorMobile() {
 }
 
 // ─────────────────────────────────────────────
+// DIRECTOR mobile — app-like nav (sticky scrollable pills + dedicated screens)
+// ─────────────────────────────────────────────
+function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void }) {
+  const [screen, setScreen] = useState<'inicio' | 'cronograma' | 'cultos' | 'equipo' | 'canciones'>(
+    'inicio'
+  );
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const tabs = [
+    { key: 'inicio' as const, label: 'Inicio', Icon: Home },
+    { key: 'cronograma' as const, label: 'Cronograma', Icon: CalendarDays },
+    { key: 'cultos' as const, label: 'Cultos', Icon: CalendarIcon },
+    { key: 'equipo' as const, label: 'Equipo', Icon: Users },
+    { key: 'canciones' as const, label: 'Canciones', Icon: ListMusic },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="sticky top-14 z-30 -mx-4 bg-background/80 px-4 py-2 backdrop-blur">
+        <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {tabs.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setScreen(key)}
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                screen === key
+                  ? 'bg-primary text-primary-foreground shadow'
+                  : 'bg-muted/40 text-muted-foreground active:bg-muted'
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {screen === 'inicio' && <DirectorMusicHero onOpenEvent={onOpenEvent} />}
+      {screen === 'cronograma' && <CronogramaTab isDirector onOpenEvent={onOpenEvent} />}
+      {screen === 'cultos' && <CultosTab isDirector onOpenEvent={onOpenEvent} />}
+      {screen === 'equipo' && (
+        <div className="space-y-4">
+          <MusicMembers isDirector />
+          <MusicInstruments isDirector />
+        </div>
+      )}
+      {screen === 'canciones' && <CancionesTab />}
+
+      <button
+        type="button"
+        onClick={() => setCreateOpen(true)}
+        className="fixed bottom-24 right-4 z-30 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-lg shadow-primary/30 transition-opacity hover:opacity-90 sm:right-6"
+      >
+        <Plus className="h-4 w-4" />
+        <span className="text-sm font-semibold">Nuevo culto</span>
+      </button>
+      <CreateEventDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // MusicPage root
 // ─────────────────────────────────────────────
 export default function MusicPage() {
@@ -1255,7 +1319,7 @@ export default function MusicPage() {
       <>
         <MobileScreen title="Música" subtitle={isDirector ? 'Equipo de alabanza' : 'Mis cultos'}>
           <div className="music-shell music-aurora min-h-screen px-4 py-4 space-y-5">
-            {isDirector ? body : <ServidorMobile />}
+            {isDirector ? <DirectorMobile onOpenEvent={setDetailEvent} /> : <ServidorMobile />}
           </div>
         </MobileScreen>
         {detailDialog}
