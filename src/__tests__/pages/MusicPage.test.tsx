@@ -17,6 +17,7 @@ vi.mock('@/services/music.service', () => ({
     getEvents: vi.fn().mockResolvedValue([]),
     getAssignments: vi.fn().mockResolvedValue([]),
     getMembers: vi.fn().mockResolvedValue([]),
+    getInstruments: vi.fn().mockResolvedValue([]),
     getSongStats: vi.fn().mockResolvedValue([]),
     getMyAssignments: vi.fn().mockResolvedValue([]),
     getMyUnavailability: vi.fn().mockResolvedValue([]),
@@ -126,50 +127,31 @@ function renderMembers(isDirector: boolean) {
   );
 }
 
-describe('MusicMembers — instrument field visibility', () => {
+describe('MusicMembers — instrument picker', () => {
   beforeEach(() => {
     vi.mocked(MusicService.getMembers).mockResolvedValue([]);
+    vi.mocked(MusicService.getInstruments).mockResolvedValue([]);
   });
 
-  test('instrument input absent initially (no dialog open)', async () => {
+  test('instrument picker absent until the form opens', async () => {
     renderMembers(true);
     await screen.findByRole('button', { name: /agregar/i });
-    expect(screen.queryByLabelText('Instrumento')).not.toBeInTheDocument();
+    expect(screen.queryByText('Instrumento / voz')).not.toBeInTheDocument();
   });
 
-  test('instrument input absent when only corista is checked', async () => {
+  // New behavior: instrument is picked from the catalog and shown for every
+  // función (not just músico), so it appears as soon as the form opens.
+  test('instrument picker shown once the form opens, regardless of función', async () => {
     renderMembers(true);
     const addBtn = await screen.findByRole('button', { name: /agregar/i });
     fireEvent.click(addBtn);
 
+    expect(await screen.findByText('Instrumento / voz')).toBeInTheDocument();
+
+    // Still present after toggling a non-músico función.
     const coristaCheckbox = await screen.findByLabelText('Corista');
     fireEvent.click(coristaCheckbox);
-
-    expect(screen.queryByLabelText('Instrumento')).not.toBeInTheDocument();
-  });
-
-  test('instrument input present when musico is checked', async () => {
-    renderMembers(true);
-    const addBtn = await screen.findByRole('button', { name: /agregar/i });
-    fireEvent.click(addBtn);
-
-    const musicoCheckbox = await screen.findByLabelText('Músico');
-    fireEvent.click(musicoCheckbox);
-
-    expect(screen.getByLabelText('Instrumento')).toBeInTheDocument();
-  });
-
-  test('instrument input disappears when musico is unchecked', async () => {
-    renderMembers(true);
-    const addBtn = await screen.findByRole('button', { name: /agregar/i });
-    fireEvent.click(addBtn);
-
-    const musicoCheckbox = await screen.findByLabelText('Músico');
-    fireEvent.click(musicoCheckbox);
-    expect(screen.getByLabelText('Instrumento')).toBeInTheDocument();
-
-    fireEvent.click(musicoCheckbox);
-    expect(screen.queryByLabelText('Instrumento')).not.toBeInTheDocument();
+    expect(screen.getByText('Instrumento / voz')).toBeInTheDocument();
   });
 });
 
