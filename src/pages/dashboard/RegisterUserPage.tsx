@@ -27,6 +27,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useMobileMode } from '@/hooks/useMobileMode';
+import { MobileRegisterScreen } from '@/components/mobile/screens/RegisterScreen';
 
 const getNumericCoord = (val: number | TypeGeolocalization | undefined): number | undefined => {
   if (val === undefined || val === null) return undefined;
@@ -44,6 +46,7 @@ const RegisterUserPage = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { canManageRoles, canManageUsers, isLoading: isLoadingPermissions } = usePermissions();
+  const isMobileApp = useMobileMode();
 
   const userId = location.state?.userId;
 
@@ -208,6 +211,26 @@ const RegisterUserPage = () => {
       setLoading(false);
     }
   };
+
+  // Mobile gets its own dedicated screen (daas philosophy: mobile ≠ shrunk web).
+  if (isMobileApp) {
+    return (
+      <MobileRegisterScreen
+        isEditMode={isEditMode}
+        loading={loading}
+        canManageUsers={canManageUsers}
+        canManageRoles={canManageRoles}
+        register={register}
+        errors={errors}
+        watch={watch}
+        setValue={setValue}
+        onFormSubmit={handleSubmit(onSubmit, onError)}
+        geolocation={geolocation}
+        onGeolocationChange={handleGeolocationChange}
+        onCancel={() => navigate('/dashboard/users')}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">

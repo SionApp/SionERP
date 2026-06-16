@@ -7,6 +7,7 @@ import { Button } from './button';
 import { Card, CardContent } from './card';
 import { Input } from './input';
 import { Label } from './label';
+import { cn } from '@/lib/utils';
 
 export interface TypeGeolocalization {
   Valid: boolean;
@@ -26,6 +27,9 @@ interface GeolocationInputProps {
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
+  /** Mobile-only: stack the controls full-width instead of the inline label+buttons row.
+   *  Opt-in — the web layout is unchanged unless this is set. */
+  compact?: boolean;
 }
 
 // Usar Nominatim (OpenStreetMap) para geocodificación - Gratuito y sin token
@@ -77,6 +81,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
   placeholder = 'Buscar dirección...',
   required = false,
   disabled = false,
+  compact = false,
 }) => {
   const getCoordValue = (coord?: TypeGeolocalization | number): number | undefined => {
     if (typeof coord === 'number') return coord;
@@ -310,18 +315,26 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label htmlFor="geolocation-input">
-          {label}
-          {required && <span className="text-destructive ml-1">*</span>}
-        </Label>
-        <div className="flex gap-2">
+      <div
+        className={cn(
+          'flex items-center justify-between',
+          compact && 'flex-col items-stretch gap-2'
+        )}
+      >
+        {(label || required) && !compact && (
+          <Label htmlFor="geolocation-input">
+            {label}
+            {required && <span className="text-destructive ml-1">*</span>}
+          </Label>
+        )}
+        <div className={cn('flex gap-2', compact && 'grid grid-cols-2')}>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={detectCurrentLocation}
             disabled={disabled || loading}
+            className={cn(compact && 'w-full')}
           >
             <Navigation className="w-4 h-4 mr-1" />
             Mi ubicación
@@ -332,6 +345,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
             size="sm"
             onClick={() => setShowMap(!showMap)}
             disabled={disabled}
+            className={cn(compact && 'w-full')}
           >
             <MapPin className="w-4 h-4 mr-1" />
             {showMap ? 'Ocultar mapa' : 'Mostrar mapa'}
