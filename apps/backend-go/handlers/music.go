@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1414,23 +1415,27 @@ func (h *MusicHandler) GetMeAssignments(c echo.Context) error {
 	}
 
 	type meAssignmentRow struct {
-		ID        string `json:"id"`
-		EventID   string `json:"event_id"`
-		EventDate string `json:"event_date"`
-		EventType string `json:"event_type"`
-		Funcion   string `json:"funcion"`
-		State     string `json:"state"`
-		CreatedAt string `json:"created_at"`
+		ID         string `json:"id"`
+		EventID    string `json:"event_id"`
+		EventDate  string `json:"event_date"`
+		EventType  string `json:"event_type"`
+		Funcion    string `json:"funcion"`
+		Instrument string `json:"instrument"`
+		State      string `json:"state"`
+		CreatedAt  string `json:"created_at"`
 	}
 
 	rows, err := db.DB.Query(`
 		SELECT ma.id, ma.event_id,
 		       to_char(me.event_date,'YYYY-MM-DD'),
 		       me.event_type,
-		       ma.funcion, ma.state,
+		       ma.funcion,
+		       COALESCE(mm.instrument,''),
+		       ma.state,
 		       to_char(ma.created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM music_assignments ma
 		JOIN music_events me ON me.id = ma.event_id
+		JOIN music_members mm ON mm.id = ma.member_id
 		WHERE ma.member_id = $1
 		ORDER BY me.event_date DESC
 	`, info.memberID)
@@ -1442,7 +1447,7 @@ func (h *MusicHandler) GetMeAssignments(c echo.Context) error {
 	result := []meAssignmentRow{}
 	for rows.Next() {
 		var a meAssignmentRow
-		if err := rows.Scan(&a.ID, &a.EventID, &a.EventDate, &a.EventType, &a.Funcion, &a.State, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.EventID, &a.EventDate, &a.EventType, &a.Funcion, &a.Instrument, &a.State, &a.CreatedAt); err != nil {
 			continue
 		}
 		result = append(result, a)
@@ -1675,12 +1680,14 @@ func emitNoPuedoNotifications(db *sql.DB, assignmentID string) {
 
 	// Insert one notification per recipient
 	for _, recipientID := range recipients {
-		_, _ = db.Exec(`
+		if _, err := db.Exec(`
 			INSERT INTO notifications (user_id, type, title, message, action_url,
-			                           related_entity_type, related_entity_id, is_read)
-			VALUES ($1, 'music_no_puedo', 'Cambio de disponibilidad', $2, $3,
+			                           related_entity_type, related_entity_id, read)
+			VALUES ($1, 'warning', 'Cambio de disponibilidad', $2, $3,
 			        $4, $5, false)
-		`, recipientID, msg, actionURL, entityType, assignmentID)
+		`, recipientID, msg, actionURL, entityType, assignmentID); err != nil {
+			log.Printf("[music] no_puedo notification insert failed: %v", err)
+		}
 	}
 }
 
@@ -1718,12 +1725,14 @@ func emitAssignmentNotification(db *sql.DB, assignmentID string, withWarning boo
 	if withWarning {
 		warning = " (atención: tenés una indisponibilidad declarada para esa fecha)"
 	}
-	_, _ = db.Exec(`
+	if _, err := db.Exec(`
 		INSERT INTO notifications (user_id, type, title, message, action_url,
-		                           related_entity_type, related_entity_id, is_read)
-		VALUES ($1, 'music_assigned', 'Nueva asignación de música', $2, '/dashboard/music',
+		                           related_entity_type, related_entity_id, read)
+		VALUES ($1, 'info', 'Nueva asignación de música', $2, '/dashboard/music',
 		        'music_assignment', $3, false)
-	`, memberUserID, msg+warning, assignmentID)
+	`, memberUserID, msg+warning, assignmentID); err != nil {
+		log.Printf("[music] assignment notification insert failed: %v", err)
+	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

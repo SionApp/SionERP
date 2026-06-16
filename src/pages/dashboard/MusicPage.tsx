@@ -6,7 +6,9 @@ import {
   Calendar as CalendarIcon,
   CalendarDays,
   CalendarOff,
+  Home,
   List,
+  ListMusic,
   ChevronLeft,
   ChevronRight,
   Music2,
@@ -49,6 +51,8 @@ import EventDetailDialog from './music/EventDetail';
 import { DirectorMusicHero } from './music/MusicHero';
 import { ServidorMusicHero } from './music/ServidorHero';
 import { ChannelAudios } from './music/ChannelAudios';
+import { ServidorRepertoire } from './music/ServidorRepertoire';
+import { InstrumentChip, resolveCategory } from './music/instrument-visual';
 import './music/music-theme.css';
 
 function useMusicAccess() {
@@ -845,7 +849,7 @@ function CancionesTab() {
 // ─────────────────────────────────────────────
 // SERVIDOR view (no director)
 // ─────────────────────────────────────────────
-function ServidorView() {
+function ServidorView({ embedExtras = true }: { embedExtras?: boolean }) {
   const qc = useQueryClient();
   const [unavailOpen, setUnavailOpen] = useState(false);
   const [unavailForm, setUnavailForm] = useState<{
@@ -866,6 +870,11 @@ function ServidorView() {
   const { data: myUnavailability = [], isLoading: loadingUnavail } = useQuery({
     queryKey: ['music-my-unavailability'],
     queryFn: () => MusicService.getMyUnavailability(),
+  });
+
+  const { data: instruments = [] } = useQuery({
+    queryKey: ['music-instruments'],
+    queryFn: () => MusicService.getInstruments(),
   });
 
   const updateMutation = useMutation({
@@ -969,6 +978,14 @@ function ServidorView() {
                             {a.eventDate ? formatEventDate(a.eventDate) : a.eventId}
                             {a.eventType ? ` · ${EVENT_TYPE_LABEL[a.eventType]}` : ''}
                           </p>
+                          {a.instrument && (
+                            <div className="mt-1.5">
+                              <InstrumentChip
+                                name={a.instrument}
+                                category={resolveCategory(a.instrument, instruments)}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                       <Badge variant={STATE_VARIANT[a.state]} className="text-xs shrink-0">
@@ -1010,7 +1027,12 @@ function ServidorView() {
         </CardContent>
       </Card>
 
-      <ChannelAudios />
+      {embedExtras && (
+        <>
+          <ServidorRepertoire />
+          <ChannelAudios />
+        </>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -1118,6 +1140,51 @@ function ServidorView() {
 }
 
 // ─────────────────────────────────────────────
+// SERVIDOR mobile — app-like internal navigation (sticky segmented control)
+// ─────────────────────────────────────────────
+function ServidorMobile() {
+  const [screen, setScreen] = useState<'inicio' | 'cultos' | 'repertorio'>('inicio');
+  const tabs = [
+    { key: 'inicio' as const, label: 'Inicio', Icon: Home },
+    { key: 'cultos' as const, label: 'Mis cultos', Icon: CalendarDays },
+    { key: 'repertorio' as const, label: 'Repertorio', Icon: ListMusic },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="sticky top-14 z-30 -mx-4 bg-background/80 px-4 py-2 backdrop-blur">
+        <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted/40 p-1">
+          {tabs.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setScreen(key)}
+              className={cn(
+                'flex flex-col items-center gap-1 rounded-xl py-2 text-xs font-medium transition-colors',
+                screen === key
+                  ? 'bg-primary text-primary-foreground shadow'
+                  : 'text-muted-foreground active:bg-muted'
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {screen === 'inicio' && <ServidorMusicHero />}
+      {screen === 'cultos' && <ServidorView embedExtras={false} />}
+      {screen === 'repertorio' && (
+        <>
+          <ServidorRepertoire />
+          <ChannelAudios />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // MusicPage root
 // ─────────────────────────────────────────────
 export default function MusicPage() {
@@ -1187,7 +1254,9 @@ export default function MusicPage() {
     return (
       <>
         <MobileScreen title="Música" subtitle={isDirector ? 'Equipo de alabanza' : 'Mis cultos'}>
-          <div className="music-shell music-aurora px-4 py-4 space-y-5">{body}</div>
+          <div className="music-shell music-aurora min-h-screen px-4 py-4 space-y-5">
+            {isDirector ? body : <ServidorMobile />}
+          </div>
         </MobileScreen>
         {detailDialog}
       </>
