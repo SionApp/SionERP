@@ -37,6 +37,7 @@ import type {
 import type { User } from '@/types/user.types';
 import { ConfirmationProgress } from './MusicHero';
 import { UserSearchPicker } from './UserSearchPicker';
+import { InstrumentChip, resolveCategory } from './instrument-visual';
 
 const FUNCION_LABELS: Record<Funcion, string> = {
   corista: 'Coristas',
@@ -99,6 +100,12 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
     queryKey: ['music-members'],
     queryFn: () => MusicService.getMembers(),
     enabled: isDirector,
+  });
+
+  // Catalog drives the instrument chips' icon/color (resolved by name).
+  const { data: instruments = [] } = useQuery({
+    queryKey: ['music-instruments'],
+    queryFn: () => MusicService.getInstruments(),
   });
 
   const { data: suggestions = [], isLoading: loadingSuggestions } = useQuery({
@@ -234,12 +241,15 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
                   <div key={a.id} className="px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm truncate">
-                          {a.memberName || a.memberId}
-                          {a.instrument && (
-                            <span className="text-muted-foreground"> — {a.instrument}</span>
-                          )}
-                        </p>
+                        <p className="text-sm truncate">{a.memberName || a.memberId}</p>
+                        {a.instrument && (
+                          <div className="mt-1">
+                            <InstrumentChip
+                              name={a.instrument}
+                              category={resolveCategory(a.instrument, instruments)}
+                            />
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <Badge variant={STATE_VARIANT[a.state]} className="text-xs">
@@ -629,7 +639,7 @@ export default function EventDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="music-shell max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="capitalize">{formatEventDate(event.eventDate)}</DialogTitle>
           <div className="flex items-center gap-2 pt-1">

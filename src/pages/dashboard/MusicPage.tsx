@@ -5,10 +5,12 @@ import {
   Plus,
   Calendar as CalendarIcon,
   CalendarDays,
+  CalendarOff,
   List,
   ChevronLeft,
   ChevronRight,
   Music2,
+  TrendingUp,
   Users,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -42,9 +44,12 @@ import type {
   CreateUnavailabilityRequest,
 } from '@/types/music.types';
 import MusicMembers from './music/MusicMembers';
+import MusicInstruments from './music/MusicInstruments';
 import EventDetailDialog from './music/EventDetail';
 import { DirectorMusicHero } from './music/MusicHero';
 import { ServidorMusicHero } from './music/ServidorHero';
+import { ChannelAudios } from './music/ChannelAudios';
+import './music/music-theme.css';
 
 function useMusicAccess() {
   const { permissions } = usePermissions();
@@ -87,6 +92,27 @@ const EVENT_TYPE_COLOR: Record<MusicEventType, string> = {
   domingo: 'bg-emerald-500',
   especial: 'bg-amber-500',
 };
+
+const FUNCION_LABEL: Record<string, string> = {
+  corista: 'Corista',
+  musico: 'Músico',
+  tecnico: 'Técnico',
+  danzarina: 'Danzarina',
+};
+
+const FUNCION_DOT: Record<string, string> = {
+  corista: 'bg-pink-500',
+  musico: 'bg-violet-500',
+  tecnico: 'bg-cyan-500',
+  danzarina: 'bg-amber-500',
+};
+
+function daysUntil(iso: string): number {
+  const target = new Date(`${iso}T00:00:00`);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 function formatEventDate(iso: string): string {
   const d = new Date(`${iso}T12:00:00`);
@@ -383,6 +409,102 @@ function CronogramaCalendar({
 }
 
 // ─────────────────────────────────────────────
+// Nuevo culto — diálogo controlado (reusado por el FAB y el tab Cultos)
+// ─────────────────────────────────────────────
+function CreateEventDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState<{ eventDate: string; eventType: MusicEventType; title: string }>(
+    { eventDate: '', eventType: 'domingo', title: '' }
+  );
+
+  const createMutation = useMutation({
+    mutationFn: (data: CreateEventRequest) => MusicService.createEvent(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['music-events'] });
+      onOpenChange(false);
+      setForm({ eventDate: '', eventType: 'domingo', title: '' });
+      toast.success('Culto creado');
+    },
+    onError: () => toast.error('No se pudo crear el culto'),
+  });
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.eventDate) {
+      toast.error('La fecha es requerida');
+      return;
+    }
+    createMutation.mutate({
+      eventDate: form.eventDate,
+      eventType: form.eventType,
+      title: form.title || undefined,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="music-shell">
+        <DialogHeader>
+          <DialogTitle>Nuevo culto</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="ev-date">Fecha</Label>
+            <Input
+              id="ev-date"
+              type="date"
+              value={form.eventDate}
+              onChange={e => setForm(p => ({ ...p, eventDate: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Tipo</Label>
+            <Select
+              value={form.eventType}
+              onValueChange={v => setForm(p => ({ ...p, eventType: v as MusicEventType }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(MusicEventTypes) as MusicEventType[]).map(t => (
+                  <SelectItem key={t} value={t}>
+                    {EVENT_TYPE_LABEL[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ev-title">Título (opcional)</Label>
+            <Input
+              id="ev-title"
+              value={form.title}
+              onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+              placeholder='Ej: "Domingo de Familias"'
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Creando…' : 'Crear'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────
 // CULTOS — CRUD
 // ─────────────────────────────────────────────
 function CultosTab({
@@ -395,13 +517,6 @@ function CultosTab({
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
-  const [form, setForm] = useState<{ eventDate: string; eventType: MusicEventType; title: string }>(
-    {
-      eventDate: '',
-      eventType: 'domingo',
-      title: '',
-    }
-  );
   const [batchForm, setBatchForm] = useState<{ year: string; quarter: string }>({
     year: String(new Date().getFullYear()),
     quarter: String(Math.floor(new Date().getMonth() / 3) + 1),
@@ -410,17 +525,6 @@ function CultosTab({
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['music-events'],
     queryFn: () => MusicService.getEvents(),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateEventRequest) => MusicService.createEvent(data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['music-events'] });
-      setCreateOpen(false);
-      setForm({ eventDate: '', eventType: 'domingo', title: '' });
-      toast.success('Culto creado');
-    },
-    onError: () => toast.error('No se pudo crear el culto'),
   });
 
   const batchMutation = useMutation({
@@ -443,19 +547,6 @@ function CultosTab({
     },
     onError: () => toast.error('No se pudo eliminar el culto'),
   });
-
-  function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.eventDate) {
-      toast.error('La fecha es requerida');
-      return;
-    }
-    createMutation.mutate({
-      eventDate: form.eventDate,
-      eventType: form.eventType,
-      title: form.title || undefined,
-    });
-  }
 
   function handleBatch(e: React.FormEvent) {
     e.preventDefault();
@@ -542,59 +633,7 @@ function CultosTab({
         )}
       </CardContent>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nuevo culto</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="ev-date">Fecha</Label>
-              <Input
-                id="ev-date"
-                type="date"
-                value={form.eventDate}
-                onChange={e => setForm(p => ({ ...p, eventDate: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Tipo</Label>
-              <Select
-                value={form.eventType}
-                onValueChange={v => setForm(p => ({ ...p, eventType: v as MusicEventType }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(MusicEventTypes) as MusicEventType[]).map(t => (
-                    <SelectItem key={t} value={t}>
-                      {EVENT_TYPE_LABEL[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="ev-title">Título (opcional)</Label>
-              <Input
-                id="ev-title"
-                value={form.title}
-                onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                placeholder='Ej: "Domingo de Familias"'
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? 'Creando…' : 'Crear'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <CreateEventDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
         <DialogContent>
@@ -860,6 +899,11 @@ function ServidorView() {
     onError: () => toast.error('No se pudo eliminar'),
   });
 
+  const todayStr = today();
+  const upcomingAssignments = [...myAssignments]
+    .filter(a => !a.eventDate || a.eventDate >= todayStr)
+    .sort((a, b) => (a.eventDate ?? '').localeCompare(b.eventDate ?? ''));
+
   function handleUnavailSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!unavailForm.startDate) {
@@ -889,57 +933,84 @@ function ServidorView() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : myAssignments.length === 0 ? (
+          ) : upcomingAssignments.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              No tenés cultos asignados.
+              No tenés cultos próximos asignados.
             </p>
           ) : (
-            <div className="divide-y divide-border rounded-md border border-border">
-              {myAssignments.map(a => (
-                <div key={a.id} className="flex items-center justify-between px-3 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium capitalize">{a.funcion}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {a.eventDate ? `${a.eventDate} · ${a.eventType ?? ''}` : a.eventId}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant={STATE_VARIANT[a.state]} className="text-xs">
-                      {STATE_LABEL[a.state]}
-                    </Badge>
+            <div className="space-y-2">
+              {upcomingAssignments.map(a => {
+                const d = a.eventDate ? daysUntil(a.eventDate) : null;
+                return (
+                  <div key={a.id} className="rounded-xl border border-border bg-card p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/15 text-primary">
+                          <span className="text-base font-bold leading-none tabular-nums">
+                            {d != null && d >= 0 ? d : '—'}
+                          </span>
+                          <span className="text-[9px] uppercase tracking-wide opacity-80">
+                            {d === 0 ? 'hoy' : 'días'}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={cn(
+                                'h-2 w-2 rounded-full shrink-0',
+                                FUNCION_DOT[a.funcion] ?? 'bg-muted-foreground'
+                              )}
+                            />
+                            <p className="text-sm font-semibold truncate">
+                              {FUNCION_LABEL[a.funcion] ?? a.funcion}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground capitalize truncate">
+                            {a.eventDate ? formatEventDate(a.eventDate) : a.eventId}
+                            {a.eventType ? ` · ${EVENT_TYPE_LABEL[a.eventType]}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={STATE_VARIANT[a.state]} className="text-xs shrink-0">
+                        {STATE_LABEL[a.state]}
+                      </Badge>
+                    </div>
                     {a.state !== AssignmentStates.no_puedo && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() =>
-                          updateMutation.mutate({ id: a.id, data: { state: 'no_puedo' } })
-                        }
-                        disabled={updateMutation.isPending}
-                      >
-                        No puedo
-                      </Button>
-                    )}
-                    {a.state === AssignmentStates.asignado && (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="h-7 text-xs"
-                        onClick={() =>
-                          updateMutation.mutate({ id: a.id, data: { state: 'confirmado' } })
-                        }
-                        disabled={updateMutation.isPending}
-                      >
-                        Confirmar
-                      </Button>
+                      <div className="mt-3 flex gap-2">
+                        {a.state === AssignmentStates.asignado && (
+                          <Button
+                            size="sm"
+                            className="h-8 flex-1"
+                            onClick={() =>
+                              updateMutation.mutate({ id: a.id, data: { state: 'confirmado' } })
+                            }
+                            disabled={updateMutation.isPending}
+                          >
+                            Confirmar
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 flex-1"
+                          onClick={() =>
+                            updateMutation.mutate({ id: a.id, data: { state: 'no_puedo' } })
+                          }
+                          disabled={updateMutation.isPending}
+                        >
+                          No puedo
+                        </Button>
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <ChannelAudios />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -1033,6 +1104,15 @@ function ServidorView() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <button
+        type="button"
+        onClick={() => setUnavailOpen(true)}
+        className="fixed bottom-24 right-4 z-30 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-lg shadow-primary/30 transition-opacity hover:opacity-90 sm:right-6"
+      >
+        <CalendarOff className="h-4 w-4" />
+        <span className="text-sm font-semibold">Avisar ausencia</span>
+      </button>
     </div>
   );
 }
@@ -1044,6 +1124,7 @@ export default function MusicPage() {
   const isMobileApp = useMobileMode();
   const { isDirector } = useMusicAccess();
   const [detailEvent, setDetailEvent] = useState<MusicEvent | null>(null);
+  const [createEventOpen, setCreateEventOpen] = useState(false);
 
   const detailDialog = (
     <EventDetailDialog
@@ -1067,6 +1148,7 @@ export default function MusicPage() {
           <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
           <TabsTrigger value="cultos">Cultos</TabsTrigger>
           <TabsTrigger value="integrantes">Integrantes</TabsTrigger>
+          <TabsTrigger value="instrumentos">Instrumentos</TabsTrigger>
           <TabsTrigger value="canciones">Canciones</TabsTrigger>
         </TabsList>
         <TabsContent value="cronograma" className="mt-4">
@@ -1078,10 +1160,25 @@ export default function MusicPage() {
         <TabsContent value="integrantes" className="mt-4">
           <MusicMembers isDirector={isDirector} />
         </TabsContent>
+        <TabsContent value="instrumentos" className="mt-4">
+          <MusicInstruments isDirector={isDirector} />
+        </TabsContent>
         <TabsContent value="canciones" className="mt-4">
           <CancionesTab />
         </TabsContent>
       </Tabs>
+
+      <ChannelAudios />
+
+      <button
+        type="button"
+        onClick={() => setCreateEventOpen(true)}
+        className="fixed bottom-24 right-4 z-30 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-lg shadow-primary/30 transition-opacity hover:opacity-90 sm:right-6"
+      >
+        <Plus className="h-4 w-4" />
+        <span className="text-sm font-semibold">Nuevo culto</span>
+      </button>
+      <CreateEventDialog open={createEventOpen} onOpenChange={setCreateEventOpen} />
     </>
   );
 
@@ -1090,7 +1187,7 @@ export default function MusicPage() {
     return (
       <>
         <MobileScreen title="Música" subtitle={isDirector ? 'Equipo de alabanza' : 'Mis cultos'}>
-          <div className="px-4 py-4 space-y-5">{body}</div>
+          <div className="music-shell music-aurora px-4 py-4 space-y-5">{body}</div>
         </MobileScreen>
         {detailDialog}
       </>
@@ -1098,7 +1195,7 @@ export default function MusicPage() {
   }
 
   return (
-    <div className="space-y-5 animate-fade-in p-3 sm:p-4 md:p-6">
+    <div className="music-shell music-aurora space-y-5 animate-fade-in p-3 sm:p-4 md:p-6 rounded-2xl">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Música</h1>
         <p className="text-sm text-muted-foreground">

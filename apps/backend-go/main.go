@@ -97,6 +97,9 @@ func main() {
 	// Start background scheduler (weekly report check every Tuesday 8am)
 	handlers.StartWeeklyReportScheduler()
 
+	// Start Telegram channel ingestion for the Music module (no-op if unconfigured)
+	handlers.StartTelegramIngestion()
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {

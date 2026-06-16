@@ -69,6 +69,27 @@ export class ApiService {
   }
 
   /**
+   * Authenticated binary GET — returns a Blob (for file downloads behind JWT).
+   */
+  static async getBlob(endpoint: string): Promise<Blob> {
+    loadingCallbacks.setFetching?.(true);
+    try {
+      const headers = await this.getAuthHeaders();
+      headers.delete('Content-Type');
+      const response = await fetch(`${this.baseUrl}${endpoint}`, { method: 'GET', headers });
+      if (!response.ok) {
+        const msg = await response.text().catch(() => '');
+        const error = new Error(msg || `HTTP ${response.status}`) as Error & { status?: number };
+        error.status = response.status;
+        throw error;
+      }
+      return await response.blob();
+    } finally {
+      loadingCallbacks.setFetching?.(false);
+    }
+  }
+
+  /**
    * Generic POST request
    */
   static async post<T, U = unknown>(endpoint: string, data?: U): Promise<T> {

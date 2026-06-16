@@ -6,6 +6,10 @@ import type {
   MusicSong,
   MusicSongStat,
   EventSong,
+  Instrument,
+  CreateInstrumentRequest,
+  UpdateInstrumentRequest,
+  TelegramFile,
   MusicUnavailability,
   Funcion,
   CreateMemberRequest,
@@ -80,6 +84,25 @@ interface RawSongStat {
   times_played: number;
   last_played_date: string | null;
   historical_key: string | null;
+}
+
+interface RawInstrument {
+  id: string;
+  name: string;
+  category: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+interface RawTelegramFile {
+  id: string;
+  title: string;
+  file_name: string;
+  performer: string;
+  mime_type: string;
+  duration: number;
+  file_size: number;
+  channel_date: string;
 }
 
 interface RawUnavailability {
@@ -169,6 +192,29 @@ function mapSongStat(r: RawSongStat): MusicSongStat {
     timesPlayed: r.times_played,
     lastPlayedDate: r.last_played_date,
     historicalKey: r.historical_key,
+  };
+}
+
+function mapInstrument(r: RawInstrument): Instrument {
+  return {
+    id: r.id,
+    name: r.name,
+    category: r.category as Instrument['category'],
+    isActive: r.is_active,
+    sortOrder: r.sort_order,
+  };
+}
+
+function mapTelegramFile(r: RawTelegramFile): TelegramFile {
+  return {
+    id: r.id,
+    title: r.title,
+    fileName: r.file_name,
+    performer: r.performer,
+    mimeType: r.mime_type,
+    duration: r.duration,
+    fileSize: r.file_size,
+    channelDate: r.channel_date,
   };
 }
 
@@ -414,5 +460,70 @@ export class MusicService {
       `${this.base}/members/${memberId}/unavailability`
     );
     return raw.map(mapUnavailability);
+  }
+
+  // ── Instruments catalog ──
+  static async getInstruments(onlyActive = false): Promise<Instrument[]> {
+    const qs = onlyActive ? '?active=true' : '';
+    const raw = await ApiService.get<RawInstrument[]>(`${this.base}/instruments${qs}`);
+    return raw.map(mapInstrument);
+  }
+
+  static async createInstrument(data: CreateInstrumentRequest): Promise<Instrument> {
+    const raw = await ApiService.post<
+      RawInstrument,
+      { name: string; category: string; sort_order?: number }
+    >(`${this.base}/instruments`, {
+      name: data.name,
+      category: data.category,
+      sort_order: data.sortOrder,
+    });
+    return mapInstrument(raw);
+  }
+
+  static async updateInstrument(id: string, data: UpdateInstrumentRequest): Promise<Instrument> {
+    const raw = await ApiService.put<
+      RawInstrument,
+      { name?: string; category?: string; is_active?: boolean; sort_order?: number }
+    >(`${this.base}/instruments/${id}`, {
+      name: data.name,
+      category: data.category,
+      is_active: data.isActive,
+      sort_order: data.sortOrder,
+    });
+    return mapInstrument(raw);
+  }
+
+  static async deleteInstrument(id: string): Promise<void> {
+    await ApiService.delete(`${this.base}/instruments/${id}`);
+  }
+
+  // ── Telegram channel ──
+  static async getTelegramStatus(): Promise<{ configured: boolean }> {
+    try {
+      return await ApiService.get<{ configured: boolean }>(`${this.base}/telegram/status`);
+    } catch {
+      return { configured: false };
+    }
+  }
+
+  static async getTelegramFiles(q?: string): Promise<TelegramFile[]> {
+    const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+    const raw = await ApiService.get<RawTelegramFile[]>(`${this.base}/telegram/files${qs}`);
+    return raw.map(mapTelegramFile);
+  }
+
+  // Authenticated download: fetch the blob (token stays in the header) and
+  // trigger a browser download. The backend proxies the bytes from Telegram.
+  static async downloadTelegramFile(id: string, filename: string): Promise<void> {
+    const blob = await ApiService.getBlob(`${this.base}/telegram/files/${id}/download`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'audio';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 }

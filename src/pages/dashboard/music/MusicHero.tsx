@@ -147,11 +147,13 @@ function StatTile({
   value,
   icon,
   tone = 'default',
+  delay = 0,
 }: {
   label: string;
   value: number | string;
   icon: React.ReactNode;
   tone?: 'default' | 'primary' | 'warning' | 'success';
+  delay?: number;
 }) {
   const tones = {
     default: 'bg-card',
@@ -160,7 +162,14 @@ function StatTile({
     success: 'bg-emerald-500/10 border-emerald-500/30',
   };
   return (
-    <div className={cn('rounded-xl border border-border p-3 sm:p-4', tones[tone])}>
+    <div
+      className={cn(
+        'rounded-xl border border-border p-3 sm:p-4 animate-slide-up transition-all',
+        'hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10',
+        tones[tone]
+      )}
+      style={{ animationDelay: `${delay}ms`, animationFillMode: 'backwards' }}
+    >
       <div className="flex items-center gap-2 mb-1 text-muted-foreground">
         {icon}
         <span className="text-xs font-medium">{label}</span>
@@ -202,7 +211,8 @@ function NextCultoHeroCard({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-2xl text-white shadow-lg',
+        'relative overflow-hidden rounded-2xl text-white shadow-lg animate-slide-up',
+        'transition-shadow hover:shadow-xl hover:shadow-primary/20',
         'bg-gradient-to-br',
         EVENT_TYPE_GRADIENT[event.eventType]
       )}
@@ -228,7 +238,12 @@ function NextCultoHeroCard({
             </div>
           </div>
           <div className="text-right shrink-0">
-            <div className="text-3xl sm:text-4xl font-extrabold tabular-nums leading-none">
+            <div
+              className={cn(
+                'text-3xl sm:text-4xl font-extrabold tabular-nums leading-none',
+                dCount >= 0 && dCount <= 1 && 'animate-pulse-dot'
+              )}
+            >
               {dCount >= 0 ? dCount : '—'}
             </div>
             <p className="text-xs opacity-80 mt-1">{dLabel}</p>
@@ -260,7 +275,7 @@ function NextCultoHeroCard({
 
         <Button
           variant="secondary"
-          className="w-full bg-white text-foreground hover:bg-white/90 gap-2"
+          className="w-full bg-white text-slate-900 hover:bg-white/90 gap-2"
           onClick={() => onOpen(event)}
         >
           Abrir detalle del culto
@@ -340,22 +355,26 @@ export function DirectorMusicHero({ onOpenEvent }: { onOpenEvent: (e: MusicEvent
           value={activeMembers}
           icon={<Users className="h-3.5 w-3.5" />}
           tone="primary"
+          delay={0}
         />
         <StatTile
           label="Cultos este mes"
           value={cultosThisMonth}
           icon={<CalendarDays className="h-3.5 w-3.5" />}
+          delay={60}
         />
         <StatTile
           label="Repertorio"
           value={repertoireSize}
           icon={<Music2 className="h-3.5 w-3.5" />}
+          delay={120}
         />
         <StatTile
           label="Próximos cultos"
           value={upcoming.length}
           icon={<TrendingUp className="h-3.5 w-3.5" />}
           tone={upcoming.length === 0 ? 'warning' : 'success'}
+          delay={180}
         />
       </div>
     </div>
