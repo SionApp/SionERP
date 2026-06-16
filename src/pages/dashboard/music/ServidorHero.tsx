@@ -212,6 +212,11 @@ export function ServidorMusicHero() {
                 <Badge className="bg-white/20 hover:bg-white/30 text-white border-0 backdrop-blur capitalize">
                   {next.funcion}
                 </Badge>
+                {next.instrument && (
+                  <Badge className="bg-white/20 hover:bg-white/30 text-white border-0 backdrop-blur">
+                    {next.instrument}
+                  </Badge>
+                )}
                 <span className="text-xs opacity-90">· {STATE_LABEL[next.state]}</span>
               </div>
             </div>
