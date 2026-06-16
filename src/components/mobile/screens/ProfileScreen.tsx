@@ -316,8 +316,9 @@ export function MobileProfileScreen({
                 onGeolocationChange(value);
                 setFormValue('address', value?.address ?? '');
               }}
-              label="Ubicación en el mapa (opcional)"
-              placeholder="Buscar dirección o seleccionar en el mapa..."
+              label=""
+              compact
+              placeholder="Buscar dirección o tocar el mapa…"
             />
             <p className="text-xs text-muted-foreground/70 flex items-start gap-1">
               <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
