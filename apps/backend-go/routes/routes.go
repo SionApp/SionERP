@@ -47,7 +47,7 @@ func SetupRoutes(e *echo.Echo) {
 		usersAdmin.PUT("/:id", userHandler.UpdateUser)           // PUT /api/v1/users/:id
 		usersAdmin.DELETE("/:id", userHandler.DeleteUser)        // DELETE /api/v1/users/:id
 		usersAdmin.POST("/direct", userHandler.CreateUserDirect) // POST /api/v1/users/direct
-		usersAdmin.POST("/bulk", userHandler.BulkImportUsers)   // POST /api/v1/users/bulk
+		usersAdmin.POST("/bulk", userHandler.BulkImportUsers)    // POST /api/v1/users/bulk
 	}
 
 	// Member+ (level 0): Profile access (any authenticated user)
@@ -112,8 +112,8 @@ func SetupRoutes(e *echo.Echo) {
 
 	// Permissions routes
 	permissionsHandler := handlers.NewPermissionsHandler()
-	protected.GET("/permissions/me", permissionsHandler.GetMyPermissions)                     // GET /api/v1/permissions/me
-	protected.GET("/permissions/module-role", permissionsHandler.GetModuleRole)              // GET /api/v1/permissions/module-role?module=:key
+	protected.GET("/permissions/me", permissionsHandler.GetMyPermissions)       // GET /api/v1/permissions/me
+	protected.GET("/permissions/module-role", permissionsHandler.GetModuleRole) // GET /api/v1/permissions/module-role?module=:key
 
 	discipleshipHandler := handlers.NewDiscipleshipHandler()
 	reportsHandler := handlers.NewDiscipleshipReportsHandler()
@@ -210,7 +210,7 @@ func SetupRoutes(e *echo.Echo) {
 	notificationsHandler := handlers.NewNotificationsHandler()
 	notifications := protected.Group("/notifications")
 	notifications.GET("", notificationsHandler.GetNotifications)
-	notifications.PUT("/read-all", notificationsHandler.MarkAllAsRead)  // MUST be before /:id
+	notifications.PUT("/read-all", notificationsHandler.MarkAllAsRead) // MUST be before /:id
 	notifications.PUT("/:id/read", notificationsHandler.MarkAsRead)
 	notifications.DELETE("/:id", notificationsHandler.DismissNotification)
 
@@ -234,5 +234,21 @@ func SetupRoutes(e *echo.Echo) {
 		zones.POST("", zonesHandler.CreateZone, middleware.RequireRole(utils.LevelStaff))
 		zones.PUT("/:id", zonesHandler.UpdateZone, middleware.RequireRole(utils.LevelStaff))
 		zones.DELETE("/:id", zonesHandler.DeleteZone, middleware.RequireRole(utils.LevelPastor))
+	}
+
+	// Events routes
+	eventsHandler := handlers.NewEventsHandler()
+	events := protected.Group("/events")
+	events.Use(middleware.RequireModule(utils.ModuleEvents)) // Enforce Events Module
+	{
+		events.GET("", eventsHandler.GetEvents)
+		events.POST("", eventsHandler.CreateEvent, middleware.RequireRole(utils.LevelStaff))
+		// Specific routes before the generic :id
+		events.GET("/:id/registrations", eventsHandler.GetRegistrations, middleware.RequireRole(utils.LevelStaff))
+		events.POST("/:id/register", eventsHandler.Register)
+		events.DELETE("/:id/register", eventsHandler.Unregister)
+		events.GET("/:id", eventsHandler.GetEventByID)
+		events.PUT("/:id", eventsHandler.UpdateEvent, middleware.RequireRole(utils.LevelStaff))
+		events.DELETE("/:id", eventsHandler.DeleteEvent, middleware.RequireRole(utils.LevelStaff))
 	}
 }
