@@ -251,4 +251,18 @@ func SetupRoutes(e *echo.Echo) {
 		events.PUT("/:id", eventsHandler.UpdateEvent, middleware.RequireRole(utils.LevelStaff))
 		events.DELETE("/:id", eventsHandler.DeleteEvent, middleware.RequireRole(utils.LevelStaff))
 	}
+
+	// Reports module (analytics + traceability) — supervisor+
+	reportsAnalytics := handlers.NewReportsAnalyticsHandler()
+	reports := protected.Group("/reports")
+	reports.Use(middleware.RequireModule(utils.ModuleReports))
+	reports.Use(middleware.RequireRole(utils.LevelSupervisor))
+	{
+		reports.GET("/users", reportsAnalytics.GetUsersReport)
+		reports.GET("/growth", reportsAnalytics.GetGrowthReport)
+		reports.GET("/demographics", reportsAnalytics.GetDemographicsReport)
+		reports.GET("/activities", reportsAnalytics.GetActivitiesReport)
+		reports.GET("/generations", reportsAnalytics.GetGenerations)
+		reports.POST("/generations", reportsAnalytics.LogGeneration)
+	}
 }
