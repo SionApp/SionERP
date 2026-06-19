@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useZones } from '@/hooks/useZones';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { Zone } from '@/types/discipleship.types';
 import { MapPin, Users, Building2, X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
@@ -146,8 +147,11 @@ function ZoneListItem({
 // ── Main component ──
 export default function ZoneMapView() {
   const { zones, loading, error } = useZones({ onlyActive: true });
+  const isMobileApp = useMobileMode();
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(true);
+  // On mobile the 288px sidebar would squash the map, so start it collapsed
+  // (the "Zonas" button reopens it). Desktop keeps it open.
+  const [showSidebar, setShowSidebar] = useState(!isMobileApp);
 
   const selectedZone = useMemo(
     () => zones.find(z => z.id === selectedZoneId) ?? null,
