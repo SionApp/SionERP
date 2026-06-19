@@ -3,9 +3,33 @@ import ZoneManagement from '@/components/discipleship/ZoneManagement';
 import ZoneMapView from '@/components/zones/ZoneMapView';
 import { Button } from '@/components/ui/button';
 import { Map, List } from 'lucide-react';
+import { useMobileMode } from '@/hooks/useMobileMode';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
+import { MobileSegment } from '@/components/mobile/MobileSegment';
 
 const ZonesPage = () => {
   const [view, setView] = useState<'list' | 'map'>('list');
+  const isMobileApp = useMobileMode();
+
+  // Mobile: dedicated MobileScreen chrome + segmented toggle. ZoneManagement /
+  // ZoneMapView are already mobile-aware, so they render their compact layout.
+  if (isMobileApp) {
+    return (
+      <MobileScreen title="Zonas" subtitle="Distribución territorial">
+        <div className="space-y-4 px-4 py-4">
+          <MobileSegment
+            options={[
+              { value: 'list', label: 'Lista' },
+              { value: 'map', label: 'Mapa' },
+            ]}
+            value={view}
+            onChange={v => setView(v as 'list' | 'map')}
+          />
+          {view === 'map' ? <ZoneMapView /> : <ZoneManagement />}
+        </div>
+      </MobileScreen>
+    );
+  }
 
   return (
     <div className="space-y-3 sm:space-y-6 animate-fade-in p-3 sm:p-4 md:p-6">
@@ -13,7 +37,8 @@ const ZonesPage = () => {
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Zonas Territoriales</h1>
           <p className="text-sm sm:text-base text-muted-foreground w-full md:w-2/3">
-            Administra la distribución de zonas geográficas, asigna supervisores, grupos y miembros a diferentes niveles territoriales.
+            Administra la distribución de zonas geográficas, asigna supervisores, grupos y miembros
+            a diferentes niveles territoriales.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
