@@ -44,7 +44,8 @@ function FitBounds({ zones }: { zones: Zone[] }) {
 function ZoneMarker({ zone }: { zone: Zone }) {
   if (!zone.center_lat || !zone.center_lng) return null;
 
-  const hasPolygon = zone.boundaries && typeof zone.boundaries === 'object' && 'coordinates' in zone.boundaries;
+  const hasPolygon =
+    zone.boundaries && typeof zone.boundaries === 'object' && 'coordinates' in zone.boundaries;
 
   return (
     <>
@@ -67,7 +68,7 @@ function ZoneMarker({ zone }: { zone: Zone }) {
       <Marker
         position={[zone.center_lat, zone.center_lng]}
         eventHandlers={{
-          mouseover: (e) => {
+          mouseover: e => {
             (e.target as L.Marker).openPopup();
           },
         }}
@@ -121,9 +122,7 @@ function ZoneListItem({
     <button
       onClick={onClick}
       className={`w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200 border ${
-        isSelected
-          ? 'bg-primary/10 border-primary/30'
-          : 'hover:bg-accent/50 border-transparent'
+        isSelected ? 'bg-primary/10 border-primary/30' : 'hover:bg-accent/50 border-transparent'
       }`}
     >
       <div className="flex items-center gap-2">
@@ -138,9 +137,7 @@ function ZoneListItem({
         <span>{zone.total_members ?? 0} miembros</span>
       </div>
       {zone.supervisor_name && (
-        <div className="text-xs text-muted-foreground ml-5 truncate">
-          {zone.supervisor_name}
-        </div>
+        <div className="text-xs text-muted-foreground ml-5 truncate">{zone.supervisor_name}</div>
       )}
     </button>
   );
@@ -158,7 +155,7 @@ export default function ZoneMapView() {
   );
 
   const handleZoneSelect = useCallback((zoneId: string) => {
-    setSelectedZoneId(prev => prev === zoneId ? null : zoneId);
+    setSelectedZoneId(prev => (prev === zoneId ? null : zoneId));
   }, []);
 
   if (loading) {
@@ -184,10 +181,13 @@ export default function ZoneMapView() {
     );
   }
 
-  // Calculate default center from first zone with coords
+  // Default center: the first zone with coords, otherwise Coro, Falcón, Venezuela (4101).
   const defaultCenter: [number, number] = zones.find(z => z.center_lat && z.center_lng)
-    ? [zones.find(z => z.center_lat && z.center_lng)!.center_lat!, zones.find(z => z.center_lat && z.center_lng)!.center_lng!]
-    : [-34.6037, -58.3816]; // Fallback: Buenos Aires
+    ? [
+        zones.find(z => z.center_lat && z.center_lng)!.center_lat!,
+        zones.find(z => z.center_lat && z.center_lng)!.center_lng!,
+      ]
+    : [11.4045, -69.6749]; // Coro, Falcón, Venezuela
 
   const validZones = zones.filter(z => z.center_lat && z.center_lng);
 
