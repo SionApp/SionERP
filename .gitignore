@@ -47,3 +47,7 @@ playwright-report/
 
 # Datos sensibles de la iglesia (PII)
 data/
+.vercel
+
+# Supabase CLI local cache
+supabase/.temp/
