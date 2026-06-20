@@ -88,7 +88,7 @@
     "terra-draw": "^1.28.1",
     "terra-draw-leaflet-adapter": "^1.2.0",
     "vaul": "^0.9.9",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.76"
   },
   "pnpm": {
@@ -100,9 +100,18 @@
       "minimatch@^9": ">=9.0.7",
       "glob@>=10.0.0 <11.0.0": ">=10.5.0",
       "ws@^8": ">=8.20.1",
-      "js-yaml@^4": ">=4.1.1",
+      "js-yaml@^3": ">=3.14.2",
+      "js-yaml@^4": ">=4.2.0",
       "brace-expansion@^1": ">=1.1.13",
-      "brace-expansion@^2": ">=2.0.3"
+      "brace-expansion@^2": ">=2.0.3",
+      "undici": ">=7.28.0",
+      "picomatch@^2": ">=2.3.2",
+      "picomatch@^4": ">=4.0.4",
+      "yaml@^2": ">=2.8.3",
+      "ajv@^6": ">=6.14.0",
+      "lodash": ">=4.18.0",
+      "esbuild": ">=0.25.0",
+      "@babel/core": ">=7.29.6"
     }
   },
   "lint-staged": {
