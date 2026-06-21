@@ -1,12 +1,12 @@
 {
-  "name": "SionERP - Gestión Eclesiástica",
-  "short_name": "SionERP",
-  "description": "Sistema de gestión eclesiástica - Iglesia Sion",
+  "name": "JETRO — Gestión Eclesiástica",
+  "short_name": "JETRO",
+  "description": "JETRO — sistema de gestión y discipulado para iglesias",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#1a1a2e",
-  "theme_color": "#6366f1",
+  "background_color": "#1E40AF",
+  "theme_color": "#1E40AF",
   "categories": ["business", "productivity"],
   "icons": [
     {
