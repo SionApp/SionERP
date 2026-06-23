@@ -154,13 +154,14 @@ func (s *SupabaseClient) GetUserByEmail(email string) (*CreateUserResponse, erro
 	return nil, fmt.Errorf("user not found")
 }
 
-// CreateUserWithEmailPassword creates a user directly with email and password using the Supabase Admin API
+// CreateUserRequest is the body sent to the Supabase Admin API when creating a user.
 type CreateUserRequest struct {
-	ID            string                 `json:"id,omitempty"` // ← NUEVO: para usar el mismo UUID que en public.users
-	Email         string                 `json:"email"`
-	Password      string                 `json:"password"`
-	UserMeta      map[string]interface{} `json:"user_metadata,omitempty"`
-	EmailConfirm  bool                   `json:"email_confirm"`
+	ID           string                 `json:"id,omitempty"` // ← NUEVO: para usar el mismo UUID que en public.users
+	Email        string                 `json:"email"`
+	Password     string                 `json:"password"`
+	UserMeta     map[string]interface{} `json:"user_metadata,omitempty"`
+	AppMeta      map[string]interface{} `json:"app_metadata,omitempty"` // Phase 0: carries church_id into JWT
+	EmailConfirm bool                   `json:"email_confirm"`
 }
 
 type CreateUserResponse struct {
@@ -169,8 +170,12 @@ type CreateUserResponse struct {
 	Meta  map[string]interface{} `json:"user_metadata"`
 }
 
-func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, userMeta map[string]interface{}, userID ...string) (*CreateUserResponse, error) {
-	url := fmt.Sprintf("%s/auth/v1/admin/users", s.ProjectURL);
+// CreateUserWithEmailPassword creates a Supabase Auth user.
+// appMeta is written to raw_app_meta_data (appears as app_metadata in the JWT).
+// Pass nil for appMeta to leave it unset (pre-Phase 0 callers).
+// TODO(phase 0 call sites): callers in handlers/users.go pass {church_id: ...} as appMeta.
+func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, userMeta map[string]interface{}, appMeta map[string]interface{}, userID ...string) (*CreateUserResponse, error) {
+	url := fmt.Sprintf("%s/auth/v1/admin/users", s.ProjectURL)
 
 	if s.ProjectURL == "" {
 		return nil, fmt.Errorf("SUPABASE_URL is not configured")
@@ -184,6 +189,7 @@ func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, use
 		Email:        email,
 		Password:     password,
 		UserMeta:     userMeta,
+		AppMeta:      appMeta,
 		EmailConfirm: true,
 	}
 	if len(userID) > 0 && userID[0] != "" {

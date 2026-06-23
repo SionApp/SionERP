@@ -846,6 +846,10 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 			"first_name": req.FirstName,
 			"last_name":  req.LastName,
 			"role":       req.Role,
+		}, map[string]interface{}{
+			// Phase 0: forward the creating admin's church_id into the new user's JWT.
+			// TODO(phase 2a): validate churchID is non-empty after JWT backfill.
+			"church_id": c.Get("church_id"),
 		}, existingUserID) // ← Pasar el ID de users para que sea el mismo en Auth
 		if err != nil {
 			c.Logger().Error("Failed to create auth for existing user:", err)
@@ -888,6 +892,10 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		"first_name": req.FirstName,
 		"last_name":  req.LastName,
 		"role":       req.Role,
+	}, map[string]interface{}{
+		// Phase 0: forward the creating admin's church_id into the new user's JWT.
+		// TODO(phase 2a): validate churchID is non-empty after JWT backfill.
+		"church_id": c.Get("church_id"),
 	}, newUserID)
 	if err != nil {
 		c.Logger().Error("Failed to create user in Supabase Auth:", err)
