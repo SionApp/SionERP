@@ -93,10 +93,18 @@ func ecPublicKeyFromJWK(key jwkKey) (*ecdsa.PublicKey, error) {
 	return pubKey, nil
 }
 
+// AppMetaClaims holds the app_metadata object from the Supabase JWT.
+// Supabase writes church_id here during user creation (Phase 0+); existing
+// tokens won't have it until the Phase 2a JWT backfill migration runs.
+type AppMetaClaims struct {
+	ChurchID string `json:"church_id"`
+}
+
 type Claims struct {
-	Sub   string `json:"sub"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Sub     string        `json:"sub"`
+	Email   string        `json:"email"`
+	Role    string        `json:"role"`
+	AppMeta AppMetaClaims `json:"app_metadata"`
 	jwt.RegisteredClaims
 }
 
@@ -128,26 +136,31 @@ func SupabaseAuth() echo.MiddlewareFunc {
 				})
 			}
 
-		// Get the database connection safely
-		var dbRole string
-		var isSuperAdmin bool
-		var actualUserID string // Este será el business UUID (id)
-		db := config.GetDB()
-		if db != nil && db.DB != nil {
-			// Buscar por id (que ahora es el MISMO que el JWT sub/Auth ID)
-			err := db.DB.QueryRow("SELECT id, role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&actualUserID, &dbRole, &isSuperAdmin)
-			if err != nil {
-				fmt.Printf("⚠️  User not found with id = %s (JWT sub). Error: %v\n", claims.Sub, err)
+			// Get the database connection safely
+			var dbRole string
+			var isSuperAdmin bool
+			var actualUserID string // Este será el business UUID (id)
+			db := config.GetDB()
+			if db != nil && db.DB != nil {
+				// Buscar por id (que ahora es el MISMO que el JWT sub/Auth ID)
+				err := db.DB.QueryRow("SELECT id, role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&actualUserID, &dbRole, &isSuperAdmin)
+				if err != nil {
+					fmt.Printf("⚠️  User not found with id = %s (JWT sub). Error: %v\n", claims.Sub, err)
+					dbRole = utils.RoleGuest
+					actualUserID = claims.Sub
+				}
+			} else {
+				fmt.Printf("⚠️  Database connection not available, using default role\n")
 				dbRole = utils.RoleGuest
 				actualUserID = claims.Sub
 			}
-		} else {
-			fmt.Printf("⚠️  Database connection not available, using default role\n")
-			dbRole = utils.RoleGuest
-			actualUserID = claims.Sub
-		}
 
 			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", actualUserID, claims.Email, dbRole)
+
+			// Resolve church_id: prefer JWT app_metadata claim (Phase 0+).
+			// Fallback to users.church_id column once Phase 2a adds it.
+			// TODO(phase 2a): query users.church_id as fallback when claim is absent.
+			churchID := claims.AppMeta.ChurchID
 
 			// Agregar claims al contexto - USAR SIEMPRE EL BUSINESS UUID (id)
 			c.Set("user", claims)
@@ -157,6 +170,8 @@ func SupabaseAuth() echo.MiddlewareFunc {
 			c.Set("db_role", dbRole)
 			// Set admin_access flag for roles with admin privileges
 			c.Set("has_admin_access", HasAdminAccess(dbRole, isSuperAdmin))
+			// church_id for TenantTx — empty string until Phase 2 JWT backfill.
+			c.Set("church_id", churchID)
 			return next(c)
 		}
 	}
