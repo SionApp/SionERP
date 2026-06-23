@@ -35,6 +35,11 @@ func SetupRoutes(e *echo.Echo) {
 	// Protected routes (require authentication)
 	protected := api.Group("")
 	protected.Use(middleware.SupabaseAuth())
+	// ponytail: TenantTx registered here (Phase 0) but is a no-op pass-through when
+	// church_id is absent from the context (all current users until Phase 2 JWT backfill).
+	// TODO(phase 2): remove the pass-through guard inside TenantTx after JWT backfill.
+	// TODO(phase 3): validateDB must be redefined to return config.Tx(c).
+	protected.Use(middleware.TenantTx())
 
 	// User routes — grouped by permission level
 	// Staff+ (level 300): Admin CRUD operations

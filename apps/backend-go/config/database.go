@@ -7,8 +7,42 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
 )
+
+// Querier is the minimal interface satisfied by both *sql.DB and *sql.Tx.
+// Handlers use this so they work with either the global pool (current, Phase 0)
+// or the per-request tenant transaction (Phase 3, when TenantTx is enforced).
+//
+// TODO(phase 3): once validateDB returns Querier, all handler call sites change from
+// db.DB.Query/QueryRow/Exec to db.Query/QueryRow/Exec automatically.
+type Querier interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+// txKey is the Echo context key under which TenantTx stores the *sql.Tx.
+// Unexported constant; use TxKey() for cross-package access.
+const txKey = "tenant_tx"
+
+// TxKey returns the Echo context key used to store the per-request *sql.Tx.
+// Middleware and handler packages reference this instead of a hard-coded string.
+func TxKey() string { return txKey }
+
+// Tx returns the per-request *sql.Tx stashed by TenantTx middleware, or falls
+// back to the global pool when no transaction is present (unauthenticated routes,
+// Phase 0 where TenantTx is wired but not yet enforcing).
+//
+// TODO(phase 3): once all handlers migrate to config.Tx(c), remove the fallback
+// and require a transaction on every protected route.
+func Tx(c echo.Context) Querier {
+	if tx, ok := c.Get(txKey).(*sql.Tx); ok {
+		return tx
+	}
+	return GetDB().DB
+}
 
 type Database struct {
 	DB *sql.DB
