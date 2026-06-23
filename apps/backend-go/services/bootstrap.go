@@ -44,6 +44,9 @@ func BootstrapSuperAdmin(db *sql.DB) error {
 
 		authUser, err = supabase.CreateUserWithEmailPassword(adminEmail, adminPassword, map[string]interface{}{
 			"role": adminRole,
+		}, map[string]interface{}{
+			// TODO(phase 2a): use the actual church_id once churches table is fully wired
+			"church_id": "00000000-0000-0000-0000-00000000515e",
 		}, userID)
 
 		if err != nil {
