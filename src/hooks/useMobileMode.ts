@@ -1,13 +1,15 @@
-import { useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 
 /**
- * Modo mobile EXCLUSIVO (filosofía daas): no es responsive por viewport.
- * isMobile = app nativa (Capacitor) || override de preview en dev.
+ * Modo mobile: activa las pantallas dedicadas mobile (filosofía daas).
  *
- * Preview: agregá `?m=1` a la URL para activar el modo mobile en el navegador
- * (persiste en localStorage). `?m=0` lo desactiva. Solo funciona en dev —
- * en producción el override se tree-shakea y únicamente Capacitor activa el modo.
+ * isMobile = true cuando:
+ *   1. App nativa Capacitor (siempre, en cualquier entorno).
+ *   2. Viewport < 768px en producción (web móvil: teléfono abriendo la PWA).
+ *   3. Dev override: agrega ?m=1 a la URL para previsualizar en browser
+ *      (persiste en localStorage). ?m=0 lo desactiva.
  */
+const BREAKPOINT = 768;
 const PREVIEW_KEY = 'sionerp:mobile-preview';
 
 function isNativePlatform(): boolean {
@@ -15,8 +17,6 @@ function isNativePlatform(): boolean {
   return !!cap?.isNativePlatform?.();
 }
 
-// El ?m=1 se captura al CARGAR el módulo (no al montar un componente):
-// el query param vive en /login pero el layout monta recién post-navegación.
 const previewOverride: boolean = (() => {
   if (!import.meta.env.DEV) return false;
   const m = new URLSearchParams(window.location.search).get('m');
@@ -32,5 +32,18 @@ const previewOverride: boolean = (() => {
 })();
 
 export function useMobileMode(): boolean {
-  return useMemo(() => isNativePlatform() || previewOverride, []);
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < BREAKPOINT
+  );
+
+  useEffect(() => {
+    if (isNativePlatform() || previewOverride) return; // no necesita listener
+    const mql = window.matchMedia(`(max-width: ${BREAKPOINT - 1}px)`);
+    const handler = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
+    mql.addEventListener('change', handler);
+    setIsNarrow(mql.matches);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  return useMemo(() => isNativePlatform() || previewOverride || isNarrow, [isNarrow]);
 }
