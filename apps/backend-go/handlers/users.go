@@ -25,7 +25,9 @@ func NewUserHandler() *UserHandler {
 	return &UserHandler{}
 }
 
-// getUserRoleLevel returns the role level for a given user ID, or -1 if not found
+// getUserRoleLevel returns the role level for a given user ID, or -1 if not found.
+// Uses the global pool directly — this is a permission-check lookup by PK
+// (globally unique UUID), not a tenant data query.
 func getUserRoleLevel(userID string) int {
 	var role string
 	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&role)
@@ -42,15 +44,17 @@ func getUserRoleLevel(userID string) int {
 //   - supervisor: only users assigned to them (same cell_leader_id or zone)
 //   - server/member: only their own profile
 func (h *UserHandler) GetUsers(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	churchID, _ := c.Get("church_id").(string)
+
 	// Get requesting user's role for resource-level filtering
 	requestingUserID := c.Get("user_id").(string)
 	var requestingRole string
-	err = db.DB.QueryRow("SELECT role FROM users WHERE id = $1", requestingUserID).Scan(&requestingRole)
+	err = q.QueryRow("SELECT role FROM users WHERE id = $1", requestingUserID).Scan(&requestingRole)
 	if err != nil {
 		c.Logger().Error("Error fetching requesting user role:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -77,14 +81,21 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			u.onboarding_completed,
 			au.last_sign_in_at
 		FROM users u
-		LEFT JOIN user_invitations i ON u.email = i.email
-		LEFT JOIN zones z ON u.zone_id = z.id
+		LEFT JOIN user_invitations i ON u.email = i.email AND i.church_id = u.church_id
+		LEFT JOIN zones z ON u.zone_id = z.id AND z.church_id = u.church_id
 		LEFT JOIN auth.users au ON u.id = au.id
 		WHERE u.is_active = true
 	`
 
 	args := []interface{}{}
 	argCount := 0
+
+	// ── Tenant isolation: scope to current church ──
+	if churchID != "" {
+		argCount++
+		query += fmt.Sprintf(" AND u.church_id = $%d", argCount)
+		args = append(args, churchID)
+	}
 
 	// ── Resource-level filtering ──
 	// Use role level (int) for cleaner comparison with constants
@@ -97,7 +108,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 		args = append(args, utils.RoleAdmin)
 	case requestingRoleLevel >= utils.LevelSupervisor: // supervisor → only see their subordinates
 		argCount++
-		query += fmt.Sprintf(" AND (u.cell_leader_id = $%d OR u.zone_id = (SELECT zone_id FROM users WHERE id = $1))", argCount)
+		query += fmt.Sprintf(" AND (u.cell_leader_id = $%d OR u.zone_id = (SELECT zone_id FROM users WHERE id = $%d))", argCount, argCount)
 		args = append(args, requestingUserID)
 	default: // server/member → only their own profile
 		argCount++
@@ -151,7 +162,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	// Count total matching rows (reuse same WHERE clauses)
 	var total int
 	countQuery := "SELECT COUNT(*) FROM (" + query + ") sub"
-	if err = db.DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+	if err = q.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		c.Logger().Error("Count query error in GetUsers: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error": "Error counting users",
@@ -167,7 +178,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	query += fmt.Sprintf(" OFFSET $%d", argCount)
 	args = append(args, offset)
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		c.Logger().Error("Database query error in GetUsers: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -228,9 +239,11 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 	userID := c.Param("id")
 	currentUserID := c.Get("user_id").(string)
 
+	q := config.Tx(c)
+
 	// Get requesting user's role for resource-level filtering
 	var requestingRole string
-	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&requestingRole)
+	err := q.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&requestingRole)
 	if err != nil {
 		c.Logger().Error("Error fetching requesting user role:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -250,7 +263,7 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 		}
 		// Check if supervisor has access to this user
 		var cellLeaderID, userZoneID sql.NullString
-		err = config.GetDB().DB.QueryRow(
+		err = q.QueryRow(
 			"SELECT cell_leader_id, zone_id FROM users WHERE id = $1", userID,
 		).Scan(&cellLeaderID, &userZoneID)
 		if err != nil {
@@ -273,12 +286,12 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
-			   whatsapp,created_at, updated_at
+			   whatsapp, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
 	var user models.User
-	err = config.GetDB().DB.QueryRow(query, userID).Scan(
+	err = q.QueryRow(query, userID).Scan(
 		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
@@ -318,25 +331,28 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 		})
 	}
 
+	q := config.Tx(c)
+	churchID, _ := c.Get("church_id").(string)
+
 	query := `
 		INSERT INTO users (
 			first_name, last_name, id_number, email, phone, address,
 			birth_date, marital_status, occupation, education_level,
 			how_found_church, ministry_interest, first_visit_date,
 			baptized, baptism_date, is_active_member, membership_date,
-			cell_group, role, pastoral_notes, whatsapp
+			cell_group, role, pastoral_notes, whatsapp, church_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 		) RETURNING id
 	`
 
 	var userID string
-	err := config.GetDB().DB.QueryRow(
+	err := q.QueryRow(
 		query, req.FirstName, req.LastName, req.IdNumber, req.Email, req.Phone,
 		req.Address, req.BirthDate, req.MaritalStatus, req.Occupation,
 		req.EducationLevel, req.HowFoundChurch, req.MinistryInterest, req.FirstVisitDate,
 		req.Baptized, req.BaptismDate, req.IsActiveMember, req.MembershipDate,
-		req.CellGroup, req.Role, req.PastoralNotes, req.WhatsApp,
+		req.CellGroup, req.Role, req.PastoralNotes, req.WhatsApp, churchID,
 	).Scan(&userID)
 	if err != nil {
 		c.Logger().Error("Database error in CreateUser: ", err)
@@ -357,9 +373,11 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	userID := c.Param("id")
 	currentUserID := c.Get("user_id").(string)
 
+	q := config.Tx(c)
+
 	var currentUserRole string
 	var isCurrentUserSuperAdmin bool
-	err := config.GetDB().DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole, &isCurrentUserSuperAdmin)
+	err := q.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole, &isCurrentUserSuperAdmin)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
@@ -390,7 +408,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 
 	// ── System super admin is protected ──
 	var isTargetSuperAdmin bool
-	config.GetDB().DB.QueryRow("SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&isTargetSuperAdmin)
+	q.QueryRow("SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&isTargetSuperAdmin)
 	if isTargetSuperAdmin && !isCurrentUserSuperAdmin {
 		return c.JSON(http.StatusForbidden, map[string]interface{}{
 			"error":   "Forbidden",
@@ -409,7 +427,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	// supervisor can only edit their subordinates
 	if currentUserRoleLevel == utils.LevelSupervisor && currentUserID != userID {
 		var cellLeaderID sql.NullString
-		config.GetDB().DB.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
+		q.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
 		if cellLeaderID.String != currentUserID {
 			return c.JSON(http.StatusForbidden, map[string]interface{}{
 				"error":   "Forbidden",
@@ -457,7 +475,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
-	result, err := config.GetDB().DB.Exec(query, args...)
+	result, err := q.Exec(query, args...)
 	if err != nil {
 		c.Logger().Error(fmt.Sprintf("Database error in UpdateUser for user %s: %v", userID, err))
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -486,6 +504,8 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 func (h *UserHandler) DeleteUser(c echo.Context) error {
 	userID := c.Param("id")
 	currentUserID := c.Get("user_id").(string)
+
+	q := config.Tx(c)
 
 	// Cannot delete yourself
 	if currentUserID == userID {
@@ -517,7 +537,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 
 	// ── System super admin is protected ──
 	var isTargetSuperAdmin bool
-	config.GetDB().DB.QueryRow("SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&isTargetSuperAdmin)
+	q.QueryRow("SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&isTargetSuperAdmin)
 	if isTargetSuperAdmin {
 		return c.JSON(http.StatusForbidden, map[string]interface{}{
 			"error":   "Forbidden",
@@ -528,7 +548,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 	// supervisor can only delete their subordinates
 	if currentUserRoleLevel == utils.LevelSupervisor {
 		var cellLeaderID sql.NullString
-		config.GetDB().DB.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
+		q.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
 		if cellLeaderID.String != currentUserID {
 			return c.JSON(http.StatusForbidden, map[string]interface{}{
 				"error":   "Forbidden",
@@ -546,10 +566,10 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 	}
 
 	query := `UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1`
-	result, err := config.GetDB().DB.Exec(query, userID)
+	result, err := q.Exec(query, userID)
 
 	if err != nil {
-		c.Logger().Error(fmt.Sprintf("Database error in UpdateUser for user %s: %v", userID, err))
+		c.Logger().Error(fmt.Sprintf("Database error in DeleteUser for user %s: %v", userID, err))
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Database error",
 			"message": err.Error(),
@@ -559,7 +579,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s", userID))
+		c.Logger().Warn(fmt.Sprintf("No rows affected when deleting user %s", userID))
 		return c.JSON(http.StatusNotFound, map[string]interface{}{
 			"error":   "User not found",
 			"message": fmt.Sprintf("User with ID %s does not exist", userID),
@@ -583,6 +603,8 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		})
 	}
 
+	q := config.Tx(c)
+
 	// Query by id (single source of truth - same as Auth ID)
 	query := `
 		SELECT id, first_name, last_name, id_number, email, phone, address,
@@ -597,7 +619,7 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		WHERE id = $1
 		`
 	var user models.User
-	err := config.GetDB().DB.QueryRow(query, userID).Scan(
+	err := q.QueryRow(query, userID).Scan(
 		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
@@ -650,9 +672,11 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
+	q := config.Tx(c)
+
 	// Verificar que el usuario exista con ese ID
 	var actualUserID string
-	err := config.GetDB().DB.QueryRow(
+	err := q.QueryRow(
 		"SELECT id FROM users WHERE id = $1", userID,
 	).Scan(&actualUserID)
 
@@ -674,7 +698,7 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
-	result, err := config.GetDB().DB.Exec(query, args...)
+	result, err := q.Exec(query, args...)
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
@@ -753,7 +777,7 @@ func (h *UserHandler) CompleteOnboarding(c echo.Context) error {
 
 	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(updates, ", "), argIdx)
 
-	result, err := config.GetDB().DB.Exec(query, args...)
+	result, err := config.Tx(c).Exec(query, args...)
 	if err != nil {
 		c.Logger().Error(fmt.Sprintf("Database error in CompleteOnboarding for user %s: %v", userID, err))
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -781,8 +805,10 @@ func (h *UserHandler) CompleteOnboarding(c echo.Context) error {
 func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 	currentUserID := c.Get("user_id").(string)
 
+	q := config.Tx(c)
+
 	var currentUserRole string
-	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole)
+	err := q.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole)
 	if err != nil {
 		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"error":   "User not found",
@@ -822,11 +848,12 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 	}
 
 	supabase := config.NewSupabaseClient()
+	churchID, _ := c.Get("church_id").(string)
 
 	// Check if user already exists in public.users (data without login access)
 	var existingUserID, existingRole string
-	err = config.GetDB().DB.QueryRow(
-		"SELECT id, role FROM users WHERE email = $1", req.Email,
+	err = q.QueryRow(
+		"SELECT id, role FROM users WHERE email = $1 AND church_id = $2", req.Email, churchID,
 	).Scan(&existingUserID, &existingRole)
 
 	if err == nil {
@@ -860,7 +887,7 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		}
 
 		// Update existing profile
-		_, err = config.GetDB().DB.Exec(
+		_, err = q.Exec(
 			`UPDATE users SET role = $1, first_name = $2, last_name = $3,
 			 phone = COALESCE(NULLIF($4, ''), phone), id_number = COALESCE(NULLIF($5, ''), id_number),
 			 onboarding_completed = true, updated_at = NOW()
@@ -909,9 +936,9 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 	query := `
 		INSERT INTO users (
 			id, email, first_name, last_name, role, phone, id_number,
-			address, onboarding_completed, is_active, created_at, updated_at
+			address, onboarding_completed, is_active, church_id, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7,
-			'', true, true, NOW(), NOW())
+			'', true, true, $8, NOW(), NOW())
 		ON CONFLICT (id) DO UPDATE SET
 			role = EXCLUDED.role,
 			first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), users.first_name),
@@ -923,8 +950,8 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 		`
 
 	var userID string
-	err = config.GetDB().DB.QueryRow(
-		query, newUserID, req.Email, req.FirstName, req.LastName, req.Role, req.Phone, req.IdNumber,
+	err = q.QueryRow(
+		query, newUserID, req.Email, req.FirstName, req.LastName, req.Role, req.Phone, req.IdNumber, churchID,
 	).Scan(&userID)
 	if err != nil {
 		c.Logger().Error("Database error in CreateUserDirect:", err)
