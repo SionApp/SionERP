@@ -49,6 +49,20 @@ func TenantTx() echo.MiddlewareFunc {
 				})
 			}
 
+			// SET LOCAL ROLE jetro_app: downgrade to the non-superuser role so that
+			// Postgres RLS policies are enforced for the duration of this transaction.
+			// The superuser connection is still used to open the tx, but once we SET
+			// LOCAL ROLE the session no longer has BYPASSRLS — any missed WHERE clause
+			// is blocked by the tenant_isolation RLS policy. SET LOCAL reverts
+			// automatically when the transaction ends (pooler-safe).
+			if _, err := tx.ExecContext(c.Request().Context(),
+				"SET LOCAL ROLE jetro_app"); err != nil {
+				_ = tx.Rollback()
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": "failed to set tenant role",
+				})
+			}
+
 			// set_config is parameterised — avoids string interpolation / GUC injection.
 			// true = is_local → GUC is scoped to the current transaction only (pooler-safe).
 			if _, err := tx.ExecContext(c.Request().Context(),
