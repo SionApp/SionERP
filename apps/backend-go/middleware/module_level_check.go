@@ -16,7 +16,10 @@ import (
 // Jerarquía de verificación:
 //  1. has_admin_access (pastor/admin) → bypass siempre, nivel 5 en contexto.
 //  2. module_user_roles.role_level >= minLevel → acceso concedido.
-//  3. Sin entrada en module_user_roles → acceso denegado.
+//  3. Fallback: si es módulo "discipleship" y no hay module_user_roles,
+//     consulta discipleship_hierarchy (cubre casos donde el double-write
+//     no se completó, ej: migración multi-tenancy).
+//  4. Sin entrada en ninguna tabla → acceso denegado.
 //
 // El nivel resuelto queda en el contexto como "module_role_level" para que
 // los handlers lo usen sin una query extra.
@@ -53,17 +56,46 @@ func RequireModuleLevel(moduleKey string, minLevel int) echo.MiddlewareFunc {
 				})
 			}
 
-			// Paso 3: consultar nivel en module_user_roles
+			// Paso 3: consultar nivel en module_user_roles (scoped by church_id)
 			db := config.GetDB()
+			churchID, _ := c.Get("church_id").(string)
 			var roleLevel int
 			err := db.DB.QueryRow(
 				`SELECT role_level FROM module_user_roles
-				 WHERE user_id = $1 AND module_key = $2
+				 WHERE user_id = $1 AND module_key = $2 AND church_id = $3
 				 LIMIT 1`,
-				userID, moduleKey,
+				userID, moduleKey, churchID,
 			).Scan(&roleLevel)
 
 			if err == sql.ErrNoRows {
+				// Fallback para discipleship: si el usuario tiene nivel en discipleship_hierarchy,
+				// ese nivel es su acceso al módulo (coordinadora nivel 4, supervisor nivel 3, etc.)
+				// Esto cubre casos donde el double-write no se completó (ej: multi-tenancy)
+				if moduleKey == "discipleship" {
+					var hierarchyLevel int
+					fallbackErr := db.DB.QueryRow(
+						`SELECT hierarchy_level FROM discipleship_hierarchy WHERE user_id = $1 LIMIT 1`,
+						userID,
+					).Scan(&hierarchyLevel)
+					if fallbackErr == nil && hierarchyLevel >= minLevel {
+						c.Set("module_role_level", hierarchyLevel)
+						return next(c)
+					}
+					if fallbackErr == nil && hierarchyLevel > 0 && hierarchyLevel < minLevel {
+						email := c.Get("email")
+						role := c.Get("db_role")
+						log.Printf("🚫 MODULE ROLE DENIED [%s]: user=%s email=%v erp_role=%v hierarchy_level=%d (requiere %d) — %s %s",
+							moduleKey, userID, email, role, hierarchyLevel, minLevel,
+							c.Request().Method, c.Request().URL.Path)
+						return c.JSON(http.StatusForbidden, map[string]string{
+							"error":        "Nivel insuficiente en el módulo",
+							"message":      fmt.Sprintf("Esta acción requiere nivel %d o superior en el módulo '%s'. Tu nivel actual es %d.", minLevel, moduleKey, hierarchyLevel),
+							"module":       moduleKey,
+							"module_level": fmt.Sprintf("%d", hierarchyLevel),
+							"min_level":    fmt.Sprintf("%d", minLevel),
+						})
+					}
+				}
 				email := c.Get("email")
 				log.Printf("🚫 MODULE ROLE DENIED [%s]: user=%s email=%v — sin rol asignado (requiere nivel %d)",
 					moduleKey, userID, email, minLevel)
