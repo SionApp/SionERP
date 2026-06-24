@@ -237,3 +237,30 @@ func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, use
 
 	return &result, nil
 }
+
+// DeleteAuthUser hard-deletes a user from Supabase Auth by their UUID.
+// Used by onboarding rollback to clean up a partially created auth user.
+func (s *SupabaseClient) DeleteAuthUser(userID string) error {
+	url := fmt.Sprintf("%s/auth/v1/admin/users/%s", s.ProjectURL, userID)
+
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %w", err)
+	}
+
+	req.Header.Set("apikey", s.ServiceKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.ServiceKey))
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to delete auth user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status code deleting auth user: %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
