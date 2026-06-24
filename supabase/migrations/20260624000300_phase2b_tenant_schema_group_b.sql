@@ -1317,3 +1317,31 @@ END $$;
 -- =============================================================================
 -- END OF MIGRATION
 -- =============================================================================
+
+-- =============================================================================
+-- Fix: log_user_changes() trigger must include church_id in audit_logs INSERT
+-- Added after Phase 2b assertion fix — the trigger was inserting into audit_logs
+-- without church_id which now has NOT NULL constraint.
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.log_user_changes() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    INSERT INTO public.audit_logs (table_name, record_id, action, old_values, changed_by, church_id)
+    VALUES ('users', OLD.id, 'DELETE', to_jsonb(OLD), auth.uid(), OLD.church_id);
+    RETURN OLD;
+  ELSIF TG_OP = 'UPDATE' THEN
+    INSERT INTO public.audit_logs (table_name, record_id, action, old_values, new_values, changed_by, church_id)
+    VALUES ('users', NEW.id, 'UPDATE', to_jsonb(OLD), to_jsonb(NEW), auth.uid(), NEW.church_id);
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    INSERT INTO public.audit_logs (table_name, record_id, action, new_values, changed_by, church_id)
+    VALUES ('users', NEW.id, 'INSERT', to_jsonb(NEW), auth.uid(), NEW.church_id);
+    RETURN NEW;
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+COMMENT ON FUNCTION public.log_user_changes() IS 'Logs user changes to audit_logs table including church_id for tenant isolation.';
