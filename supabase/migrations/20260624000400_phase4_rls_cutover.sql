@@ -559,3 +559,20 @@ BEGIN
 
   RAISE NOTICE 'Phase 4 RLS cutover: all required tenant_isolation policies verified OK.';
 END $$;
+
+-- =============================================================================
+-- churches table RLS (added post-cutover: Supabase advisor flagged missing RLS)
+-- Policy: each user sees only their own church row (matched by JWT church_id).
+-- Writes are blocked via deny_write — provisioning uses SECURITY DEFINER.
+-- =============================================================================
+ALTER TABLE public.churches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.churches FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON public.churches;
+CREATE POLICY tenant_isolation ON public.churches
+  FOR SELECT
+  USING (id = current_setting('app.current_church_id', true)::uuid);
+
+DROP POLICY IF EXISTS deny_write ON public.churches;
+CREATE POLICY deny_write ON public.churches
+  FOR ALL USING (false) WITH CHECK (false);
