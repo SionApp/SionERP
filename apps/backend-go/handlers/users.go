@@ -79,11 +79,10 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			COALESCE(u.zone_id::text, '') as zone_id,
 			COALESCE(z.name, '') as zone_name,
 			u.onboarding_completed,
-			au.last_sign_in_at
+			NULL::timestamptz AS last_sign_in_at
 		FROM users u
 		LEFT JOIN user_invitations i ON u.email = i.email AND i.church_id = u.church_id
 		LEFT JOIN zones z ON u.zone_id = z.id AND z.church_id = u.church_id
-		LEFT JOIN auth.users au ON u.id = au.id
 		WHERE u.is_active = true
 	`
 
