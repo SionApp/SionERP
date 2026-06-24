@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"backend-sion/config"
 	"backend-sion/models"
 	"database/sql"
 	"net/http"
@@ -18,9 +17,14 @@ func NewNotificationsHandler() *NotificationsHandler {
 
 // GetNotifications returns up to 50 notifications for the authenticated user.
 // Supports ?unread=true to return only unread notifications.
+// notifications are scoped by user_id (UUID is globally unique) — no cross-tenant risk.
 func (h *NotificationsHandler) GetNotifications(c echo.Context) error {
 	userID := c.Get("user_id").(string)
-	db := config.GetDB()
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
 
 	query := `
 		SELECT id, user_id, type, title, message,
@@ -37,7 +41,7 @@ func (h *NotificationsHandler) GetNotifications(c echo.Context) error {
 
 	query += " ORDER BY created_at DESC LIMIT 50"
 
-	rows, err := db.DB.Query(query, userID)
+	rows, err := q.Query(query, userID)
 	if err != nil {
 		c.Logger().Error("GetNotifications query error:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -87,9 +91,13 @@ func (h *NotificationsHandler) GetNotifications(c echo.Context) error {
 func (h *NotificationsHandler) MarkAsRead(c echo.Context) error {
 	id := c.Param("id")
 	userID := c.Get("user_id").(string)
-	db := config.GetDB()
 
-	result, err := db.DB.Exec(`
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	result, err := q.Exec(`
 		UPDATE notifications SET read = true
 		WHERE id = $1 AND user_id = $2
 	`, id, userID)
@@ -115,9 +123,13 @@ func (h *NotificationsHandler) MarkAsRead(c echo.Context) error {
 // MarkAllAsRead marks all unread notifications for the authenticated user as read.
 func (h *NotificationsHandler) MarkAllAsRead(c echo.Context) error {
 	userID := c.Get("user_id").(string)
-	db := config.GetDB()
 
-	_, err := db.DB.Exec(`
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	_, err = q.Exec(`
 		UPDATE notifications SET read = true
 		WHERE user_id = $1 AND read = false
 	`, userID)
@@ -138,9 +150,13 @@ func (h *NotificationsHandler) MarkAllAsRead(c echo.Context) error {
 func (h *NotificationsHandler) DismissNotification(c echo.Context) error {
 	id := c.Param("id")
 	userID := c.Get("user_id").(string)
-	db := config.GetDB()
 
-	result, err := db.DB.Exec(`
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	result, err := q.Exec(`
 		DELETE FROM notifications
 		WHERE id = $1 AND user_id = $2
 	`, id, userID)

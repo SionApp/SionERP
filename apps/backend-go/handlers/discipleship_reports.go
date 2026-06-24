@@ -32,25 +32,33 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 	}
 
 	userID := c.Get("user_id").(string)
-	db := config.GetDB()
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
-	// Obtener supervisor del usuario
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	// Obtener supervisor del usuario (scoped to church)
 	var supervisorID sql.NullString
-	db.DB.QueryRow(`
-		SELECT supervisor_id FROM discipleship_hierarchy WHERE user_id = $1
-	`, userID).Scan(&supervisorID)
+	q.QueryRow(`
+		SELECT supervisor_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2
+	`, userID, churchID).Scan(&supervisorID)
 
 	reportDataJSON, _ := json.Marshal(req.ReportData)
 
 	var reportID string
-	err := db.DB.QueryRow(`
+	err = q.QueryRow(`
 		INSERT INTO discipleship_reports (
 			reporter_id, supervisor_id, report_type, report_level,
-			period_start, period_end, report_data, status, submitted_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, 'submitted', NOW())
+			period_start, period_end, report_data, status, submitted_at, church_id
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, 'submitted', NOW(), $8)
 		RETURNING id
 	`, userID, supervisorID, req.ReportType, req.ReportLevel,
-		req.PeriodStart, req.PeriodEnd, reportDataJSON).Scan(&reportID)
+		req.PeriodStart, req.PeriodEnd, reportDataJSON, churchID).Scan(&reportID)
 
 	if err != nil {
 		c.Logger().Error("Error creating report:", err)
@@ -60,7 +68,9 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 	}
 
 	// Auto-update automatic goal progress from report data (fire-and-forget)
-	go autoUpdateGoalProgressFromReport(db, userID, reportID, req.ReportData)
+	// Uses the global pool since it runs in a goroutine after the request completes
+	db := config.GetDB()
+	go autoUpdateGoalProgressFromReport(db, userID, reportID, req.ReportData, churchID)
 
 	// Notify supervisor of new report (fire-and-forget)
 	if supervisorID.Valid && supervisorID.String != "" {
@@ -89,8 +99,17 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 
 // GetReports obtiene reportes con filtros
 func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
-	db := config.GetDB()
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	db := config.GetDB()
 	_, _, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
 
 	status := c.QueryParam("status")
@@ -98,17 +117,17 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	reporterID := c.QueryParam("reporter_id")
 
 	query := `
-		SELECT 
+		SELECT
 			r.id, r.reporter_id, r.supervisor_id, r.report_type, r.report_level,
 			r.period_start, r.period_end, r.status, r.report_data,
 			r.submitted_at, r.approved_at, r.created_at, r.updated_at,
 			COALESCE(u.first_name || ' ' || u.last_name, '') as reporter_name
 		FROM discipleship_reports r
-		LEFT JOIN users u ON r.reporter_id = u.id
-		WHERE 1=1
+		LEFT JOIN users u ON r.reporter_id = u.id AND u.church_id = $1
+		WHERE r.church_id = $1
 	`
-	args := []interface{}{}
-	argCount := 0
+	args := []interface{}{churchID}
+	argCount := 1
 
 	// Filtrar según jerarquía de discipulado:
 	// - Cola de aprobación (status=submitted): SIEMPRE filtrar por supervisor_id = yo,
@@ -144,7 +163,7 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 
 	query += " ORDER BY r.submitted_at DESC LIMIT 50"
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		c.Logger().Error("Error fetching reports:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -223,15 +242,16 @@ func extractGoalValueFromReport(goalType string, reportData map[string]interface
 // autoUpdateGoalProgressFromReport finds active automatic goal assignments for the reporter,
 // extracts the relevant value from their report_data, and runs the 3-step upward aggregation.
 // Designed to run as a goroutine (fire-and-forget).
-func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID string, reportData map[string]interface{}) {
+// Uses the global pool (*config.Database) since it runs after the tenant tx has committed.
+func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID string, reportData map[string]interface{}, churchID string) {
 	rows, err := db.DB.Query(`
 		SELECT ga.id, ga.goal_id, dg.goal_type
 		FROM goal_assignments ga
-		JOIN discipleship_goals dg ON ga.goal_id = dg.id
+		JOIN discipleship_goals dg ON ga.goal_id = dg.id AND dg.church_id = $2
 		WHERE ga.assigned_to = $1
 		  AND ga.status = 'active'
 		  AND dg.measurement_type = 'automatic'
-	`, reporterID)
+	`, reporterID, churchID)
 	if err != nil {
 		return
 	}
@@ -305,8 +325,8 @@ func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID 
 			UPDATE discipleship_goals g
 			SET current_value = COALESCE(
 				(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0)
-			WHERE g.id = $1
-		`, a.goalID)
+			WHERE g.id = $1 AND g.church_id = $2
+		`, a.goalID, churchID)
 
 		tx.Commit()
 	}
@@ -316,13 +336,22 @@ func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID 
 func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 	reportID := c.Param("id")
 	userID := c.Get("user_id").(string)
-	db := config.GetDB()
 
-	// Verificar que el usuario es supervisor del reporte
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	// Verificar que el usuario es supervisor del reporte (scoped to church)
 	var supervisorID, reporterID string
-	err := db.DB.QueryRow(`
-		SELECT supervisor_id, reporter_id FROM discipleship_reports WHERE id = $1
-	`, reportID).Scan(&supervisorID, &reporterID)
+	err = q.QueryRow(`
+		SELECT supervisor_id, reporter_id FROM discipleship_reports WHERE id = $1 AND church_id = $2
+	`, reportID, churchID).Scan(&supervisorID, &reporterID)
 
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{
@@ -332,7 +361,7 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 
 	// Verificar permisos
 	var userRole string
-	db.DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&userRole)
+	q.QueryRow("SELECT role FROM users WHERE id = $1 AND church_id = $2", userID, churchID).Scan(&userRole)
 
 	if supervisorID != userID && !utils.IsAdminRole(userRole) {
 		return c.JSON(http.StatusForbidden, map[string]string{
@@ -340,13 +369,13 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 		})
 	}
 
-	_, err = db.DB.Exec(fmt.Sprintf(`
+	_, err = q.Exec(fmt.Sprintf(`
 		UPDATE discipleship_reports SET
 			status = '%s',
 			approved_at = NOW(),
 			updated_at = NOW()
-		WHERE id = $1
-	`, utils.ReportStatusApproved), reportID)
+		WHERE id = $1 AND church_id = $2
+	`, utils.ReportStatusApproved), reportID, churchID)
 
 	if err != nil {
 		c.Logger().Error("Error approving report:", err)
@@ -356,6 +385,7 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 	}
 
 	// Notify reporter that their report was approved (fire-and-forget)
+	db := config.GetDB()
 	repID := reportID
 	repOrID := reporterID
 	go func() {
@@ -385,25 +415,33 @@ func (h *DiscipleshipReportsHandler) RejectReport(c echo.Context) error {
 	}
 	c.Bind(&req)
 
-	db := config.GetDB()
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
-	// Resolve reporter_id before UPDATE (mirrors ApproveReport pattern)
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	// Resolve reporter_id before UPDATE (scoped to church)
 	var reporterID string
-	err := db.DB.QueryRow(`
-		SELECT reporter_id FROM discipleship_reports WHERE id = $1
-	`, reportID).Scan(&reporterID)
+	err = q.QueryRow(`
+		SELECT reporter_id FROM discipleship_reports WHERE id = $1 AND church_id = $2
+	`, reportID, churchID).Scan(&reporterID)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{
 			"error": "Reporte no encontrado",
 		})
 	}
 
-	_, err = db.DB.Exec(`
+	_, err = q.Exec(`
 		UPDATE discipleship_reports SET
 			status = 'revision_required',
 			updated_at = NOW()
-		WHERE id = $1
-	`, reportID)
+		WHERE id = $1 AND church_id = $2
+	`, reportID, churchID)
 
 	if err != nil {
 		c.Logger().Error("Error rejecting report:", err)
@@ -413,6 +451,7 @@ func (h *DiscipleshipReportsHandler) RejectReport(c echo.Context) error {
 	}
 
 	// Notify reporter that their report needs revision (fire-and-forget)
+	db := config.GetDB()
 	repID := reportID
 	repOrID := reporterID
 	go func() {

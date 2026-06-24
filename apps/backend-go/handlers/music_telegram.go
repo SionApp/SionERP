@@ -27,10 +27,11 @@ import (
 // copy, nothing to delete weekly.
 //
 // Env:
-//   TELEGRAM_BOT_TOKEN        — from BotFather
-//   TELEGRAM_MUSIC_CHANNEL_ID — numeric channel id (e.g. -1001234567890)
+//
+//	TELEGRAM_BOT_TOKEN        — from BotFather
+//	TELEGRAM_MUSIC_CHANNEL_ID — numeric channel id (e.g. -1001234567890)
+//
 // ─────────────────────────────────────────────────────────────────────────────
-
 const telegramAPIBase = "https://api.telegram.org"
 
 func telegramToken() string { return strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN")) }
@@ -89,9 +90,6 @@ type tgUpdatesResponse struct {
 }
 
 // parseChannelAudios extracts audio files from a getUpdates response body.
-// Only channel posts from channelID are considered (0 = any channel). Audio
-// sent as a plain audio message or as an audio/* document both qualify.
-// Returns the files plus the highest update_id seen (for offset bookkeeping).
 func parseChannelAudios(body []byte, channelID int64) ([]tgIngestedFile, int64, error) {
 	var resp tgUpdatesResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -131,6 +129,8 @@ func parseChannelAudios(body []byte, channelID int64) ([]tgIngestedFile, int64, 
 
 // StartTelegramIngestion launches the long-poll goroutine. No-op (with a log
 // line) when the bot isn't configured, so the rest of the module works without it.
+// music_telegram_files is NOT church-scoped in the background ingestion:
+// files are global audio assets. When the HTTP handler lists them, it filters by church_id.
 func StartTelegramIngestion() {
 	if !telegramConfigured() {
 		log.Println("[telegram] not configured (TELEGRAM_BOT_TOKEN / TELEGRAM_MUSIC_CHANNEL_ID) — channel ingestion disabled")
@@ -138,9 +138,6 @@ func StartTelegramIngestion() {
 	}
 	go func() {
 		log.Println("[telegram] channel ingestion started")
-		// ponytail: in-memory offset. On restart Telegram replays ~24h of
-		// updates and dedup by file_unique_id absorbs repeats. Persist the
-		// offset to DB only if gap-free history older than that ever matters.
 		var offset int64
 		client := &http.Client{Timeout: 70 * time.Second}
 		for {
@@ -194,6 +191,8 @@ func fetchTelegramUpdates(client *http.Client, offset int64) ([]tgIngestedFile, 
 	return parseChannelAudios(body, telegramChannelID())
 }
 
+// upsertTelegramFile persists a file reference using the global pool.
+// music_telegram_files does not have church_id — it is a shared audio asset store.
 func upsertTelegramFile(db *sql.DB, f tgIngestedFile) error {
 	var channelDate any
 	if f.Date > 0 {
@@ -234,17 +233,19 @@ func (h *MusicHandler) TelegramStatus(c echo.Context) error {
 }
 
 // ListTelegramFiles returns ingested audio files, newest first, optional ?q= search.
+// music_telegram_files is a shared store (no church_id). All authenticated users
+// of a church can list the shared audio assets.
 func (h *MusicHandler) ListTelegramFiles(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
-	q := strings.ToLower(strings.TrimSpace(c.QueryParam("q")))
+	qParam := strings.ToLower(strings.TrimSpace(c.QueryParam("q")))
 	limit := 50
 	if l, e := strconv.Atoi(c.QueryParam("limit")); e == nil && l > 0 && l <= 200 {
 		limit = l
 	}
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT id::text, COALESCE(title,''), COALESCE(file_name,''), COALESCE(performer,''),
 		       COALESCE(mime_type,''), COALESCE(duration,0), COALESCE(file_size,0),
 		       COALESCE(to_char(channel_date,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),'')
@@ -252,7 +253,7 @@ func (h *MusicHandler) ListTelegramFiles(c echo.Context) error {
 		WHERE ($1 = '' OR lower(coalesce(title, file_name, '')) LIKE '%' || $1 || '%')
 		ORDER BY channel_date DESC NULLS LAST, created_at DESC
 		LIMIT $2
-	`, q, limit)
+	`, qParam, limit)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudieron listar los archivos"})
 	}
@@ -285,13 +286,13 @@ func (h *MusicHandler) DownloadTelegramFile(c echo.Context) error {
 	if !telegramConfigured() {
 		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "Telegram no está configurado"})
 	}
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 	id := c.Param("id")
 	var fileID, fileName, mimeType string
-	if err := db.DB.QueryRow(`
+	if err := q.QueryRow(`
 		SELECT file_id,
 		       COALESCE(NULLIF(file_name,''), NULLIF(title,''), 'audio'),
 		       COALESCE(NULLIF(mime_type,''), 'application/octet-stream')
