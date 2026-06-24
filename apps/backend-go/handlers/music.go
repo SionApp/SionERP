@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"backend-sion/config"
 	"backend-sion/utils"
 
 	"github.com/labstack/echo/v4"
@@ -104,7 +105,7 @@ func getMusicAccessInfo(c echo.Context) (musicAccessInfo, error) {
 
 	// Use level resolved by RequireModuleLevel middleware
 	if moduleLevel == 0 {
-		// Not set by middleware (e.g. public GET routes) — read from DB
+		// Not set by middleware (e.g. public GET routes) — read from DB (global pool, not tenant data)
 		db, err := getDBOrError(c)
 		if err != nil {
 			return musicAccessInfo{userID: userID, level: 0}, nil
@@ -120,15 +121,23 @@ func getMusicAccessInfo(c echo.Context) (musicAccessInfo, error) {
 		moduleLevel = lvl
 	}
 
-	// Resolve own member_id if nivel 1 (servidor)
+	// Resolve own member_id if nivel 1 (servidor) — scoped to church via music_members.church_id
 	info := musicAccessInfo{userID: userID, level: moduleLevel}
 	if moduleLevel < 5 {
+		churchID, _ := c.Get("church_id").(string)
 		db, err := getDBOrError(c)
 		if err == nil {
 			var mid string
-			err2 := db.DB.QueryRow(
-				`SELECT id FROM music_members WHERE user_id = $1 LIMIT 1`, userID,
-			).Scan(&mid)
+			var err2 error
+			if churchID != "" {
+				err2 = db.DB.QueryRow(
+					`SELECT id FROM music_members WHERE user_id = $1 AND church_id = $2 LIMIT 1`, userID, churchID,
+				).Scan(&mid)
+			} else {
+				err2 = db.DB.QueryRow(
+					`SELECT id FROM music_members WHERE user_id = $1 LIMIT 1`, userID,
+				).Scan(&mid)
+			}
 			if err2 == nil {
 				info.memberID = mid
 			}
@@ -214,6 +223,7 @@ const musicDirectorLevel = 5
 const musicServidorLevel = 1
 
 // upsertMusicModuleRole writes the caller's music module role (director vs servidor).
+// module_user_roles is NOT tenant-scoped — uses global pool.
 func upsertMusicModuleRole(db *sql.DB, userID string, isDirector bool, assignedBy string) {
 	if db == nil || userID == "" {
 		return
@@ -239,12 +249,16 @@ func upsertMusicModuleRole(db *sql.DB, userID string, isDirector bool, assignedB
 }
 
 func (h *MusicHandler) GetMembers(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT mm.id, mm.user_id,
 		       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS name,
 		       u.email,
@@ -253,11 +267,12 @@ func (h *MusicHandler) GetMembers(c echo.Context) error {
 		       to_char(mm.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(mm.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM music_members mm
-		JOIN users u ON u.id = mm.user_id
+		JOIN users u ON u.id = mm.user_id AND u.church_id = $1
 		LEFT JOIN module_user_roles mur
 		       ON mur.user_id = mm.user_id AND mur.module_key = 'music'
+		WHERE mm.church_id = $1
 		ORDER BY name ASC
-	`)
+	`, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener miembros"})
 	}
@@ -282,9 +297,13 @@ func (h *MusicHandler) GetMembers(c echo.Context) error {
 }
 
 func (h *MusicHandler) CreateMember(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	callerID, _ := c.Get("user_id").(string)
@@ -311,11 +330,11 @@ func (h *MusicHandler) CreateMember(c echo.Context) error {
 	}
 
 	var id string
-	err = db.DB.QueryRow(`
-		INSERT INTO music_members (user_id, funciones, instrument, is_active)
-		VALUES ($1, $2, $3, $4)
+	err = q.QueryRow(`
+		INSERT INTO music_members (user_id, funciones, instrument, is_active, church_id)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
-	`, req.UserID, sliceToPGArray(req.Funciones), req.Instrument, isActive).Scan(&id)
+	`, req.UserID, sliceToPGArray(req.Funciones), req.Instrument, isActive, churchID).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "El usuario ya es miembro del equipo de música"})
@@ -323,17 +342,21 @@ func (h *MusicHandler) CreateMember(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al crear miembro"})
 	}
 
-	// Assign the module role (director vs servidor) — independent of system role.
+	// Assign the module role (director vs servidor) — module_user_roles is global (not tenant-scoped)
 	isDirector := req.IsDirector != nil && *req.IsDirector
-	upsertMusicModuleRole(db.DB, req.UserID, isDirector, callerID)
+	upsertMusicModuleRole(config.GetDB().DB, req.UserID, isDirector, callerID)
 
 	return c.JSON(http.StatusCreated, map[string]string{"id": id, "message": "Miembro creado exitosamente"})
 }
 
 func (h *MusicHandler) UpdateMember(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	callerID, _ := c.Get("user_id").(string)
@@ -353,14 +376,14 @@ func (h *MusicHandler) UpdateMember(c echo.Context) error {
 		}
 	}
 
-	res, err := db.DB.Exec(`
+	res, err := q.Exec(`
 		UPDATE music_members
 		SET funciones   = COALESCE($2, funciones),
 		    instrument  = $3,
 		    is_active   = COALESCE($4, is_active),
 		    updated_at  = now()
-		WHERE id = $1
-	`, memberID, sliceToPGArrayOrNull(req.Funciones), req.Instrument, req.IsActive)
+		WHERE id = $1 AND church_id = $5
+	`, memberID, sliceToPGArrayOrNull(req.Funciones), req.Instrument, req.IsActive, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al actualizar miembro"})
 	}
@@ -370,10 +393,11 @@ func (h *MusicHandler) UpdateMember(c echo.Context) error {
 	}
 
 	// Update the module role only when the flag is explicitly provided.
+	// module_user_roles is global — use global pool.
 	if req.IsDirector != nil {
 		var userID string
-		if scanErr := db.DB.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1`, memberID).Scan(&userID); scanErr == nil {
-			upsertMusicModuleRole(db.DB, userID, *req.IsDirector, callerID)
+		if scanErr := q.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1 AND church_id = $2`, memberID, churchID).Scan(&userID); scanErr == nil {
+			upsertMusicModuleRole(config.GetDB().DB, userID, *req.IsDirector, callerID)
 		}
 	}
 
@@ -381,18 +405,22 @@ func (h *MusicHandler) UpdateMember(c echo.Context) error {
 }
 
 func (h *MusicHandler) DeleteMember(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
 	memberID := c.Param("id")
-	// Clean up the music module role for this user (best-effort).
+	// Clean up the music module role for this user (best-effort) — module_user_roles is global
 	var userID string
-	if scanErr := db.DB.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1`, memberID).Scan(&userID); scanErr == nil && userID != "" {
-		_, _ = db.DB.Exec(`DELETE FROM module_user_roles WHERE user_id = $1 AND module_key = 'music'`, userID)
+	if scanErr := q.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1 AND church_id = $2`, memberID, churchID).Scan(&userID); scanErr == nil && userID != "" {
+		_, _ = config.GetDB().DB.Exec(`DELETE FROM module_user_roles WHERE user_id = $1 AND module_key = 'music'`, userID)
 	}
-	res, err := db.DB.Exec(`DELETE FROM music_members WHERE id = $1`, memberID)
+	res, err := q.Exec(`DELETE FROM music_members WHERE id = $1 AND church_id = $2`, memberID, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al eliminar miembro"})
 	}
@@ -419,9 +447,13 @@ type eventRow struct {
 }
 
 func (h *MusicHandler) GetEvents(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	from := c.QueryParam("from")
@@ -433,9 +465,9 @@ func (h *MusicHandler) GetEvents(c echo.Context) error {
 		       to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(updated_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM music_events
-		WHERE 1=1
+		WHERE church_id = $1
 	`
-	args := []interface{}{}
+	args := []interface{}{churchID}
 	if from != "" {
 		args = append(args, from)
 		query += fmt.Sprintf(` AND event_date >= $%d`, len(args))
@@ -446,7 +478,7 @@ func (h *MusicHandler) GetEvents(c echo.Context) error {
 	}
 	query += ` ORDER BY event_date ASC`
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener eventos"})
 	}
@@ -464,20 +496,24 @@ func (h *MusicHandler) GetEvents(c echo.Context) error {
 }
 
 func (h *MusicHandler) GetEventByID(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	id := c.Param("id")
 	var e eventRow
-	err = db.DB.QueryRow(`
+	err = q.QueryRow(`
 		SELECT id, to_char(event_date,'YYYY-MM-DD'), event_type,
 		       title, notes, published,
 		       to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(updated_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-		FROM music_events WHERE id = $1
-	`, id).Scan(&e.ID, &e.EventDate, &e.EventType, &e.Title, &e.Notes, &e.Published, &e.CreatedAt, &e.UpdatedAt)
+		FROM music_events WHERE id = $1 AND church_id = $2
+	`, id, churchID).Scan(&e.ID, &e.EventDate, &e.EventType, &e.Title, &e.Notes, &e.Published, &e.CreatedAt, &e.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Evento no encontrado"})
 	}
@@ -488,9 +524,13 @@ func (h *MusicHandler) GetEventByID(c echo.Context) error {
 }
 
 func (h *MusicHandler) CreateEvent(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	var req struct {
@@ -510,11 +550,11 @@ func (h *MusicHandler) CreateEvent(c echo.Context) error {
 	}
 
 	var id string
-	err = db.DB.QueryRow(`
-		INSERT INTO music_events (event_date, event_type, title, notes)
-		VALUES ($1, $2, $3, $4)
+	err = q.QueryRow(`
+		INSERT INTO music_events (event_date, event_type, title, notes, church_id)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
-	`, req.EventDate, req.EventType, req.Title, req.Notes).Scan(&id)
+	`, req.EventDate, req.EventType, req.Title, req.Notes, churchID).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "Ya existe un evento de ese tipo en esa fecha"})
@@ -525,9 +565,13 @@ func (h *MusicHandler) CreateEvent(c echo.Context) error {
 }
 
 func (h *MusicHandler) UpdateEvent(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	id := c.Param("id")
@@ -545,7 +589,7 @@ func (h *MusicHandler) UpdateEvent(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "event_type inválido"})
 	}
 
-	res, err := db.DB.Exec(`
+	res, err := q.Exec(`
 		UPDATE music_events
 		SET event_date = COALESCE($2, event_date),
 		    event_type = COALESCE($3, event_type),
@@ -553,8 +597,8 @@ func (h *MusicHandler) UpdateEvent(c echo.Context) error {
 		    notes      = $5,
 		    published  = COALESCE($6, published),
 		    updated_at = now()
-		WHERE id = $1
-	`, id, req.EventDate, req.EventType, req.Title, req.Notes, req.Published)
+		WHERE id = $1 AND church_id = $7
+	`, id, req.EventDate, req.EventType, req.Title, req.Notes, req.Published, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al actualizar evento"})
 	}
@@ -566,13 +610,17 @@ func (h *MusicHandler) UpdateEvent(c echo.Context) error {
 }
 
 func (h *MusicHandler) DeleteEvent(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
 	id := c.Param("id")
-	res, err := db.DB.Exec(`DELETE FROM music_events WHERE id = $1`, id)
+	res, err := q.Exec(`DELETE FROM music_events WHERE id = $1 AND church_id = $2`, id, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al eliminar evento"})
 	}
@@ -586,9 +634,13 @@ func (h *MusicHandler) DeleteEvent(c echo.Context) error {
 // BatchCreateQuarterEvents creates all Fridays and Sundays for a given year+quarter.
 // Idempotent: ON CONFLICT DO NOTHING.
 func (h *MusicHandler) BatchCreateQuarterEvents(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	var req struct {
@@ -607,29 +659,20 @@ func (h *MusicHandler) BatchCreateQuarterEvents(c echo.Context) error {
 
 	dates := GenerateQuarterDates(req.Year, req.Quarter)
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al iniciar transacción"})
-	}
-	defer tx.Rollback()
-
+	// BatchCreateQuarterEvents runs within the TenantTx — use q directly (already inside tx)
 	inserted := 0
 	for _, d := range dates {
 		dateStr := d.Date.Format("2006-01-02")
-		res, err := tx.Exec(`
-			INSERT INTO music_events (event_date, event_type)
-			VALUES ($1, $2)
-			ON CONFLICT (event_date, event_type) DO NOTHING
-		`, dateStr, d.EventType)
+		res, err := q.Exec(`
+			INSERT INTO music_events (event_date, event_type, church_id)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (event_date, event_type, church_id) DO NOTHING
+		`, dateStr, d.EventType, churchID)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al insertar evento"})
 		}
 		n, _ := res.RowsAffected()
 		inserted += int(n)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al confirmar transacción"})
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -660,13 +703,17 @@ type assignmentRow struct {
 }
 
 func (h *MusicHandler) GetAssignments(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
 	eventID := c.Param("id")
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT ma.id, ma.event_id, ma.member_id,
 		       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS member_name,
 		       mm.instrument,
@@ -675,11 +722,11 @@ func (h *MusicHandler) GetAssignments(c echo.Context) error {
 		       to_char(ma.created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(ma.updated_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM music_assignments ma
-		JOIN music_members mm ON mm.id = ma.member_id
-		JOIN users u ON u.id = mm.user_id
+		JOIN music_members mm ON mm.id = ma.member_id AND mm.church_id = $2
+		JOIN users u ON u.id = mm.user_id AND u.church_id = $2
 		WHERE ma.event_id = $1
 		ORDER BY ma.funcion, ma.created_at
-	`, eventID)
+	`, eventID, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener asignaciones"})
 	}
@@ -702,9 +749,13 @@ func (h *MusicHandler) GetAssignments(c echo.Context) error {
 }
 
 func (h *MusicHandler) CreateAssignment(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	eventID := c.Param("id")
@@ -725,23 +776,25 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "funcion inválida"})
 	}
 
+	// Use global pool for resolveOrCreateMember since it manages music_members + module_user_roles
+	globalDB := config.GetDB().DB
+
 	// Resolve member: when only user_id is given, find-or-create the music_member
-	// (auto-onboard) and ensure the funcion is present in their funciones array.
 	memberID := req.MemberID
 	if memberID == "" {
-		mid, resolveErr := resolveOrCreateMember(db.DB, req.UserID, req.Funcion)
+		mid, resolveErr := resolveOrCreateMemberForChurch(globalDB, req.UserID, req.Funcion, churchID)
 		if resolveErr != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "No se pudo dar de alta al integrante"})
 		}
 		memberID = mid
 	} else {
 		// Existing member chosen directly — make sure they hold this funcion too.
-		ensureMemberFuncion(db.DB, memberID, req.Funcion)
+		ensureMemberFuncion(globalDB, memberID, req.Funcion)
 	}
 
 	// Resolve culto date for unavailability check
 	var cultoDate string
-	err = db.DB.QueryRow(`SELECT to_char(event_date,'YYYY-MM-DD') FROM music_events WHERE id = $1`, eventID).Scan(&cultoDate)
+	err = q.QueryRow(`SELECT to_char(event_date,'YYYY-MM-DD') FROM music_events WHERE id = $1 AND church_id = $2`, eventID, churchID).Scan(&cultoDate)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Evento no encontrado"})
 	}
@@ -750,7 +803,7 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 	}
 
 	// Check unavailability (INV-3: advisory only — never 4xx)
-	unavailabilityWarning := CheckMemberUnavailability(db.DB, memberID, cultoDate)
+	unavailabilityWarning := CheckMemberUnavailability(globalDB, memberID, cultoDate)
 
 	var assignedByVal interface{}
 	if callerID != "" {
@@ -758,7 +811,7 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 	}
 
 	var id string
-	err = db.DB.QueryRow(`
+	err = q.QueryRow(`
 		INSERT INTO music_assignments (event_id, member_id, funcion, state, assigned_by)
 		VALUES ($1, $2, $3, 'asignado', $4)
 		RETURNING id
@@ -780,14 +833,14 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 	if callerID != "" {
 		assignment.AssignedBy = &callerID
 	}
-	_ = db.DB.QueryRow(`
+	_ = q.QueryRow(`
 		SELECT TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), mm.instrument
-		FROM music_members mm JOIN users u ON u.id = mm.user_id
-		WHERE mm.id = $1
-	`, memberID).Scan(&assignment.MemberName, &assignment.Instrument)
+		FROM music_members mm JOIN users u ON u.id = mm.user_id AND u.church_id = $2
+		WHERE mm.id = $1 AND mm.church_id = $2
+	`, memberID, churchID).Scan(&assignment.MemberName, &assignment.Instrument)
 
 	// Notify the servidor that they have been assigned (advisory — never blocks).
-	emitAssignmentNotification(db.DB, id, unavailabilityWarning)
+	emitAssignmentNotification(globalDB, id, unavailabilityWarning)
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"assignment":             assignment,
@@ -797,7 +850,7 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 }
 
 func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
@@ -820,10 +873,10 @@ func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
 	// Read previous state to fire director notifications only on a real transition.
 	var prevState string
 	if req.State != nil {
-		_ = db.DB.QueryRow(`SELECT state FROM music_assignments WHERE id = $1`, id).Scan(&prevState)
+		_ = q.QueryRow(`SELECT state FROM music_assignments WHERE id = $1`, id).Scan(&prevState)
 	}
 
-	res, err := db.DB.Exec(`
+	res, err := q.Exec(`
 		UPDATE music_assignments
 		SET state      = COALESCE($2, state),
 		    funcion    = COALESCE($3, funcion),
@@ -839,12 +892,13 @@ func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
 	}
 
 	// Notify the director on a real state transition (advisory, never blocks).
+	globalDB := config.GetDB().DB
 	if req.State != nil && prevState != *req.State {
 		switch *req.State {
 		case "no_puedo":
-			emitNoPuedoNotifications(db.DB, id)
+			emitNoPuedoNotifications(globalDB, id)
 		case "confirmado":
-			emitConfirmedNotification(db.DB, id)
+			emitConfirmedNotification(globalDB, id)
 		}
 	}
 
@@ -852,13 +906,13 @@ func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
 }
 
 func (h *MusicHandler) DeleteAssignment(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
 	id := c.Param("id")
-	res, err := db.DB.Exec(`DELETE FROM music_assignments WHERE id = $1`, id)
+	res, err := q.Exec(`DELETE FROM music_assignments WHERE id = $1`, id)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al eliminar asignación"})
 	}
@@ -871,12 +925,23 @@ func (h *MusicHandler) DeleteAssignment(c echo.Context) error {
 
 // resolveOrCreateMember returns the music_member id for the given userID,
 // creating the member (auto-onboard) with the given funcion if none exists.
+// Uses global pool — operates on music_members + module_user_roles.
 func resolveOrCreateMember(db *sql.DB, userID, funcion string) (string, error) {
+	return resolveOrCreateMemberForChurch(db, userID, funcion, "")
+}
+
+// resolveOrCreateMemberForChurch is the church-scoped variant used by migrated handlers.
+func resolveOrCreateMemberForChurch(db *sql.DB, userID, funcion, churchID string) (string, error) {
 	if db == nil || userID == "" {
 		return "", fmt.Errorf("user_id requerido")
 	}
 	var memberID string
-	err := db.QueryRow(`SELECT id FROM music_members WHERE user_id = $1`, userID).Scan(&memberID)
+	var err error
+	if churchID != "" {
+		err = db.QueryRow(`SELECT id FROM music_members WHERE user_id = $1 AND church_id = $2`, userID, churchID).Scan(&memberID)
+	} else {
+		err = db.QueryRow(`SELECT id FROM music_members WHERE user_id = $1`, userID).Scan(&memberID)
+	}
 	if err == nil {
 		// Member already exists — ensure the funcion is in their array.
 		ensureMemberFuncion(db, memberID, funcion)
@@ -886,15 +951,23 @@ func resolveOrCreateMember(db *sql.DB, userID, funcion string) (string, error) {
 		return "", err
 	}
 	// Create the member with this single funcion.
-	err = db.QueryRow(`
-		INSERT INTO music_members (user_id, funciones, is_active)
-		VALUES ($1, $2, true)
-		RETURNING id
-	`, userID, sliceToPGArray([]string{funcion})).Scan(&memberID)
+	if churchID != "" {
+		err = db.QueryRow(`
+			INSERT INTO music_members (user_id, funciones, is_active, church_id)
+			VALUES ($1, $2, true, $3)
+			RETURNING id
+		`, userID, sliceToPGArray([]string{funcion}), churchID).Scan(&memberID)
+	} else {
+		err = db.QueryRow(`
+			INSERT INTO music_members (user_id, funciones, is_active)
+			VALUES ($1, $2, true)
+			RETURNING id
+		`, userID, sliceToPGArray([]string{funcion})).Scan(&memberID)
+	}
 	if err != nil {
 		return "", err
 	}
-	// Default module role: servidor (level 1).
+	// Default module role: servidor (level 1). module_user_roles is global.
 	upsertMusicModuleRole(db, userID, false, "")
 	return memberID, nil
 }
@@ -947,12 +1020,16 @@ type songRow struct {
 }
 
 func (h *MusicHandler) GetSongs(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
-	q := c.QueryParam("q")
+	qParam := c.QueryParam("q")
 
 	query := `
 		SELECT s.id, s.name, s.name_normalized, s.author, s.default_key, s.link,
@@ -962,23 +1039,24 @@ func (h *MusicHandler) GetSongs(c echo.Context) error {
 		LEFT JOIN LATERAL (
 		    SELECT mes.tono
 		    FROM music_event_songs mes
-		    JOIN music_events me ON me.id = mes.event_id
+		    JOIN music_events me ON me.id = mes.event_id AND me.church_id = $1
 		    WHERE mes.song_id = s.id
 		    ORDER BY me.event_date DESC
 		    LIMIT 1
 		) es ON true
+		WHERE s.church_id = $1
 	`
-	args := []interface{}{}
-	if q != "" {
-		args = append(args, strings.ToLower(strings.TrimSpace(q)))
-		query += fmt.Sprintf(` WHERE s.name_normalized ILIKE '%%' || $%d || '%%'`, len(args))
+	args := []interface{}{churchID}
+	if qParam != "" {
+		args = append(args, strings.ToLower(strings.TrimSpace(qParam)))
+		query += fmt.Sprintf(` AND s.name_normalized ILIKE '%%' || $%d || '%%'`, len(args))
 	}
 	query += ` ORDER BY s.name ASC`
-	if q == "" {
+	if qParam == "" {
 		query += ` LIMIT 50`
 	}
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener canciones"})
 	}
@@ -1012,19 +1090,23 @@ type eventSongRow struct {
 
 // GetEventSongs returns the repertorio (setlist) for an event, ordered.
 func (h *MusicHandler) GetEventSongs(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
 	eventID := c.Param("id")
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT mes.id, mes.event_id, mes.song_id, s.name, mes.tono, mes.order_index, s.link, mes.notes
 		FROM music_event_songs mes
-		JOIN music_songs s ON s.id = mes.song_id
+		JOIN music_songs s ON s.id = mes.song_id AND s.church_id = $2
 		WHERE mes.event_id = $1
 		ORDER BY mes.order_index ASC, s.name ASC
-	`, eventID)
+	`, eventID, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener repertorio"})
 	}
@@ -1053,9 +1135,13 @@ func (h *MusicHandler) GetEventSongs(c echo.Context) error {
 
 // AddSongToEvent upserts a song by normalized name, then links it to the event.
 func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	eventID := c.Param("id")
@@ -1076,17 +1162,17 @@ func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
 
 	normalized := NormalizeSongName(req.Name)
 
-	// Upsert song by normalized name; keep existing link/author when not provided
+	// Upsert song by normalized name within this church
 	var songID string
-	err = db.DB.QueryRow(`
-		INSERT INTO music_songs (name, name_normalized, author, link)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (name_normalized) DO UPDATE
+	err = q.QueryRow(`
+		INSERT INTO music_songs (name, name_normalized, author, link, church_id)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (name_normalized, church_id) DO UPDATE
 		SET name   = EXCLUDED.name,
 		    author = COALESCE(EXCLUDED.author, music_songs.author),
 		    link   = COALESCE(EXCLUDED.link, music_songs.link)
 		RETURNING id
-	`, strings.TrimSpace(req.Name), normalized, req.Author, req.Link).Scan(&songID)
+	`, strings.TrimSpace(req.Name), normalized, req.Author, req.Link, churchID).Scan(&songID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al registrar canción"})
 	}
@@ -1099,7 +1185,7 @@ func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
 	// Link to event
 	es := eventSongRow{EventID: eventID, SongID: songID, OrderIndex: orderIndex}
 	var tono, link, notes sql.NullString
-	err = db.DB.QueryRow(`
+	err = q.QueryRow(`
 		INSERT INTO music_event_songs (event_id, song_id, tono, order_index, notes)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (event_id, song_id) DO UPDATE
@@ -1129,7 +1215,7 @@ func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
 }
 
 func (h *MusicHandler) RemoveEventSong(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
@@ -1137,7 +1223,7 @@ func (h *MusicHandler) RemoveEventSong(c echo.Context) error {
 	eventID := c.Param("eventId")
 	songID := c.Param("songId")
 
-	res, err := db.DB.Exec(`
+	res, err := q.Exec(`
 		DELETE FROM music_event_songs WHERE event_id = $1 AND song_id = $2
 	`, eventID, songID)
 	if err != nil {
@@ -1152,9 +1238,13 @@ func (h *MusicHandler) RemoveEventSong(c echo.Context) error {
 
 // GetSongStats returns derived statistics for all songs (INV-4: computed at query time).
 func (h *MusicHandler) GetSongStats(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	limitParam := c.QueryParam("limit")
@@ -1165,7 +1255,7 @@ func (h *MusicHandler) GetSongStats(c echo.Context) error {
 		}
 	}
 
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT
 		    s.id,
 		    s.name,
@@ -1175,18 +1265,19 @@ func (h *MusicHandler) GetSongStats(c echo.Context) error {
 		    (
 		        SELECT mes2.tono
 		        FROM music_event_songs mes2
-		        JOIN music_events me2 ON me2.id = mes2.event_id
+		        JOIN music_events me2 ON me2.id = mes2.event_id AND me2.church_id = $1
 		        WHERE mes2.song_id = s.id
 		        ORDER BY me2.event_date DESC
 		        LIMIT 1
 		    )                                                               AS historical_key
 		FROM music_songs s
 		LEFT JOIN music_event_songs mes ON mes.song_id = s.id
-		LEFT JOIN music_events me ON me.id = mes.event_id
+		LEFT JOIN music_events me ON me.id = mes.event_id AND me.church_id = $1
+		WHERE s.church_id = $1
 		GROUP BY s.id, s.name, s.name_normalized
 		ORDER BY times_played DESC, last_played_date DESC NULLS LAST
-		LIMIT $1
-	`, limit)
+		LIMIT $2
+	`, churchID, limit)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener estadísticas"})
 	}
@@ -1236,7 +1327,7 @@ type unavailabilityRow struct {
 // Director (level 5): all rows, optional ?member_id= filter.
 // Servidor: only own member's rows.
 func (h *MusicHandler) GetUnavailability(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
@@ -1274,7 +1365,7 @@ func (h *MusicHandler) GetUnavailability(c echo.Context) error {
 
 	query += ` ORDER BY start_date DESC`
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener disponibilidad"})
 	}
@@ -1302,7 +1393,7 @@ func (h *MusicHandler) GetUnavailability(c echo.Context) error {
 // Servidor: can only create for themselves.
 // Director: can create for any member_id.
 func (h *MusicHandler) CreateUnavailability(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
@@ -1347,7 +1438,7 @@ func (h *MusicHandler) CreateUnavailability(c echo.Context) error {
 	}
 
 	var id string
-	err = db.DB.QueryRow(`
+	err = q.QueryRow(`
 		INSERT INTO music_unavailability (member_id, start_date, end_date, reason)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id
@@ -1363,7 +1454,7 @@ func (h *MusicHandler) CreateUnavailability(c echo.Context) error {
 // Own record: any music member.
 // Other records: director only.
 func (h *MusicHandler) DeleteUnavailability(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
@@ -1377,7 +1468,7 @@ func (h *MusicHandler) DeleteUnavailability(c echo.Context) error {
 
 	// Fetch the row to check ownership
 	var ownerMemberID string
-	err = db.DB.QueryRow(
+	err = q.QueryRow(
 		`SELECT member_id FROM music_unavailability WHERE id = $1`, unavailID,
 	).Scan(&ownerMemberID)
 	if err == sql.ErrNoRows {
@@ -1392,7 +1483,7 @@ func (h *MusicHandler) DeleteUnavailability(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "No tenés permiso para eliminar este registro"})
 	}
 
-	res, err := db.DB.Exec(`DELETE FROM music_unavailability WHERE id = $1`, unavailID)
+	res, err := q.Exec(`DELETE FROM music_unavailability WHERE id = $1`, unavailID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al eliminar registro"})
 	}
@@ -1405,7 +1496,7 @@ func (h *MusicHandler) DeleteUnavailability(c echo.Context) error {
 
 // GetMeAssignments returns assignments for the caller's own member record.
 func (h *MusicHandler) GetMeAssignments(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
@@ -1429,7 +1520,7 @@ func (h *MusicHandler) GetMeAssignments(c echo.Context) error {
 		CreatedAt  string `json:"created_at"`
 	}
 
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT ma.id, ma.event_id,
 		       to_char(me.event_date,'YYYY-MM-DD'),
 		       me.event_type,
@@ -1461,7 +1552,7 @@ func (h *MusicHandler) GetMeAssignments(c echo.Context) error {
 
 // GetMeUnavailability returns unavailability rows for the caller's own member record.
 func (h *MusicHandler) GetMeUnavailability(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
@@ -1474,7 +1565,7 @@ func (h *MusicHandler) GetMeUnavailability(c echo.Context) error {
 		return c.JSON(http.StatusOK, []unavailabilityRow{})
 	}
 
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT id, member_id,
 		       to_char(start_date,'YYYY-MM-DD'),
 		       to_char(end_date,'YYYY-MM-DD'),
@@ -1512,24 +1603,26 @@ func (h *MusicHandler) GetMeUnavailability(c echo.Context) error {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GetSuggestions returns candidate members for replacing the given assignment.
-// Single set-based query: same funcion, not already assigned to the culto (any funcion),
-// no overlapping unavailability range covering the culto date.
 func (h *MusicHandler) GetSuggestions(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
 	assignmentID := c.Param("id")
 
 	// Resolve assignment to get funcion + event_id + culto_date
 	var funcion, eventID, cultoDate string
-	err = db.DB.QueryRow(`
+	err = q.QueryRow(`
 		SELECT ma.funcion, ma.event_id, to_char(me.event_date,'YYYY-MM-DD')
 		FROM music_assignments ma
-		JOIN music_events me ON me.id = ma.event_id
+		JOIN music_events me ON me.id = ma.event_id AND me.church_id = $2
 		WHERE ma.id = $1
-	`, assignmentID).Scan(&funcion, &eventID, &cultoDate)
+	`, assignmentID, churchID).Scan(&funcion, &eventID, &cultoDate)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Asignación no encontrada"})
 	}
@@ -1538,15 +1631,16 @@ func (h *MusicHandler) GetSuggestions(c echo.Context) error {
 	}
 
 	// Single set-based query — no per-member loop
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT m.id,
 		       u.first_name,
 		       u.last_name,
 		       m.funciones,
 		       m.instrument
 		FROM music_members m
-		JOIN users u ON u.id = m.user_id
-		WHERE m.is_active = true
+		JOIN users u ON u.id = m.user_id AND u.church_id = $4
+		WHERE m.church_id = $4
+		  AND m.is_active = true
 		  AND $1 = ANY(m.funciones)
 		  AND m.id NOT IN (
 		      SELECT member_id FROM music_assignments
@@ -1559,7 +1653,7 @@ func (h *MusicHandler) GetSuggestions(c echo.Context) error {
 		        AND (mu.end_date IS NULL OR mu.end_date >= $3::date)
 		  )
 		ORDER BY u.first_name, u.last_name
-	`, funcion, eventID, cultoDate)
+	`, funcion, eventID, cultoDate, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener sugerencias"})
 	}
@@ -1611,17 +1705,16 @@ func ResolveNoPuedoTarget(assignedByID string, isStillDirector bool) NoPuedoTarg
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NOTIFICATIONS — no_puedo emit helper (Phase 8)
+// These helpers use the global pool (*sql.DB) — they run fire-and-forget
+// after the response and don't need the tenant tx.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // emitNoPuedoNotifications inserts notification rows when an assignment becomes no_puedo.
-// Design Decision 2: route to assigned_by director if still active; fallback to all directors.
-// This is advisory — errors are logged but never block the HTTP response.
 func emitNoPuedoNotifications(db *sql.DB, assignmentID string) {
 	if db == nil {
 		return
 	}
 
-	// Fetch assignment details: assigned_by, member user_id, event_date, funcion
 	var assignedBy sql.NullString
 	var memberUserID, eventDate, funcion string
 	err := db.QueryRow(`
@@ -1638,7 +1731,6 @@ func emitNoPuedoNotifications(db *sql.DB, assignmentID string) {
 		return
 	}
 
-	// Fetch member's display name
 	var firstName, lastName string
 	_ = db.QueryRow(
 		`SELECT first_name, last_name FROM users WHERE id = $1`, memberUserID,
@@ -1726,7 +1818,6 @@ func emitConfirmedNotification(db *sql.DB, assignmentID string) {
 
 // emitAssignmentNotification notifies the servidor that they have been assigned
 // to a culto, so they can confirm or decline.
-// Advisory — errors are logged but never block the HTTP response.
 func emitAssignmentNotification(db *sql.DB, assignmentID string, withWarning bool) {
 	if db == nil {
 		return

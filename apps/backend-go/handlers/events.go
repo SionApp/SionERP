@@ -79,6 +79,7 @@ func scanEvent(rows interface {
 	return d, nil
 }
 
+// eventSelect — $1 = caller user_id, $2 = church_id
 const eventSelect = `
 	SELECT e.id::text, e.title, COALESCE(e.description,''),
 	       to_char(e.event_date,'YYYY-MM-DD'),
@@ -93,20 +94,25 @@ const eventSelect = `
 // GetEvents lists events. ?published=true returns only published; ?upcoming=true
 // only future events. Each row carries attendees_count and the caller's my_status.
 func (h *EventsHandler) GetEvents(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 	userID, _ := c.Get("user_id").(string)
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 	onlyPublished := c.QueryParam("published") == "true"
 	onlyUpcoming := c.QueryParam("upcoming") == "true"
 
 	query := eventSelect + `
-		WHERE ($2 = false OR e.is_published = true)
-		  AND ($3 = false OR e.event_date >= CURRENT_DATE)
+		WHERE e.church_id = $2
+		  AND ($3 = false OR e.is_published = true)
+		  AND ($4 = false OR e.event_date >= CURRENT_DATE)
 		ORDER BY e.event_date ASC, e.start_time ASC`
 
-	rows, err := db.DB.Query(query, userID, onlyPublished, onlyUpcoming)
+	rows, err := q.Query(query, userID, churchID, onlyPublished, onlyUpcoming)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudieron listar los eventos"})
 	}
@@ -124,12 +130,16 @@ func (h *EventsHandler) GetEvents(c echo.Context) error {
 }
 
 func (h *EventsHandler) GetEventByID(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 	userID, _ := c.Get("user_id").(string)
-	row := db.DB.QueryRow(eventSelect+` WHERE e.id = $2`, userID, c.Param("id"))
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	row := q.QueryRow(eventSelect+` WHERE e.church_id = $2 AND e.id = $3`, userID, churchID, c.Param("id"))
 	d, scanErr := scanEvent(row)
 	if scanErr != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "evento no encontrado"})
@@ -153,9 +163,13 @@ func validateEventRequest(req *eventRequest, requireTitleDate bool) (string, boo
 
 // CreateEvent — staff+.
 func (h *EventsHandler) CreateEvent(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 	var req eventRequest
 	if err := c.Bind(&req); err != nil {
@@ -170,17 +184,17 @@ func (h *EventsHandler) CreateEvent(c echo.Context) error {
 	callerID, _ := c.Get("user_id").(string)
 
 	var id string
-	err = db.DB.QueryRow(`
+	err = q.QueryRow(`
 		INSERT INTO events (title, description, event_date, start_time, end_time, location,
 		                    category, is_recurring, is_published, max_attendees, organizer,
-		                    image_url, created_by)
+		                    image_url, created_by, church_id)
 		VALUES ($1, NULLIF($2,''), $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''),
 		        $7, COALESCE($8,false), COALESCE($9,false), $10, NULLIF($11,''), NULLIF($12,''),
-		        NULLIF($13,'')::uuid)
+		        NULLIF($13,'')::uuid, $14)
 		RETURNING id::text
 	`, req.Title, req.Description, req.EventDate, req.StartTime, req.EndTime, req.Location,
 		req.Category, req.IsRecurring, req.IsPublished, req.MaxAttendees, req.Organizer,
-		req.ImageURL, callerID).Scan(&id)
+		req.ImageURL, callerID, churchID).Scan(&id)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo crear el evento"})
 	}
@@ -189,9 +203,13 @@ func (h *EventsHandler) CreateEvent(c echo.Context) error {
 
 // UpdateEvent — staff+. COALESCE keeps existing values when a field is omitted.
 func (h *EventsHandler) UpdateEvent(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 	var req eventRequest
 	if err := c.Bind(&req); err != nil {
@@ -201,7 +219,7 @@ func (h *EventsHandler) UpdateEvent(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": msg})
 	}
 
-	res, err := db.DB.Exec(`
+	res, err := q.Exec(`
 		UPDATE events SET
 			title         = COALESCE(NULLIF(TRIM($2),''), title),
 			description   = COALESCE($3, description),
@@ -216,10 +234,10 @@ func (h *EventsHandler) UpdateEvent(c echo.Context) error {
 			organizer     = COALESCE($12, organizer),
 			image_url     = COALESCE($13, image_url),
 			updated_at    = now()
-		WHERE id = $1
+		WHERE id = $1 AND church_id = $14
 	`, c.Param("id"), req.Title, req.Description, req.EventDate, req.StartTime, req.EndTime,
 		req.Location, req.Category, req.IsRecurring, req.IsPublished, req.MaxAttendees,
-		req.Organizer, req.ImageURL)
+		req.Organizer, req.ImageURL, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo actualizar el evento"})
 	}
@@ -231,11 +249,15 @@ func (h *EventsHandler) UpdateEvent(c echo.Context) error {
 
 // DeleteEvent — staff+.
 func (h *EventsHandler) DeleteEvent(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
-	res, err := db.DB.Exec(`DELETE FROM events WHERE id = $1`, c.Param("id"))
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	res, err := q.Exec(`DELETE FROM events WHERE id = $1 AND church_id = $2`, c.Param("id"), churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo eliminar el evento"})
 	}
@@ -247,9 +269,13 @@ func (h *EventsHandler) DeleteEvent(c echo.Context) error {
 
 // Register — the caller RSVPs (status going/maybe/cancelled). Any member.
 func (h *EventsHandler) Register(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 	callerID, _ := c.Get("user_id").(string)
 	if callerID == "" {
@@ -267,7 +293,14 @@ func (h *EventsHandler) Register(c echo.Context) error {
 	}
 	eventID := c.Param("id")
 
-	_, err = db.DB.Exec(`
+	// Verify the event belongs to this church
+	var exists bool
+	q.QueryRow("SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND church_id = $2)", eventID, churchID).Scan(&exists)
+	if !exists {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "evento no encontrado"})
+	}
+
+	_, err = q.Exec(`
 		INSERT INTO event_registrations (event_id, user_id, status)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (event_id, user_id) DO UPDATE SET status = EXCLUDED.status
@@ -280,12 +313,12 @@ func (h *EventsHandler) Register(c echo.Context) error {
 
 // Unregister — the caller cancels their RSVP entirely.
 func (h *EventsHandler) Unregister(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 	callerID, _ := c.Get("user_id").(string)
-	_, err = db.DB.Exec(
+	_, err = q.Exec(
 		`DELETE FROM event_registrations WHERE event_id = $1 AND user_id = $2`,
 		c.Param("id"), callerID,
 	)
@@ -297,20 +330,24 @@ func (h *EventsHandler) Unregister(c echo.Context) error {
 
 // GetRegistrations — attendee list for an event (staff+).
 func (h *EventsHandler) GetRegistrations(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
-	rows, err := db.DB.Query(`
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	rows, err := q.Query(`
 		SELECT er.user_id::text,
 		       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS name,
 		       COALESCE(u.email,''), er.status,
 		       to_char(er.created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM event_registrations er
-		JOIN users u ON u.id = er.user_id
+		JOIN users u ON u.id = er.user_id AND u.church_id = $2
 		WHERE er.event_id = $1
 		ORDER BY er.status, name
-	`, c.Param("id"))
+	`, c.Param("id"), churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudieron listar las inscripciones"})
 	}

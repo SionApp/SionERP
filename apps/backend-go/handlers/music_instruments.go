@@ -39,17 +39,22 @@ type instrumentRequest struct {
 
 // GetInstruments lists the catalog. ?active=true filters to active only.
 func (h *MusicHandler) GetInstruments(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 	onlyActive := c.QueryParam("active") == "true"
-	rows, err := db.DB.Query(`
+	rows, err := q.Query(`
 		SELECT id::text, name, category, is_active, sort_order
 		FROM music_instruments
-		WHERE ($1 = false OR is_active = true)
+		WHERE church_id = $1
+		  AND ($2 = false OR is_active = true)
 		ORDER BY sort_order ASC, name ASC
-	`, onlyActive)
+	`, churchID, onlyActive)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudieron listar los instrumentos"})
 	}
@@ -68,9 +73,13 @@ func (h *MusicHandler) GetInstruments(c echo.Context) error {
 
 // CreateInstrument adds a catalog entry (director, level 5).
 func (h *MusicHandler) CreateInstrument(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 	var req instrumentRequest
 	if err := c.Bind(&req); err != nil {
@@ -93,11 +102,11 @@ func (h *MusicHandler) CreateInstrument(c echo.Context) error {
 	}
 
 	var d instrumentDTO
-	err = db.DB.QueryRow(`
-		INSERT INTO music_instruments (name, category, sort_order)
-		VALUES ($1, $2, $3)
+	err = q.QueryRow(`
+		INSERT INTO music_instruments (name, category, sort_order, church_id)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id::text, name, category, is_active, sort_order
-	`, req.Name, category, sortOrder).Scan(&d.ID, &d.Name, &d.Category, &d.IsActive, &d.SortOrder)
+	`, req.Name, category, sortOrder, churchID).Scan(&d.ID, &d.Name, &d.Category, &d.IsActive, &d.SortOrder)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "ese instrumento ya existe"})
@@ -109,9 +118,13 @@ func (h *MusicHandler) CreateInstrument(c echo.Context) error {
 
 // UpdateInstrument edits name/category/active/order (director, level 5).
 func (h *MusicHandler) UpdateInstrument(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 	id := c.Param("id")
 	var req instrumentRequest
@@ -124,15 +137,15 @@ func (h *MusicHandler) UpdateInstrument(c echo.Context) error {
 
 	var d instrumentDTO
 	// COALESCE keeps existing values when a field is omitted.
-	err = db.DB.QueryRow(`
+	err = q.QueryRow(`
 		UPDATE music_instruments SET
 			name       = COALESCE(NULLIF(TRIM($2), ''), name),
 			category   = COALESCE(NULLIF($3, ''), category),
 			is_active  = COALESCE($4, is_active),
 			sort_order = COALESCE($5, sort_order)
-		WHERE id = $1
+		WHERE id = $1 AND church_id = $6
 		RETURNING id::text, name, category, is_active, sort_order
-	`, id, req.Name, req.Category, req.IsActive, req.SortOrder).
+	`, id, req.Name, req.Category, req.IsActive, req.SortOrder, churchID).
 		Scan(&d.ID, &d.Name, &d.Category, &d.IsActive, &d.SortOrder)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
@@ -148,12 +161,16 @@ func (h *MusicHandler) UpdateInstrument(c echo.Context) error {
 
 // DeleteInstrument removes a catalog entry (director, level 5).
 func (h *MusicHandler) DeleteInstrument(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 	id := c.Param("id")
-	res, err := db.DB.Exec(`DELETE FROM music_instruments WHERE id = $1`, id)
+	res, err := q.Exec(`DELETE FROM music_instruments WHERE id = $1 AND church_id = $2`, id, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo eliminar el instrumento"})
 	}
