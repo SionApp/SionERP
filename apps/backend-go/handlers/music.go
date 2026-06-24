@@ -223,8 +223,8 @@ const musicDirectorLevel = 5
 const musicServidorLevel = 1
 
 // upsertMusicModuleRole writes the caller's music module role (director vs servidor).
-// module_user_roles is NOT tenant-scoped — uses global pool.
-func upsertMusicModuleRole(db *sql.DB, userID string, isDirector bool, assignedBy string) {
+// Uses the global DB pool but scoped by church_id for multi-tenancy.
+func upsertMusicModuleRole(db *sql.DB, userID string, isDirector bool, assignedBy, churchID string) {
 	if db == nil || userID == "" {
 		return
 	}
@@ -239,13 +239,13 @@ func upsertMusicModuleRole(db *sql.DB, userID string, isDirector bool, assignedB
 		assigner = assignedBy
 	}
 	_, _ = db.Exec(`
-		INSERT INTO module_user_roles (user_id, module_key, role_level, role_name, assigned_by)
-		VALUES ($1, 'music', $2, $3, $4)
-		ON CONFLICT (user_id, module_key)
+		INSERT INTO module_user_roles (church_id, user_id, module_key, role_level, role_name, assigned_by)
+		VALUES ($1, $2, 'music', $3, $4, $5)
+		ON CONFLICT (church_id, user_id, module_key)
 		DO UPDATE SET role_level = EXCLUDED.role_level,
 		              role_name  = EXCLUDED.role_name,
 		              updated_at = now()
-	`, userID, level, roleName, assigner)
+	`, churchID, userID, level, roleName, assigner)
 }
 
 func (h *MusicHandler) GetMembers(c echo.Context) error {
@@ -342,9 +342,9 @@ func (h *MusicHandler) CreateMember(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al crear miembro"})
 	}
 
-	// Assign the module role (director vs servidor) — module_user_roles is global (not tenant-scoped)
+	// Assign the module role (director vs servidor) — scoped by church_id
 	isDirector := req.IsDirector != nil && *req.IsDirector
-	upsertMusicModuleRole(config.GetDB().DB, req.UserID, isDirector, callerID)
+	upsertMusicModuleRole(config.GetDB().DB, req.UserID, isDirector, callerID, churchID)
 
 	return c.JSON(http.StatusCreated, map[string]string{"id": id, "message": "Miembro creado exitosamente"})
 }
@@ -393,11 +393,10 @@ func (h *MusicHandler) UpdateMember(c echo.Context) error {
 	}
 
 	// Update the module role only when the flag is explicitly provided.
-	// module_user_roles is global — use global pool.
 	if req.IsDirector != nil {
 		var userID string
 		if scanErr := q.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1 AND church_id = $2`, memberID, churchID).Scan(&userID); scanErr == nil {
-			upsertMusicModuleRole(config.GetDB().DB, userID, *req.IsDirector, callerID)
+			upsertMusicModuleRole(config.GetDB().DB, userID, *req.IsDirector, callerID, churchID)
 		}
 	}
 
@@ -967,8 +966,8 @@ func resolveOrCreateMemberForChurch(db *sql.DB, userID, funcion, churchID string
 	if err != nil {
 		return "", err
 	}
-	// Default module role: servidor (level 1). module_user_roles is global.
-	upsertMusicModuleRole(db, userID, false, "")
+	// Default module role: servidor (level 1). module_user_roles is scoped by church_id.
+	upsertMusicModuleRole(db, userID, false, "", churchID)
 	return memberID, nil
 }
 
@@ -1892,9 +1891,7 @@ func sliceToPGArray(s []string) string {
 		return "{}"
 	}
 	quoted := make([]string, len(s))
-	for i, v := range s {
-		quoted[i] = v
-	}
+	copy(quoted, s)
 	return "{" + strings.Join(quoted, ",") + "}"
 }
 

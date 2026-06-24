@@ -1198,14 +1198,14 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 	roleName := discipleshipLevelName(req.HierarchyLevel)
 	assignedBy, _ := c.Get("user_id").(string)
 	_, err = q.Exec(`
-		INSERT INTO module_user_roles (user_id, module_key, role_level, role_name, assigned_by)
-		VALUES ($1, 'discipleship', $2, $3, $4)
-		ON CONFLICT (user_id, module_key) DO UPDATE
+		INSERT INTO module_user_roles (church_id, user_id, module_key, role_level, role_name, assigned_by)
+		VALUES ($1, $2, 'discipleship', $3, $4, $5)
+		ON CONFLICT (church_id, user_id, module_key) DO UPDATE
 		  SET role_level  = EXCLUDED.role_level,
 		      role_name   = EXCLUDED.role_name,
 		      assigned_by = EXCLUDED.assigned_by,
 		      updated_at  = NOW()
-	`, req.UserID, req.HierarchyLevel, roleName, nullIfEmpty(assignedBy))
+	`, churchID, req.UserID, req.HierarchyLevel, roleName, nullIfEmpty(assignedBy))
 	if err != nil {
 		// No bloqueante: logueamos pero no fallamos la petición
 		c.Logger().Errorf("⚠ Error sincronizando module_user_roles para user %s: %v", req.UserID, err)
@@ -1877,10 +1877,10 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 	defer rows.Close()
 
 	type WeeklyTrend struct {
-		WeekStart       string  `json:"week_start"`
-		TotalAttendance int     `json:"total_attendance"`
-		TotalVisitors   int     `json:"total_visitors"`
-		GroupsReporting int     `json:"groups_reporting"`
+		WeekStart       string `json:"week_start"`
+		TotalAttendance int    `json:"total_attendance"`
+		TotalVisitors   int    `json:"total_visitors"`
+		GroupsReporting int    `json:"groups_reporting"`
 	}
 
 	var trends []WeeklyTrend
