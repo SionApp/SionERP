@@ -121,6 +121,24 @@ func (h *PermissionsHandler) GetModuleRole(c echo.Context) error {
 	).Scan(&roleLevel, &roleName)
 
 	if err == sql.ErrNoRows {
+		// Fallback para discipleship: si el usuario tiene nivel en discipleship_hierarchy,
+		// ese nivel es su acceso al módulo (coordinadora nivel 4, supervisor nivel 3, etc.)
+		if moduleKey == "discipleship" {
+			var hierarchyLevel int
+			fallbackErr := db.DB.QueryRow(
+				`SELECT hierarchy_level FROM discipleship_hierarchy WHERE user_id = $1 LIMIT 1`,
+				userID,
+			).Scan(&hierarchyLevel)
+			if fallbackErr == nil && hierarchyLevel > 0 {
+				levelNames := map[int]string{1: "Líder", 2: "Supervisor Auxiliar", 3: "Supervisor General", 4: "Coordinador", 5: "Pastoral"}
+				return c.JSON(http.StatusOK, map[string]interface{}{
+					"module":     moduleKey,
+					"role_level": hierarchyLevel,
+					"role_name":  levelNames[hierarchyLevel],
+					"is_admin":   false,
+				})
+			}
+		}
 		return c.JSON(http.StatusNotFound, map[string]string{
 			"error":  "no_module_role",
 			"module": moduleKey,
