@@ -44,7 +44,7 @@ DO $$
 BEGIN
     EXECUTE 'GRANT SET ON PARAMETER app.current_church_id TO jetro_app';
 EXCEPTION
-    WHEN syntax_error OR feature_not_supported THEN
+    WHEN syntax_error OR feature_not_supported OR insufficient_privilege THEN
         -- PG version does not support GRANT SET ON PARAMETER — skip
         NULL;
 END;
