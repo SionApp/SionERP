@@ -3,6 +3,7 @@ package middleware
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -158,9 +159,18 @@ func SupabaseAuth() echo.MiddlewareFunc {
 			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", actualUserID, claims.Email, dbRole)
 
 			// Resolve church_id: prefer JWT app_metadata claim (Phase 0+).
-			// Fallback to users.church_id column once Phase 2a adds it.
-			// TODO(phase 2a): query users.church_id as fallback when claim is absent.
+			// Fallback to users.church_id column for tokens issued before Phase 2a
+			// JWT backfill ran (i.e., existing sessions that haven't refreshed yet).
+			// Uses the global pool — the tenant tx doesn't exist yet at this point.
 			churchID := claims.AppMeta.ChurchID
+			if churchID == "" && db != nil && db.DB != nil {
+				var dbChurchID sql.NullString
+				if qErr := db.DB.QueryRow(
+					"SELECT church_id FROM users WHERE id = $1", actualUserID,
+				).Scan(&dbChurchID); qErr == nil && dbChurchID.Valid {
+					churchID = dbChurchID.String
+				}
+			}
 
 			// Agregar claims al contexto - USAR SIEMPRE EL BUSINESS UUID (id)
 			c.Set("user", claims)

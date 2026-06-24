@@ -46,12 +46,12 @@ func validateZoneBoundaries(boundaries json.RawMessage) error {
 // GetZones obtiene todas las zonas
 
 func (h *ZonesHandler) GetZones(c echo.Context) error {
-	db, err := validateDB(c)
-
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	churchID, _ := c.Get("church_id").(string)
 	isActiveParam := c.QueryParam("is_active")
 
 	query := `
@@ -72,6 +72,13 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 	args := []interface{}{}
 	argCount := 0
 
+	// ── Tenant isolation: scope to current church ──
+	if churchID != "" {
+		argCount++
+		query += fmt.Sprintf(" AND z.church_id = $%d", argCount)
+		args = append(args, churchID)
+	}
+
 	if isActiveParam != "" {
 		argCount++
 		query += fmt.Sprintf(" AND z.is_active = $%d", argCount)
@@ -80,7 +87,7 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 
 	query += " ORDER BY z.name"
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		c.Logger().Error("Error fetching zones:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -110,11 +117,12 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 
 func (h *ZonesHandler) GetZone(c echo.Context) error {
 	zoneID := c.Param("id")
-	db, err := validateDB(c)
-
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+
+	churchID, _ := c.Get("church_id").(string)
 
 	query := `
 	SELECT
@@ -127,11 +135,11 @@ func (h *ZonesHandler) GetZone(c echo.Context) error {
 		COALESCE(u.first_name || ' ' || u.last_name, '') as supervisor_name
 		FROM zones z
 		LEFT JOIN users u ON z.supervisor_id = u.id
-		WHERE z.id = $1
+		WHERE z.id = $1 AND z.church_id = $2
 	`
 
 	var z models.ZoneWithDetails
-	err = db.DB.QueryRow(query, zoneID).Scan(
+	err = db.QueryRow(query, zoneID, churchID).Scan(
 		&z.ID, &z.Name, &z.Description, &z.Color, &z.SupervisorID,
 		&z.Boundaries, &z.CenterLat, &z.CenterLng, &z.IsActive,
 		&z.TotalGroups, &z.TotalMembers, &z.AvgAttendance,
@@ -172,12 +180,12 @@ func (h *ZonesHandler) CreateZone(c echo.Context) error {
 		})
 	}
 
-	db, err := validateDB(c)
-
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	churchID, _ := c.Get("church_id").(string)
 	color := "#3b82f6"
 
 	if req.Color != "" {
@@ -185,8 +193,8 @@ func (h *ZonesHandler) CreateZone(c echo.Context) error {
 	}
 
 	query := `
-		INSERT INTO zones (name, description, color, supervisor_id, boundaries, center_lat, center_lng)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO zones (name, description, color, supervisor_id, boundaries, center_lat, center_lng, church_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`
 
@@ -212,7 +220,7 @@ func (h *ZonesHandler) CreateZone(c echo.Context) error {
 	}
 
 	var zoneID string
-	err = db.DB.QueryRow(
+	err = db.QueryRow(
 		query,
 		req.Name,
 		description,
@@ -221,6 +229,7 @@ func (h *ZonesHandler) CreateZone(c echo.Context) error {
 		boundaries,
 		req.CenterLat,
 		req.CenterLng,
+		churchID,
 	).Scan(&zoneID)
 
 	if err != nil {
@@ -254,10 +263,12 @@ func (h *ZonesHandler) UpdateZone(c echo.Context) error {
 		}
 	}
 
-	db, err := validateDB(c)
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+
+	churchID, _ := c.Get("church_id").(string)
 
 	query := "UPDATE zones SET updated_at = NOW()"
 	args := []interface{}{}
@@ -317,7 +328,11 @@ func (h *ZonesHandler) UpdateZone(c echo.Context) error {
 	query += fmt.Sprintf(" WHERE id = $%d", argCount)
 	args = append(args, zoneID)
 
-	result, err := db.DB.Exec(query, args...)
+	argCount++
+	query += fmt.Sprintf(" AND church_id = $%d", argCount)
+	args = append(args, churchID)
+
+	result, err := db.Exec(query, args...)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error al actualizar zona",
@@ -341,21 +356,22 @@ func (h *ZonesHandler) UpdateZone(c echo.Context) error {
 // DeleteZone - Elimina una zona, pero primero verifica si hay grupos asignados para evitar eliminar zonas activas con grupos asociados. Si hay grupos, devuelve un error indicando que no se puede eliminar la zona.
 func (h *ZonesHandler) DeleteZone(c echo.Context) error {
 	zoneID := c.Param("id")
-	db, err := validateDB(c)
-
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	churchID, _ := c.Get("church_id").(string)
+
 	var groupCount int
-	err = db.DB.QueryRow("SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = $1", zoneID).Scan(&groupCount)
+	err = db.QueryRow("SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = $1 AND church_id = $2", zoneID, churchID).Scan(&groupCount)
 	if err == nil && groupCount > 0 {
 		return c.JSON(http.StatusConflict, map[string]string{
 			"error": fmt.Sprintf("No se puede eliminar la zona porque tiene %d grupos asignados", groupCount),
 		})
 	}
 
-	result, err := db.DB.Exec("DELETE FROM zones WHERE id = $1", zoneID)
+	result, err := db.Exec("DELETE FROM zones WHERE id = $1 AND church_id = $2", zoneID, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error al eliminar zona",
@@ -378,10 +394,12 @@ func (h *ZonesHandler) DeleteZone(c echo.Context) error {
 // GetZoneStats obtiene estadísticas detalladas de una zona
 func (h *ZonesHandler) GetZoneStats(c echo.Context) error {
 	zoneID := c.Param("id")
-	db, err := validateDB(c)
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+
+	churchID, _ := c.Get("church_id").(string)
 
 	query := `
 		SELECT
@@ -389,31 +407,31 @@ func (h *ZonesHandler) GetZoneStats(c echo.Context) error {
 			z.id,
 			COALESCE(COUNT(DISTINCT g.id), 0) as total_groups,
 			COALESCE(
-				(SELECT COUNT(*) FROM discipleship_group_members gm 
-				 JOIN discipleship_groups g2 ON gm.group_id = g2.id 
-				 WHERE g2.zone_id = z.id AND gm.is_active = true),
+				(SELECT COUNT(*) FROM discipleship_group_members gm
+				 JOIN discipleship_groups g2 ON gm.group_id = g2.id
+				 WHERE g2.zone_id = z.id AND gm.is_active = true AND g2.church_id = $2),
 				0
 			) as total_members,
 			COALESCE(
 				(SELECT ROUND(AVG(CASE WHEN present THEN 100.0 ELSE 0.0 END), 2)
 				 FROM discipleship_attendance a
 				 JOIN discipleship_groups g3 ON a.group_id = g3.id
-				 WHERE g3.zone_id = z.id
+				 WHERE g3.zone_id = z.id AND g3.church_id = $2
 				 AND a.meeting_date >= CURRENT_DATE - INTERVAL '30 days'),
 				0
 			) as avg_attendance,
 			COALESCE(
-				(SELECT COUNT(DISTINCT g2.leader_id) FROM discipleship_groups g2 WHERE g2.zone_id = z.id),
+				(SELECT COUNT(DISTINCT g2.leader_id) FROM discipleship_groups g2 WHERE g2.zone_id = z.id AND g2.church_id = $2),
 				0
 			) as active_leaders
 		FROM zones z
-		LEFT JOIN discipleship_groups g ON g.zone_id = z.id AND g.status = 'active'
-		WHERE z.id = $1
+		LEFT JOIN discipleship_groups g ON g.zone_id = z.id AND g.status = 'active' AND g.church_id = $2
+		WHERE z.id = $1 AND z.church_id = $2
 		GROUP BY z.id, z.name
 		`
 
 	var stats models.ZoneStats
-	err = db.DB.QueryRow(query, zoneID).Scan(
+	err = db.QueryRow(query, zoneID, churchID).Scan(
 		&stats.ZoneName,
 		&stats.ZoneID,
 		&stats.TotalGroups,
@@ -442,10 +460,12 @@ func (h *ZonesHandler) GetZoneStats(c echo.Context) error {
 
 func (h *ZonesHandler) GetZoneGroups(c echo.Context) error {
 	zoneID := c.Param("id")
-	db, err := validateDB(c)
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+
+	churchID, _ := c.Get("church_id").(string)
 
 	query := `
 		SELECT
@@ -458,13 +478,13 @@ func (h *ZonesHandler) GetZoneGroups(c echo.Context) error {
 			COALESCE(u.first_name || ' ' || u.last_name, 'Sin líder') as leader_name,
 			COALESCE(s.first_name || ' ' || s.last_name, '') as supervisor_name
 			FROM discipleship_groups as g
-			LEFT JOIN zones z ON g.zone_id = z.id
+			LEFT JOIN zones z ON g.zone_id = z.id AND z.church_id = g.church_id
 			LEFT JOIN users u ON g.leader_id = u.id
 			LEFT JOIN users s ON g.supervisor_id = s.id
-			WHERE g.zone_id = $1
+			WHERE g.zone_id = $1 AND g.church_id = $2
 			ORDER BY g.group_name
 	`
-	rows, err := db.DB.Query(query, zoneID)
+	rows, err := db.Query(query, zoneID, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error al obtener grupos",
@@ -492,11 +512,12 @@ func (h *ZonesHandler) GetZoneGroups(c echo.Context) error {
 
 // GetMapaData obtiene datos geográficos de las zonas para mostrar en un mapa y grupos asociados para renderizar en el mapa
 func (h *ZonesHandler) GetMapData(c echo.Context) error {
-	db, err := validateDB(c)
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	churchID, _ := c.Get("church_id").(string)
 	isActiveParam := c.QueryParam("is_active")
 	selectedZoneID := c.QueryParam("zone_id")
 
@@ -537,8 +558,8 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 		COALESCE(gs.first_name || ' ' || gs.last_name, '') as group_supervisor_name
 	FROM zones z
 	LEFT JOIN users zu ON z.supervisor_id = zu.id
-	LEFT JOIN discipleship_groups g ON g.zone_id = z.id
-	LEFT JOIN zones z2 ON g.zone_id = z2.id
+	LEFT JOIN discipleship_groups g ON g.zone_id = z.id AND g.church_id = z.church_id
+	LEFT JOIN zones z2 ON g.zone_id = z2.id AND z2.church_id = z.church_id
 	LEFT JOIN users gl ON g.leader_id = gl.id
 	LEFT JOIN users gs ON g.supervisor_id = gs.id
 	WHERE 1=1
@@ -546,6 +567,13 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 
 	args := []interface{}{}
 	argCount := 0
+
+	// ── Tenant isolation ──
+	if churchID != "" {
+		argCount++
+		query += fmt.Sprintf(" AND z.church_id = $%d", argCount)
+		args = append(args, churchID)
+	}
 
 	if isActiveParam != "" {
 		argCount++
@@ -561,7 +589,7 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 
 	query += " ORDER BY z.name, g.group_name"
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		c.Logger().Error("Error fetching map data:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -625,13 +653,15 @@ func (h *ZonesHandler) AssignGroupToZone(c echo.Context) error {
 	zoneID := c.Param("id")
 	groupID := c.Param("groupId")
 
-	db, err := validateDB(c)
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	churchID, _ := c.Get("church_id").(string)
+
 	var zoneExists bool
-	err = db.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM zones WHERE id = $1)", zoneID).Scan(&zoneExists)
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM zones WHERE id = $1 AND church_id = $2)", zoneID, churchID).Scan(&zoneExists)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error al verificar zona",
@@ -643,11 +673,11 @@ func (h *ZonesHandler) AssignGroupToZone(c echo.Context) error {
 		})
 	}
 
-	_, err = db.DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE discipleship_groups
 		SET zone_id = $1, updated_at = NOW()
-		WHERE id = $2
-	`, zoneID, groupID)
+		WHERE id = $2 AND church_id = $3
+	`, zoneID, groupID, churchID)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -670,13 +700,15 @@ func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 	}
 	c.Bind(&req)
 
-	db, err := validateDB(c)
+	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	churchID, _ := c.Get("church_id").(string)
+
 	var zoneExists bool
-	err = db.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM zones WHERE id = $1)", zoneID).Scan(&zoneExists)
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM zones WHERE id = $1 AND church_id = $2)", zoneID, churchID).Scan(&zoneExists)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error al verificar zona",
@@ -702,7 +734,11 @@ func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 	query += fmt.Sprintf(" WHERE id = $%d", argCount)
 	args = append(args, userID)
 
-	_, err = db.DB.Exec(query, args...)
+	argCount++
+	query += fmt.Sprintf(" AND church_id = $%d", argCount)
+	args = append(args, churchID)
+
+	_, err = db.Exec(query, args...)
 
 	if err != nil {
 		c.Logger().Error("Error assigning user to zone:", err)
