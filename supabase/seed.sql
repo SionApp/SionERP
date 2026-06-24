@@ -9,6 +9,18 @@
 
 SET session_replication_role = replica;
 
+-- Set DEFAULT for church_id on tables seeded here so existing INSERTs
+-- (which predate the multi-tenancy migration) work without modification.
+-- The canonical Sion church UUID is 00000000-0000-0000-0000-00000000515e.
+ALTER TABLE IF EXISTS public.modules                ALTER COLUMN church_id SET DEFAULT '00000000-0000-0000-0000-00000000515e';
+ALTER TABLE IF EXISTS public.zones                  ALTER COLUMN church_id SET DEFAULT '00000000-0000-0000-0000-00000000515e';
+ALTER TABLE IF EXISTS public.users                  ALTER COLUMN church_id SET DEFAULT '00000000-0000-0000-0000-00000000515e';
+ALTER TABLE IF EXISTS public.discipleship_levels    ALTER COLUMN church_id SET DEFAULT '00000000-0000-0000-0000-00000000515e';
+ALTER TABLE IF EXISTS public.discipleship_hierarchy ALTER COLUMN church_id SET DEFAULT '00000000-0000-0000-0000-00000000515e';
+ALTER TABLE IF EXISTS public.discipleship_groups    ALTER COLUMN church_id SET DEFAULT '00000000-0000-0000-0000-00000000515e';
+ALTER TABLE IF EXISTS public.discipleship_group_members ALTER COLUMN church_id SET DEFAULT '00000000-0000-0000-0000-00000000515e';
+ALTER TABLE IF EXISTS public.discipleship_attendance ALTER COLUMN church_id SET DEFAULT '00000000-0000-0000-0000-00000000515e';
+
 -- ========================
 -- MÓDULOS
 -- ========================
@@ -18,7 +30,7 @@ INSERT INTO public.modules (key, name, description, is_installed, installed_at) 
   ('zones',        'Zonas',         'Gestión de zonas territoriales',                        true,  NOW()),
   ('events',       'Eventos',       'Eventos de la iglesia',                                 false, NULL),
   ('reports',      'Informes',      'Informes y estadísticas avanzadas',                     false, NULL)
-ON CONFLICT (key) DO UPDATE SET
+ON CONFLICT (church_id, key) DO UPDATE SET
   is_installed = EXCLUDED.is_installed,
   installed_at = CASE WHEN EXCLUDED.is_installed THEN COALESCE(modules.installed_at, NOW()) ELSE NULL END;
 
@@ -933,7 +945,7 @@ INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zo
   ('9cae572a-b0f7-4de9-bbc5-65599991ab59', 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', 1, NOW(), NOW()),
   ('aa2d39ad-1f7a-4069-b318-76dcff83d271', 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', 1, NOW(), NOW()),
   ('57fd04eb-8a3d-420d-afd6-48e79fc306a9', 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', 1, NOW(), NOW())
-ON CONFLICT (user_id) DO NOTHING;
+ON CONFLICT (church_id, user_id) DO NOTHING;
 
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, active_groups_assigned, created_at, updated_at) VALUES
   ('c5bf3872-22f6-473e-82ad-1900a8dc0f8f', 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', 1, NOW(), NOW()),
@@ -970,7 +982,7 @@ INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zo
   ('8c858a00-fd72-49ba-9148-af95a1f65774', 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', 1, NOW(), NOW()),
   ('22a2329c-3644-4b02-a6f5-b710f3748b7d', 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', 1, NOW(), NOW()),
   ('e8f760d3-445e-4a0c-8083-7dc9715547dd', 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', 1, NOW(), NOW())
-ON CONFLICT (user_id) DO NOTHING;
+ON CONFLICT (church_id, user_id) DO NOTHING;
 
 -- ========================
 -- MIEMBROS POR GRUPO
@@ -1589,7 +1601,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9507199';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 4, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9507199'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 4, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 4, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- Alilia Josefina Sánchez de Gómez | nivel 4 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1605,7 +1617,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7356713';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 4, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7356713'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 4, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 4, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- Ruthdy Esther Lameda Gómez | nivel 4 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1621,7 +1633,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '16709124';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 4, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '16709124'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 4, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 4, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- Elvis Rafael Laguna Medina | nivel 4 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1637,7 +1649,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '19617387';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 4, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '19617387'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 4, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 4, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- ZULEIMA DEL VALLE MAIMO DIAZ | nivel 3 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1653,7 +1665,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9521496';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 3, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9521496'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- CLENNY DEL VALLE SIRA ORIA | nivel 2 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1669,7 +1681,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '13202178';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '13202178'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- JOSE GREGORIO FERRER PAZ | nivel 2 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1685,7 +1697,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '12588794';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '12588794'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- EDGAR CHIRINOS | nivel 2 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1701,7 +1713,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '12733299';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '12733299'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- REIMAR BRIZUELA | nivel 2 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1717,7 +1729,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '25945469';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '25945469'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- ROSMARY QUERO | nivel 2 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1733,7 +1745,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '12734324';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '12734324'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- JESÚS ALEXANDER PIÑEREZ ZAVALA | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1749,7 +1761,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '13496864';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '13496864'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- YILEINA ENCARNACIÓN JIMÉNEZ DÍAZ | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1765,7 +1777,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7497122';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7497122'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- YASMIRA LISBETH MARTINEZ | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1781,7 +1793,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '15777250';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '15777250'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- NOHEMI MARGARITA LUGO | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1797,7 +1809,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7499576';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7499576'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- ISMARY GÓMEZ | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1813,7 +1825,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '20295113';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '20295113'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- ROSA COLINA | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1829,7 +1841,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11474700';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11474700'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- JOCSIMAR JEANNETTE DE LA CHIQUINQUIRA GARCÍA GÓMEZ | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1845,7 +1857,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '32148887';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '32148887'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- MARITZA SOTO | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1861,7 +1873,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '74803239';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '74803239'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- MIGDALIA GARCÍA | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1877,7 +1889,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '12735725';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '12735725'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- LUIS DANIEL GARCÍA | nivel 1 | OESTE 1
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1893,7 +1905,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '21113689';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000001-0000-0000-0000-000000000001', 'OESTE 1', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '21113689'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000001-0000-0000-0000-000000000001', zone_name = 'OESTE 1', updated_at = NOW();
 
 -- CRIZALIDA MARGARITA SANCHEZ GONZALEZ | nivel 3 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1909,7 +1921,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9923269';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 3, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9923269'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- JOSEFINA VARGAS GUTIÉRREZ | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1925,7 +1937,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11140668';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11140668'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- OSIRIS EMILIA VENTURA | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1941,7 +1953,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7497207';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7497207'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- CARMEN JULIA COLINA MORA | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1957,7 +1969,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11805120';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11805120'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- DAILY COROMOTO PIÑA CASTRO | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1973,7 +1985,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9930073';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9930073'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- ROSA RAMONA VERGARA ACOSTA | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -1989,7 +2001,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9520759';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9520759'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- ANA DUBIZ HERNANDEZ GARCIA | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2005,7 +2017,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '14397236';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '14397236'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- ELEIDA ESTHER DIAZ QUEIPO | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2021,7 +2033,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '15917326';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '15917326'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- YONELA COROMOTO SÁNCHEZ | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2037,7 +2049,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '14490743';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '14490743'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- RITA DEL CARMEN GUTIERREZ SALGUEIRO | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2053,7 +2065,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '12180101';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '12180101'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- JUDITH CAZOLA | nivel 2 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2069,7 +2081,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9925972';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9925972'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- ALEXIS JOSÉ GUTIERREZ MIQUILENA | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2085,7 +2097,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '20680940';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '20680940'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- YOANA JESUS MOLINA CHIRINO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2101,7 +2113,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '14794089';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '14794089'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- JOSE JULIAN LARA CATARI | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2117,7 +2129,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '26991221';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '26991221'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- ELIZABETH DEL VALLE HERNANDEZ | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2133,7 +2145,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '16520887';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '16520887'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- MIRIAN MARBELLA MIQUILENA ARGUELLOS | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2149,7 +2161,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9925776';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9925776'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- INDRA VALENTINA RUJANA FERRER | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2165,7 +2177,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '14027295';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '14027295'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- MARLENE JOSEFINA VILLAVICENCIO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2181,7 +2193,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '10705661';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '10705661'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- NILZA JOSEFINA RAMIREZ BRAVO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2197,7 +2209,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11293157';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11293157'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- ENMANUEL JESUS GARCIA CHIRINO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2213,7 +2225,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '25784232';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '25784232'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- DANIEL JOSUE AGÜERO SUAREZ | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2229,7 +2241,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '14792185';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '14792185'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- NORMEDY LOURDES RAMIREZ DE GARCIA | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2245,7 +2257,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '15238321';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '15238321'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- JANIS  DEL  VALLE ESPINOZA DE PEREIRA | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2261,7 +2273,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11139547';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11139547'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- JOSUE DAVID ARIAS | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2277,7 +2289,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '25370891';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '25370891'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- LIGIA GREGORIA HERNANDEZ | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2293,7 +2305,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9503112';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9503112'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- DORALIS  YAJAIRA PALMO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2309,7 +2321,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '12184131';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '12184131'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- JOSIERIKA SINAI BRAVO IGLESIAS | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2325,7 +2337,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '25371060';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '25371060'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- ALCIFREDO ANTONIO OCANDO  RIVERO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2341,7 +2353,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7478667';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7478667'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- ANA DEL CARMEN SUAREZ PEROZO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2357,7 +2369,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9529125';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9529125'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- MARYORIS TEODORA ARIAS MANZANO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2373,7 +2385,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '10705286';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '10705286'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- XIOMARA JOSEFINA SANCHEZ CHIRINOS | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2389,7 +2401,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9517319';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9517319'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- WILMER TADEO MORALES SIRAX | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2405,7 +2417,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '19253822';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '19253822'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- JENIFFER DAVIANA ROMERO FALCON | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2421,7 +2433,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '19006902';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '19006902'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- LUIS SEGUNDO CORDERO | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2437,7 +2449,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9506762';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9506762'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- IREXSI YANIRA SANCHEZ  HERRERA | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2453,7 +2465,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '17628947';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '17628947'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- JUANA PETRONILA ROMERO  MARTINEZ | nivel 1 | OESTE 2
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2469,7 +2481,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9509997';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000002-0000-0000-0000-000000000002', 'OESTE 2', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9509997'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000002-0000-0000-0000-000000000002', zone_name = 'OESTE 2', updated_at = NOW();
 
 -- GIORENNY COLINA | nivel 3 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2485,7 +2497,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '18770281';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 3, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '18770281'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- ANA AUXILIADORA COLINA CHIRINOS | nivel 2 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2501,7 +2513,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '5295103';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '5295103'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- MARIA ANA LEAL GUTIERREZ | nivel 2 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2517,7 +2529,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9507185';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9507185'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- GEYRIS BENELLÁN | nivel 2 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2533,7 +2545,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '19251801';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '19251801'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- ELIA YAMILET BERMUDEZ MORALES | nivel 2 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2549,7 +2561,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11801318';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11801318'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- GENNY JOSE MORENO MEDINA | nivel 2 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2565,7 +2577,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '17027598';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '17027598'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- ALIDA BRACHO | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2581,7 +2593,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '5284077';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '5284077'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- ARGELIA SARAIS CASTRO DE VERIS | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2597,7 +2609,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '28251068';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '28251068'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- MAGNA ELIZABETH ARTEAGA DE PORTILLO | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2613,7 +2625,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '16438200';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '16438200'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- FRANKLIN ANTONIO SANCHEZ CHIRINOS | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2629,7 +2641,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11473249';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11473249'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- YOLIMAR MARIA COLINA LEAL | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2645,7 +2657,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '20931721';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '20931721'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- CLARA RAFAELA ROMERO SANGRONIS | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2661,7 +2673,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7495787';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7495787'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- ELY Y SIVIRA G | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2677,7 +2689,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7474107';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7474107'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- EMILYS EDITHA CALDERON MEDINA | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2693,7 +2705,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '29641085';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '29641085'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- FRANCISCO ELIEZER SANCHEZ CHIRINOS | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2709,7 +2721,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9510274';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9510274'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- WILLY JOSE ALVARADO ARIAS | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2725,7 +2737,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '17923932';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '17923932'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- CARMEN ZORAIDA PETIT QUINTERO | nivel 1 | OESTE 3
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2741,7 +2753,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '8775946';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000003-0000-0000-0000-000000000003', 'OESTE 3', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '8775946'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000003-0000-0000-0000-000000000003', zone_name = 'OESTE 3', updated_at = NOW();
 
 -- NERIA JOSEFINA CUICAS DE EGURROLA | nivel 3 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2757,7 +2769,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7491778';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 3, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7491778'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- LISBETH ANDERSON | nivel 3 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2773,7 +2785,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '10706514';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 3, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '10706514'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 3, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- ENEIDA MARGARITA ARECHE CHIRINOS | nivel 2 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2789,7 +2801,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '16170410';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '16170410'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- BELÉN DEL CARMEN NOGUERA DE GÓMEZ | nivel 2 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2805,7 +2817,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '17629840';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '17629840'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- DAVID DORANTE VARGAS | nivel 2 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2821,7 +2833,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '16348671';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '16348671'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- YESSICA BEATRIZ GUTIERREZ MORA | nivel 2 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2837,7 +2849,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '24590147';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '24590147'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- ELISA MARIA DORANTE VARGAS | nivel 2 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2853,7 +2865,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '12181505';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '12181505'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- ZORYED GUADALUOPE CHIRINOS SANCHEZ | nivel 2 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2869,7 +2881,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '17923279';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '17923279'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- MARÍA ELENA PERNALETE DE DORANTE | nivel 2 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2885,7 +2897,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '15917942';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 2, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '15917942'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 2, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- ALBERT EDUARDO GUTIERREZ ARECHE | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2901,7 +2913,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '31627532';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '31627532'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- LENIS ESCOBAR | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2917,7 +2929,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11802623';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11802623'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- MARIA EUGENIA CHIRINOS VARGAS | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2933,7 +2945,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9511009';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9511009'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- YOSELYN ERNESTINA MEDINA MEDINA | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2949,7 +2961,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '25945349';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '25945349'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- HECYARLI LÓPEZ | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2965,7 +2977,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '25127640';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '25127640'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- CARMEN VICTORIA RUIZ RIVERO | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2981,7 +2993,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '21112888';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '21112888'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- DAYMI ILARRETA MEDINA | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -2997,7 +3009,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '13901440';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '13901440'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- OLEIDYS B FERNANDEZ | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3013,7 +3025,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '14654462';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '14654462'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- MAGALY JOSEFINA GARMENDIA DE CASTRO | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3029,7 +3041,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '10700793';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '10700793'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- SOLANGELA NAZARETH GONZALEZ PRIMERA | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3045,7 +3057,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '19253785';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '19253785'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- YRIS JOSEFINA HERNANDEZ TELLERIA | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3061,7 +3073,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '9929236';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '9929236'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- ELVIS CANDELARIA CALDERON ROJAS | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3077,7 +3089,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '4108978';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '4108978'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- ALICIA JOSEFINA DUNO PRADO | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3093,7 +3105,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '11804364';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '11804364'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- YELITZA JOSEFINA SANCHEZ | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3109,7 +3121,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '10704547';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '10704547'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- MARINA AMAYA RIERA | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3125,7 +3137,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '24787570';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '24787570'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- VICNELLY AGUILAR ACOSTA | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3141,7 +3153,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '12732554';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '12732554'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- NORYS JOSEFINA ACOSTA VILLAVICENCIO | nivel 1 | ESTE
 INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, baptized, baptism_date, birth_date, discipleship_level, zone_id, zone_name, is_active, is_active_member, created_at, updated_at)
@@ -3157,7 +3169,7 @@ UPDATE public.users SET
 WHERE regexp_replace(id_number, '\D', '', 'g') = '7491081';
 INSERT INTO public.discipleship_hierarchy (user_id, hierarchy_level, zone_id, zone_name, created_at, updated_at)
 SELECT id, 1, 'c0000004-0000-0000-0000-000000000004', 'ESTE', NOW(), NOW() FROM public.users WHERE regexp_replace(id_number, '\D', '', 'g') = '7491081'
-ON CONFLICT (user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
+ON CONFLICT (church_id, user_id) DO UPDATE SET hierarchy_level = 1, zone_id = 'c0000004-0000-0000-0000-000000000004', zone_name = 'ESTE', updated_at = NOW();
 
 -- ========================
 -- CABLEADO DE SUPERVISIÓN
