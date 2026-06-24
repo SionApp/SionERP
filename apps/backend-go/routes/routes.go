@@ -14,6 +14,7 @@ func SetupRoutes(e *echo.Echo) {
 	userHandler := handlers.NewUserHandler()
 	dashboardHandler := handlers.NewDashboardHandler()
 	authHandler := handlers.NewAuthHandler()
+	onboardingHandler := handlers.NewOnboardingHandler()
 
 	// API routes
 	api := e.Group("/api/v1")
@@ -31,6 +32,13 @@ func SetupRoutes(e *echo.Echo) {
 	// Auth routes (públicas)
 	api.POST("/auth/login", authHandler.Login)
 	api.POST("/auth/logout", authHandler.Logout)
+
+	// Onboarding routes (públicas — unauthenticated, outside protected group + TenantTx)
+	// POST /api/v1/onboarding/church — provision a new church + first admin user
+	// IMPORTANT: this route is intentionally outside protected group. TenantTx MUST NOT
+	// run here because no church_id context exists yet when the church is being created.
+	onboarding := api.Group("/onboarding")
+	onboarding.POST("/church", onboardingHandler.ProvisionChurch)
 
 	// Protected routes (require authentication)
 	protected := api.Group("")
