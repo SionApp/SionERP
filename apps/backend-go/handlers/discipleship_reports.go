@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -65,6 +66,58 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error al crear reporte",
 		})
+	}
+
+	// Write-through: update report_compliance for this user+week inside the same
+	// tenant-scoped transaction. This flips a missed row to late/on_time immediately
+	// when someone submits after the Saturday sweep has already run.
+	//
+	// Status logic:
+	//   - on_time: submitted at or before Saturday 23:59:59
+	//   - late:    submitted after Saturday 23:59:59 (sweep already ran, status was missed)
+	//
+	// CASE guard in ON CONFLICT:
+	//   - missed   → flip to on_time/late (the backfill scenario)
+	//   - on_time  → keep on_time (already submitted; no downgrade)
+	//   - late     → keep late    (no downgrade)
+	//   - pending  → set to on_time/late
+	if req.PeriodStart != "" {
+		isoW, wMonday, wSaturday, wDue, parseErr := isoWeekFromDateStr(req.PeriodStart)
+		if parseErr == nil {
+			submitStatus := "on_time"
+			if time.Now().After(timeAtEndOfDay(wDue)) {
+				submitStatus = "late"
+			}
+
+			_, _ = q.Exec(`
+				INSERT INTO report_compliance
+					(church_id, user_id, iso_week, period_start, period_end, due_date, status, report_id)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				ON CONFLICT (church_id, user_id, iso_week) DO UPDATE
+				SET
+					status = CASE
+						WHEN report_compliance.status = 'missed'             THEN $7
+						WHEN report_compliance.status IN ('on_time', 'late') THEN report_compliance.status
+						ELSE $7
+					END,
+					report_id  = EXCLUDED.report_id,
+					updated_at = now()
+			`, churchID, userID, isoW, wMonday, wSaturday, wDue, submitStatus, reportID)
+
+			// Recompute missed_count (the count decrements when missed→late/on_time).
+			var missed int
+			_ = q.QueryRow(`
+				SELECT COUNT(*)
+				FROM report_compliance
+				WHERE church_id = $1 AND user_id = $2 AND status = 'missed'
+			`, churchID, userID).Scan(&missed)
+
+			_, _ = q.Exec(`
+				UPDATE report_compliance
+				SET missed_count = $1, updated_at = now()
+				WHERE church_id = $2 AND user_id = $3
+			`, missed, churchID, userID)
+		}
 	}
 
 	// Auto-update automatic goal progress from report data (fire-and-forget)
