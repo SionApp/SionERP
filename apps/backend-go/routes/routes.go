@@ -132,6 +132,7 @@ func SetupRoutes(e *echo.Echo) {
 	reportsHandler := handlers.NewDiscipleshipReportsHandler()
 	alertsHandler := handlers.NewDiscipleshipAlertsHandler()
 	schedulerHandler := handlers.NewSchedulerHandler()
+	complianceHandler := handlers.NewReportComplianceHandler()
 	discipleship := protected.Group("/discipleship")
 	discipleship.Use(middleware.RequireModule(utils.ModuleDiscipleship)) // Enforce Discipleship Module
 	{
@@ -217,6 +218,13 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.GET("/dashboard-stats", discipleshipHandler.GetDashboardStatsByLevel)
 		discipleship.GET("/leaders/:id/stats", discipleshipHandler.GetLeaderGroupStats)
 		discipleship.GET("/supervisors/:id/subordinates", discipleshipHandler.GetSupervisorSubordinates)
+
+		// Zone rollup (PR1) — pre-fills supervision report modal totals
+		discipleship.GET("/zone-rollup", reportsHandler.GetZoneRollup)
+
+		// Compliance (PR1) — per-user per-ISO-week compliance tracking
+		discipleship.GET("/compliance/me", complianceHandler.GetMyCompliance)
+		discipleship.GET("/compliance/subordinates", complianceHandler.GetSubordinatesCompliance)
 	}
 
 	// Notifications routes (any authenticated user)
