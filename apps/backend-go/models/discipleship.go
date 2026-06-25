@@ -138,6 +138,7 @@ type DiscipleshipAlert struct {
 	Priority       int        `json:"priority"`
 	RelatedGroupID *string    `json:"related_group_id"`
 	RelatedUserID  *string    `json:"related_user_id"`
+	AddressedTo    *string    `json:"addressed_to,omitempty" db:"addressed_to"`
 	ZoneID         *string    `json:"zone_id" db:"zone_id"`
 	ZoneName       *string    `json:"zone_name" db:"zone_name"` // Obtenido de JOIN, mantener para compatibilidad
 	ActionRequired bool       `json:"action_required"`
@@ -302,6 +303,37 @@ type AddGroupMemberRequest struct {
 type UpdateGroupMemberRequest struct {
 	RoleInGroup *string `json:"role_in_group,omitempty"`
 	IsActive    *bool   `json:"is_active,omitempty"`
+}
+
+// =====================================================
+// CUMPLIMIENTO DE REPORTES (report_compliance)
+// =====================================================
+
+type ReportCompliance struct {
+	ID               string     `json:"id" db:"id"`
+	ChurchID         string     `json:"church_id" db:"church_id"`
+	UserID           string     `json:"user_id" db:"user_id"`
+	IsoWeek          string     `json:"iso_week" db:"iso_week"`
+	PeriodStart      string     `json:"period_start" db:"period_start"`
+	PeriodEnd        string     `json:"period_end" db:"period_end"`
+	DueDate          string     `json:"due_date" db:"due_date"`
+	Status           string     `json:"status" db:"status"`
+	ReportID         *string    `json:"report_id,omitempty" db:"report_id"`
+	MissedCount      int        `json:"missed_count" db:"missed_count"`
+	EscalationSent   bool       `json:"escalation_sent" db:"escalation_sent"`
+	NotifiedFailer   bool       `json:"notified_failer" db:"notified_failer"`
+	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// SubordinateComplianceRow is the shape returned by GetSubordinatesCompliance.
+type SubordinateComplianceRow struct {
+	UserID      string `json:"user_id"`
+	UserName    string `json:"user_name"`
+	IsoWeek     string `json:"iso_week"`
+	PeriodStart string `json:"period_start"`
+	Status      string `json:"status"`
+	MissedCount int    `json:"missed_count"`
 }
 
 // =====================================================

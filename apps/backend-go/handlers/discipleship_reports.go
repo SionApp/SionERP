@@ -332,6 +332,98 @@ func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID 
 	}
 }
 
+// GetZoneRollup sums level-1 leader reports in the caller's zone for the given
+// period (period_start..period_end). Used by the supervision report modal to
+// pre-fill zone totals.
+//
+// GET /api/v1/discipleship/zone-rollup?period_start=YYYY-MM-DD&period_end=YYYY-MM-DD
+//
+// Response:
+//
+//	{
+//	  zone_total_discipleships: int,
+//	  zone_total_evangelism:    int,
+//	  contributing_leaders:     int,   -- distinct reporters with a submitted/approved report
+//	  unmapped_leaders:         int,   -- level-1 hierarchy users with NULL zone_id
+//	  caller_unmapped:          bool   -- true when the caller has no zone_id
+//	}
+func (h *DiscipleshipReportsHandler) GetZoneRollup(c echo.Context) error {
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	userID := c.Get("user_id").(string)
+	ps := c.QueryParam("period_start")
+	pe := c.QueryParam("period_end")
+	if ps == "" || pe == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "period_start and period_end are required (YYYY-MM-DD)",
+		})
+	}
+
+	// Resolve caller's zone_id from their discipleship_hierarchy row (church-scoped).
+	var zoneID sql.NullString
+	q.QueryRow(
+		`SELECT zone_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2`,
+		userID, churchID,
+	).Scan(&zoneID)
+
+	if !zoneID.Valid || zoneID.String == "" {
+		// Caller has no zone — return zeroes and flag so the UI can warn.
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"zone_total_discipleships": 0,
+			"zone_total_evangelism":    0,
+			"contributing_leaders":     0,
+			"unmapped_leaders":         0,
+			"caller_unmapped":          true,
+		})
+	}
+
+	var disc, evang, contributing int
+	q.QueryRow(`
+		SELECT
+		  COALESCE(SUM((r.report_data->>'group_discipleships')::int), 0),
+		  COALESCE(SUM(
+		     COALESCE((r.report_data->>'group_evangelism')::int, 0) +
+		     COALESCE((r.report_data->>'leader_evangelism')::int, 0)
+		  ), 0),
+		  COUNT(DISTINCT r.reporter_id)
+		FROM discipleship_reports r
+		JOIN discipleship_hierarchy h
+		  ON h.user_id = r.reporter_id AND h.church_id = r.church_id
+		WHERE r.church_id = $1
+		  AND r.report_level = 1
+		  AND r.status IN ('submitted', 'approved')
+		  AND r.period_start >= $2
+		  AND r.period_end <= $3
+		  AND h.zone_id = $4
+	`, churchID, ps, pe, zoneID.String).Scan(&disc, &evang, &contributing)
+
+	// Unmapped leaders: level-1 users in this church with no zone_id assigned.
+	var unmapped int
+	q.QueryRow(`
+		SELECT COUNT(*)
+		FROM discipleship_hierarchy h
+		WHERE h.church_id = $1
+		  AND h.hierarchy_level = 1
+		  AND (h.zone_id IS NULL OR h.zone_id::text = '')
+	`, churchID).Scan(&unmapped)
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"zone_total_discipleships": disc,
+		"zone_total_evangelism":    evang,
+		"contributing_leaders":     contributing,
+		"unmapped_leaders":         unmapped,
+		"caller_unmapped":          false,
+	})
+}
+
 // ApproveReport aprueba un reporte
 func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 	reportID := c.Param("id")
