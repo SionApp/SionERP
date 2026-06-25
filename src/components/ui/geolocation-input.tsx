@@ -190,6 +190,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
     navigator.geolocation.getCurrentPosition(
       async position => {
         const { latitude, longitude } = position.coords;
+        let address = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
         try {
           const url = `${NOMINATIM_URL}/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
@@ -206,27 +207,27 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
           const data = await response.json();
 
           if (data && data.display_name) {
-            const address = data.display_name;
-            setAddress(address);
-
-            onChange({
-              address,
-              latitude,
-              longitude,
-            });
-
-            setMapPosition([latitude, longitude]);
-            setMapZoom(15);
-
-            if (!showMap) {
-              setShowMap(true);
-            }
+            address = data.display_name;
           }
         } catch (error) {
-          console.error('Error in reverse geocoding:', error);
+          console.error('Error in reverse geocoding, usando coordenadas como fallback:', error);
           setLocationError('Error al obtener la dirección');
         } finally {
           setLoading(false);
+        }
+
+        setAddress(address);
+        onChange({
+          address,
+          latitude,
+          longitude,
+        });
+
+        setMapPosition([latitude, longitude]);
+        setMapZoom(15);
+
+        if (!showMap) {
+          setShowMap(true);
         }
       },
       error => {
@@ -241,6 +242,8 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
   // Manejar click en el mapa para seleccionar ubicación
   const handleMapClick = useCallback(
     async (lat: number, lng: number) => {
+      let address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
       try {
         const url = `${NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
         const response = await fetch(url, {
@@ -256,18 +259,18 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
         const data = await response.json();
 
         if (data && data.display_name) {
-          const address = data.display_name;
-          setAddress(address);
-
-          onChange({
-            address,
-            latitude: lat,
-            longitude: lng,
-          });
+          address = data.display_name;
         }
       } catch (error) {
-        console.error('Error in reverse geocoding:', error);
+        console.error('Error in reverse geocoding, usando coordenadas como fallback:', error);
       }
+
+      setAddress(address);
+      onChange({
+        address,
+        latitude: lat,
+        longitude: lng,
+      });
     },
     [onChange]
   );
