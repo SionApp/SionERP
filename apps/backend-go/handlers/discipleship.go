@@ -796,6 +796,9 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 	// ACTUALIZAR JERARQUÍAS SI SE CAMBIARON leader_id o supervisor_id
 	// =====================================================
 
+	// Usar pool global para jerarquía — no debe compartir la transacción del grupo
+	dbPool := config.GetDB().DB
+
 	// Obtener el grupo actualizado para saber los nuevos valores
 	var currentGroup struct {
 		LeaderID     string
@@ -821,7 +824,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		// 1. Asignar jerarquía al nuevo LÍDER si se cambió
 		if reqLeaderID != nil {
 			var existingLevel sql.NullInt64
-			err = q.QueryRow(`
+			err = dbPool.QueryRow(`
 				SELECT hierarchy_level
 				FROM discipleship_hierarchy
 				WHERE user_id = $1 AND church_id = $2
@@ -839,7 +842,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				}
 
 				// Usar zoneID que ya determinamos arriba
-				_, err = q.Exec(`
+				_, err = dbPool.Exec(`
 					INSERT INTO discipleship_hierarchy (
 						church_id, user_id, hierarchy_level, supervisor_id, zone_id, active_groups_assigned
 					) VALUES ($1, $2, 1, $3, $4, 1)
@@ -849,7 +852,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				}
 
 				// Actualizar también en users (scoped by church_id)
-				_, _ = q.Exec(`
+				_, _ = dbPool.Exec(`
 					UPDATE users SET
 						discipleship_level = 1,
 						zone_id = $1,
@@ -869,7 +872,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 					}
 
 					// Usar zoneID que ya determinamos arriba
-					_, _ = q.Exec(`
+					_, _ = dbPool.Exec(`
 						UPDATE discipleship_hierarchy SET
 							hierarchy_level = 1,
 							supervisor_id = COALESCE($1, supervisor_id),
@@ -885,7 +888,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		// 2. Asignar jerarquía al nuevo SUPERVISOR si se cambió
 		if reqSupervisorID != nil {
 			var existingLevel sql.NullInt64
-			err = q.QueryRow(`
+			err = dbPool.QueryRow(`
 				SELECT hierarchy_level
 				FROM discipleship_hierarchy
 				WHERE user_id = $1 AND church_id = $2
@@ -894,7 +897,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 			if err == sql.ErrNoRows {
 				// No tiene jerarquía, crear con nivel 2 (Supervisor Auxiliar)
 				// Usar zoneID que ya determinamos arriba
-				_, err = q.Exec(`
+				_, err = dbPool.Exec(`
 					INSERT INTO discipleship_hierarchy (
 						church_id, user_id, hierarchy_level, zone_id, active_groups_assigned
 					) VALUES ($1, $2, 2, $3, 1)
@@ -904,7 +907,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				}
 
 				// Actualizar también en users (scoped by church_id)
-				_, _ = q.Exec(`
+				_, _ = dbPool.Exec(`
 					UPDATE users SET
 						discipleship_level = 2,
 						zone_id = $1,
@@ -915,7 +918,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				// Ya tiene jerarquía, actualizar solo si es menor a 2
 				if existingLevel.Int64 < 2 {
 					// Usar zoneID que ya determinamos arriba
-					_, _ = q.Exec(`
+					_, _ = dbPool.Exec(`
 						UPDATE discipleship_hierarchy SET
 							hierarchy_level = 2,
 							zone_id = COALESCE($1, zone_id),
