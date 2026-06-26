@@ -85,17 +85,30 @@ func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
 			args = append(args, userID)
 		case 2:
 			argCount++
-			query += fmt.Sprintf(" AND a.related_group_id IN (SELECT id FROM discipleship_groups WHERE supervisor_id = $%d AND church_id = $1)", argCount)
+			query += fmt.Sprintf(" AND (a.related_group_id IN (SELECT id FROM discipleship_groups WHERE supervisor_id = $%d AND church_id = $1)", argCount)
+			args = append(args, userID)
+			argCount++
+			query += fmt.Sprintf(" OR a.addressed_to = $%d)", argCount)
 			args = append(args, userID)
 		case 3:
 			if userZoneID != nil && *userZoneID != "" {
 				argCount++
-				query += fmt.Sprintf(" AND a.zone_id = $%d", argCount)
+				query += fmt.Sprintf(" AND (a.zone_id = $%d", argCount)
 				args = append(args, *userZoneID)
+				argCount++
+				query += fmt.Sprintf(" OR a.addressed_to = $%d)", argCount)
+				args = append(args, userID)
 			} else {
-				query += " AND 1=0"
+				argCount++
+				query += fmt.Sprintf(" AND a.addressed_to = $%d", argCount)
+				args = append(args, userID)
 			}
 		case 4, 5:
+			// Coordinador/Pastoral: see all alerts in their church scope.
+			// Also surface alerts explicitly addressed to them (e.g. escalations).
+			argCount++
+			query += fmt.Sprintf(" AND (1=1 OR a.addressed_to = $%d)", argCount)
+			args = append(args, userID)
 		}
 	}
 
