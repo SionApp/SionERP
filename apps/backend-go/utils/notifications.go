@@ -16,17 +16,17 @@ func Ptr(s string) *string {
 func CreateNotification(db *config.Database, n models.NotificationInput) error {
 	_, err := db.DB.Exec(`
 		INSERT INTO notifications (
-			user_id, type, title, message,
+			church_id, user_id, type, title, message,
 			action_url, action_text,
 			related_entity_type, related_entity_id
 		)
 		VALUES (
-			$1, $2, $3, $4,
-			$5, $6,
-			$7, NULLIF($8::text, '')::uuid
+			$1, $2, $3, $4, $5,
+			$6, $7,
+			$8, NULLIF($9::text, '')::uuid
 		)
 	`,
-		n.UserID, n.Type, n.Title, n.Message,
+		n.ChurchID, n.UserID, n.Type, n.Title, n.Message,
 		n.ActionURL, n.ActionText,
 		n.RelatedEntityType, stringOrEmpty(n.RelatedEntityID),
 	)

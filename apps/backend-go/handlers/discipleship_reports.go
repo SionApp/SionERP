@@ -130,8 +130,10 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 		db2 := db
 		repID := reportID
 		supID := supervisorID.String
+		cID := churchID
 		go func() {
 			utils.CreateNotification(db2, models.NotificationInput{
+				ChurchID:          cID,
 				UserID:            supID,
 				Type:              "info",
 				Title:             "Nuevo reporte para revisar",
@@ -533,8 +535,10 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 	db := config.GetDB()
 	repID := reportID
 	repOrID := reporterID
+	cID := churchID
 	go func() {
 		utils.CreateNotification(db, models.NotificationInput{
+			ChurchID:          cID,
 			UserID:            repOrID,
 			Type:              "success",
 			Title:             "Tu reporte fue aprobado",
@@ -599,8 +603,10 @@ func (h *DiscipleshipReportsHandler) RejectReport(c echo.Context) error {
 	db := config.GetDB()
 	repID := reportID
 	repOrID := reporterID
+	cID2 := churchID
 	go func() {
 		utils.CreateNotification(db, models.NotificationInput{
+			ChurchID:          cID2,
 			UserID:            repOrID,
 			Type:              "warning",
 			Title:             "Tu reporte necesita revisión",

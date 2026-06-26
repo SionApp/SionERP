@@ -17,6 +17,7 @@ type Notification struct {
 }
 
 type NotificationInput struct {
+	ChurchID          string
 	UserID            string
 	Type              string
 	Title             string
