@@ -1,5 +1,6 @@
 import { ReportDetailSheet } from './ReportDetailSheet';
 import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
+import { ComplianceDashboard } from '@/components/discipleship/ComplianceDashboard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +19,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAuxiliarySupervisorData } from '@/hooks/useAuxiliarySupervisorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipReport } from '@/types/discipleship.types';
-import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
+import { format } from 'date-fns';
+import { justEndedWeek } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import {
   CheckCircle,
@@ -92,10 +94,10 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
     }
   };
 
-  // Calcular período semanal (semana anterior)
-  const today = new Date();
-  const periodStart = startOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
-  const periodEnd = endOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
+  // Período ISO Monday-anchored (semana más reciente completada).
+  const _justEnded = justEndedWeek(new Date());
+  const periodStart = _justEnded.monday;
+  const periodEnd = _justEnded.saturday;
 
   // Validar si ya existe reporte para este período
   const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
@@ -574,6 +576,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
         value: 'approvals',
         label: pendingReportsCount > 0 ? `Aprob. · ${pendingReportsCount}` : 'Aprob.',
       },
+      { value: 'compliance', label: 'Cumplimiento' },
     ];
 
     return (
@@ -608,6 +611,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
           {selectedTab === 'biweekly-report' && reportContent}
           {selectedTab === 'leaders' && leadersContent}
           {selectedTab === 'approvals' && approvalsContent}
+          {selectedTab === 'compliance' && <ComplianceDashboard />}
         </div>
 
         {sharedOverlays}
@@ -702,7 +706,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-5 h-auto min-w-max sm:min-w-0 gap-1">
+          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-6 h-auto min-w-max sm:min-w-0 gap-1">
             <TabsTrigger
               value="overview"
               className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
@@ -740,6 +744,12 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger
+              value="compliance"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Cumplimiento
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -761,6 +771,10 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
 
         <TabsContent value="approvals" className="space-y-4">
           {approvalsContent}
+        </TabsContent>
+
+        <TabsContent value="compliance" className="space-y-4">
+          <ComplianceDashboard />
         </TabsContent>
       </Tabs>
 
