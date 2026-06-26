@@ -18,6 +18,7 @@ import type { CreateReportRequest } from '@/types/discipleship.types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
+  AlertTriangle,
   BarChart3,
   BookText,
   Church,
@@ -58,6 +59,7 @@ export function SupervisionReportModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [manualAssignments, setManualAssignments] = useState<ActiveAssignment[]>([]);
   const [manualValues, setManualValues] = useState<Record<string, number>>({});
+  const [unmappedLeaders, setUnmappedLeaders] = useState(0);
   const [reportData, setReportData] = useState({
     // Trabajo de Supervisión
     new_disciples_care: 0,
@@ -98,7 +100,24 @@ export function SupervisionReportModal({
       .catch(() => {
         setManualAssignments([]);
       });
-  }, [isOpen]);
+
+    // Pre-cargar las métricas de zona sumando los reportes de los líderes de
+    // ESA semana (no acumulado). El usuario puede editar los valores después.
+    const ps = format(periodStart, 'yyyy-MM-dd');
+    const pe = format(periodEnd, 'yyyy-MM-dd');
+    DiscipleshipService.getZoneRollup(ps, pe)
+      .then((rollup) => {
+        setUnmappedLeaders(rollup.unmapped_leaders || 0);
+        setReportData((prev) => ({
+          ...prev,
+          zone_total_discipleships: rollup.zone_total_discipleships || 0,
+          zone_total_evangelism: rollup.zone_total_evangelism || 0,
+        }));
+      })
+      .catch(() => {
+        setUnmappedLeaders(0);
+      });
+  }, [isOpen, periodStart, periodEnd]);
 
   const handleSubmit = async () => {
     try {
@@ -364,6 +383,18 @@ export function SupervisionReportModal({
               </div>
               <h3 className="text-lg font-semibold">Métricas de Zona / Sector</h3>
             </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Pre-cargado de los reportes de los líderes de esta semana. Podés ajustar los valores.
+            </p>
+            {unmappedLeaders > 0 && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-300">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  {unmappedLeaders} líder{unmappedLeaders !== 1 ? 'es' : ''} sin zona asignada — su
+                  data no está incluida en este total.
+                </span>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
                 <Label htmlFor="zone_discipleships" className="flex items-center gap-2 text-sm font-medium">
