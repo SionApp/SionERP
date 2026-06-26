@@ -40,7 +40,7 @@ const FIELD_LABELS: Record<string, string> = {
   service_attendance_sunday: 'Asistió al servicio dominical',
   service_attendance_prayer: 'Asistió al servicio de oración',
   doctrine_attendance: 'Asistió a doctrina',
-  // Actividades del grupo
+  // Actividades del grupo (líder)
   group_discipleships: 'Discipulados realizados',
   group_evangelism: 'Evangelismo del grupo',
   // Actividades del líder
@@ -50,6 +50,14 @@ const FIELD_LABELS: Record<string, string> = {
   spiritual_journal_days: 'Días de diario espiritual',
   // Estado del grupo
   is_multiplying: '¿En proceso de multiplicación?',
+  // Reporte de supervisión (auxiliar / general / coordinador)
+  new_disciples_care: 'Cuidado de nuevos discípulos',
+  team_care: 'Cuidado del equipo',
+  visited_groups: 'Grupos visitados',
+  personal_evangelism: 'Evangelismo personal',
+  zone_total_discipleships: 'Total discipulados en zona',
+  zone_total_evangelism: 'Total evangelismo en zona',
+  comments: 'Comentarios',
   // Genéricos (compatibilidad)
   attendance: 'Asistencia',
   total_attendance: 'Asistencia total',
