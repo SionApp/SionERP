@@ -185,14 +185,18 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	argCount := 1
 
 	// Filtrar según jerarquía de discipulado:
-	// - Cola de aprobación (status=submitted): SIEMPRE filtrar por supervisor_id = yo,
-	//   sin importar si es admin/pastor. El Pastor solo aprueba lo que un Coordinador
-	//   le reportó directamente — no ve reportes de Líderes que van al Auxiliar.
+	// - Cola de aprobación (status=submitted): filtrar por supervisor_id = yo.
+	//   Para canSeeAll (admin/pastor) también se incluyen reportes sin supervisor
+	//   asignado (supervisor_id IS NULL) para que no queden huérfanos sin revisar.
 	// - Otros status: admins ven todo; el resto ve sus reportes + los que supervisan.
 	userID := c.Get("user_id").(string)
 	if status == "submitted" {
 		argCount++
-		query += fmt.Sprintf(" AND r.supervisor_id = $%d AND r.reporter_id != $%d", argCount, argCount)
+		if canSeeAll {
+			query += fmt.Sprintf(" AND (r.supervisor_id = $%d OR r.supervisor_id IS NULL) AND r.reporter_id != $%d", argCount, argCount)
+		} else {
+			query += fmt.Sprintf(" AND r.supervisor_id = $%d AND r.reporter_id != $%d", argCount, argCount)
+		}
 		args = append(args, userID)
 	} else if !canSeeAll {
 		argCount++
