@@ -27,6 +27,31 @@ import type {
 } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
 
+// =====================================================
+// TIPOS: Cumplimiento de Reportes
+// =====================================================
+
+/** Respuesta del endpoint GET /discipleship/zone-rollup */
+export interface ZoneRollupResponse {
+  zone_total_discipleships: number;
+  zone_total_evangelism: number;
+  contributing_leaders: number;
+  unmapped_leaders: number;
+  caller_unmapped?: boolean;
+}
+
+/** Fila de cumplimiento por usuario + semana ISO */
+export interface ComplianceRow {
+  user_id: string;
+  user_name?: string;
+  iso_week: string;
+  period_start?: string;
+  status: 'pending' | 'on_time' | 'late' | 'missed';
+  missed_count: number;
+  report_id?: string;
+  due_date?: string;
+}
+
 /** Usuario con su nivel de jerarquía de discipulado actual (puede ser null si no tiene). */
 export interface UserForHierarchy {
   id: string;
@@ -352,5 +377,27 @@ export class DiscipleshipService {
   ): Promise<MemberAttendanceStats> {
     const params = groupId ? `?group_id=${groupId}` : '';
     return ApiService.get(`${this.baseUrl}/attendance/stats/${userId}${params}`);
+  }
+
+  // =====================================================
+  // CUMPLIMIENTO DE REPORTES (report_compliance)
+  // =====================================================
+
+  static async getZoneRollup(
+    periodStart: string,
+    periodEnd: string
+  ): Promise<ZoneRollupResponse> {
+    return ApiService.get(
+      `${this.baseUrl}/zone-rollup?period_start=${periodStart}&period_end=${periodEnd}`
+    );
+  }
+
+  static async getMyCompliance(isoWeek?: string): Promise<ComplianceRow> {
+    const params = isoWeek ? `?iso_week=${isoWeek}` : '';
+    return ApiService.get(`${this.baseUrl}/compliance/me${params}`);
+  }
+
+  static async getSubordinatesCompliance(weeks = 8): Promise<ComplianceRow[]> {
+    return ApiService.get(`${this.baseUrl}/compliance/subordinates?weeks=${weeks}`);
   }
 }

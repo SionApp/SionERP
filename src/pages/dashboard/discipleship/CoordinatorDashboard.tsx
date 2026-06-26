@@ -2,6 +2,7 @@ import { GoalsDashboard } from '@/pages/dashboard/GoalsDashboard';
 import { MinistryHealthTab } from './MinistryHealthTab';
 import { ReportDetailSheet } from './ReportDetailSheet';
 import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
+import { ComplianceDashboard } from '@/components/discipleship/ComplianceDashboard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +16,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCoordinatorData } from '@/hooks/useCoordinatorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipReport } from '@/types/discipleship.types';
-import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
+import { format } from 'date-fns';
+import { justEndedWeek } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import { Award, Building2, CheckCircle, Clock, FileText, Loader2, Plus, Users } from 'lucide-react';
 import React, { useState } from 'react';
@@ -97,10 +99,10 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
     }
   };
 
-  // Calcular período semanal (semana anterior)
-  const today = new Date();
-  const periodStart = startOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
-  const periodEnd = endOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
+  // Período ISO Monday-anchored (semana más reciente completada).
+  const _justEnded = justEndedWeek(new Date());
+  const periodStart = _justEnded.monday;
+  const periodEnd = _justEnded.saturday;
 
   // Validar si ya existe reporte para este período
   const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
@@ -479,6 +481,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
         label: pendingReportsCount > 0 ? `Aprob. · ${pendingReportsCount}` : 'Aprob.',
       },
       { value: 'health', label: 'Salud' },
+      { value: 'compliance', label: 'Cumplimiento' },
     ];
 
     return (
@@ -514,6 +517,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
           {selectedTab === 'zone-performance' && zonePerformanceContent}
           {selectedTab === 'approvals' && approvalsContent}
           {selectedTab === 'health' && healthContent}
+          {selectedTab === 'compliance' && <ComplianceDashboard />}
         </div>
 
         {sharedOverlays}
@@ -609,7 +613,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-6 h-auto min-w-max sm:min-w-0 gap-1">
+          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-7 h-auto min-w-max sm:min-w-0 gap-1">
             <TabsTrigger
               value="overview"
               className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
@@ -652,6 +656,12 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
             >
               Salud
             </TabsTrigger>
+            <TabsTrigger
+              value="compliance"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Cumplimiento
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -677,6 +687,10 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
 
         <TabsContent value="health" className="space-y-4">
           {healthContent}
+        </TabsContent>
+
+        <TabsContent value="compliance" className="space-y-4">
+          <ComplianceDashboard />
         </TabsContent>
       </Tabs>
 
