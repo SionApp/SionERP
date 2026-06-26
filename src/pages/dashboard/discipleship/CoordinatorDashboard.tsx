@@ -133,7 +133,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
     );
   }
 
-  const pendingReportsCount = stats.pending_reports ?? 0;
+  const pendingReportsCount = pendingReports.length;
 
   // ── Botón de reporte (compartido) ──
   const reportButton = (

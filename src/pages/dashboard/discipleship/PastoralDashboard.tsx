@@ -482,8 +482,8 @@ const PastoralDashboard: React.FC = React.memo(() => {
       {
         value: 'approvals',
         label:
-          (stats.pending_reports ?? 0) > 0
-            ? `Aprobaciones · ${stats.pending_reports}`
+          pendingReports.length > 0
+            ? `Aprobaciones · ${pendingReports.length}`
             : 'Aprobaciones',
       },
       {
@@ -650,12 +650,12 @@ const PastoralDashboard: React.FC = React.memo(() => {
             >
               <span className="hidden sm:inline">Aprobaciones</span>
               <span className="sm:hidden">Aprob.</span>
-              {(stats.pending_reports ?? 0) > 0 && (
+              {pendingReports.length > 0 && (
                 <Badge
                   variant="destructive"
                   className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5"
                 >
-                  {stats.pending_reports}
+                  {pendingReports.length}
                 </Badge>
               )}
             </TabsTrigger>
