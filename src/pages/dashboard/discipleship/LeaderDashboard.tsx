@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LeaderReportModal } from '@/components/discipleship/LeaderReportModal';
+import { WeekPicker } from '@/components/discipleship/WeekPicker';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MobileSectionHeader } from '@/components/mobile/MobileSectionHeader';
@@ -10,7 +11,8 @@ import { useMobileMode } from '@/hooks/useMobileMode';
 import { useLeaderDiscipleshipData } from '@/hooks/useLeaderDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { GroupMemberWithDetails } from '@/types/discipleship.types';
-import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
+import { addDays, format, startOfISOWeek } from 'date-fns';
+import { getIsoWeek, justEndedWeek } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
@@ -113,11 +115,16 @@ export default function LeaderDashboard() {
     }
   };
 
-  // Get current week dates
-  const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-  const currentWeekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
-  const lastWeekStart = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 0 });
-  const lastWeekEnd = endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 0 });
+  // Período ISO (Monday-anchored). selectedWeek permite al líder backfill de semanas pasadas.
+  const [selectedWeek, setSelectedWeek] = useState(justEndedWeek(new Date()));
+
+  // Derivados del período seleccionado
+  const lastWeekStart = selectedWeek.monday;
+  const lastWeekEnd = selectedWeek.saturday;
+
+  // Semana actual (para comparación con reportes existentes)
+  const currentWeekStart = startOfISOWeek(new Date());
+  const currentWeekEnd = addDays(currentWeekStart, 5);
 
   // Check if report for this week already exists
   const hasCurrentWeekReport = myReports.some((report: { period_start: string }) => {
@@ -169,15 +176,26 @@ export default function LeaderDashboard() {
 
   // ── Contenido compartido entre web y mobile ──
 
+  // Semanas que ya tienen reporte (para el aviso de duplicado en el picker)
+  const existingWeeks = myReports.map((r: { period_start: string }) =>
+    getIsoWeek(new Date(r.period_start))
+  );
+  const selectedWeekReported = existingWeeks.includes(selectedWeek.isoWeek);
+
   const reportButton = (
-    <Button
-      disabled={hasCurrentWeekReport || !myGroup}
-      onClick={() => setShowReportModal(true)}
-      className="w-full sm:w-auto"
-    >
-      <Plus className="h-4 w-4 mr-2" />
-      <span className="truncate">{hasCurrentWeekReport ? 'Reporte enviado' : 'Nuevo Reporte'}</span>
-    </Button>
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <WeekPicker value={selectedWeek} onChange={setSelectedWeek} existingWeeks={existingWeeks} />
+      <Button
+        disabled={selectedWeekReported || !myGroup}
+        onClick={() => setShowReportModal(true)}
+        className="w-full sm:w-auto"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        <span className="truncate">
+          {selectedWeekReported ? 'Reporte enviado' : 'Nuevo Reporte'}
+        </span>
+      </Button>
+    </div>
   );
 
   const reportModal = myGroup && (
