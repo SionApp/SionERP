@@ -426,12 +426,13 @@ func (h *DiscipleshipReportsHandler) GetZoneRollup(c echo.Context) error {
 		})
 	}
 
-	// Resolve caller's zone_id from their discipleship_hierarchy row (church-scoped).
+	// Resolve caller's level + zone from their discipleship_hierarchy row (church-scoped).
+	var level int
 	var zoneID sql.NullString
 	q.QueryRow(
-		`SELECT zone_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2`,
+		`SELECT hierarchy_level, zone_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2`,
 		userID, churchID,
-	).Scan(&zoneID)
+	).Scan(&level, &zoneID)
 
 	if !zoneID.Valid || zoneID.String == "" {
 		// Caller has no zone — return zeroes and flag so the UI can warn.
@@ -444,8 +445,12 @@ func (h *DiscipleshipReportsHandler) GetZoneRollup(c echo.Context) error {
 		})
 	}
 
-	var disc, evang, contributing int
-	q.QueryRow(`
+	// Scope the rollup by the caller's responsibility subtree, not by zone_id —
+	// a zone can hold multiple Generals, so zone_id would leak a sibling's leaders.
+	//   L2 Auxiliary       → leaders directly under me
+	//   L3 General         → leaders two hops under me (under my auxiliaries)
+	//   L4 Coordinator / L5 → the whole zone (a coordinator owns the zone)
+	sumBase := `
 		SELECT
 		  COALESCE(SUM((r.report_data->>'group_discipleships')::int), 0),
 		  COALESCE(SUM(
@@ -461,8 +466,20 @@ func (h *DiscipleshipReportsHandler) GetZoneRollup(c echo.Context) error {
 		  AND r.status IN ('submitted', 'approved')
 		  AND r.period_start >= $2
 		  AND r.period_end <= $3
-		  AND h.zone_id = $4
-	`, churchID, ps, pe, zoneID.String).Scan(&disc, &evang, &contributing)
+		  AND `
+
+	var disc, evang, contributing int
+	switch level {
+	case 2:
+		q.QueryRow(sumBase+`r.reporter_id IN (`+directLeaderIDsSubquery(1, 4)+`)`,
+			churchID, ps, pe, userID).Scan(&disc, &evang, &contributing)
+	case 3:
+		q.QueryRow(sumBase+`r.reporter_id IN (`+subtreeLeaderIDsSubquery(1, 4)+`)`,
+			churchID, ps, pe, userID).Scan(&disc, &evang, &contributing)
+	default:
+		q.QueryRow(sumBase+`h.zone_id = $4`,
+			churchID, ps, pe, zoneID.String).Scan(&disc, &evang, &contributing)
+	}
 
 	// Unmapped leaders: level-1 users in this church with no zone_id assigned.
 	var unmapped int
