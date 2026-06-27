@@ -134,7 +134,8 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 	dbGlobal := config.GetDB()
 
 	// Obtener información de acceso del usuario (permission check — uses global pool)
-	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+	// userZoneID no longer used for case 3 (replaced by subtree scoping).
+	userID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 
 	// Si no tiene acceso, retornar error o lista vacía
 	if !canSeeAll && hierarchyLevel == nil {
@@ -196,12 +197,12 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 			argCount++
 			query += fmt.Sprintf(" AND g.supervisor_id = $%d", argCount)
 			args = append(args, userID)
-		case 3: // Coordinador - su zona
-			if userZoneID != nil && *userZoneID != "" {
-				argCount++
-				query += fmt.Sprintf(" AND g.zone_id = $%d", argCount)
-				args = append(args, *userZoneID)
-			}
+		case 3: // General Supervisor (L3) — su subtree de líderes (2-hop)
+			// Replace zone_id scope with 2-hop subtree: groups whose leader is under this General.
+			argCount++
+			leaderSubq := subtreeLeaderIDsSubquery(1, argCount)
+			args = append(args, userID)
+			query += fmt.Sprintf(" AND g.leader_id IN (%s)", leaderSubq)
 			// case 4 y 5 pueden ver más, según necesidad
 			// Por ahora, si no hay filtro específico, no se aplica restricción adicional
 		}
@@ -260,12 +261,11 @@ func (h *DiscipleshipHandler) GetGroups(c echo.Context) error {
 			countArgCount++
 			countQuery += fmt.Sprintf(" AND g.supervisor_id = $%d", countArgCount)
 			countArgs = append(countArgs, userID)
-		case 3:
-			if userZoneID != nil && *userZoneID != "" {
-				countArgCount++
-				countQuery += fmt.Sprintf(" AND g.zone_id = $%d", countArgCount)
-				countArgs = append(countArgs, *userZoneID)
-			}
+		case 3: // General Supervisor (L3) — su subtree de líderes (2-hop)
+			countArgCount++
+			countLeaderSubq := subtreeLeaderIDsSubquery(1, countArgCount)
+			countArgs = append(countArgs, userID)
+			countQuery += fmt.Sprintf(" AND g.leader_id IN (%s)", countLeaderSubq)
 		}
 	}
 
@@ -356,7 +356,8 @@ func (h *DiscipleshipHandler) GetGroup(c echo.Context) error {
 	dbGlobal := config.GetDB()
 	churchID, _ := c.Get("church_id").(string)
 
-	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+	// userZoneID no longer used for case 3 (replaced by subtree scoping).
+	userID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 	if !canSeeAll && hierarchyLevel == nil {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes acceso al módulo de discipulado. Contacta a un administrador para asignarte un nivel jerárquico.",
@@ -392,13 +393,11 @@ func (h *DiscipleshipHandler) GetGroup(c echo.Context) error {
 		case 2:
 			args = append(args, userID)
 			query += fmt.Sprintf(" AND g.supervisor_id = $%d", len(args))
-		case 3:
-			if userZoneID != nil && *userZoneID != "" {
-				args = append(args, *userZoneID)
-				query += fmt.Sprintf(" AND g.zone_id = $%d", len(args))
-			} else {
-				query += " AND 1=0"
-			}
+		case 3: // General Supervisor (L3) — access via 2-hop leader subtree
+			// Grant access only if the group's leader is in this General's subtree.
+			// When subtree is empty the IN() returns no rows → no match → 403 naturally.
+			args = append(args, churchID, userID)
+			query += fmt.Sprintf(" AND g.leader_id IN (%s)", subtreeLeaderIDsSubquery(len(args)-1, len(args)))
 		}
 	}
 
@@ -1022,7 +1021,8 @@ func (h *DiscipleshipHandler) GetHierarchy(c echo.Context) error {
 	dbGlobal := config.GetDB()
 	churchID, _ := c.Get("church_id").(string)
 
-	callerID, hierarchyLevel, zoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+	// zoneID no longer used for case 3 in GetHierarchy (replaced by subtree scoping).
+	callerID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 	if !canSeeAll && hierarchyLevel == nil {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes acceso al módulo de discipulado. Contacta a un administrador para asignarte un nivel jerárquico.",
@@ -1064,16 +1064,21 @@ func (h *DiscipleshipHandler) GetHierarchy(c echo.Context) error {
 			argCount++
 			query += fmt.Sprintf(" AND (h.user_id = $%d OR h.supervisor_id = $%d)", argCount, argCount)
 			args = append(args, callerID)
-		case 3:
-			argCount++
-			if zoneID != nil && *zoneID != "" {
-				argCount2 := argCount + 1
-				query += fmt.Sprintf(" AND (h.user_id = $%d OR h.supervisor_id = $%d OR h.zone_id::text = $%d)", argCount, argCount, argCount2)
-				args = append(args, callerID, *zoneID)
-			} else {
-				query += fmt.Sprintf(" AND (h.user_id = $%d OR h.supervisor_id = $%d)", argCount, argCount)
-				args = append(args, callerID)
-			}
+		case 3: // General Supervisor (L3) — self + auxiliaries (1-hop) + their leaders (2-hop)
+			// Drop the zone_id arm: replace with subtree traversal via supervisor_id chain.
+			// Self: h.user_id = callerID
+			// Auxiliaries (1-hop): h.user_id IN subtreeAuxIDsSubquery
+			// Leaders (2-hop): h.supervisor_id IN subtreeAuxIDsSubquery (their supervisor is one of the aux)
+			argCount++ // $N = callerID (self)
+			churchForAux := 1      // reuse $1 = churchID
+			supForAux := argCount  // $N = callerID
+			query += fmt.Sprintf(
+				" AND (h.user_id = $%d OR h.user_id IN (%s) OR h.supervisor_id IN (%s))",
+				argCount,
+				subtreeAuxIDsSubquery(churchForAux, supForAux),
+				subtreeAuxIDsSubquery(churchForAux, supForAux),
+			)
+			args = append(args, callerID)
 		}
 	}
 
@@ -1274,7 +1279,8 @@ func (h *DiscipleshipHandler) GetSubordinates(c echo.Context) error {
 	dbGlobal := config.GetDB()
 	churchID, _ := c.Get("church_id").(string)
 
-	callerID, hierarchyLevel, zoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+	// zoneID no longer used for case 3 (replaced by supervisor_id=me identity check).
+	callerID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 	if !canSeeAll && hierarchyLevel == nil {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes acceso al módulo de discipulado. Contacta a un administrador para asignarte un nivel jerárquico.",
@@ -1293,24 +1299,25 @@ func (h *DiscipleshipHandler) GetSubordinates(c echo.Context) error {
 					"error": "Solo puedes ver tus propios subordinados.",
 				})
 			}
-		case 3:
-			var supZoneID sql.NullString
-			err := q.QueryRow(`SELECT zone_id::text FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2`, supervisorID, churchID).Scan(&supZoneID)
-			if err != nil || !supZoneID.Valid || supZoneID.String == "" || zoneID == nil || supZoneID.String != *zoneID {
+		case 3: // General Supervisor (L3) — can only query their OWN auxiliaries
+			// Replace zone-based check: a General may only list subordinates when
+			// supervisorID == callerID (same as the L2 pattern). This prevents a
+			// General from listing a sibling General's auxiliaries.
+			if supervisorID != callerID {
 				return c.JSON(http.StatusForbidden, map[string]string{
-					"error": "No tienes permiso para ver subordinados de este supervisor.",
+					"error": "Solo puedes ver tus propios subordinados.",
 				})
 			}
 		}
 	}
 
-	// Para nivel 3 (Supervisor General): mostrar todos los Supervisores Auxiliares (nivel 2)
-	// en la misma zona, independientemente de si tienen supervisor_id explícito.
+	// Para nivel 3 (General Supervisor): mostrar Supervisores Auxiliares directos (supervisor_id=me).
 	// Para otros niveles: usar supervisor_id directo.
 	var query string
 	var queryArgs []interface{}
 
-	if !canSeeAll && hierarchyLevel != nil && *hierarchyLevel == 3 && zoneID != nil && *zoneID != "" {
+	if !canSeeAll && hierarchyLevel != nil && *hierarchyLevel == 3 {
+		// Para nivel 3 (General Supervisor): mostrar Supervisores Auxiliares directos (supervisor_id=me).
 		query = `
 			SELECT
 				h.id, h.user_id, h.hierarchy_level, h.supervisor_id,
@@ -1322,10 +1329,10 @@ func (h *DiscipleshipHandler) GetSubordinates(c echo.Context) error {
 			FROM discipleship_hierarchy h
 			LEFT JOIN zones z ON h.zone_id = z.id AND z.church_id = $1
 			LEFT JOIN users u ON h.user_id = u.id AND u.church_id = $1
-			WHERE h.church_id = $1 AND h.hierarchy_level = 2 AND h.zone_id = $2
+			WHERE h.church_id = $1 AND h.hierarchy_level = 2 AND h.supervisor_id = $2
 			ORDER BY h.hierarchy_level DESC
 		`
-		queryArgs = []interface{}{churchID, *zoneID}
+		queryArgs = []interface{}{churchID, callerID}
 	} else {
 		query = `
 			SELECT
@@ -1386,7 +1393,8 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 	churchID, _ := c.Get("church_id").(string)
 
 	// Obtener información de acceso del usuario (permission check — global pool)
-	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+	// userZoneID no longer used for GetAnalytics case 3 (replaced by subtree scoping).
+	userID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 
 	// Determinar el nivel de reporte a usar
 	userLevel := 5 // Por defecto, nivel más alto (pastor)
@@ -1428,13 +1436,10 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 			filterClause += fmt.Sprintf(" AND supervisor_id = $%d", argCount)
 			filterArgs = append(filterArgs, userID)
 		case 3:
-			if userZoneID != nil && *userZoneID != "" {
-				argCount++
-				filterClause += fmt.Sprintf(" AND zone_id = $%d", argCount)
-				filterArgs = append(filterArgs, *userZoneID)
-			} else {
-				filterClause += " AND 1=0"
-			}
+			// General Supervisor (L3) — su subtree de líderes (2-hop)
+			argCount++
+			filterClause += fmt.Sprintf(" AND leader_id IN (%s)", subtreeLeaderIDsSubquery(1, argCount))
+			filterArgs = append(filterArgs, userID)
 		}
 	}
 
@@ -1679,7 +1684,8 @@ func (h *DiscipleshipHandler) GetMultiplications(c echo.Context) error {
 	dbGlobal := config.GetDB()
 	churchID, _ := c.Get("church_id").(string)
 
-	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+	// userZoneID no longer used for GetMultiplications case 3 (replaced by subtree scoping).
+	userID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 	if !canSeeAll && hierarchyLevel == nil {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes acceso al módulo de discipulado. Contacta a un administrador para asignarte un nivel jerárquico.",
@@ -1733,13 +1739,16 @@ func (h *DiscipleshipHandler) GetMultiplications(c echo.Context) error {
 			query += fmt.Sprintf(" AND (pg.supervisor_id = $%d OR ng.supervisor_id = $%d)", argCount, argCount)
 			args = append(args, userID)
 		case 3:
-			if userZoneID != nil && *userZoneID != "" {
-				argCount++
-				query += fmt.Sprintf(" AND (pg.zone_id = $%d OR ng.zone_id = $%d)", argCount, argCount)
-				args = append(args, *userZoneID)
-			} else {
-				query += " AND 1=0"
-			}
+			// General Supervisor (L3) — parent or new group leader in 2-hop subtree.
+			// Each subquery independently references $1 (church) and $supPos (callerID).
+			argCount++
+			supPos := argCount
+			query += fmt.Sprintf(
+				" AND (pg.leader_id IN (%s) OR ng.leader_id IN (%s))",
+				subtreeLeaderIDsSubquery(1, supPos),
+				subtreeLeaderIDsSubquery(1, supPos),
+			)
+			args = append(args, userID)
 		}
 	}
 
@@ -1812,7 +1821,8 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 	dbGlobal := config.GetDB()
 	churchID, _ := c.Get("church_id").(string)
 
-	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+	// userZoneID no longer used for GetWeeklyTrends case 3 (replaced by subtree scoping).
+	userID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 	if !canSeeAll && hierarchyLevel == nil {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes acceso al módulo de discipulado. Contacta a un administrador para asignarte un nivel jerárquico.",
@@ -1852,15 +1862,13 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 			query += fmt.Sprintf(" AND (r.reporter_id = $%d OR r.supervisor_id = $%d)", argCount, argCount)
 			args = append(args, userID)
 		case 3:
-			if userZoneID != nil && *userZoneID != "" {
-				argCount++
-				zoneParam := argCount
-				argCount++
-				query += fmt.Sprintf(" AND (r.reporter_id IN (SELECT leader_id FROM discipleship_groups WHERE zone_id = $%d) OR r.supervisor_id = $%d)", zoneParam, argCount)
-				args = append(args, *userZoneID, userID)
-			} else {
-				query += " AND 1=0"
-			}
+			// General Supervisor (L3) — reporters en su subtree (2-hop).
+			// The old OR r.supervisor_id arm is REMOVED: r.supervisor_id is the
+			// reporter's direct auxiliary supervisor (L2), never the General.
+			// Scope purely by reporter subtree (2-hop leaders).
+			argCount++
+			query += fmt.Sprintf(" AND r.reporter_id IN (%s)", subtreeLeaderIDsSubquery(1, argCount))
+			args = append(args, userID)
 		}
 	}
 
@@ -1955,23 +1963,25 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			WHERE supervisor_id = $1 AND church_id = $2 AND status = 'active'
 		`, userID, churchID).Scan(&stats.ActiveLeaders)
 
-	case "3": // Supervisor General - toda su zona
+	case "3": // General Supervisor (L3) — su subtree de líderes (2-hop)
+		// Group/member counts scoped to the General's 2-hop leader subtree (not zone_id).
+		// ZoneName is kept for display; SubordinatesCount counts direct auxiliaries (1-hop).
+		q.QueryRow(fmt.Sprintf(`
+			SELECT COUNT(*) FROM discipleship_groups
+			WHERE leader_id IN (%s) AND church_id = $1 AND status = 'active'
+		`, subtreeLeaderIDsSubquery(1, 2)), churchID, userID).Scan(&stats.TotalGroups)
+
+		q.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups
+			WHERE leader_id IN (%s) AND church_id = $1 AND status = 'active'
+		`, subtreeLeaderIDsSubquery(1, 2)), churchID, userID).Scan(&stats.TotalMembers)
+
+		// Zone name for display — still useful; read from the General's own hierarchy row.
 		var zoneID sql.NullString
 		q.QueryRow(`
 			SELECT zone_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2
 		`, userID, churchID).Scan(&zoneID)
-
 		if zoneID.Valid && zoneID.String != "" {
-			q.QueryRow(`
-				SELECT COUNT(*) FROM discipleship_groups
-				WHERE zone_id = $1 AND church_id = $2 AND status = 'active'
-			`, zoneID.String, churchID).Scan(&stats.TotalGroups)
-
-			q.QueryRow(`
-				SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups
-				WHERE zone_id = $1 AND church_id = $2 AND status = 'active'
-			`, zoneID.String, churchID).Scan(&stats.TotalMembers)
-
 			q.QueryRow(`
 				SELECT COALESCE(name, '') FROM zones WHERE id = $1 AND church_id = $2
 			`, zoneID.String, churchID).Scan(&stats.ZoneName)
@@ -2104,7 +2114,8 @@ func (h *DiscipleshipHandler) GetLeaderGroupStats(c echo.Context) error {
 	dbGlobal := config.GetDB()
 	churchID, _ := c.Get("church_id").(string)
 
-	callerID, hierarchyLevel, zoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+	// zoneID no longer used for GetLeaderGroupStats case 3 (replaced by subtree scoping).
+	callerID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 	if !canSeeAll && hierarchyLevel == nil {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes acceso al módulo de discipulado. Contacta a un administrador para asignarte un nivel jerárquico.",
@@ -2128,13 +2139,14 @@ func (h *DiscipleshipHandler) GetLeaderGroupStats(c echo.Context) error {
 				})
 			}
 		case 3:
-			if zoneID == nil || *zoneID == "" {
-				return c.JSON(http.StatusForbidden, map[string]string{
-					"error": "No tienes zona asignada.",
-				})
-			}
+			// General Supervisor (L3) — access check: verify target leader's supervisor
+			// is in this General's 1-hop auxiliary subtree.
 			var count int
-			err := q.QueryRow(`SELECT COUNT(*) FROM discipleship_groups WHERE leader_id = $1 AND zone_id = $2::uuid AND church_id = $3`, leaderID, *zoneID, churchID).Scan(&count)
+			accessQuery := fmt.Sprintf(
+				`SELECT COUNT(*) FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2 AND supervisor_id IN (%s)`,
+				subtreeAuxIDsSubquery(2, 3),
+			)
+			err := q.QueryRow(accessQuery, leaderID, churchID, callerID).Scan(&count)
 			if err != nil || count == 0 {
 				return c.JSON(http.StatusForbidden, map[string]string{
 					"error": "No tienes permiso para ver estadísticas de este líder.",

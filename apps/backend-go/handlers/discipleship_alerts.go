@@ -29,7 +29,8 @@ func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
 	}
 
 	db := config.GetDB()
-	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	// userZoneID no longer used for GetAlerts case 3 (replaced by subtree scoping).
+	userID, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, db)
 
 	if !canSeeAll && hierarchyLevel == nil {
 		return c.JSON(http.StatusForbidden, map[string]string{
@@ -91,18 +92,18 @@ func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
 			query += fmt.Sprintf(" OR a.addressed_to = $%d)", argCount)
 			args = append(args, userID)
 		case 3:
-			if userZoneID != nil && *userZoneID != "" {
-				argCount++
-				query += fmt.Sprintf(" AND (a.zone_id = $%d", argCount)
-				args = append(args, *userZoneID)
-				argCount++
-				query += fmt.Sprintf(" OR a.addressed_to = $%d)", argCount)
-				args = append(args, userID)
-			} else {
-				argCount++
-				query += fmt.Sprintf(" AND a.addressed_to = $%d", argCount)
-				args = append(args, userID)
-			}
+			// General Supervisor (L3) — groups in their 2-hop leader subtree.
+			// Old zone_id arm closed the ACTIVE DATA LEAK (sibling General's groups).
+			// Keep addressed_to arm so escalated alerts directed to this General still appear.
+			argCount++
+			supPos := argCount
+			query += fmt.Sprintf(
+				" AND (a.related_group_id IN (SELECT id FROM discipleship_groups WHERE leader_id IN (%s) AND church_id = $1) OR a.addressed_to = $%d)",
+				subtreeLeaderIDsSubquery(1, supPos),
+				supPos+1,
+			)
+			argCount++
+			args = append(args, userID, userID)
 		case 4, 5:
 			// Coordinador/Pastoral: see all alerts in their church scope.
 			// Also surface alerts explicitly addressed to them (e.g. escalations).
