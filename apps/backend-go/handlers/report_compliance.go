@@ -125,7 +125,21 @@ func (h *ReportComplianceHandler) GetSubordinatesCompliance(c echo.Context) erro
 		}
 	}
 
-	rows, err := q.Query(`
+	// A General Supervisor (L3) is responsible for the LEADERS under their
+	// auxiliaries, not just the auxiliaries themselves — show the full leaf
+	// subtree. Everyone else sees their direct subordinates (supervisor_id = me).
+	var level int
+	q.QueryRow(
+		`SELECT hierarchy_level FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2`,
+		userID, churchID,
+	).Scan(&level)
+
+	scope := `h.supervisor_id = $2`
+	if level == 3 {
+		scope = `h.user_id IN (` + subtreeLeaderIDsSubquery(1, 2) + `)`
+	}
+
+	rows, err := q.Query(fmt.Sprintf(`
 		SELECT
 			u.id                                          AS user_id,
 			COALESCE(u.first_name || ' ' || u.last_name, u.email) AS user_name,
@@ -137,10 +151,10 @@ func (h *ReportComplianceHandler) GetSubordinatesCompliance(c echo.Context) erro
 		JOIN users u ON u.id = h.user_id AND u.church_id = $1
 		JOIN report_compliance rc ON rc.user_id = h.user_id AND rc.church_id = $1
 		WHERE h.church_id = $1
-		  AND h.supervisor_id = $2
+		  AND %s
 		  AND rc.period_start >= (CURRENT_DATE - ($3 || ' weeks')::interval)::date
 		ORDER BY rc.period_start DESC, user_name ASC
-	`, churchID, userID, strconv.Itoa(weeks))
+	`, scope), churchID, userID, strconv.Itoa(weeks))
 
 	if err != nil {
 		c.Logger().Error("GetSubordinatesCompliance query error:", err)
