@@ -66,10 +66,10 @@ func seedUser(t *testing.T, db *sql.DB, churchID string, email string) string {
 	t.Helper()
 	var id string
 	err := db.QueryRow(`
-		INSERT INTO users (email, church_id, role, is_active)
-		VALUES ($1, $2, 'member', true)
+		INSERT INTO users (email, church_id, role, is_active, id_number, first_name, last_name, phone, address)
+		VALUES ($1, $2, 'server', true, $3, 'Test', 'User', '000', 'n/a')
 		RETURNING id
-	`, email, churchID).Scan(&id)
+	`, email, churchID, email).Scan(&id)
 	if err != nil {
 		t.Fatalf("seedUser %q: %v", email, err)
 	}
