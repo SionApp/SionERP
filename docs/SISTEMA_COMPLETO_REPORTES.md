@@ -1,716 +1,472 @@
-# Sistema Completo de Reportes — SionERP
-## Flujo, Cálculos y Impacto
+# Cómo Funcionan los Reportes y los Tableros — SionERP
+## Guía completa para líderes, supervisores y pastores
 
-**Versión**: 1.0  
-**Fecha**: Junio 2026  
-**Propósito**: Documento técnico completo sobre cómo funcionan los reportes en SionERP — qué datos se envían, cómo se calculan, qué afectan, qué alertas generan.
+**Versión**: 3.0
+**Fecha**: Junio 2026
+**Para quién es**: Cualquier persona que use el módulo de Discipulado — líderes, supervisores, coordinadores y pastores. No hace falta saber de computación.
 
-**Audiencia**: Pastores, supervisores, desarrolladores que necesitan entender la lógica del sistema.
-
----
-
-## Introducción: ¿Por Qué Este Documento?
-
-SionERP es un sistema de **reportes en cascada**. Cada semana:
-- Un **líder** reporta lo que pasó en su célula
-- Un **auxiliar** suma esos reportes + reporta su propio trabajo
-- Un **general** suma auxiliares + reporta su supervisión
-- Un **coordinador** suma zonas + reporta visión regional
-- El **pastor** ve todo agregado
-
-Pero **¿cómo se agregan?** ¿**Qué significa cada número?** ¿**Por qué aparecen alertas?** Este documento responde todo eso.
+> ¿Sos desarrollador y buscás el detalle técnico (tablas, fórmulas SQL, endpoints)? Ese material está en `docs/INDICE_TECNICO.md`. Este documento explica el **qué** y el **por qué**, en palabras.
 
 ---
 
-## 1. LA JERARQUÍA: QUIÉN REPORTA A QUIÉN
+## La idea en una frase
 
-```
-NIVEL 5 — Pastor / Visión Estratégica
-    ↑
-NIVEL 4 — Coordinador (Regional/Zonal)
-    ↑
-NIVEL 3 — Supervisor General (Zona/Sector)
-    ↑
-NIVEL 2 — Supervisor Auxiliar (3–5 grupos)
-    ↑
-NIVEL 1 — Líder de Grupo (Una célula)
-```
+Cada semana, **cada persona reporta lo que pasó en su nivel**, y el sistema va **sumando hacia arriba** automáticamente: lo del líder llega al supervisor, lo del supervisor al general, y así hasta el pastor. Nadie tiene que sumar a mano.
 
-**Cada persona reporta UN vez por semana** (ISO week: lunes a sábado).  
-**El supervisor aprueba ANTES de que afecte al dashboard.**
+Este documento te explica:
+- Qué reporta cada uno
+- Qué significan los números, los colores y **cada gráfica**
+- Qué pasa "por detrás" cuando enviás un reporte
+- Cuándo y por qué aparecen las alertas
 
 ---
 
-## 2. QUÉ REPORTA CADA NIVEL (LOS DATOS)
+## 1. La cadena: quién le reporta a quién
 
-### NIVEL 1 — LÍDER DE GRUPO
-
-Un líder envía **5 secciones** cada semana:
-
-#### Sección 1: Asistencia de la Reunión
 ```
-¿Cuántos asistieron?
-├─ Nuevos Discípulos (ND)     [número]
-├─ Discípulos Maduros (DM)    [número]
-├─ Amigos/Invitados           [número]
-└─ Niños                       [número]
-```
-**Fórmula de impacto**: Total de asistencia = ND + DM + Amigos + Niños
-
-#### Sección 2: Actividad del Grupo
-```
-¿Qué pasó en el grupo?
-├─ Discipulados realizados    [número de nuevas relaciones 1-a-1]
-└─ Eventos de evangelismo     [número de salidas/conversaciones]
+        PASTOR  (mira todo el ministerio)
+          ▲
+      COORDINADOR  (mira su región / varias zonas)
+          ▲
+   SUPERVISOR GENERAL  (mira su zona)
+          ▲
+  SUPERVISOR AUXILIAR  (mira 3 a 5 grupos)
+          ▲
+      LÍDER  (mira su célula)
 ```
 
-#### Sección 3: Vida del Líder
-```
-¿Cómo está espiritualmente el líder?
-├─ Nuevos discípulos que cuida      [número]
-├─ Discípulos maduros que cuida     [número]
-├─ Días en diario espiritual        [0-7 días]
-├─ Conversaciones de evangelismo    [número personal]
-└─ Asistencia a servicios
-    ├─ Domingo                      [Sí/No]
-    ├─ Oración                      [Sí/No]
-    └─ Doctrina                     [Sí/No]
-```
+**Regla de oro**: cada persona envía **un reporte por semana**. La semana va de **lunes a sábado**.
 
-#### Sección 4: Estado del Grupo
-```
-¿Se está reproduciendo?
-└─ ¿En proceso de multiplicación?   [Sí/No]
-```
-
-#### Sección 5: Observaciones
-```
-Comentarios libres del líder
-└─ Notas/desafíos/celebraciones     [texto]
-```
+> 💡 **Dos cosas distintas: tu "rol" y tu "nivel".**
+> El **rol** (admin, pastor, staff…) define qué partes del sistema podés tocar.
+> El **nivel de discipulado** (Líder, Auxiliar, General, Coordinador) define qué reportás y qué ves en Discipulado.
+> Son independientes: alguien puede ser Líder de una célula sin ser "staff" del sistema.
 
 ---
 
-### NIVEL 2, 3, 4 — SUPERVISORES Y COORDINADOR
+## 2. El reporte del LÍDER (la base de todo)
 
-Los supervisores reportan **diferente** — no reportan sobre su grupo, sino sobre su **supervisión**:
+Es el reporte más importante. Todo lo demás se construye sobre éste. El líder completa **5 secciones**:
 
-#### Sección 1: Trabajo de Supervisión
-```
-¿Qué hiciste como supervisor?
-├─ Nuevos discípulos que supervisaste     [número]
-├─ Subordinados que visitaste             [número de personas]
-└─ Grupos personalmente visitados         [número de células]
-```
+### 📋 Sección 1 — ¿Cuántos vinieron a la reunión?
+| Campo | Qué anotás |
+|-------|-----------|
+| **Nuevos Discípulos (ND)** | Cuántos nuevos discípulos asistieron |
+| **Discípulos Maduros (DM)** | Cuántos discípulos ya formados asistieron |
+| **Amigos / Invitados** | Visitas que trajo el grupo |
+| **Niños** | Cuántos niños asistieron |
 
-#### Sección 2: Vida Espiritual del Supervisor
-```
-¿Cómo está espiritualmente?
-├─ Días en diario espiritual              [0-7]
-├─ Conversaciones de evangelismo personal [número]
-└─ Asistencia a servicios
-    ├─ Domingo                            [Sí/No]
-    └─ Oración                            [Sí/No]
-```
+### 🌱 Sección 2 — ¿Qué hizo el grupo?
+| Campo | Qué anotás |
+|-------|-----------|
+| **Discipulados del grupo** | Cuántas relaciones de discipulado uno-a-uno se hicieron |
+| **Evangelismo del grupo** | Salidas o conversaciones de evangelismo del grupo |
 
-#### Sección 3: Métricas de la Zona (AUTO-CARGADAS)
-```
-¿Cuánto reportaron tus subordinados?
-├─ Total Discipulados (zona)              [CALCULADO automáticamente]
-└─ Total Evangelismo (zona)               [CALCULADO automáticamente]
-```
+### 🙏 Sección 3 — ¿Cómo está el líder?
+| Campo | Qué anotás |
+|-------|-----------|
+| **Cuidado de nuevos discípulos** | A cuántos nuevos estás acompañando |
+| **Cuidado de discípulos maduros** | A cuántos maduros estás acompañando |
+| **Días de diario espiritual** | Cuántos días tuviste tu tiempo personal (0 a 7) |
+| **Evangelismo personal** | Tus conversaciones de evangelismo |
+| **Asistencia a servicios** | ¿Fuiste al domingo? ¿A oración? ¿A doctrina? |
 
-**IMPORTANTE**: Estos números NO son "qué hizo el supervisor". Son la **suma de lo que reportaron los líderes de la zona**. El sistema los calcula automáticamente con `GetZoneRollup()`.
+### ✨ Sección 4 — Estado del grupo
+| Campo | Qué anotás |
+|-------|-----------|
+| **¿En proceso de multiplicación?** | ¿El grupo está por abrir una célula nueva? |
 
-#### Sección 4: Comentarios
-```
-Observaciones sobre la zona
-└─ Notas libres
-```
+### 📝 Sección 5 — Comentarios
+Espacio libre para contar desafíos, pedidos de oración o celebraciones.
 
 ---
 
-## 3. EL "TERMÓMETRO ESPIRITUAL" — CÓMO SE MIDE LA SALUD
+## 3. El reporte del SUPERVISOR (Auxiliar, General, Coordinador)
 
-**El sistema cuenta puntos** para cada grupo basado en lo que el líder reporta:
+Un supervisor **no reporta sobre su propia célula** — reporta sobre **su trabajo de supervisión**. Cambian las secciones:
 
-```
-¿Tiene ND?                      → +1 punto
-¿Tiene DM?                      → +1 punto
-¿Tiene invitados?               → +1 punto
-¿Tiene niños?                   → +1 punto
-¿Hizo discipulado grupal?       → +1 punto
-¿Hizo evangelismo grupal?       → +1 punto
-¿Líder cuida ND?                → +1 punto
-¿Líder cuida DM?                → +1 punto
-¿Líder hace diario espiritual?  → +1 punto
-¿Líder hace evangelismo?        → +1 punto
-¿Líder fue a domingo?           → +1 punto
-¿Líder fue a oración?           → +1 punto
-¿Líder fue a doctrina?          → +1 punto
-                    MÁXIMO = 13 PUNTOS
-```
+### Sección 1 — Tu trabajo de supervisión
+- A cuántos nuevos discípulos acompañaste
+- A cuántos de tu equipo visitaste
+- Cuántos grupos visitaste en persona esta semana
 
-**¿Qué significa el puntaje?**
-```
-13 puntos = Grupo EXCELENTE
-8-12 puntos = Grupo SALUDABLE ✅
-5-7 puntos = Grupo EN RIESGO ⚠️
-0-4 puntos = Grupo EN DECLIVE 🚨
-```
+### Sección 2 — Tu vida espiritual
+- Días de diario espiritual, evangelismo personal, asistencia a servicios
 
-Este "termómetro" se calcula **automaticamente** cada vez que reporta un líder. Es lo que ves en los gráficos del dashboard bajo "Salud del Grupo".
+### Sección 3 — Métricas de la Zona (¡se llenan solas!)
+- **Total de Discipulados en la zona**
+- **Total de Evangelismo en la zona**
+
+> 💡 Estos dos números **NO los escribís vos**. El sistema los calcula sumando lo que reportaron los líderes a tu cargo esa misma semana. Lo explicamos en el punto siguiente.
+
+### Sección 4 — Comentarios sobre la zona
 
 ---
 
-## 4. EL FLUJO COMPLETO (Paso a Paso)
+## 4. Las "Métricas de Zona" que aparecen solas
 
-### LUNES: El Líder Envía su Reporte
+Cuando un supervisor abre su reporte, la sección "Métricas de Zona" ya viene **pre-cargada**. ¿De dónde salen esos números?
 
 ```
-Líder abre SionERP → Discipulado → "Nuevo Reporte"
-         ↓
-    Completa las 5 secciones
-         ↓
-    Click "Enviar"
-         ↓
-    El sistema:
-    ├─ Guarda en discipleship_reports
-    ├─ Calcula "Termómetro Espiritual" (0-13 puntos)
-    ├─ Extrae valores automáticos para "Objetivos" (si hay)
-    ├─ Actualiza report_compliance: marca como "on_time"
-    ├─ Notifica al supervisor auxiliar: "Nuevo reporte para revisar"
-    └─ Inicia cálculo automático de objetivos (en background)
+El sistema mira los reportes de los LÍDERES a tu cargo
+        ↓
+Suma sus "Discipulados del grupo"  →  Total de Discipulados de la zona
+Suma su evangelismo (grupal + personal)  →  Total de Evangelismo de la zona
 ```
+
+**Tres cosas importantes para entenderlo bien:**
+
+1. **Cuenta apenas se envía.** En cuanto un líder aprieta "Enviar", sus números ya suman en tu total de zona — **no hace falta esperar a aprobarlo**. La aprobación es un control de calidad aparte, no un requisito para que cuente.
+
+2. **Es por semana, no acumulado.** Si estás reportando la semana 26, solo se suman los reportes de la semana 26. Los de la semana 25 ya quedaron en su semana. **Nunca se apila todo junto.**
+
+3. **Solo cuenta a TUS líderes.** Si compartís zona con otro supervisor general, vos ves solo los líderes que están bajo tus auxiliares — nunca los del otro.
+
+> ⚠️ **Aviso de "líderes sin zona".** Si ves un cartel amarillo que dice que hay líderes sin zona asignada, significa que algunos de sus reportes no se están sumando porque no tienen zona. Se arregla asignándoles la zona en la pestaña "Jerarquías".
 
 ---
 
-### MARTES-JUEVES: El Supervisor Revisa
+## 5. El "Termómetro Espiritual" — cómo se mide la salud de un grupo
 
-```
-Supervisor Auxiliar abre → Discipulado → "Aprobaciones"
-         ↓
-    Ve los reportes "Pendientes" de sus líderes
-         ↓
-    Click "Ver" en uno
-         ↓
-    Lee el reporte y decide:
-    ├─ Click "Aprobar" 
-    │   ├─ Status → "approved"
-    │   ├─ Notifica al líder: "Tu reporte fue aprobado"
-    │   └─ Contribuye al rollup de zona
-    │
-    └─ Click "Rechazar"
-        ├─ Status → "revision_required"
-        ├─ Notifica al líder: "Tu reporte necesita cambios"
-        └─ El líder reenvía ese reporte
-```
+Cada vez que un líder reporta, el sistema le pone un **puntaje de salud al grupo**, del 0 al 13. Funciona como un termómetro: suma **un punto por cada señal de vida** presente esa semana.
 
----
+**Las 13 señales (1 punto cada una):**
 
-### MIÉRCOLES-VIERNES: El Supervisor General Ve el Rollup
+| # | Señal | | # | Señal |
+|---|-------|---|---|-------|
+| 1 | Vinieron nuevos discípulos | | 8 | El líder cuidó discípulos maduros |
+| 2 | Vinieron discípulos maduros | | 9 | El líder tuvo diario espiritual |
+| 3 | Vinieron amigos / invitados | | 10 | El líder evangelizó |
+| 4 | Vinieron niños | | 11 | El líder fue al servicio del domingo |
+| 5 | Hubo discipulado en el grupo | | 12 | El líder fue a oración |
+| 6 | Hubo evangelismo del grupo | | 13 | El líder fue a doctrina |
+| 7 | El líder cuidó nuevos discípulos | | | |
 
-```
-Supervisor General reporta SU PROPIA actividad de supervisión.
-         ↓
-    Cuando abre el modal de reporte, la sección "Métricas de Zona"
-    se LLENA AUTOMÁTICAMENTE con:
-    
-    ├─ Total Discipulados = SUM(discipleships de líderes bajo mis auxiliares)
-    ├─ Total Evangelismo = SUM(evangelismo grupal + evangelismo personal de líderes)
-    └─ Líderes Contribuyentes = COUNT(DISTINCT líderes que reportaron)
-```
+**Qué significa el puntaje:**
 
-**¿De dónde salen estos números?** → `GetZoneRollup()` consulta:
-- Todos los líderes bajo MIS auxiliares (2 niveles abajo)
-- Sus reportes APROBADOS
-- Suma discipleships + evangelismo
+| Puntaje | Estado | Color |
+|---------|--------|-------|
+| 8 a 13 | **Saludable** — hay vida en varias áreas | 🟢 Verde |
+| 5 a 7 | **En riesgo** — empieza a apagarse | 🟡 Amarillo |
+| 0 a 4 | **En declive** — necesita atención urgente | 🔴 Rojo |
 
-**NO es cumulative.** Si reporto en la semana W26:
-- Solo cuento reportes de W26
-- Líderes de W25 NO se suman
-- W27 es una semana nueva
+> El termómetro se calcula solo, a partir del reporte del líder. Es una foto de la **actividad** de esa semana, no un juicio sobre la persona. Importa: solo se mide con el **reporte del líder** (el de los supervisores no afecta el termómetro de los grupos).
 
 ---
 
-### SÁBADO: Cierre Semanal (Automático)
+## 6. Las fases de un grupo
 
-```
-23:00 (11 PM) — El sistema automáticamente:
+Además del termómetro semana a semana, el sistema clasifica a cada grupo en una **fase**, que representa su madurez. La fase se calcula sola mirando todo el historial de reportes:
 
-Para cada (usuario, semana ISO):
-  IF no hay reporte enviado {
-    Marca como "missed"
-    Incrementa missed_count
-  } ELSE IF reporte enviado DESPUÉS de Sábado 23:59 {
-    Marca como "late" (no "on_time")
-  }
-  
-Resultado: report_compliance genera "Cumplimiento de Reportes"
-```
+| Fase | Ícono | Cuándo está acá | Qué significa |
+|------|-------|----------------|---------------|
+| **Germinando** | 🌱 | Menos de 4 reportes | Grupo recién arrancado, todavía echando raíz |
+| **Creciendo** | 🌿 | 4 o más reportes | Ya tiene ritmo y constancia |
+| **Sólido** | 🌳 | 24+ semanas reportadas, con 12+ de termómetro alto (8+) y buena salud actual | Grupo maduro y estable |
+| **Multiplicando** | ✨ | Marcó "en multiplicación" 2 o más veces en el último mes | Está por reproducirse en una célula nueva |
+| **En dificultad** | ⚠️ | Tiene alertas activas sin resolver | Prioridad de atención |
+
+> **El orden importa.** Si un grupo tiene una alerta sin resolver, aparece como "En dificultad" aunque por reportes fuera "Sólido" — porque algo necesita atención YA. Si no tiene alertas pero viene marcando multiplicación, aparece como "Multiplicando". Recién después se mira la madurez por cantidad de reportes y salud.
 
 ---
 
-## 5. AUTOMÁTICO: CÓMO AFECTAN LOS REPORTES A LOS OBJETIVOS
-
-### Mapeo Automático (Cuando se Habilita)
-
-Si un **Objetivo** tiene `measurement_type = 'automatic'`, el sistema **extrae automáticamente** un valor de cada reporte:
+## 7. El recorrido de un reporte, día por día
 
 ```
-Objetivo tipo "Asistencia"
-  → Extrae: attendance_nd + attendance_dm + attendance_friends + attendance_kids
+LUNES — El líder reporta
+  Completa las 5 secciones y aprieta "Enviar".
+  En ese momento, el sistema:
+   • Le pone el puntaje de salud al grupo
+   • Suma sus números al total de su zona
+   • Marca su reporte como "A tiempo"
+   • Le avisa al supervisor: "Tenés un reporte nuevo para revisar"
 
-Objetivo tipo "Crecimiento"
-  → Extrae: leader_new_disciples_care
+MARTES a VIERNES — El supervisor revisa
+  Entra a "Aprobaciones", ve los reportes pendientes,
+  los lee y decide: Aprobar o Pedir cambios.
 
-Objetivo tipo "Evangelismo"
-  → Extrae: group_evangelism + leader_evangelism
+MIÉRCOLES a VIERNES — El supervisor hace su propio reporte
+  Su sección "Métricas de Zona" ya viene llena con la suma
+  de sus líderes. Completa su parte y envía.
 
-Objetivo tipo "Multiplicación"
-  → Extrae: is_multiplying (Sí→1, No→0)
+SÁBADO 23:00 (11 de la noche) — Cierre de la semana
+  El sistema revisa quién NO reportó y lo marca como "Falta".
 
-Objetivo tipo "Salud Espiritual"
-  → Extrae: spiritual_journal_days (0-7)
-
-Objetivo tipo "Personalizado"
-  → No extrae nada (debe ser manual)
+DOMINGO — Reunión presencial
+  Con todos los reportes ya cargados, el equipo discute
+  cara a cara los resultados de la semana.
 ```
 
-### 3-Paso Upward Aggregation (Lo Que Subes)
-
-```
-1. Se extrae el valor individual del reporte
-   ↓
-2. Se suma al objetivo del líder
-   ├─ Hoja: "mi objetivo personal"
-   ├─ Rama: "mi auxiliar supervisa esto"
-   └─ Raíz: "mi general ve el total"
-   ↓
-3. Automáticamente sube
-   ├─ Mi valor → Objetivo del Auxiliar que me supervisa
-   ├─ Suma del Auxiliar → Objetivo del General
-   └─ Suma del General → Objetivo del Coordinador
-```
-
-**Ejemplo**:
-- Semana W26: Líder Juan reporta 5 nuevos discípulos en su célula
-- Sistema extrae: `new_disciples_care = 5`
-- Objetivo "Crecimiento" de Juan: sube a 5
-- Objetivo "Crecimiento" del Auxiliar Pedro (que supervisa a Juan): sube con el +5
-- Objetivo "Crecimiento" del General: recibe los +5
-- Dashboard del General muestra: "Total de nuevos discípulos bajo mi supervisión: 120"
+> 💡 **¿Por qué el sábado es la fecha límite?**
+> Porque los **domingos son reuniones presenciales** donde se discuten los resultados. Para que esa reunión sirva, **todo tiene que estar cargado el sábado a la noche**. Por eso el cierre es sábado 23:00.
 
 ---
 
-## 6. APROBACIÓN Y COMPLIANCE (QUIÉN CUMPLEN)
+## 8. Aprobar y pedir cambios
 
-### Tabla `report_compliance`
+Cuando un supervisor abre un reporte, tiene dos botones:
 
-El sistema mantiene un registro de **quién reportó cuándo**:
+**✅ Aprobar**
+- El reporte queda marcado como "Aprobado".
+- Al líder le llega un aviso: *"Tu reporte fue aprobado"*.
 
-```
-┌─────────┬──────────┬──────────┬──────────┐
-│ Usuario │ Semana   │ Estado   │ Detalles │
-├─────────┼──────────┼──────────┼──────────┤
-│ Juan    │ W26      │ on_time  │ Enviado lunes
-│ Juan    │ W25      │ on_time  │ Enviado martes
-│ Juan    │ W24      │ missed   │ Nunca envió
-│ Juan    │ W23      │ late     │ Enviado el lunes después
-│ Pedro   │ W26      │ pending  │ Aún no reporta (es sábado 10 AM)
-└─────────┴──────────┴──────────┴──────────┘
+**✋ Pedir cambios (Rechazar)**
+- El reporte queda como "Necesita revisión".
+- Al líder le llega un aviso con el motivo.
+- **El líder corrige y vuelve a enviar esa misma semana.** No se pierde nada.
 
-Columna "Estado":
-  pending  = Falta esta semana (aún es sábado antes de 23:59)
-  on_time  = Envió de lunes a sábado 23:59
-  late     = Envió después de sábado 23:59
-  missed   = No envió nunca esa semana
-```
-
-### Missed Count (Faltas Acumuladas)
-
-El sistema **recomputa automáticamente** cada vez que reportas:
-
-```
-missed_count = COUNT(filas con estado='missed' para este usuario)
-
-Si Juan tiene:
-  ├─ W26 = on_time
-  ├─ W25 = on_time
-  ├─ W24 = missed  ← cuenta 1
-  ├─ W23 = late
-  ├─ W22 = missed  ← cuenta 2
-  └─ W21 = missed  ← cuenta 3
-  
-  missed_count = 3
-```
-
-**¿Por qué importa?** → Cuando `missed_count >= 3`, se genera una **alerta de escalación** al supervisor del supervisor.
+> Para el líder: si tu reporte dice "Necesita revisión", abrilo, leé el comentario de tu supervisor, corregí y reenvialo. Listo.
 
 ---
 
-## 7. EL PANEL "CUMPLIMIENTO" (¿Quién Faltó?)
+## 9. Cumplimiento — quién reportó y quién faltó
 
-### Lo Que Ve Cada Supervisor
-
-Cada supervisor tiene un tab "Cumplimiento" que muestra:
+Cada supervisor tiene una pestaña **"Cumplimiento"** que muestra, semana por semana, quién entregó y quién no.
 
 ```
-CUMPLIMIENTO DE REPORTES — Últimas 8 semanas
+CUMPLIMIENTO — Últimas 8 semanas
 
-Líder             │ W26 │ W25 │ W24 │ W23 │ W22 │ W21 │ W20 │ W19 │ Faltas
-──────────────────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼────────
-Juan Pérez        │  ✅ │  ✅ │  ✅ │  ✅ │  ✅ │  ✅ │  ✅ │  ✅ │ 0
-María García      │  ✅ │  ✅ │  ⏰ │  ✅ │  ✅ │  ✅ │  ✅ │  ✅ │ 1
-Carlos López      │  ✅ │  ❌ │  ❌ │  ✅ │  ❌ │  ✅ │  ✅ │  ✅ │ 3 🚨
-
-Colores:
-  ✅ = on_time (verde)
-  ⏰ = late (amarillo)
-  ❌ = missed (rojo)
-  ? = pending (gris)
-  
-  🚨 = 3+ faltas → ESCALACIÓN ENVIADA
+Persona          S26  S25  S24  S23  S22  S21  S20  S19   Faltas
+─────────────────────────────────────────────────────────────────
+Juan Pérez        ✅   ✅   ✅   ✅   ✅   ✅   ✅   ✅      0
+María García      ✅   ✅   🟡   ✅   ✅   ✅   ✅   ✅      1
+Carlos López      ✅   ❌   ❌   ✅   ❌   ✅   ✅   ✅      3 🚨
 ```
 
-### Notificaciones de Cumplimiento
+**Qué significa cada color:**
 
-Cuando alguien falta:
-```
-1ª falta (W24) → Notificación al líder: "Faltó tu reporte de W24"
-2ª falta (W22) → Notificación al líder: "Ahora tienes 2 faltas"
-3ª falta (W21) → Notificación DOBLE:
-                 ├─ Al líder: "Tienes 3 faltas — contacta a tu supervisor"
-                 └─ Al supervisor del supervisor (escalación)
-```
+| Color | Estado | Quiere decir |
+|-------|--------|-------------|
+| 🟢 ✅ | **A tiempo** | Entregó dentro de la semana (lunes a sábado) |
+| 🟡 | **Tarde** | Entregó, pero después del sábado a la noche |
+| 🔴 ❌ | **Falta** | No entregó esa semana |
+| ⚪ | **Pendiente** | Todavía no entregó, pero la semana no cerró aún |
+
+> **¿A quién muestra cada supervisor?** Un auxiliar ve a sus líderes directos. Un supervisor general ve a **todos los líderes** que están bajo sus auxiliares (no solo a los auxiliares). Así el general tiene la foto completa de quién está cumpliendo en su zona.
+
+### Las "faltas acumuladas" y la escalación
+
+La columna **"Faltas"** cuenta cuántas semanas, en total, esa persona dejó pasar sin reportar.
+
+- **A la 1ª falta**: le llega un aviso a la persona — *"Faltó tu reporte de la semana X"*.
+- **A la 3ª falta**: además del aviso a la persona, **se le avisa también al supervisor de su supervisor** (escalación), y la fila se marca en rojo con 🚨.
+
+> 💡 Un reporte entregado **tarde** SÍ cuenta como entregado — no suma a las faltas. La idea es premiar que se haya cargado, aunque haya sido después del sábado.
 
 ---
 
-## 8. ALERTAS AUTOMÁTICAS (¿Cuándo Se Disparan?)
+## 10. "Me olvidé una semana" — cargar un reporte atrasado
 
-El sistema genera **7 reglas de alerta** automáticamente cada noche:
+Si dejaste pasar una semana, **no la perdés**. Podés cargarla después:
 
-### ALERTAS CRÍTICAS (Rojo 🔴 — Atención Requerida)
+1. Andá a "Nuevo Reporte".
+2. Arriba hay un **selector de semana**. Elegí la semana que te faltó.
+3. Completá y enviá.
 
-#### 1. "Sin Reportes en 2 Semanas"
-```
-IF grupo NO tiene reporte en últimos 14 días {
-  Crea alerta: "Este grupo no ha reportado hace 2 semanas"
-  Notifica a: Supervisor del grupo
-  Acción: "Ver grupo y contactar al líder"
-}
-```
+El sistema entiende que es una semana vieja y la marca como **"Tarde"** (no como "A tiempo", porque sería faltar a la verdad) — pero la cuenta como entregada y **te saca esa falta**.
 
-#### 2. "Asistencia Muy Baja"
-```
-IF grupo tiene miembros AND asistencia promedio < 50% del miembro count {
-  Crea alerta: "Asistencia baja — revisar retención"
-  Ejemplo: "10 miembros, promedio 3 asistentes = 30%"
-}
-```
-
-#### 3. "Declive Espiritual" 
-```
-IF grupo tiene "termómetro espiritual" promedio < 5 en últimos 28 días {
-  Crea alerta: "Grupo en declive espiritual"
-  Razón: Muy pocos eventos, poca visitación, bajo diario espiritual
-}
-```
-
-#### 4. "Sin Crecimiento en 8 Semanas"
-```
-IF grupo NO tiene discipleship O evangelism en últimos 56 días {
-  Crea alerta: "Grupo estancado — necesita estrategia"
-}
-```
+> No se puede cargar una semana futura, solo las pasadas. Y cada reporte pertenece a **una** semana: nunca se acumulan varios en uno solo.
 
 ---
 
-### ALERTAS CELEBRATORIAS (Verde 🟢 — Celebración)
+## 11. Las alertas automáticas
 
-#### 5. "12 Semanas Consistente"
-```
-IF grupo reportó 12+ semanas seguidas (84 días) sin faltar {
-  Crea alerta: "¡Grupo consistente! 12 semanas reportando"
-}
-```
+Cada noche el sistema revisa todos los grupos y, si encuentra algo que merece atención (o celebración), genera una **alerta**. Hay dos clases.
 
-#### 6. "Campeones de Evangelismo"
-```
-IF grupo reportó evangelismo 4+ veces en últimas 4 semanas {
-  Crea alerta: "¡Evangelismo activo! Celebremos el fruto"
-}
-```
+### 🔴 Alertas críticas (piden acción)
 
-#### 7. "Grupo Sólido"
-```
-IF grupo tuvo "termómetro espiritual" >= 8 puntos 12+ veces en 84 días {
-  Crea alerta: "¡Grupo sólido espiritualmente!"
-}
-```
+| Alerta | Cuándo aparece | Qué te dice |
+|--------|---------------|-------------|
+| **Sin reportes** | El grupo no reporta hace 2 semanas | "Este grupo se quedó sin reportar — contactá al líder" |
+| **Asistencia baja** | Asisten menos de la mitad de los miembros (mirando las últimas 4 semanas) | "Revisar retención del grupo" |
+| **Declive espiritual** | El termómetro promedio bajó de 5 (últimas 4 semanas) | "El grupo se está apagando, necesita acompañamiento" |
+| **Sin crecimiento** | 8 semanas sin nada de evangelismo ni discipulado | "Grupo estancado — pensar una estrategia" |
+
+### 🟢 Alertas de celebración (para reconocer lo bueno)
+
+| Alerta | Cuándo aparece | Qué te dice |
+|--------|---------------|-------------|
+| **Constancia** | 12 semanas seguidas reportando | "¡Grupo constante! Felicitar al líder" |
+| **Campeones de evangelismo** | Evangelismo activo 4 de las últimas 4 semanas | "¡Hay fruto! Celebrar el esfuerzo" |
+| **Grupo sólido** | Termómetro de 8 o más, sostenido 12 semanas | "¡Grupo fuerte espiritualmente!" |
+
+> Las alertas llegan a quien corresponde: un supervisor ve las de sus grupos; el pastor ve las de toda la iglesia. Cada uno ve solo lo suyo. Y el sistema no repite la misma alerta todos los días — espera un tiempo antes de volver a avisar lo mismo.
 
 ---
 
-## 9. DASHBOARDS: QUÉ VE CADA NIVEL
+## 12. Los objetivos que se actualizan solos
 
-### NIVEL 1 (Líder) VE:
-```
-┌─ Mi Célula ──────────────────────┐
-│ • Miembros: 8 (7 activos)        │
-│ • Asistencia prom: 85%           │
-│ • Próxima reunión: Dom 2pm       │
-│ • Estado: Reporte enviado W26 ✅ │
-│                                   │
-│ • Mis últimos 5 reportes         │
-│ • Mis objetivos (si asignados)   │
-└───────────────────────────────────┘
-```
+Si tu iglesia usa **objetivos estratégicos** (metas de crecimiento, evangelismo, etc.), algunos pueden configurarse para **medirse automáticamente** desde los reportes. En ese caso, no hace falta cargar el avance a mano.
 
-### NIVEL 2 (Auxiliar) VE:
+**Ejemplo:**
 ```
-┌─ Mi Sector (3-5 grupos) ──────────┐
-│ • Grupos bajo mi supervisión: 5   │
-│ • Total miembros: 40              │
-│ • Asistencia promedio: 78%        │
-│ • Líderes necesitados: 1 (sin 2 semanas)
-│                                    │
-│ TAB "Cumplimiento":               │
-│  Quién reportó (semana a semana)  │
-│  Quién se quedó sin reportar      │
-│                                    │
-│ TAB "Grupos":                     │
-│  Salud de cada grupo              │
-│  Alerta: "Sin reportes en 2 sem"  │
-└────────────────────────────────────┘
+Objetivo: "Sumar 100 nuevos discípulos este trimestre"
+        ↓
+El líder Juan reporta 5 nuevos discípulos esta semana
+        ↓
+El sistema suma esos 5 al objetivo automáticamente
+        ↓
+Y va subiendo: el objetivo del auxiliar, del general y del
+coordinador también reflejan esos 5 — todo sin escribir nada.
 ```
 
-### NIVEL 3 (General) VE:
-```
-┌─ Mi Zona ─────────────────────────┐
-│ • Total grupos: 20                │
-│ • Total miembros: 150             │
-│ • Asistencia promedio: 76%        │
-│ • Crecimiento semanal: +3 miembros│
-│ • Salud promedio: 7.2/13 (buena)  │
-│                                    │
-│ GRÁFICO: Tendencia 24 semanas     │
-│ GRÁFICO: Distribución por zona    │
-│ GRÁFICO: Asistencia semanal       │
-│                                    │
-│ TAB "Cumplimiento":               │
-│  Quién de MIS auxiliares reportó  │
-│  Quién faltó (con escalación)     │
-│                                    │
-│ TAB "Alertas":                    │
-│  Grupos sin reportes              │
-│  Grupos en declive                │
-│  Celebraciones                    │
-└────────────────────────────────────┘
-```
+Así, el pastor ve en su panel *"Nuevos discípulos este trimestre: 87 de 100"* sin que nadie haya sumado a mano.
 
-### NIVEL 4–5 (Coordinador/Pastor) VE:
+> Los objetivos marcados como "personalizados" se cargan a mano — esos el sistema no los toca.
+
+---
+
+## 13. Multiplicaciones — cuando una célula se reproduce
+
+El corazón del modelo celular es que los grupos **se multiplican**: cuando una célula crece, abre una célula nueva con un líder nuevo.
+
+**Cómo participa el reporte:**
+- En cada reporte, el líder marca **"¿En proceso de multiplicación?"**.
+- Si lo marca **2 o más veces en el último mes**, el grupo pasa a la fase **"Multiplicando"** ✨.
+- Cuando la multiplicación se concreta, queda registrada en el **historial de multiplicaciones**, que guarda: el grupo madre, el grupo nuevo, la fecha, el tipo y si fue exitosa.
+
+**En el tablero:**
+- El número **"Grupos Multiplicando"** cuenta cuántas células están en ese proceso ahora mismo.
+- El **historial** te deja ver el árbol de reproducción: qué grupo nació de qué grupo, y cuándo.
+
+> Multiplicarse es la meta sana de toda célula. Por eso tiene su propia fase, su propio número en el tablero y hasta una alerta de celebración cuando un grupo viene fuerte.
+
+---
+
+## 14. Las gráficas y los números del panel
+
+Esta es la parte que más se pregunta: **¿qué significa cada número y cada gráfica del dashboard?**
+
+### Las tarjetas de arriba (los KPIs)
+
+| Tarjeta | Qué cuenta | Cómo se calcula |
+|---------|-----------|-----------------|
+| **Grupos Activos** | Células activas en tu alcance | Cuenta los grupos activos que te corresponden por tu nivel |
+| **Miembros Activos** | Total de personas en esos grupos | Suma los miembros de todos tus grupos |
+| **Grupos Multiplicando** | Células por reproducirse | Cuenta los grupos en fase "Multiplicando" |
+| **Necesitan Atención** | Grupos con problemas | Cuenta los grupos con alertas críticas sin resolver |
+| **Asistencia Promedio** | Cuánta gente viene en promedio | Promedio de asistentes por reunión, últimas 4 semanas |
+| **Salud Espiritual** | El "termómetro" promedio del ministerio | Promedio del termómetro (0 a 13) de todos tus grupos, últimas 4 semanas |
+
+> ⚠️ **No confundir dos "saludes".** El **termómetro de un grupo** (sección 5) es de UN grupo en UNA semana. La tarjeta **"Salud Espiritual"** es el **promedio** del termómetro de TODOS tus grupos en el último mes. Una es la foto de un grupo; la otra, el clima general de tu zona.
+
+### Los gráficos
+
+**📈 Tendencia Semanal (gráfico de línea)**
+Muestra, semana a semana (últimas 12 a 24 semanas):
+- **Asistencia total** — cuánta gente vino en total cada semana
+- **Visitantes** — cuántos amigos/invitados se sumaron
+- **Grupos que reportaron** — cuántas células entregaron esa semana
+
+*Para qué sirve*: ver de un vistazo si el ministerio **sube, se mantiene o baja**. Una línea que cae varias semanas seguidas es una señal de alerta temprana.
+
+**📊 Distribución por Zonas (gráfico de barras)**
+Compara las zonas entre sí: grupos, miembros y asistencia por zona.
+
+*Para qué sirve*: ver **qué zonas están fuertes y cuáles necesitan apoyo**.
+
+**🥧 Distribución de Salud (gráfico de torta)**
+Reparte tus grupos según su estado: cuántos están saludables 🟢, en riesgo 🟡 y en declive 🔴.
+
+*Para qué sirve*: saber, de un vistazo, **qué proporción de tus grupos están bien** y cuántos piden atención.
+
+> Todos los gráficos respetan tu nivel: un supervisor ve solo lo suyo; el pastor ve toda la iglesia.
+
+---
+
+## 15. Qué ve cada nivel en su pantalla
+
+### 👤 Líder — "Mi Célula"
+- Miembros del grupo y cuántos están activos
+- Asistencia promedio
+- Próxima reunión (día, hora, lugar)
+- Si ya reportó esta semana o no
+- Sus últimos reportes y sus objetivos
+
+### 👥 Supervisor Auxiliar — "Mi Sector"
+- Sus 3 a 5 grupos, con la salud de cada uno
+- Asistencia promedio del sector
+- Pestaña **Cumplimiento**: quién de sus líderes reportó
+- Alertas de sus grupos
+
+### 🗺️ Supervisor General — "Mi Zona"
+- Total de grupos, miembros y asistencia de la zona
+- Gráficos de tendencia (cómo evoluciona semana a semana)
+- Pestaña **Cumplimiento**: el cumplimiento de **todos los líderes** bajo sus auxiliares
+- Alertas de la zona
+
+### 🌎 Coordinador y Pastor — "Visión completa"
+- Todas las zonas juntas
+- Estadísticas generales y objetivos estratégicos
+- Mapa de zonas con su salud
+- Todas las alertas críticas y todas las aprobaciones finales
+
+---
+
+## 16. Preguntas frecuentes
+
+**"Envié mi reporte pero mi supervisor no lo ve."**
+→ Que revise la pestaña **"Aprobaciones"**. Ahí aparecen los reportes esperando revisión.
+
+**"Las métricas de zona me aparecen en cero."**
+→ Probablemente los líderes todavía no reportaron esa semana, o no tienen zona asignada. Fijate si hay un aviso amarillo de "líderes sin zona".
+
+**"No me llegan las notificaciones."**
+→ Revisá el centro de notificaciones (la campanita arriba). Si nada llega, avisá al administrador.
+
+**"Mi objetivo no se actualiza con los reportes."**
+→ Ese objetivo seguramente está configurado como "personalizado" (carga manual). Solo los de medición automática se actualizan solos.
+
+**"Me equivoqué en un reporte ya enviado."**
+→ Pedile a tu supervisor que lo marque "Necesita revisión". Te vuelve a vos para corregirlo y reenviarlo.
+
+**"Falté una semana, ¿la perdí?"**
+→ No. Usá el selector de semana en "Nuevo Reporte" y cargá la semana atrasada. Cuenta como entregada (marcada "Tarde").
+
+**"¿Por qué mi grupo aparece 'En dificultad' si vengo reportando bien?"**
+→ Porque tiene una alerta sin resolver. Resolvé o atendé la alerta y la fase se actualiza.
+
+**"La tarjeta 'Salud Espiritual' me da un número raro, como 6,8. ¿Qué es?"**
+→ Es el termómetro promedio (de 0 a 13) de todos tus grupos en el último mes. 6,8 quiere decir que, en promedio, tus grupos muestran casi 7 de las 13 señales de vida.
+
+---
+
+## 17. Todo el flujo en una página
+
 ```
-┌─ Visión Completa ──────────────────┐
-│ • Todas las zonas                  │
-│ • Todos los estadísticas agregadas │
-│ • Todos los objetivos estratégicos │
-│ • Mapa de zonas con salud          │
-│                                     │
-│ TAB "Alertas Críticas":            │
-│  Todos los grupos en problema      │
-│  Escalaciones de compliance        │
-│                                     │
-│ TAB "Aprobaciones":                │
-│  Reportes que llegan al pastor     │
-│  para revisión final               │
-│                                     │
-│ TAB "Reportes":                    │
-│  Historial completo + búsqueda     │
-└─────────────────────────────────────┘
+1. EL LÍDER REPORTA (lunes)
+   Completa 5 secciones → al enviar:
+   • Se calcula la salud del grupo (0-13) y su fase
+   • Sus números suman al total de su zona (al instante)
+   • Queda marcado "A tiempo"
+   • Le avisa al supervisor
+
+2. EL SUPERVISOR REVISA (martes a viernes)
+   En "Aprobaciones": Aprueba o Pide cambios.
+   Si pide cambios, el líder corrige y reenvía.
+
+3. EL SUPERVISOR REPORTA (su propia supervisión)
+   "Métricas de Zona" ya vienen llenas (suma de sus líderes).
+   Completa su parte y envía.
+
+4. EL SUPERIOR VE SU PANEL ACTUALIZADO
+   Tarjetas (KPIs), gráficos de tendencia, distribución
+   de salud, alertas y pestaña "Cumplimiento".
+
+5. SÁBADO 23:00 — CIERRE AUTOMÁTICO
+   Marca "Falta" a quien no entregó.
+   A las 3 faltas → avisa al supervisor de su supervisor.
+
+6. DOMINGO — REUNIÓN PRESENCIAL
+   Con todo cargado, se discuten los resultados cara a cara.
+
+7. LOS OBJETIVOS SUBEN SOLOS
+   Cada número sube de nivel en nivel hasta el pastor,
+   sin que nadie sume a mano.
 ```
 
 ---
 
-## 10. FÓRMULAS DE AGREGACIÓN (Cómo Sube Todo)
+**¿Dudas que este documento no resuelve?** Hablá con tu administrador o pastor.
 
-### De Líder a Auxiliar
-```
-SUM(attendance) = ND + DM + amigos + niños de TODOS los líderes bajo este auxiliar
-
-SUM(discipleship) = group_discipleships de TODOS los líderes
-
-AVG(asistencia) = promedio de (asistencia total / miembros) para cada grupo
-```
-
-### De Auxiliar a General
-```
-Sumamos líderes bajo MIS AUXILIARES (no solo líderes directos):
-
-Total discipleship = SUM(discipleship de TODOS los líderes en mis 2 niveles abajo)
-
-Total evangelism = SUM(group_evangelism + leader_evangelism de todos los líderes)
-
-Zone metrics = Estos se pre-calculan cuando abre el modal de reporte
-               usando GetZoneRollup()
-```
-
-### De General a Coordinador
-```
-Todos los supervisores generales en su zona
-
-Total groups = SUM(grupos)
-Total members = SUM(miembros)  
-Health index = AVG(termómetro espiritual)
-Growth = TREND(nuevos miembros / total)
-```
-
-### De Coordinador a Pastor
-```
-Todas las zonas en la iglesia
-
-Total ministry = SUM(todo)
-Health overall = TREND(últimas 24 semanas)
-Alerts = TODAS las alertas en la iglesia
-```
-
----
-
-## 11. LATE SUBMISSION RECOVERY (Enviar Atrasado)
-
-### Escenario Normal
-```
-Semana W26: Lunes a Sábado 23:59
- ├─ Líder Juan reporta miércoles → status = "on_time" ✅
- └─ Cuenta para compliance W26
-
-Sábado 23:00: Barrida automática
- ├─ Enuncia quien no reportó
- └─ Marca como "missed" para gente sin reporte
-```
-
-### Escenario de Recuperación
-```
-Juan OLVIDA reportar W26. Sábado 23:00 pasa:
- → report_compliance(Juan, W26) = "missed"
-
-Juan se da cuenta el LUNES siguiente:
- ├─ Juan va a "Nuevo Reporte"
- ├─ Selecciona "Semana anterior (W26)"
- ├─ Rellena y envía
- └─ Sistema write-through ve que es DESPUÉS de Sábado 23:59
-     ├─ NO cambia a "on_time" (eso sería mentira)
-     ├─ Cambia a "late" (fue tarde pero se envió)
-     └─ Notifica: "Reporte enviado (aunque después del sábado)"
-
-IMPORTANTE: No downgrade. Si es "on_time", nunca baja a "late".
-            Pero "missed" → "late" sí ocurre.
-```
-
----
-
-## 12. CASOS ESPECIALES
-
-### Líderes Sin Zona Asignada
-```
-El sistema ve: "Líder Juan no tiene zona_id"
-
-Impacto:
- ├─ Reporte se guarda normalmente
- ├─ Pero NO se suma en rollup de zona (aparece como "unmapped")
- ├─ GetZoneRollup() devuelve: "unmapped_leaders: 1"
- ├─ SupervisionReportModal.tsx muestra aviso: "1 líder sin zona"
- └─ Solución: Asignar zona_id en "Jerarquías"
-```
-
-### Multiplicaciones
-```
-Reporte líder: is_multiplying = true (sí)
-
-Impacto automático:
- ├─ Si hay objetivo "Multiplicaciones" → extrae valor 1
- ├─ Si hay objetivo "Crecimiento" → podría incluirlo
- └─ Alert engine ve: "Grupo multiplicando" → celebración potencial
-
-No es lo mismo que: "Cuántas células nuevas nacieron" (eso es manual)
-```
-
----
-
-## 13. RESUMEN: EL FLUJO COMPLETO EN UNA PÁGINA
-
-```
-1. LÍDER REPORTA
-   └─ Llena 5 secciones (asistencia, actividad, vida, servicios, notas)
-       ├─ Sistema calcula "Termómetro" (0-13)
-       ├─ Extrae valores para objetivos automáticos
-       ├─ Actualiza compliance: "on_time"
-       └─ Notifica supervisor
-
-2. SUPERVISOR REVISA Y APRUEBA
-   └─ Ve "Aprobaciones" tab
-       ├─ Click "Ver" en reporte
-       ├─ Aprueba o Rechaza
-       └─ Si aprueba → contribuye al rollup de zona
-
-3. SUPERVISOR REPORTA (si es Auxiliar/General/Coordinador)
-   └─ Abre su reporte
-       ├─ "Métricas de Zona" se llenan automáticamente
-       │  (GetZoneRollup suma: discipleship + evangelism)
-       ├─ Completa su trabajo de supervisión
-       └─ Envía
-
-4. SUPERIOR VE DASHBOARD ACTUALIZADO
-   └─ Zona tab muestra:
-       ├─ Total grupos, miembros, asistencia
-       ├─ Gráficos de tendencia
-       ├─ Alertas (críticas + celebración)
-       └─ Tab "Cumplimiento": quién reportó, quién faltó
-
-5. CADA SÁBADO 23:00 — BARRIDA AUTOMÁTICA
-   └─ Marca "missed" a quien no reportó
-       ├─ Recomputa missed_count
-       ├─ Si missed_count >= 3 → escalación
-       └─ Genera alertas de compliance
-
-6. OBJETIVOS SE ACTUALIZAN EN 3 PASOS
-   └─ Valor individual → suma auxiliar → suma general → suma coordinador
-       └─ Dashboard muestra: "Total de nuevos discípulos: 450"
-```
-
----
-
-## 14. LIMITACIONES CONOCIDAS & FUTURO
-
-### Lo Que NO Hace Ahora
-- Multi-tenant por subdomain (en roadmap)
-- Agregación en tiempo real (refrescar = nueva consulta)
-- Móvil con modales específicas (ahora renderiza web)
-- Predicción IA en objetivos
-- Clusturización automática de alertas
-
-### Lo Que SÍ Hace
-- ✅ Cascada semanal de reportes con aprobación
-- ✅ Agregación jerárquica automática
-- ✅ Compliance tracking con escalación
-- ✅ Alertas automáticas (7 tipos)
-- ✅ Objetivos automáticos con agregación upward
-- ✅ Late submission recovery
-- ✅ Jerarquía de múltiples supervisores por zona
-
----
-
-## Contacto & Preguntas
-
-Si en tu iglesia:
-- ❌ Un reporte no aparece en el dashboard → chequear "Aprobaciones"
-- ❌ Las métricas de zona no se cargan → verificar que líderes tengan zona asignada
-- ❌ Las alertas no llegan → revisar Notificaciones center
-- ❌ Un objetivo no se actualiza → confirmar que es "measurement_type = automatic"
-
-Contactá a tu administrador o pastor para ayuda.
-
----
-
-**Documento generado**: Junio 2026  
-**Última revisión**: Implementación de compliance y alertas  
-**Próxima versión**: Con multi-tenancy y agregación real-time
+*Documento de usuario — Junio 2026. Para el detalle técnico (tablas, fórmulas, endpoints), ver `docs/INDICE_TECNICO.md`.*
