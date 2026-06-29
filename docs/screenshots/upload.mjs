@@ -14,12 +14,21 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const URL = process.env.SUPABASE_URL;
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const URL = process.env.SUPABASE_URL?.trim();
+const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 const BUCKET = 'manual-screenshots';
 
 if (!URL || !KEY) {
   console.error('Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en el entorno.');
+  process.exit(1);
+}
+
+if (!KEY.startsWith('eyJ')) {
+  console.error(
+    'La service-role key no parece un JWT (debería empezar con "eyJ").\n' +
+      'Usá la key clásica "service_role" de Supabase → Settings → API → Legacy/JWT keys,\n' +
+      'NO la del formato nuevo "sb_secret_...".'
+  );
   process.exit(1);
 }
 
