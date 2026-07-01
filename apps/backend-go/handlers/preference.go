@@ -57,9 +57,17 @@ func (h *PreferencesHandler) GetUserPreferences(c echo.Context) error {
 		userID, churchID,
 	), &prefs)
 	if err == sql.ErrNoRows {
-		// Auto-provisión: crear la fila con los defaults de la tabla y devolverla.
+		// Auto-provisión: crear la fila con los defaults CONFIGURADOS por la iglesia
+		// (system_settings.default_theme/default_language/timezone), con fallback
+		// a valores sanos si la iglesia aún no tiene settings.
 		err = scan(q.QueryRow(
-			`INSERT INTO user_preferences (user_id, church_id) VALUES ($1, $2)
+			`INSERT INTO user_preferences (user_id, church_id, theme, language, timezone)
+			 SELECT $1, $2,
+			        COALESCE(s.default_theme, 'light'),
+			        COALESCE(s.default_language, 'es'),
+			        COALESCE(s.timezone, 'UTC')
+			 FROM (SELECT 1) one
+			 LEFT JOIN system_settings s ON s.church_id = $2
 			 ON CONFLICT (church_id, user_id) DO UPDATE SET updated_at = now()
 			 RETURNING `+selectCols,
 			userID, churchID,

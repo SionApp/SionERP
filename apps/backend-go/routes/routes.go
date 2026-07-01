@@ -40,9 +40,14 @@ func SetupRoutes(e *echo.Echo) {
 	onboarding := api.Group("/onboarding")
 	onboarding.POST("/church", onboardingHandler.ProvisionChurch)
 
+	// Public: la página de registro consulta si el auto-registro está habilitado
+	api.GET("/public/registration-status", handlers.NewSettingsHandler().GetRegistrationStatus)
+
 	// Protected routes (require authentication)
 	protected := api.Group("")
 	protected.Use(middleware.SupabaseAuth())
+	// Modo mantenimiento: 503 para no-staff cuando está activo (corre antes de abrir tx)
+	protected.Use(middleware.MaintenanceGate())
 	// ponytail: TenantTx registered here (Phase 0) but is a no-op pass-through when
 	// church_id is absent from the context (all current users until Phase 2 JWT backfill).
 	// TODO(phase 2): remove the pass-through guard inside TenantTx after JWT backfill.
@@ -103,6 +108,10 @@ func SetupRoutes(e *echo.Echo) {
 		invitations.POST("/:id/resend", handlers.NewInviteHandler().ResendInvitation)
 		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation)
 	}
+
+	// Subset seguro de settings para CUALQUIER usuario autenticado (tema/idioma
+	// por defecto, animaciones, mantenimiento, timeout) — sin gate de rol.
+	protected.GET("/settings/public", handlers.NewSettingsHandler().GetPublicSettings)
 
 	// Settings routes (pastor+ — admin 500 and pastor 400)
 	settings := protected.Group("/settings")

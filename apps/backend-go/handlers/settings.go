@@ -4,6 +4,7 @@ import (
 	"backend-sion/cache"
 	"backend-sion/config"
 	"backend-sion/database"
+	"backend-sion/middleware"
 	"backend-sion/models"
 	"database/sql"
 	"fmt"
@@ -114,11 +115,73 @@ func (h *SettingsHandler) UpdateSystemSettings(c echo.Context) error {
 		})
 	}
 
-	// Invalidar cache
+	// Invalidar caches (settings + gate de mantenimiento, para que aplique al instante)
 	cacheInstance.Delete("system_settings_" + churchID)
+	middleware.InvalidateMaintenanceCache(churchID)
 
 	// Retornar los settings actualizados
 	return h.GetSystemSettings(c)
+}
+
+// GetPublicSettings devuelve el subconjunto SEGURO de system_settings que
+// cualquier usuario autenticado necesita para que la UI respete la
+// configuración (tema/idioma por defecto, animaciones, mantenimiento, timeout).
+// Sin gate de rol — el gate Pastor+ queda solo para el CRUD completo.
+func (h *SettingsHandler) GetPublicSettings(c echo.Context) error {
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	out := struct {
+		SiteName              string `json:"site_name"`
+		DefaultTheme          string `json:"default_theme"`
+		DefaultLanguage       string `json:"default_language"`
+		Timezone              string `json:"timezone"`
+		AnimationsEnabled     bool   `json:"animations_enabled"`
+		MaintenanceMode       bool   `json:"maintenance_mode"`
+		SessionTimeoutMinutes int    `json:"session_timeout_minutes"`
+	}{
+		// Defaults si la iglesia aún no tiene fila de settings
+		SiteName: "SionERP", DefaultTheme: "light", DefaultLanguage: "es",
+		Timezone: "UTC", AnimationsEnabled: true,
+	}
+
+	err = q.QueryRow(`
+		SELECT site_name, default_theme, default_language, timezone,
+		       animations_enabled, maintenance_mode, COALESCE(session_timeout_minutes, 0)
+		FROM system_settings WHERE church_id = $1 LIMIT 1
+	`, churchID).Scan(
+		&out.SiteName, &out.DefaultTheme, &out.DefaultLanguage, &out.Timezone,
+		&out.AnimationsEnabled, &out.MaintenanceMode, &out.SessionTimeoutMinutes,
+	)
+	if err != nil && err != sql.ErrNoRows {
+		c.Logger().Error("Error fetching public settings: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get settings"})
+	}
+
+	return c.JSON(http.StatusOK, out)
+}
+
+// GetRegistrationStatus — endpoint PÚBLICO (sin auth) para que la página de
+// registro sepa si el auto-registro está habilitado. La página pública aplica
+// a la iglesia por defecto (deploy single-domain); el enforcement real vive
+// en el trigger handle_new_user.
+func (h *SettingsHandler) GetRegistrationStatus(c echo.Context) error {
+	const defaultChurch = "00000000-0000-0000-0000-00000000515e"
+	allow := true
+	if db := config.GetDB(); db != nil && db.DB != nil {
+		_ = db.DB.QueryRow(
+			`SELECT allow_registrations FROM system_settings WHERE church_id = $1 LIMIT 1`,
+			defaultChurch,
+		).Scan(&allow)
+	}
+	return c.JSON(http.StatusOK, map[string]bool{"allow_registrations": allow})
 }
 
 // GetChurchInfo obtiene información de la iglesia
@@ -244,6 +307,9 @@ func (h *SettingsHandler) GetNotificationConfig(c echo.Context) error {
 			"message": err.Error(),
 		})
 	}
+
+	// Nunca devolver el secreto SMTP al cliente (write-only).
+	notifConfig.SMTPPassword = models.NullString{}
 
 	return c.JSON(http.StatusOK, notifConfig)
 }

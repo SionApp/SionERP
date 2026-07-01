@@ -325,6 +325,9 @@ func TestIsolationNoBareDBCalls(t *testing.T) {
 		"discipleship-goals.go":   true,
 		"discipleship_reports.go": true,
 		"onboarding.go":           true,
+		// settings.go — GetRegistrationStatus is a PUBLIC unauthenticated endpoint
+		// (no TenantTx exists pre-auth); it reads one boolean for the default church.
+		"settings.go": true,
 		// Pending migration (Phase 3d)
 		"auth.go":        true,
 		"dashboard.go":   true,

@@ -2746,6 +2746,25 @@ func (h *DiscipleshipHandler) AddGroupMember(c echo.Context) error {
 		roleInGroup = req.RoleInGroup
 	}
 
+	// Límite configurable de miembros por grupo (system_settings.max_users_per_group; 0 = sin límite).
+	// No aplica cuando el usuario ya está en el grupo (re-activación vía ON CONFLICT).
+	var maxPerGroup int
+	_ = q.QueryRow(`SELECT COALESCE(max_users_per_group, 0) FROM system_settings WHERE church_id = $1 LIMIT 1`, churchID).Scan(&maxPerGroup)
+	if maxPerGroup > 0 {
+		var current int
+		var alreadyMember bool
+		_ = q.QueryRow(`
+			SELECT COUNT(*) FILTER (WHERE is_active),
+			       COUNT(*) FILTER (WHERE user_id = $2) > 0
+			FROM discipleship_group_members WHERE group_id = $1
+		`, groupID, req.UserID).Scan(&current, &alreadyMember)
+		if !alreadyMember && current >= maxPerGroup {
+			return c.JSON(http.StatusConflict, map[string]string{
+				"error": fmt.Sprintf("El grupo alcanzó el máximo de %d miembros configurado en el sistema", maxPerGroup),
+			})
+		}
+	}
+
 	var memberID string
 	err = q.QueryRow(`
 		INSERT INTO discipleship_group_members (church_id, group_id, user_id, role_in_group)
