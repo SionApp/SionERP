@@ -4,8 +4,24 @@ package database
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 )
+
+// validColumnName acepta solo identificadores SQL simples en snake_case.
+// Las keys de BuildUpdateQueryFromMap vienen del JSON del cliente y se
+// interpolan en el SET — sin esta validación son un vector de inyección.
+var validColumnName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
+
+// protectedColumns nunca pueden actualizarse vía payload dinámico,
+// sin importar la tabla (identidad, tenant y timestamps).
+var protectedColumns = map[string]bool{
+	"id":         true,
+	"user_id":    true,
+	"church_id":  true,
+	"created_at": true,
+	"updated_at": true,
+}
 
 func BuildUpdateQuery(data interface{}, tableName, idColumn, idValue string) (string, []interface{}, error) {
 	var updates []string
@@ -80,9 +96,14 @@ func BuildUpdateQueryFromMap(data map[string]interface{}, tableName, idColumn, i
 	argPos := 1
 
 	for key, value := range data {
-		// Skip nil values, id columns, and timestamp columns managed by the builder
-		if value == nil || key == idColumn || key == "id" || key == "updated_at" || key == "created_at" {
+		// Skip nil values, the id column, and protected columns (identity/tenant/timestamps)
+		if value == nil || key == idColumn || protectedColumns[key] {
 			continue
+		}
+		// Reject anything that isn't a plain snake_case identifier — the key is
+		// interpolated into SQL, so a malformed key is an injection attempt.
+		if !validColumnName.MatchString(key) {
+			return "", nil, fmt.Errorf("invalid column name: %q", key)
 		}
 
 		updates = append(updates, fmt.Sprintf("%s = $%d", key, argPos))

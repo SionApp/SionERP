@@ -17,7 +17,8 @@ func NewPreferencesHandler() *PreferencesHandler {
 }
 
 // GetUserPreferences obtiene preferencias del usuario actual.
-// user_preferences is scoped by user_id (UUID is globally unique) — no cross-tenant risk.
+// Si el usuario no tiene fila todavía, se crea una con los DEFAULT de la tabla
+// (auto-provisión) — así el frontend siempre recibe 200 con datos persistibles.
 func (h *PreferencesHandler) GetUserPreferences(c echo.Context) error {
 	userID, ok := c.Get("user_id").(string)
 	if !ok {
@@ -26,40 +27,51 @@ func (h *PreferencesHandler) GetUserPreferences(c echo.Context) error {
 			"message": "User ID not found in context",
 		})
 	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
 
 	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
-	query := `SELECT id, user_id, theme, language, timezone, email_notifications,
+	const selectCols = `id, user_id, theme, language, timezone, email_notifications,
 		push_notifications, sms_notifications, whatsapp_notifications, event_reminders,
-		weekly_newsletter, profile_visibility, show_email, show_phone, created_at, updated_at
-		FROM user_preferences WHERE user_id = $1`
+		weekly_newsletter, profile_visibility, show_email, show_phone, created_at, updated_at`
+
+	scan := func(row *sql.Row, prefs *models.UserPreferences) error {
+		return row.Scan(
+			&prefs.ID, &prefs.UserID, &prefs.Theme, &prefs.Language, &prefs.Timezone,
+			&prefs.EmailNotifications, &prefs.PushNotifications, &prefs.SMSNotifications,
+			&prefs.WhatsAppNotifications, &prefs.EventReminders, &prefs.WeeklyNewsletter,
+			&prefs.ProfileVisibility, &prefs.ShowEmail, &prefs.ShowPhone,
+			&prefs.CreatedAt, &prefs.UpdatedAt,
+		)
+	}
 
 	var prefs models.UserPreferences
-	err = q.QueryRow(query, userID).Scan(
-		&prefs.ID, &prefs.UserID, &prefs.Theme, &prefs.Language, &prefs.Timezone,
-		&prefs.EmailNotifications, &prefs.PushNotifications, &prefs.SMSNotifications,
-		&prefs.WhatsAppNotifications, &prefs.EventReminders, &prefs.WeeklyNewsletter,
-		&prefs.ProfileVisibility, &prefs.ShowEmail, &prefs.ShowPhone,
-		&prefs.CreatedAt, &prefs.UpdatedAt,
-	)
+	err = scan(q.QueryRow(
+		`SELECT `+selectCols+` FROM user_preferences WHERE user_id = $1 AND church_id = $2`,
+		userID, churchID,
+	), &prefs)
+	if err == sql.ErrNoRows {
+		// Auto-provisión: crear la fila con los defaults de la tabla y devolverla.
+		err = scan(q.QueryRow(
+			`INSERT INTO user_preferences (user_id, church_id) VALUES ($1, $2)
+			 ON CONFLICT (church_id, user_id) DO UPDATE SET updated_at = now()
+			 RETURNING `+selectCols,
+			userID, churchID,
+		), &prefs)
+	}
 	if err != nil {
-		if err == sql.ErrNoRows {
-			// Si no existe, crear preferencias por defecto
-			return c.JSON(http.StatusNotFound, map[string]string{
-				"error": "User preferences not found",
-			})
-		}
 		c.Logger().Error("Error fetching user preferences: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error":   "Failed to get user preferences",
-			"message": err.Error(),
+			"error": "Failed to get user preferences",
 		})
 	}
 
-	c.Logger().Info(fmt.Sprintf("User preferences: %v", prefs))
 	return c.JSON(http.StatusOK, prefs)
 }
 
@@ -80,35 +92,29 @@ func (h *PreferencesHandler) UpdateUserPreferences(c echo.Context) error {
 		})
 	}
 
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
 	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
-	// Verificar si existen preferencias, si no, crearlas
-	var exists bool
-	err = q.QueryRow("SELECT EXISTS(SELECT 1 FROM user_preferences WHERE user_id = $1)", userID).Scan(&exists)
+	// Asegurar que la fila exista (idempotente, con church_id — NOT NULL desde multi-tenancy)
+	_, err = q.Exec(`
+		INSERT INTO user_preferences (user_id, church_id) VALUES ($1, $2)
+		ON CONFLICT (church_id, user_id) DO NOTHING
+	`, userID, churchID)
 	if err != nil {
-		c.Logger().Error("Error checking user preferences: ", err)
+		c.Logger().Error("Error creating user preferences: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Failed to check user preferences",
+			"error": "Failed to create user preferences",
 		})
 	}
 
-	if !exists {
-		// Crear preferencias por defecto
-		insertQuery := `INSERT INTO user_preferences (user_id) VALUES ($1) RETURNING id`
-		var newID string
-		err = q.QueryRow(insertQuery, userID).Scan(&newID)
-		if err != nil {
-			c.Logger().Error("Error creating user preferences: ", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": "Failed to create user preferences",
-			})
-		}
-	}
-
-	// UPDATE dinámico
+	// UPDATE dinámico (el builder valida los nombres de columna del payload)
 	updateQuery, args, err := database.BuildUpdateQueryFromMap(req, "user_preferences", "user_id", userID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
@@ -116,6 +122,9 @@ func (h *PreferencesHandler) UpdateUserPreferences(c echo.Context) error {
 			"message": err.Error(),
 		})
 	}
+	// Scope de tenant explícito además del user_id
+	updateQuery += fmt.Sprintf(" AND church_id = $%d", len(args)+1)
+	args = append(args, churchID)
 
 	_, err = q.Exec(updateQuery, args...)
 	if err != nil {
