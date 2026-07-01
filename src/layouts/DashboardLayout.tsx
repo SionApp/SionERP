@@ -20,10 +20,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { useNotificationsData } from '@/hooks/useNotificationsData';
 import { useSetupShortcut } from '@/hooks/useSetupShortcut';
+import { useSystemPublicSettings } from '@/hooks/useSystemPublicSettings';
 import { invalidatePermissionsCache } from '@/lib/permissions';
 import { UserService } from '@/services/user.service';
-import { Bell, LogOut, Palette, UserCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Bell, LogOut, Palette, UserCircle, Wrench } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -96,7 +97,7 @@ const DashboardLayout = () => {
     checkAndRedirect();
   }, [loading, location.pathname, navigate]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       invalidatePermissionsCache();
       await authLogout();
@@ -105,12 +106,35 @@ const DashboardLayout = () => {
     } finally {
       window.location.href = '/login';
     }
-  };
+  }, [authLogout]);
+
+  // Settings del sistema: animaciones, logout por inactividad, mantenimiento, nombre
+  const { settings: systemSettings } = useSystemPublicSettings(handleLogout);
+  const isStaffPlus = ['admin', 'pastor', 'staff'].includes(userRole);
+  const siteName = systemSettings?.site_name || 'Sistema Sion';
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Modo mantenimiento: pantalla completa para no-staff (el backend además responde 503)
+  if (systemSettings?.maintenance_mode && !isStaffPlus) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-md text-center space-y-4">
+          <Wrench className="h-12 w-12 mx-auto text-muted-foreground" />
+          <h1 className="text-2xl font-bold">Sistema en mantenimiento</h1>
+          <p className="text-muted-foreground">
+            Estamos haciendo mejoras. Volvé a intentar en unos minutos.
+          </p>
+          <Button variant="outline" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" /> Cerrar sesión
+          </Button>
+        </div>
       </div>
     );
   }
@@ -137,7 +161,13 @@ const DashboardLayout = () => {
   return (
     <SidebarProvider>
       <div className="h-[100dvh] flex flex-col w-full bg-gradient-to-br from-background via-background to-accent/5 overflow-hidden fixed inset-0">
-        {/* Onboarding Banner */}
+        {/* Aviso para staff+: mantenimiento activo (los demás ven la pantalla de mantenimiento) */}
+        {systemSettings?.maintenance_mode && isStaffPlus && (
+          <div className="bg-amber-500/15 text-amber-700 dark:text-amber-400 text-xs sm:text-sm px-4 py-1.5 text-center border-b border-amber-500/30 shrink-0 z-50">
+            ⚠️ Modo mantenimiento activo — los usuarios sin rol de staff no pueden entrar.
+            Desactivalo en Configuración → General.
+          </div>
+        )}
 
         {/* Header Glass Morphism */}
         <header className="h-14 sm:h-16 flex items-center justify-between bg-[var(--glass-background)] backdrop-blur-lg border-b border-border/30 px-2 sm:px-4 md:px-6 shadow-[var(--shadow-glass)] gap-2 shrink-0 z-50">
@@ -149,7 +179,7 @@ const DashboardLayout = () => {
               </div>
               <div>
                 <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Sistema Sion
+                  {siteName}
                 </h1>
                 <p className="hidden sm:block text-xs text-muted-foreground">
                   Panel de Administración

@@ -26,8 +26,6 @@ import {
   Bell,
   Church,
   Database,
-  Eye,
-  EyeOff,
   Loader2,
   Map,
   RotateCcw,
@@ -41,7 +39,6 @@ import { toast } from 'sonner';
 const SettingsPage = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -884,114 +881,10 @@ const SettingsPage = () => {
 
                     <Separator />
 
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4">Configuración SMTP</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_host">Servidor SMTP</Label>
-                          <Input
-                            id="smtp_host"
-                            value={notificationConfig.smtp_host || ''}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_host: e.target.value,
-                              })
-                            }
-                            placeholder="smtp.gmail.com"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_port">Puerto</Label>
-                          <Input
-                            id="smtp_port"
-                            type="number"
-                            value={notificationConfig.smtp_port}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_port: parseInt(e.target.value) || 587,
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_user">Usuario</Label>
-                          <Input
-                            id="smtp_user"
-                            value={notificationConfig.smtp_user || ''}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_user: e.target.value,
-                              })
-                            }
-                            placeholder="tu-email@gmail.com"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_password">Contraseña</Label>
-                          <div className="relative">
-                            <Input
-                              id="smtp_password"
-                              type={showPassword ? 'text' : 'password'}
-                              value={notificationConfig.smtp_password || ''}
-                              onChange={e =>
-                                setNotificationConfig({
-                                  ...notificationConfig,
-                                  smtp_password: e.target.value,
-                                })
-                              }
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-0 top-0 h-full px-3"
-                              onClick={() => setShowPassword(!showPassword)}
-                            >
-                              {showPassword ? (
-                                <EyeOff className="h-4 w-4" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_from_email">Email Remitente</Label>
-                          <Input
-                            id="smtp_from_email"
-                            value={notificationConfig.smtp_from_email || ''}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_from_email: e.target.value,
-                              })
-                            }
-                            placeholder="noreply@iglesia.com"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_from_name">Nombre Remitente</Label>
-                          <Input
-                            id="smtp_from_name"
-                            value={notificationConfig.smtp_from_name}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_from_name: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Los correos del sistema se envían a través de un proveedor gestionado
+                      (Resend) — no requiere configuración SMTP.
+                    </p>
                   </div>
 
                   <div className="flex justify-end pt-4">

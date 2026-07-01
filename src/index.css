@@ -131,3 +131,11 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* system_settings.animations_enabled = false → mata transiciones/animaciones globalmente */
+.no-animations *,
+.no-animations *::before,
+.no-animations *::after {
+  animation: none !important;
+  transition: none !important;
+}
