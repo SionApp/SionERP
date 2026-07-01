@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
@@ -75,6 +77,23 @@ func NewDatabase() (*Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
+
+	// Cap the pool below Supabase's pgbouncer transaction-pooler limit (port 6543).
+	// TenantTx holds a real BeginTx() open for the whole request, so an unbounded
+	// Go pool tries to open more physical connections than the pooler allows under
+	// concurrent load — pgbouncer rejects the excess, BeginTx fails, and handlers
+	// return 500. Capping here makes Go queue the excess instead, which the pooler
+	// tolerates. Override via DB_MAX_OPEN_CONNS if the project's pooler size differs.
+	maxOpenConns := 15
+	if v := os.Getenv("DB_MAX_OPEN_CONNS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			maxOpenConns = n
+		}
+	}
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxOpenConns)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
 
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
