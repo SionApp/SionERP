@@ -45,6 +45,46 @@ func TestBuildUpdateQueryFromMap_RejectsInjectionKeys(t *testing.T) {
 	}
 }
 
+func TestBuildUpdateQueryFromMap_SkipsNilByDefault(t *testing.T) {
+	// nil-skip: solo el campo con valor real entra; el null se ignora.
+	query, args, err := BuildUpdateQueryFromMap(
+		map[string]interface{}{"logo_url": nil, "name": "Sion"},
+		"church_info", "id", "c1",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(query, "logo_url") {
+		t.Errorf("nil logo_url should be skipped: %s", query)
+	}
+	if len(args) != 2 { // name + idValue
+		t.Errorf("expected 2 args, got %d", len(args))
+	}
+}
+
+func TestBuildUpdateQueryFromMapWithNulls_ClearsField(t *testing.T) {
+	// WithNulls: un null explícito se traduce a SET NULL (borrar logo).
+	query, args, err := BuildUpdateQueryFromMapWithNulls(
+		map[string]interface{}{"logo_url": nil},
+		"church_info", "id", "c1",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(query, "logo_url = $1") {
+		t.Errorf("expected 'logo_url = $1', got: %s", query)
+	}
+	if args[0] != nil {
+		t.Errorf("expected nil arg for cleared field, got %v", args[0])
+	}
+	// Aun con WithNulls, las columnas protegidas nunca se tocan.
+	if _, _, err := BuildUpdateQueryFromMapWithNulls(
+		map[string]interface{}{"church_id": nil}, "church_info", "id", "c1",
+	); err == nil || !strings.Contains(err.Error(), "no fields to update") {
+		t.Errorf("protected column must be skipped even with nulls; got %v", err)
+	}
+}
+
 func TestBuildUpdateQueryFromMap_SkipsProtectedColumns(t *testing.T) {
 	// church_id/user_id/id/timestamps se ignoran silenciosamente;
 	// si solo vienen protegidas, no hay nada que actualizar.

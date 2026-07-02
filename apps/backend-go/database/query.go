@@ -89,19 +89,37 @@ func BuildUpdateQuery(data interface{}, tableName, idColumn, idValue string) (st
 	return query, args, nil
 }
 
-// BuildUpdateQueryFromMap construye una query UPDATE desde un map[string]interface{}
+// BuildUpdateQueryFromMap construye una query UPDATE desde un map[string]interface{}.
+// Los valores nil se SALTEAN (patch parcial: un campo ausente/null no se toca).
+// Útil cuando el cliente puede mandar el objeto entero y no querés pisar con null
+// (ej. la password SMTP que el GET devuelve en blanco).
 func BuildUpdateQueryFromMap(data map[string]interface{}, tableName, idColumn, idValue string) (string, []interface{}, error) {
+	return buildUpdateFromMap(data, tableName, idColumn, idValue, false)
+}
+
+// BuildUpdateQueryFromMapWithNulls es igual pero un valor null EXPLÍCITO se traduce
+// a `col = NULL` (permite LIMPIAR un campo). Usar solo en tablas donde eso es
+// deseado (ej. church_info: borrar logo/banner/teléfono/redes).
+func BuildUpdateQueryFromMapWithNulls(data map[string]interface{}, tableName, idColumn, idValue string) (string, []interface{}, error) {
+	return buildUpdateFromMap(data, tableName, idColumn, idValue, true)
+}
+
+func buildUpdateFromMap(data map[string]interface{}, tableName, idColumn, idValue string, allowNull bool) (string, []interface{}, error) {
 	var updates []string
 	var args []interface{}
 	argPos := 1
 
 	for key, value := range data {
-		// Skip nil values, the id column, and protected columns (identity/tenant/timestamps)
-		if value == nil || key == idColumn || protectedColumns[key] {
+		// Saltar la columna id y las protegidas (identidad/tenant/timestamps)
+		if key == idColumn || protectedColumns[key] {
 			continue
 		}
-		// Reject anything that isn't a plain snake_case identifier — the key is
-		// interpolated into SQL, so a malformed key is an injection attempt.
+		// Sin allowNull, un nil se saltea (patch parcial); con allowNull, SET NULL.
+		if value == nil && !allowNull {
+			continue
+		}
+		// Rechazar cualquier cosa que no sea un identificador snake_case — la key se
+		// interpola en el SQL, así que una key malformada es un intento de inyección.
 		if !validColumnName.MatchString(key) {
 			return "", nil, fmt.Errorf("invalid column name: %q", key)
 		}
