@@ -210,26 +210,19 @@ const SettingsPage = () => {
             <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               {systemSettings && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="site_name">Nombre del Sistema</Label>
-                      <Input
-                        id="site_name"
-                        value={systemSettings.site_name}
-                        onChange={e =>
-                          setSystemSettings({
-                            ...systemSettings,
-                            site_name: e.target.value,
-                          })
-                        }
-                        placeholder="Nombre del sistema"
-                      />
+                  <div className="rounded-lg border bg-muted/40 p-3 sm:p-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Plataforma: JETRO</p>
+                      <p className="text-xs text-muted-foreground">
+                        El nombre y logo de tu iglesia se configuran en la pestaña{' '}
+                        <span className="font-medium">Iglesia</span> — JETRO se muestra siempre
+                        junto a esa marca, no se reemplaza.
+                      </p>
                     </div>
+                    <Badge variant="outline">v{systemSettings.site_version}</Badge>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="site_version">Versión</Label>
-                      <Input id="site_version" value={systemSettings.site_version} disabled />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
                     <div className="space-y-2">
                       <Label htmlFor="timezone">Zona Horaria</Label>

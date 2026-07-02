@@ -7,7 +7,7 @@ const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'] as cons
  * Carga el subset público de system_settings y APLICA lo que gobierna la UI:
  *  - animations_enabled  → clase `no-animations` en <html>
  *  - session_timeout_minutes → logout por inactividad (si > 0)
- *  - maintenance_mode / site_name → expuestos para que el layout decida
+ *  - maintenance_mode / church_name / logo_url → expuestos para que el layout decida
  */
 export function useSystemPublicSettings(onIdleLogout?: () => void) {
   const [settings, setSettings] = useState<PublicSystemSettings | null>(null);

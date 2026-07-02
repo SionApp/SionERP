@@ -21,6 +21,7 @@ import { useMobileMode } from '@/hooks/useMobileMode';
 import { useNotificationsData } from '@/hooks/useNotificationsData';
 import { useSetupShortcut } from '@/hooks/useSetupShortcut';
 import { useSystemPublicSettings } from '@/hooks/useSystemPublicSettings';
+import { coBrand, PLATFORM_NAME } from '@/lib/branding';
 import { invalidatePermissionsCache } from '@/lib/permissions';
 import { UserService } from '@/services/user.service';
 import { Bell, LogOut, Palette, UserCircle, Wrench } from 'lucide-react';
@@ -111,7 +112,11 @@ const DashboardLayout = () => {
   // Settings del sistema: animaciones, logout por inactividad, mantenimiento, nombre
   const { settings: systemSettings } = useSystemPublicSettings(handleLogout);
   const isStaffPlus = ['admin', 'pastor', 'staff'].includes(userRole);
-  const siteName = systemSettings?.site_name || 'Sistema Sion';
+  const churchName = systemSettings?.church_name || 'Tu Iglesia';
+
+  useEffect(() => {
+    document.title = coBrand(systemSettings?.church_name);
+  }, [systemSettings?.church_name]);
 
   if (loading) {
     return (
@@ -177,22 +182,22 @@ const DashboardLayout = () => {
               {systemSettings?.logo_url ? (
                 <img
                   src={systemSettings.logo_url}
-                  alt={siteName}
+                  alt={churchName}
                   className="w-9 h-9 rounded-xl object-cover shadow-lg"
                 />
               ) : (
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
                   <span className="text-primary-foreground font-bold text-sm">
-                    {siteName.charAt(0).toUpperCase()}
+                    {churchName.charAt(0).toUpperCase()}
                   </span>
                 </div>
               )}
               <div>
                 <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  {siteName}
+                  {churchName}
                 </h1>
                 <p className="hidden sm:block text-xs text-muted-foreground">
-                  Panel de Administración
+                  {PLATFORM_NAME} · Panel de Administración
                 </p>
               </div>
             </div>
@@ -278,7 +283,7 @@ const DashboardLayout = () => {
         </header>
 
         <div className="flex flex-1 w-full overflow-hidden">
-          <AppSidebar siteName={siteName} logoUrl={systemSettings?.logo_url} />
+          <AppSidebar churchName={churchName} logoUrl={systemSettings?.logo_url} />
           <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-20 md:pb-8">
             <Outlet />
           </main>

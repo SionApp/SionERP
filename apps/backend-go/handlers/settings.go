@@ -139,7 +139,7 @@ func (h *SettingsHandler) GetPublicSettings(c echo.Context) error {
 	}
 
 	out := struct {
-		SiteName              string  `json:"site_name"`
+		ChurchName            string  `json:"church_name"`
 		DefaultTheme          string  `json:"default_theme"`
 		DefaultLanguage       string  `json:"default_language"`
 		Timezone              string  `json:"timezone"`
@@ -148,20 +148,22 @@ func (h *SettingsHandler) GetPublicSettings(c echo.Context) error {
 		SessionTimeoutMinutes int     `json:"session_timeout_minutes"`
 		LogoURL               *string `json:"logo_url"`
 	}{
-		// Defaults si la iglesia aún no tiene fila de settings
-		SiteName: "SionERP", DefaultTheme: "light", DefaultLanguage: "es",
+		// Defaults si la iglesia aún no tiene fila de settings/church_info
+		DefaultTheme: "light", DefaultLanguage: "es",
 		Timezone: "UTC", AnimationsEnabled: true,
 	}
 
+	// church_name/logo_url vienen de church_info (identidad del TENANT).
+	// JETRO — la marca del PRODUCTO — nunca sale de la base: es constante en el frontend.
 	err = q.QueryRow(`
-		SELECT s.site_name, s.default_theme, s.default_language, s.timezone,
+		SELECT COALESCE(ci.name, ''), s.default_theme, s.default_language, s.timezone,
 		       s.animations_enabled, s.maintenance_mode, COALESCE(s.session_timeout_minutes, 0),
 		       ci.logo_url
 		FROM system_settings s
 		LEFT JOIN church_info ci ON ci.church_id = s.church_id
 		WHERE s.church_id = $1 LIMIT 1
 	`, churchID).Scan(
-		&out.SiteName, &out.DefaultTheme, &out.DefaultLanguage, &out.Timezone,
+		&out.ChurchName, &out.DefaultTheme, &out.DefaultLanguage, &out.Timezone,
 		&out.AnimationsEnabled, &out.MaintenanceMode, &out.SessionTimeoutMinutes, &out.LogoURL,
 	)
 	if err != nil && err != sql.ErrNoRows {
@@ -179,17 +181,14 @@ func (h *SettingsHandler) GetPublicBranding(c echo.Context) error {
 	const defaultChurch = "00000000-0000-0000-0000-00000000515e"
 
 	out := struct {
-		SiteName string  `json:"site_name"`
-		LogoURL  *string `json:"logo_url"`
-	}{SiteName: "SionERP"}
+		ChurchName string  `json:"church_name"`
+		LogoURL    *string `json:"logo_url"`
+	}{}
 
 	if db := config.GetDB(); db != nil && db.DB != nil {
 		_ = db.DB.QueryRow(`
-			SELECT COALESCE(s.site_name, 'SionERP'), ci.logo_url
-			FROM church_info ci
-			LEFT JOIN system_settings s ON s.church_id = ci.church_id
-			WHERE ci.church_id = $1 LIMIT 1
-		`, defaultChurch).Scan(&out.SiteName, &out.LogoURL)
+			SELECT COALESCE(name, ''), logo_url FROM church_info WHERE church_id = $1 LIMIT 1
+		`, defaultChurch).Scan(&out.ChurchName, &out.LogoURL)
 	}
 
 	return c.JSON(http.StatusOK, out)

@@ -119,7 +119,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
       const url = `${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=ve&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'SionERP/1.0',
+          'User-Agent': 'JETRO/1.0',
         },
       });
 
@@ -196,7 +196,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
           const url = `${NOMINATIM_URL}/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
           const response = await fetch(url, {
             headers: {
-              'User-Agent': 'SionERP/1.0',
+              'User-Agent': 'JETRO/1.0',
             },
           });
 
@@ -248,7 +248,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
         const url = `${NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
         const response = await fetch(url, {
           headers: {
-            'User-Agent': 'SionERP/1.0',
+            'User-Agent': 'JETRO/1.0',
           },
         });
 
@@ -299,7 +299,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
       const geocode = async () => {
         try {
           const url = `${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(value.address)}&limit=1&addressdetails=1`;
-          const res = await fetch(url, { headers: { 'User-Agent': 'SionERP/1.0' } });
+          const res = await fetch(url, { headers: { 'User-Agent': 'JETRO/1.0' } });
           const data: NominatimFeature[] = await res.json();
           if (data?.length > 0) {
             const resolvedLat = parseFloat(data[0].lat);
