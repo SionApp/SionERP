@@ -65,27 +65,45 @@ const DEFAULT_ZOOM = 13;
 
 // ── SVG Markers (as HTML strings for divIcon) ──────────────
 
-function houseIconHtml(color: string, size: number): string {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill="${color}" fill-opacity="0.85" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M9 21V13H15V21" fill="white" fill-opacity="0.9" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`;
+// Pin en forma de gota (teardrop) con una casita blanca adentro. El ancla es la
+// PUNTA inferior, así que marca el punto exacto en el mapa. `w` = ancho en px;
+// el alto se deriva a ~1.3x. La sombra va en el wrapper para no colisionar ids de SVG.
+function houseIconHtml(color: string, w: number, highlight = false): string {
+  const h = Math.round(w * 1.32);
+  const ring = highlight
+    ? `<circle cx="15" cy="14" r="12.5" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.9"/>`
+    : '';
+  return `<div style="width:${w}px;height:${h}px;filter:drop-shadow(0 2px 2px rgba(15,23,42,.35));${
+    highlight ? 'animation:jetro-pin-pop .25s ease-out;' : ''
+  }">
+    <svg width="${w}" height="${h}" viewBox="0 0 30 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M15 1.5C7.8 1.5 2 7.2 2 14.2c0 8.1 13 24.3 13 24.3s13-16.2 13-24.3C28 7.2 22.2 1.5 15 1.5Z" fill="${color}" stroke="#ffffff" stroke-width="2.4"/>
+      ${ring}
+      <path d="M15 7.6 22 13v6.1a.8.8 0 0 1-.8.8H8.8a.8.8 0 0 1-.8-.8V13l7-5.4Z" fill="#ffffff"/>
+      <rect x="12.7" y="14.6" width="4.6" height="5.3" rx="0.7" fill="${color}"/>
+    </svg>
+  </div>`;
 }
 
+// Badge circular para personas (más chico, sin punta — marca aproximada).
 function personIconHtml(size: number): string {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" stroke-width="1.5"/>
-    <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fill-opacity="0.6" stroke="#4f46e5" stroke-width="1.5" stroke-linecap="round"/>
-  </svg>`;
+  return `<div style="width:${size}px;height:${size}px;filter:drop-shadow(0 1px 1.5px rgba(15,23,42,.4));">
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="10" fill="#6366f1" stroke="#ffffff" stroke-width="2"/>
+      <circle cx="12" cy="9.6" r="3" fill="#ffffff"/>
+      <path d="M6.5 17.8c0-3 2.6-5 5.5-5s5.5 2 5.5 5" fill="#ffffff"/>
+    </svg>
+  </div>`;
 }
 
-function createHouseIcon(color: string, size: number): L.DivIcon {
+function createHouseIcon(color: string, w: number, highlight = false): L.DivIcon {
+  const h = Math.round(w * 1.32);
   return L.divIcon({
-    html: houseIconHtml(color, size),
+    html: houseIconHtml(color, w, highlight),
     className: '',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size],
-    popupAnchor: [0, -size],
+    iconSize: [w, h],
+    iconAnchor: [w / 2, h], // punta inferior
+    popupAnchor: [0, -h + 4],
   });
 }
 
@@ -94,8 +112,8 @@ function createPersonIcon(size: number): L.DivIcon {
     html: personIconHtml(size),
     className: '',
     iconSize: [size, size],
-    iconAnchor: [size / 2, size],
-    popupAnchor: [0, -size],
+    iconAnchor: [size / 2, size / 2], // centro
+    popupAnchor: [0, -size / 2],
   });
 }
 
@@ -330,7 +348,11 @@ export default function DiscipleshipMap({
         !isNaN(lat) &&
         !isNaN(lng) &&
         isFinite(lat) &&
-        isFinite(lng)
+        isFinite(lng) &&
+        // Excluir el punto nulo (0,0): grupos sin ubicación real que el backend
+        // devuelve como 0 — antes renderizaban pines fantasma en medio del océano.
+        lat !== 0 &&
+        lng !== 0
       );
     };
     if (!internalSelectedZoneId) {
@@ -477,11 +499,13 @@ export default function DiscipleshipMap({
                   const lng = Number(group.longitude);
                   if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return null;
                   const zoneColor = getGroupZoneColor(group);
+                  const isSelected = selectedGroup?.id === group.id;
                   return (
                     <Marker
                       key={`group-${group.id}`}
                       position={[lat, lng]}
-                      icon={createHouseIcon(zoneColor, 28)}
+                      icon={createHouseIcon(zoneColor, isSelected ? 30 : 22, isSelected)}
+                      zIndexOffset={isSelected ? 1000 : 0}
                       eventHandlers={{
                         click: () => {
                           setSelectedPerson(null);
@@ -498,7 +522,7 @@ export default function DiscipleshipMap({
                   <Marker
                     key={`person-${person.id}`}
                     position={[person.latitude, person.longitude]}
-                    icon={createPersonIcon(18)}
+                    icon={createPersonIcon(15)}
                     eventHandlers={{
                       click: () => {
                         setSelectedGroup(null);
