@@ -249,7 +249,9 @@ func (h *SettingsHandler) UpdateChurchInfo(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Church info not found for this church"})
 	}
 
-	updateQuery, args, err := database.BuildUpdateQueryFromMap(req, "church_info", "id", infoID)
+	// WithNulls: church_info permite LIMPIAR campos opcionales (logo/banner/redes/etc.)
+	// enviando null explícito — necesario para el botón de eliminar logo.
+	updateQuery, args, err := database.BuildUpdateQueryFromMapWithNulls(req, "church_info", "id", infoID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error":   "Failed to build update query",
