@@ -48,11 +48,9 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
         <div className="p-3 sm:p-4 border-b border-border/30">
           <div className="flex items-center gap-3">
             {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt={churchName}
-                className="w-8 h-8 rounded-lg object-cover shadow-lg"
-              />
+              <div className="w-8 h-8 rounded-lg bg-white shadow-lg p-1 shrink-0">
+                <img src={logoUrl} alt={churchName} className="w-full h-full object-contain" />
+              </div>
             ) : (
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
