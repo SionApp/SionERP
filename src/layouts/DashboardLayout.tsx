@@ -174,9 +174,19 @@ const DashboardLayout = () => {
           <div className="flex items-center gap-4">
             <SidebarTrigger className="p-2 rounded-xl hover:bg-accent/50 transition-colors" />
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
-                <span className="text-primary-foreground font-bold text-sm">S</span>
-              </div>
+              {systemSettings?.logo_url ? (
+                <img
+                  src={systemSettings.logo_url}
+                  alt={siteName}
+                  className="w-9 h-9 rounded-xl object-cover shadow-lg"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
+                  <span className="text-primary-foreground font-bold text-sm">
+                    {siteName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
               <div>
                 <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                   {siteName}
@@ -268,7 +278,7 @@ const DashboardLayout = () => {
         </header>
 
         <div className="flex flex-1 w-full overflow-hidden">
-          <AppSidebar />
+          <AppSidebar siteName={siteName} logoUrl={systemSettings?.logo_url} />
           <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-20 md:pb-8">
             <Outlet />
           </main>

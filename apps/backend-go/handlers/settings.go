@@ -139,13 +139,14 @@ func (h *SettingsHandler) GetPublicSettings(c echo.Context) error {
 	}
 
 	out := struct {
-		SiteName              string `json:"site_name"`
-		DefaultTheme          string `json:"default_theme"`
-		DefaultLanguage       string `json:"default_language"`
-		Timezone              string `json:"timezone"`
-		AnimationsEnabled     bool   `json:"animations_enabled"`
-		MaintenanceMode       bool   `json:"maintenance_mode"`
-		SessionTimeoutMinutes int    `json:"session_timeout_minutes"`
+		SiteName              string  `json:"site_name"`
+		DefaultTheme          string  `json:"default_theme"`
+		DefaultLanguage       string  `json:"default_language"`
+		Timezone              string  `json:"timezone"`
+		AnimationsEnabled     bool    `json:"animations_enabled"`
+		MaintenanceMode       bool    `json:"maintenance_mode"`
+		SessionTimeoutMinutes int     `json:"session_timeout_minutes"`
+		LogoURL               *string `json:"logo_url"`
 	}{
 		// Defaults si la iglesia aún no tiene fila de settings
 		SiteName: "SionERP", DefaultTheme: "light", DefaultLanguage: "es",
@@ -153,16 +154,42 @@ func (h *SettingsHandler) GetPublicSettings(c echo.Context) error {
 	}
 
 	err = q.QueryRow(`
-		SELECT site_name, default_theme, default_language, timezone,
-		       animations_enabled, maintenance_mode, COALESCE(session_timeout_minutes, 0)
-		FROM system_settings WHERE church_id = $1 LIMIT 1
+		SELECT s.site_name, s.default_theme, s.default_language, s.timezone,
+		       s.animations_enabled, s.maintenance_mode, COALESCE(s.session_timeout_minutes, 0),
+		       ci.logo_url
+		FROM system_settings s
+		LEFT JOIN church_info ci ON ci.church_id = s.church_id
+		WHERE s.church_id = $1 LIMIT 1
 	`, churchID).Scan(
 		&out.SiteName, &out.DefaultTheme, &out.DefaultLanguage, &out.Timezone,
-		&out.AnimationsEnabled, &out.MaintenanceMode, &out.SessionTimeoutMinutes,
+		&out.AnimationsEnabled, &out.MaintenanceMode, &out.SessionTimeoutMinutes, &out.LogoURL,
 	)
 	if err != nil && err != sql.ErrNoRows {
 		c.Logger().Error("Error fetching public settings: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get settings"})
+	}
+
+	return c.JSON(http.StatusOK, out)
+}
+
+// GetPublicBranding — endpoint PÚBLICO (sin auth) para la pantalla de login,
+// que corre antes de que exista contexto de iglesia. Igual que
+// GetRegistrationStatus, asume la iglesia por defecto (deploy single-domain).
+func (h *SettingsHandler) GetPublicBranding(c echo.Context) error {
+	const defaultChurch = "00000000-0000-0000-0000-00000000515e"
+
+	out := struct {
+		SiteName string  `json:"site_name"`
+		LogoURL  *string `json:"logo_url"`
+	}{SiteName: "SionERP"}
+
+	if db := config.GetDB(); db != nil && db.DB != nil {
+		_ = db.DB.QueryRow(`
+			SELECT COALESCE(s.site_name, 'SionERP'), ci.logo_url
+			FROM church_info ci
+			LEFT JOIN system_settings s ON s.church_id = ci.church_id
+			WHERE ci.church_id = $1 LIMIT 1
+		`, defaultChurch).Scan(&out.SiteName, &out.LogoURL)
 	}
 
 	return c.JSON(http.StatusOK, out)

@@ -20,6 +20,12 @@ export interface PublicSystemSettings {
   animations_enabled: boolean;
   maintenance_mode: boolean;
   session_timeout_minutes: number;
+  logo_url: string | null;
+}
+
+export interface PublicBranding {
+  site_name: string;
+  logo_url: string | null;
 }
 
 export class SettingsService {
@@ -34,6 +40,18 @@ export class SettingsService {
     } catch (error) {
       console.error('Error fetching public settings:', error);
       return null; // no bloquear la UI si falla
+    }
+  }
+
+  /** Público (sin auth): nombre + logo de la iglesia, para la pantalla de login. */
+  static async getPublicBranding(): Promise<PublicBranding | null> {
+    try {
+      const base = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8181'}/api/v1`;
+      const res = await fetch(`${base}/public/branding`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
     }
   }
 
