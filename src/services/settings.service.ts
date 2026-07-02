@@ -13,7 +13,8 @@ import type {
 import { ApiService } from './api.service';
 
 export interface PublicSystemSettings {
-  site_name: string;
+  /** Nombre de la iglesia (church_info.name) — la marca del TENANT, no la de JETRO. */
+  church_name: string;
   default_theme: string;
   default_language: string;
   timezone: string;
@@ -24,7 +25,7 @@ export interface PublicSystemSettings {
 }
 
 export interface PublicBranding {
-  site_name: string;
+  church_name: string;
   logo_url: string | null;
 }
 

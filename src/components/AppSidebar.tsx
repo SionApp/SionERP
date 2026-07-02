@@ -14,14 +14,15 @@ import {
 } from '@/components/ui/sidebar';
 import { useSystem } from '@/contexts/SystemContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { PLATFORM_NAME } from '@/lib/branding';
 import { menuItems, superAdminItems, filterNavItems } from '@/lib/nav-items';
 
 interface AppSidebarProps {
-  siteName?: string;
+  churchName?: string;
   logoUrl?: string | null;
 }
 
-export function AppSidebar({ siteName = 'Sistema Sion', logoUrl }: AppSidebarProps) {
+export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarProps) {
   const { state, setOpenMobile } = useSidebar();
   const location = useLocation();
   const { isModuleInstalled } = useSystem();
@@ -49,7 +50,7 @@ export function AppSidebar({ siteName = 'Sistema Sion', logoUrl }: AppSidebarPro
             {logoUrl ? (
               <img
                 src={logoUrl}
-                alt={siteName}
+                alt={churchName}
                 className="w-8 h-8 rounded-lg object-cover shadow-lg"
               />
             ) : (
@@ -60,9 +61,9 @@ export function AppSidebar({ siteName = 'Sistema Sion', logoUrl }: AppSidebarPro
             {state !== 'collapsed' && (
               <div>
                 <h3 className="font-bold text-sm text-foreground truncate max-w-[140px]">
-                  {siteName}
+                  {churchName}
                 </h3>
-                <p className="text-xs text-muted-foreground">Panel Admin</p>
+                <p className="text-xs text-muted-foreground">{PLATFORM_NAME} · Panel Admin</p>
               </div>
             )}
           </div>

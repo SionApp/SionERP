@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Mail, Lock, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { PLATFORM_NAME } from '@/lib/branding';
 import { SettingsService, type PublicBranding } from '@/services/settings.service';
 import { toast } from 'sonner';
 
@@ -106,11 +107,14 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
+          <p className="text-center text-xs font-semibold tracking-widest text-muted-foreground/70 uppercase">
+            {PLATFORM_NAME}
+          </p>
+          <div className="flex items-center justify-center mb-2">
             {branding?.logo_url ? (
               <img
                 src={branding.logo_url}
-                alt={branding.site_name}
+                alt={branding.church_name}
                 className="h-14 w-14 rounded-xl object-cover shadow-md"
               />
             ) : (
@@ -119,7 +123,7 @@ const Login = () => {
           </div>
           <CardTitle className="text-2xl font-bold text-center">Dashboard Administrativo</CardTitle>
           <CardDescription className="text-center">
-            {branding?.site_name ?? 'Iglesia Evangélica Pentecostal Sion'}
+            {branding?.church_name || 'Iglesia Evangélica Pentecostal Sion'}
           </CardDescription>
         </CardHeader>
         <CardContent>
