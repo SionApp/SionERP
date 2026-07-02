@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Mail, Lock, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { SettingsService, type PublicBranding } from '@/services/settings.service';
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
@@ -30,8 +31,13 @@ type LoginFormData = z.infer<typeof loginSchema>;
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [branding, setBranding] = useState<PublicBranding | null>(null);
   const navigate = useNavigate();
   const { login, user, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    SettingsService.getPublicBranding().then(setBranding);
+  }, []);
 
   const {
     register,
@@ -101,11 +107,19 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <LogIn className="h-8 w-8 text-primary" />
+            {branding?.logo_url ? (
+              <img
+                src={branding.logo_url}
+                alt={branding.site_name}
+                className="h-14 w-14 rounded-xl object-cover shadow-md"
+              />
+            ) : (
+              <LogIn className="h-8 w-8 text-primary" />
+            )}
           </div>
           <CardTitle className="text-2xl font-bold text-center">Dashboard Administrativo</CardTitle>
           <CardDescription className="text-center">
-            Iglesia Evangélica Pentecostal Sion
+            {branding?.site_name ?? 'Iglesia Evangélica Pentecostal Sion'}
           </CardDescription>
         </CardHeader>
         <CardContent>

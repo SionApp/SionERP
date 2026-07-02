@@ -859,23 +859,6 @@ const SettingsPage = () => {
                           />
                         </div>
 
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label>Reportes Semanales</Label>
-                            <p className="text-sm text-muted-foreground">
-                              Enviar resumen semanal automático
-                            </p>
-                          </div>
-                          <Switch
-                            checked={notificationConfig.weekly_reports}
-                            onCheckedChange={checked =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                weekly_reports: checked,
-                              })
-                            }
-                          />
-                        </div>
                       </div>
                     </div>
 

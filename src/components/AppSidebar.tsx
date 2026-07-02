@@ -16,7 +16,12 @@ import { useSystem } from '@/contexts/SystemContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { menuItems, superAdminItems, filterNavItems } from '@/lib/nav-items';
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  siteName?: string;
+  logoUrl?: string | null;
+}
+
+export function AppSidebar({ siteName = 'Sistema Sion', logoUrl }: AppSidebarProps) {
   const { state, setOpenMobile } = useSidebar();
   const location = useLocation();
   const { isModuleInstalled } = useSystem();
@@ -41,12 +46,22 @@ export function AppSidebar() {
       <SidebarContent className="bg-transparent">
         <div className="p-3 sm:p-4 border-b border-border/30">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={siteName}
+                className="w-8 h-8 rounded-lg object-cover shadow-lg"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
+                <Sparkles className="h-4 w-4 text-primary-foreground" />
+              </div>
+            )}
             {state !== 'collapsed' && (
               <div>
-                <h3 className="font-bold text-sm text-foreground">Sistema Sion</h3>
+                <h3 className="font-bold text-sm text-foreground truncate max-w-[140px]">
+                  {siteName}
+                </h3>
                 <p className="text-xs text-muted-foreground">Panel Admin</p>
               </div>
             )}

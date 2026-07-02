@@ -42,6 +42,8 @@ func SetupRoutes(e *echo.Echo) {
 
 	// Public: la página de registro consulta si el auto-registro está habilitado
 	api.GET("/public/registration-status", handlers.NewSettingsHandler().GetRegistrationStatus)
+	// Public: nombre + logo de la iglesia para la pantalla de login (pre-auth)
+	api.GET("/public/branding", handlers.NewSettingsHandler().GetPublicBranding)
 
 	// Protected routes (require authentication)
 	protected := api.Group("")
