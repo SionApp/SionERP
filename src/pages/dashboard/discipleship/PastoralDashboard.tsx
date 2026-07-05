@@ -27,6 +27,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
+import { CHART_COLORS } from '@/lib/chart-colors';
 import React, { useState } from 'react';
 import {
   Area,
@@ -184,8 +185,8 @@ const PastoralDashboard: React.FC = React.memo(() => {
                 <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="pgradGroups" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="pgradConversions" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
@@ -216,11 +217,11 @@ const PastoralDashboard: React.FC = React.memo(() => {
             <Area
               type="monotone"
               dataKey="grupos"
-              stroke="#22c55e"
+              stroke={CHART_COLORS.success}
               strokeWidth={2}
               fill="url(#pgradGroups)"
               dot={false}
-              activeDot={{ r: 4, fill: '#22c55e', strokeWidth: 0 }}
+              activeDot={{ r: 4, fill: CHART_COLORS.success, strokeWidth: 0 }}
               name="Grupos Activos"
             />
             <Area
@@ -579,7 +580,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
 
       {/* Executive Summary Cards */}
       <div className="grid gap-2 sm:gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-blue-500">
+        <Card className="border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium">Total Grupos</CardTitle>
             <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
@@ -590,7 +591,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
+        <Card className="border-green-200 bg-green-50/60 dark:border-green-900 dark:bg-green-950/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium">Total Miembros</CardTitle>
             <Users className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
@@ -601,7 +602,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500">
+        <Card className="border-purple-200 bg-purple-50/60 dark:border-purple-900 dark:bg-purple-950/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium">Multiplicaciones</CardTitle>
             <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
@@ -612,7 +613,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-orange-500">
+        <Card className="border-orange-200 bg-orange-50/60 dark:border-orange-900 dark:bg-orange-950/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
             <CardTitle className="text-xs sm:text-sm font-medium">Índice de Salud</CardTitle>
             <Zap className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />

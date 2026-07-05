@@ -236,7 +236,7 @@ const RegisterUserPage = () => {
     <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             {isEditMode ? 'Editar Usuario' : 'Registro de Usuarios'}
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground">

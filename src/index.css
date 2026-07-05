@@ -26,7 +26,8 @@ All colors MUST be HSL.
     --secondary-foreground: 220 26% 14%;
 
     --muted: 220 15% 92%;
-    --muted-foreground: 220 15% 45%;
+    /* 40% (no 45%) para que text-muted-foreground sobre bg-muted llegue a 4.5:1 (WCAG AA) */
+    --muted-foreground: 220 15% 40%;
 
     --accent: 45 93% 50%;
     --accent-foreground: 220 26% 14%;
@@ -55,6 +56,10 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
     --sion-gold: 45 93% 50%;
+
+    /* Fuente de sistema explícita — el registro "product" la permite (Inter, SF Pro,
+       system-ui), pero declararla evita que alguien la "corrija" sin querer. */
+    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
     --sidebar-background: 220 15% 99%;
     --sidebar-foreground: 220 26% 14%;
@@ -129,6 +134,21 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+}
+
+/* Regla no-negociable: toda animación/transición se apaga para quien prefiere
+   menos movimiento. Antes esta regla solo existía en App.css, que estaba muerto
+   (nada lo importaba) — ninguna animación real del proyecto la respetaba. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Progress } from '@/components/ui/progress';
 import { useDiscipleshipAnalytics } from '@/hooks/useDiscipleshipAnalytics';
+import { CHART_COLORS } from '@/lib/chart-colors';
 import type { DiscipleshipDashboardStats } from '@/services/dashboard.service';
 import {
   Activity,
@@ -134,7 +135,7 @@ export const DiscipleshipAnalyticsSection = ({
     <div className="space-y-6 md:space-y-8">
       {/* Header con resumen ejecutivo */}
       <div className="text-center space-y-1 px-2">
-        <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+        <h2 className="text-2xl md:text-3xl font-bold text-foreground">
           Analytics de Discipulado
         </h2>
         <p className="text-sm md:text-base text-muted-foreground">
@@ -180,9 +181,8 @@ export const DiscipleshipAnalyticsSection = ({
         ].map((stat, index) => (
           <Card
             key={index}
-            className="relative overflow-hidden border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] hover:shadow-[var(--shadow-accent)] transition-all duration-300 hover:scale-105"
+            className="relative overflow-hidden border bg-card shadow-sm hover:shadow-md transition-shadow duration-200"
           >
-            <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-10`}></div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 md:pb-2 relative z-10 p-3 md:p-6">
               <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground leading-tight">
                 {stat.title}
@@ -194,9 +194,7 @@ export const DiscipleshipAnalyticsSection = ({
               </div>
             </CardHeader>
             <CardContent className="relative z-10 p-3 sm:p-4 lg:p-6 pt-0">
-              <div className="text-xl md:text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
-                {stat.value}
-              </div>
+              <div className="text-xl md:text-3xl font-bold text-foreground">{stat.value}</div>
               <div className="flex items-center gap-1 mt-1 md:mt-2 flex-wrap">
                 <div className="flex items-center gap-0.5">
                   {getTrendIcon(stat.change)}
@@ -234,7 +232,7 @@ export const DiscipleshipAnalyticsSection = ({
               config={{
                 attendance: { label: 'Asistencia', color: '#8b5cf6' },
                 visitors: { label: 'Visitantes', color: '#06b6d4' },
-                conversions: { label: 'Conversiones', color: '#10b981' },
+                conversions: { label: 'Conversiones', color: CHART_COLORS.success },
               }}
               className="h-[180px] sm:h-[200px] lg:h-[300px] w-full"
             >
@@ -253,8 +251,8 @@ export const DiscipleshipAnalyticsSection = ({
                       <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="gradConversions" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} />
@@ -300,11 +298,11 @@ export const DiscipleshipAnalyticsSection = ({
                   <Area
                     type="monotone"
                     dataKey="conversions"
-                    stroke="#10b981"
+                    stroke={CHART_COLORS.success}
                     strokeWidth={2}
                     fill="url(#gradConversions)"
                     dot={false}
-                    activeDot={{ r: 4, fill: '#10b981', strokeWidth: 0 }}
+                    activeDot={{ r: 4, fill: CHART_COLORS.success, strokeWidth: 0 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>

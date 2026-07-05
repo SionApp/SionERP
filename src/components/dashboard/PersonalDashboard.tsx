@@ -106,7 +106,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             {title}
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground mt-1">{subtitle}</p>

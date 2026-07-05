@@ -18,6 +18,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
+import { CHART_COLORS } from '@/lib/chart-colors';
 import { useEffect, useState } from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
 
@@ -72,13 +73,16 @@ function getHealthConfig(score: number): HealthConfig {
   if (score >= 7.5)
     return {
       label: 'Excelente',
-      hex: '#10b981',
+      hex: CHART_COLORS.success,
       tailwindText: 'text-emerald-600 dark:text-emerald-400',
       tailwindBg: 'bg-emerald-50 dark:bg-emerald-950',
     };
   if (score >= 5)
     return {
       label: 'Saludable',
+      // Tono intencionalmente distinto de CHART_COLORS.success: es el segundo
+      // escalón de una escala de 4 (Excelente > Saludable > Atención > Crítico),
+      // no un duplicado accidental.
       hex: '#22c55e',
       tailwindText: 'text-green-600 dark:text-green-400',
       tailwindBg: 'bg-green-50 dark:bg-green-950',
@@ -86,13 +90,13 @@ function getHealthConfig(score: number): HealthConfig {
   if (score >= 2.5)
     return {
       label: 'En Atención',
-      hex: '#f59e0b',
+      hex: CHART_COLORS.warning,
       tailwindText: 'text-amber-600 dark:text-amber-400',
       tailwindBg: 'bg-amber-50 dark:bg-amber-950',
     };
   return {
     label: 'Crítico',
-    hex: '#ef4444',
+    hex: CHART_COLORS.danger,
     tailwindText: 'text-red-600 dark:text-red-400',
     tailwindBg: 'bg-red-50 dark:bg-red-950',
   };
@@ -102,27 +106,27 @@ function getAttendanceConfig(pct: number): HealthConfig {
   if (pct >= 75)
     return {
       label: 'Excelente',
-      hex: '#10b981',
+      hex: CHART_COLORS.success,
       tailwindText: 'text-emerald-600',
       tailwindBg: 'bg-emerald-50 dark:bg-emerald-950',
     };
   if (pct >= 50)
     return {
       label: 'Saludable',
-      hex: '#22c55e',
+      hex: '#22c55e', // segundo escalón intencional — ver getHealthConfig arriba
       tailwindText: 'text-green-600',
       tailwindBg: 'bg-green-50 dark:bg-green-950',
     };
   if (pct >= 25)
     return {
       label: 'Atención',
-      hex: '#f59e0b',
+      hex: CHART_COLORS.warning,
       tailwindText: 'text-amber-600',
       tailwindBg: 'bg-amber-50 dark:bg-amber-950',
     };
   return {
     label: 'Crítico',
-    hex: '#ef4444',
+    hex: CHART_COLORS.danger,
     tailwindText: 'text-red-600',
     tailwindBg: 'bg-red-50 dark:bg-red-950',
   };
@@ -244,12 +248,12 @@ function GroupRow({ group }: { group: GroupPerformance }) {
               style={{
                 width: `${tempPct}%`,
                 backgroundColor: dot.replace('bg-', '').includes('emerald')
-                  ? '#10b981'
+                  ? CHART_COLORS.success
                   : dot.includes('green')
-                    ? '#22c55e'
+                    ? '#22c55e' // segundo escalón intencional — ver getHealthConfig arriba
                     : dot.includes('amber')
-                      ? '#f59e0b'
-                      : '#ef4444',
+                      ? CHART_COLORS.warning
+                      : CHART_COLORS.danger,
               }}
             />
           </div>
@@ -310,10 +314,10 @@ export function MinistryHealthTab({
     {
       label: 'Asistencia regular',
       value: Math.round((avgAttendance / 100) * totalMembers),
-      hex: '#3b82f6',
+      hex: CHART_COLORS.info,
     },
-    { label: 'Líderes activos', value: activeLeaders, hex: '#10b981' },
-    { label: 'Multiplicaciones', value: multiplications, hex: '#f59e0b' },
+    { label: 'Líderes activos', value: activeLeaders, hex: CHART_COLORS.success },
+    { label: 'Multiplicaciones', value: multiplications, hex: CHART_COLORS.warning },
   ];
   const funnelMax = funnelItems[0].value || 1;
 
