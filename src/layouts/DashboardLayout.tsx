@@ -195,9 +195,7 @@ const DashboardLayout = () => {
                 </div>
               )}
               <div>
-                <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  {churchName}
-                </h1>
+                <h1 className="text-base sm:text-lg font-bold text-foreground">{churchName}</h1>
                 <p className="hidden sm:block text-xs text-muted-foreground">
                   {PLATFORM_NAME} · Panel de Administración
                 </p>

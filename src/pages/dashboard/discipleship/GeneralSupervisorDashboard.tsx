@@ -33,6 +33,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
+import { CHART_COLORS } from '@/lib/chart-colors';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -196,8 +197,8 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                     type="monotone"
                     dataKey="visitantes"
                     stackId="2"
-                    stroke="#22c55e"
-                    fill="#22c55e"
+                    stroke={CHART_COLORS.success}
+                    fill={CHART_COLORS.success}
                     fillOpacity={0.8}
                     name="Visitantes"
                   />

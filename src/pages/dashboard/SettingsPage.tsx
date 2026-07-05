@@ -137,7 +137,7 @@ const SettingsPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             Configuración del Sistema
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground mt-1">

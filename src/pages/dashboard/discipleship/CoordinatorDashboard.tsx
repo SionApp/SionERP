@@ -20,6 +20,7 @@ import { format } from 'date-fns';
 import { justEndedWeek } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import { Award, Building2, CheckCircle, Clock, FileText, Loader2, Plus, Users } from 'lucide-react';
+import { CHART_COLORS } from '@/lib/chart-colors';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -176,8 +177,8 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
                   <Area
                     type="monotone"
                     dataKey="conversiones"
-                    stroke="#22c55e"
-                    fill="#22c55e"
+                    stroke={CHART_COLORS.success}
+                    fill={CHART_COLORS.success}
                     fillOpacity={0.8}
                     name="Conversiones"
                   />

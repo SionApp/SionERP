@@ -13,7 +13,7 @@ const ReportsPage = () => {
   return (
     <div className="space-y-4 p-3 sm:p-4 md:p-6">
       <div>
-        <h1 className="bg-gradient-to-r from-primary to-accent bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
+        <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
           Reportes
         </h1>
         <p className="text-sm text-muted-foreground">

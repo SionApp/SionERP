@@ -40,14 +40,52 @@ interface GoalCardProps {
   canDelete?: boolean;
 }
 
-const goalTypeConfig: Record<string, { icon: any; label: string; color: string }> = {
-  growth: { icon: Users, label: 'Crecimiento', color: 'text-blue-500' },
-  attendance: { icon: TrendingUp, label: 'Asistencia', color: 'text-green-500' },
-  conversions: { icon: Target, label: 'Conversiones', color: 'text-purple-500' },
-  baptisms: { icon: Droplets, label: 'Bautismos', color: 'text-cyan-500' },
-  new_groups: { icon: GitBranch, label: 'Nuevos Grupos', color: 'text-orange-500' },
-  multiplications: { icon: Church, label: 'Multiplicaciones', color: 'text-pink-500' },
-  spiritual_health: { icon: Heart, label: 'Salud Espiritual', color: 'text-red-500' },
+const goalTypeConfig: Record<
+  string,
+  { icon: any; label: string; color: string; cardBg: string }
+> = {
+  growth: {
+    icon: Users,
+    label: 'Crecimiento',
+    color: 'text-blue-500',
+    cardBg: 'border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/20',
+  },
+  attendance: {
+    icon: TrendingUp,
+    label: 'Asistencia',
+    color: 'text-green-500',
+    cardBg: 'border-green-200 bg-green-50/60 dark:border-green-900 dark:bg-green-950/20',
+  },
+  conversions: {
+    icon: Target,
+    label: 'Conversiones',
+    color: 'text-purple-500',
+    cardBg: 'border-purple-200 bg-purple-50/60 dark:border-purple-900 dark:bg-purple-950/20',
+  },
+  baptisms: {
+    icon: Droplets,
+    label: 'Bautismos',
+    color: 'text-cyan-500',
+    cardBg: 'border-cyan-200 bg-cyan-50/60 dark:border-cyan-900 dark:bg-cyan-950/20',
+  },
+  new_groups: {
+    icon: GitBranch,
+    label: 'Nuevos Grupos',
+    color: 'text-orange-500',
+    cardBg: 'border-orange-200 bg-orange-50/60 dark:border-orange-900 dark:bg-orange-950/20',
+  },
+  multiplications: {
+    icon: Church,
+    label: 'Multiplicaciones',
+    color: 'text-pink-500',
+    cardBg: 'border-pink-200 bg-pink-50/60 dark:border-pink-900 dark:bg-pink-950/20',
+  },
+  spiritual_health: {
+    icon: Heart,
+    label: 'Salud Espiritual',
+    color: 'text-red-500',
+    cardBg: 'border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/20',
+  },
 };
 
 export function GoalCard({ goal, onExtend, onCloseIncomplete, onUpdate, canDelete = false }: GoalCardProps) {
@@ -101,7 +139,7 @@ export function GoalCard({ goal, onExtend, onCloseIncomplete, onUpdate, canDelet
   };
 
   return (
-    <Card className="relative overflow-hidden border-l-4" style={{ borderLeftColor: config.color.replace('text-', '#') }}>
+    <Card className={`relative overflow-hidden ${config.cardBg}`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

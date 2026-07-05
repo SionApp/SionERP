@@ -430,7 +430,7 @@ const EventsPage = () => {
     <div className="space-y-4 p-3 sm:p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="bg-gradient-to-r from-primary to-accent bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
             Gestión de Eventos
           </h1>
           <p className="text-sm text-muted-foreground">

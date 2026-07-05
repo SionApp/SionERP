@@ -87,7 +87,7 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
                         className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 group ${
                           isCurrentActive
                             ? 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-[var(--shadow-accent)] scale-[1.02]'
-                            : 'hover:bg-accent/50 hover:scale-[1.01] text-muted-foreground hover:text-foreground'
+                            : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
                         }`}
                       >
                         <div
@@ -124,7 +124,7 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
                             className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 group ${
                               isCurrentActive
                                 ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg scale-[1.02]'
-                                : 'hover:bg-accent/50 hover:scale-[1.01] text-muted-foreground hover:text-foreground'
+                                : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
                             }`}
                           >
                             <div className="p-1 rounded-lg transition-all duration-200 group-hover:bg-primary/10">
