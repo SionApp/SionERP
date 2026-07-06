@@ -16,23 +16,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { MusicService } from '@/services/music.service';
 import type { MusicAssignment, AssignmentState, MusicEventType } from '@/types/music.types';
+import { EVENT_TYPE_GRADIENT, EVENT_TYPE_LABEL } from './event-visual';
 
 const STATE_LABEL: Record<AssignmentState, string> = {
   asignado: 'Pendiente de confirmar',
   confirmado: 'Confirmado',
   no_puedo: 'No puedo',
-};
-
-const EVENT_TYPE_LABEL: Record<string, string> = {
-  viernes: 'Viernes',
-  domingo: 'Domingo',
-  especial: 'Especial',
-};
-
-const EVENT_TYPE_GRADIENT: Record<MusicEventType, string> = {
-  viernes: 'from-blue-500 to-indigo-600',
-  domingo: 'from-emerald-500 to-teal-600',
-  especial: 'from-amber-500 to-orange-600',
 };
 
 function daysUntil(iso: string): number {

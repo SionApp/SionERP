@@ -33,6 +33,7 @@ import { setLoadingCallbacks } from './services/api.service';
 import { setDashboardLoadingCallbacks } from './services/dashboard.service';
 import ZonesPage from './pages/dashboard/ZonesPage';
 import MusicPage from './pages/dashboard/MusicPage';
+import MusicEventDetailPage from './pages/dashboard/music/MusicEventDetailPage';
 import { useMagicLinkCallback } from './hooks/useMagicLinkCallback';
 import { ROLE_LEVELS } from './lib/permissions';
 
@@ -271,6 +272,14 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
                     <MusicPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="music/eventos/:id"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
+                    <MusicEventDetailPage />
                   </ProtectedRoute>
                 }
               />

@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Select,
   SelectContent,
@@ -38,6 +38,7 @@ import type { User } from '@/types/user.types';
 import { ConfirmationProgress } from './MusicHero';
 import { UserSearchPicker } from './UserSearchPicker';
 import { InstrumentChip, resolveCategory } from './instrument-visual';
+import { EVENT_TYPE_LABEL } from './event-visual';
 
 const FUNCION_LABELS: Record<Funcion, string> = {
   corista: 'Coristas',
@@ -51,12 +52,6 @@ const FUNCION_SINGULAR: Record<Funcion, string> = {
   musico: 'Músico',
   tecnico: 'Técnico',
   danzarina: 'Danzarina',
-};
-
-const EVENT_TYPE_LABEL: Record<string, string> = {
-  viernes: 'Viernes',
-  domingo: 'Domingo',
-  especial: 'Especial',
 };
 
 const STATE_VARIANT: Record<AssignmentState, 'default' | 'secondary' | 'destructive'> = {
@@ -84,7 +79,7 @@ function formatEventDate(iso: string): string {
 // ─────────────────────────────────────────────
 // Equipo — asignación de servidores por función
 // ─────────────────────────────────────────────
-function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boolean }) {
+export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boolean }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [funcion, setFuncion] = useState<Funcion | ''>('');
@@ -318,7 +313,7 @@ function TeamSection({ event, isDirector }: { event: MusicEvent; isDirector: boo
 // ─────────────────────────────────────────────
 // Repertorio — canciones con tono, link y notas
 // ─────────────────────────────────────────────
-function SetlistSection({ event, isDirector }: { event: MusicEvent; isDirector: boolean }) {
+export function SetlistSection({ event, isDirector }: { event: MusicEvent; isDirector: boolean }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: '', tono: '', link: '', notes: '' });
@@ -500,15 +495,23 @@ function SetlistSection({ event, isDirector }: { event: MusicEvent; isDirector: 
                 {s.notes && <p className="text-xs text-muted-foreground ml-6 mt-0.5">{s.notes}</p>}
               </div>
               {isDirector && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 text-destructive shrink-0"
-                  onClick={() => removeMutation.mutate(s.songId)}
-                  disabled={removeMutation.isPending}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                <ConfirmDialog
+                  trigger={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-destructive shrink-0"
+                      disabled={removeMutation.isPending}
+                      aria-label={`Quitar ${s.songName} del repertorio`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  }
+                  title="¿Quitar canción?"
+                  description={`Se quita "${s.songName}" del repertorio de este culto.`}
+                  confirmLabel="Quitar"
+                  onConfirm={() => removeMutation.mutate(s.songId)}
+                />
               )}
             </div>
           ))}
@@ -519,15 +522,9 @@ function SetlistSection({ event, isDirector }: { event: MusicEvent; isDirector: 
 }
 
 // ─────────────────────────────────────────────
-// Detalle de culto (dialog)
+// Detalle de culto — header (título, badges, progreso, acciones)
+// El Equipo y el Repertorio los compone MusicEventDetailPage en su grid.
 // ─────────────────────────────────────────────
-interface EventDetailDialogProps {
-  event: MusicEvent | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  isDirector: boolean;
-}
-
 function formatDateForShare(iso: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', {
     weekday: 'long',
@@ -556,21 +553,23 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-export default function EventDetailDialog({
+export function EventDetailHeader({
   event,
-  open,
-  onOpenChange,
   isDirector,
-}: EventDetailDialogProps) {
+}: {
+  event: MusicEvent;
+  isDirector: boolean;
+}) {
   const qc = useQueryClient();
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
 
   const updateEventMutation = useMutation({
     mutationFn: (data: { title?: string; published?: boolean }) =>
-      MusicService.updateEvent(event!.id, data),
+      MusicService.updateEvent(event.id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['music-events'] });
+      qc.invalidateQueries({ queryKey: ['music-event', event.id] });
       setEditingTitle(false);
       toast.success('Culto actualizado');
     },
@@ -578,19 +577,16 @@ export default function EventDetailDialog({
   });
 
   const { data: assignments = [] } = useQuery({
-    queryKey: ['music-assignments', event?.id],
-    queryFn: () => MusicService.getAssignments(event!.id),
-    enabled: !!event,
+    queryKey: ['music-assignments', event.id],
+    queryFn: () => MusicService.getAssignments(event.id),
   });
 
   const { data: songs = [] } = useQuery({
-    queryKey: ['music-event-songs', event?.id],
-    queryFn: () => MusicService.getEventSongs(event!.id),
-    enabled: !!event,
+    queryKey: ['music-event-songs', event.id],
+    queryFn: () => MusicService.getEventSongs(event.id),
   });
 
   async function handleShareSetlist() {
-    if (!event) return;
     const lines: string[] = [];
     lines.push(`🎵 *Culto ${formatDateForShare(event.eventDate)}*`);
     if (event.title) lines.push(`_${event.title}_`);
@@ -635,102 +631,95 @@ export default function EventDetailDialog({
     else toast.error('No se pudo copiar al portapapeles');
   }
 
-  if (!event) return null;
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="music-shell max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="capitalize">{formatEventDate(event.eventDate)}</DialogTitle>
-          <div className="flex items-center gap-2 pt-1">
-            <Badge variant="outline" className="text-xs">
-              {EVENT_TYPE_LABEL[event.eventType] ?? event.eventType}
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold capitalize leading-tight tracking-tight">
+          {formatEventDate(event.eventDate)}
+        </h1>
+        <div className="flex items-center gap-2 pt-2 flex-wrap">
+          <Badge variant="outline" className="text-xs">
+            {EVENT_TYPE_LABEL[event.eventType] ?? event.eventType}
+          </Badge>
+          {event.published && (
+            <Badge variant="secondary" className="text-xs">
+              Publicado
             </Badge>
-            {event.published && (
-              <Badge variant="secondary" className="text-xs">
-                Publicado
-              </Badge>
-            )}
-          </div>
-        </DialogHeader>
-
-        <div className="space-y-1">
-          {editingTitle ? (
-            <div className="flex gap-2">
-              <Input
-                value={titleDraft}
-                onChange={e => setTitleDraft(e.target.value)}
-                placeholder="Título del culto"
-                className="h-8"
-              />
-              <Button
-                size="sm"
-                className="h-8"
-                onClick={() => updateEventMutation.mutate({ title: titleDraft })}
-                disabled={updateEventMutation.isPending}
-              >
-                Guardar
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Label className="text-sm font-normal text-muted-foreground">
-                {event.title || 'Sin título'}
-              </Label>
-              {isDirector && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 text-xs px-2"
-                  onClick={() => {
-                    setTitleDraft(event.title ?? '');
-                    setEditingTitle(true);
-                  }}
-                >
-                  Editar
-                </Button>
-              )}
-            </div>
           )}
         </div>
+      </div>
 
-        <div className="rounded-lg border border-border bg-muted/30 p-3">
-          <ConfirmationProgress assignments={assignments} />
-        </div>
-
-        {isDirector && (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={handleShareSetlist}>
-              <Copy className="h-3.5 w-3.5" />
-              Compartir al grupo
-            </Button>
+      <div>
+        {editingTitle ? (
+          <div className="flex gap-2">
+            <Input
+              value={titleDraft}
+              onChange={e => setTitleDraft(e.target.value)}
+              placeholder="Título del culto"
+              className="h-9"
+            />
             <Button
               size="sm"
-              variant={event.published ? 'secondary' : 'default'}
-              className="gap-1.5"
-              onClick={() => updateEventMutation.mutate({ published: !event.published })}
+              className="h-9"
+              onClick={() => updateEventMutation.mutate({ title: titleDraft })}
               disabled={updateEventMutation.isPending}
             >
-              {event.published ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Publicado
-                </>
-              ) : (
-                <>
-                  <Globe2 className="h-3.5 w-3.5" />
-                  Publicar cronograma
-                </>
-              )}
+              Guardar
             </Button>
           </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-normal text-muted-foreground">
+              {event.title || 'Sin título'}
+            </Label>
+            {isDirector && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs px-2"
+                onClick={() => {
+                  setTitleDraft(event.title ?? '');
+                  setEditingTitle(true);
+                }}
+              >
+                Editar
+              </Button>
+            )}
+          </div>
         )}
+      </div>
 
-        <div className="space-y-5 pt-2">
-          <TeamSection event={event} isDirector={isDirector} />
-          <SetlistSection event={event} isDirector={isDirector} />
+      <div className="rounded-xl border border-border bg-muted/30 p-4">
+        <ConfirmationProgress assignments={assignments} />
+      </div>
+
+      {isDirector && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={handleShareSetlist}>
+            <Copy className="h-3.5 w-3.5" />
+            Compartir al grupo
+          </Button>
+          <Button
+            size="sm"
+            variant={event.published ? 'secondary' : 'default'}
+            className="gap-1.5"
+            onClick={() => updateEventMutation.mutate({ published: !event.published })}
+            disabled={updateEventMutation.isPending}
+          >
+            {event.published ? (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Publicado
+              </>
+            ) : (
+              <>
+                <Globe2 className="h-3.5 w-3.5" />
+                Publicar cronograma
+              </>
+            )}
+          </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </div>
   );
 }
