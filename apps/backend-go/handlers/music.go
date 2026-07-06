@@ -811,10 +811,10 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 
 	var id string
 	err = q.QueryRow(`
-		INSERT INTO music_assignments (event_id, member_id, funcion, state, assigned_by)
-		VALUES ($1, $2, $3, 'asignado', $4)
+		INSERT INTO music_assignments (event_id, member_id, funcion, state, assigned_by, church_id)
+		VALUES ($1, $2, $3, 'asignado', $4, $5)
 		RETURNING id
-	`, eventID, memberID, req.Funcion, assignedByVal).Scan(&id)
+	`, eventID, memberID, req.Funcion, assignedByVal, churchID).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "El miembro ya está asignado a este evento"})
@@ -1185,8 +1185,8 @@ func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
 	es := eventSongRow{EventID: eventID, SongID: songID, OrderIndex: orderIndex}
 	var tono, link, notes sql.NullString
 	err = q.QueryRow(`
-		INSERT INTO music_event_songs (event_id, song_id, tono, order_index, notes)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO music_event_songs (event_id, song_id, tono, order_index, notes, church_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (event_id, song_id) DO UPDATE
 		SET tono        = EXCLUDED.tono,
 		    order_index = EXCLUDED.order_index,
@@ -1196,7 +1196,7 @@ func (h *MusicHandler) AddSongToEvent(c echo.Context) error {
 		          tono,
 		          (SELECT link FROM music_songs WHERE id = $2),
 		          notes
-	`, eventID, songID, req.Tono, orderIndex, req.Notes).Scan(&es.ID, &es.SongName, &tono, &link, &notes)
+	`, eventID, songID, req.Tono, orderIndex, req.Notes, churchID).Scan(&es.ID, &es.SongName, &tono, &link, &notes)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al agregar canción al evento"})
 	}
@@ -1402,6 +1402,11 @@ func (h *MusicHandler) CreateUnavailability(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
 
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
 	var req struct {
 		MemberID  string  `json:"member_id"`
 		StartDate string  `json:"start_date"`
@@ -1438,10 +1443,10 @@ func (h *MusicHandler) CreateUnavailability(c echo.Context) error {
 
 	var id string
 	err = q.QueryRow(`
-		INSERT INTO music_unavailability (member_id, start_date, end_date, reason)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO music_unavailability (member_id, start_date, end_date, reason, church_id)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
-	`, effectiveMemberID, req.StartDate, req.EndDate, req.Reason).Scan(&id)
+	`, effectiveMemberID, req.StartDate, req.EndDate, req.Reason, churchID).Scan(&id)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al crear rango de indisponibilidad"})
 	}
