@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type SupabaseClient struct {
@@ -100,4 +101,166 @@ func (s *SupabaseClient) GenerateMagicLink(email string, redirectTo string, data
 
 	return &result, nil
 
+}
+
+// GetUserByEmail looks up a user by email using the Supabase Admin API
+func (s *SupabaseClient) GetUserByEmail(email string) (*CreateUserResponse, error) {
+	url := fmt.Sprintf("%s/auth/v1/admin/users?email=%s", s.ProjectURL, email)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("apikey", s.ServiceKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.ServiceKey))
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Supabase Admin API returns { "users": [...], "total": N } — NOT a bare array
+	var wrapper struct {
+		Users []CreateUserResponse `json:"users"`
+	}
+	if err := json.Unmarshal(bodyBytes, &wrapper); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// The local Supabase API ignores ?email= and returns all users.
+	// We must find the matching user ourselves.
+	for i := range wrapper.Users {
+		if strings.EqualFold(wrapper.Users[i].Email, email) {
+			return &wrapper.Users[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("user not found")
+}
+
+// CreateUserRequest is the body sent to the Supabase Admin API when creating a user.
+type CreateUserRequest struct {
+	ID           string                 `json:"id,omitempty"` // ← NUEVO: para usar el mismo UUID que en public.users
+	Email        string                 `json:"email"`
+	Password     string                 `json:"password"`
+	UserMeta     map[string]interface{} `json:"user_metadata,omitempty"`
+	AppMeta      map[string]interface{} `json:"app_metadata,omitempty"` // Phase 0: carries church_id into JWT
+	EmailConfirm bool                   `json:"email_confirm"`
+}
+
+type CreateUserResponse struct {
+	ID    string                 `json:"id"`
+	Email string                 `json:"email"`
+	Meta  map[string]interface{} `json:"user_metadata"`
+}
+
+// CreateUserWithEmailPassword creates a Supabase Auth user.
+// appMeta is written to raw_app_meta_data (appears as app_metadata in the JWT).
+// Pass nil for appMeta to leave it unset (pre-Phase 0 callers).
+// TODO(phase 0 call sites): callers in handlers/users.go pass {church_id: ...} as appMeta.
+func (s *SupabaseClient) CreateUserWithEmailPassword(email, password string, userMeta map[string]interface{}, appMeta map[string]interface{}, userID ...string) (*CreateUserResponse, error) {
+	url := fmt.Sprintf("%s/auth/v1/admin/users", s.ProjectURL)
+
+	if s.ProjectURL == "" {
+		return nil, fmt.Errorf("SUPABASE_URL is not configured")
+	}
+	if s.ServiceKey == "" {
+		return nil, fmt.Errorf("SUPABASE_SERVICE_ROLE_KEY is not configured")
+	}
+
+	// Si se pasa un userID, usarlo como el id en Supabase Auth
+	reqBody := CreateUserRequest{
+		Email:        email,
+		Password:     password,
+		UserMeta:     userMeta,
+		AppMeta:      appMeta,
+		EmailConfirm: true,
+	}
+	if len(userID) > 0 && userID[0] != "" {
+		reqBody.ID = userID[0]
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("apikey", s.ServiceKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.ServiceKey))
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		var errorResponse map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &errorResponse); err == nil {
+			return nil, fmt.Errorf("unexpected status code: %d, error: %v", resp.StatusCode, errorResponse)
+		}
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result CreateUserResponse
+	err = json.Unmarshal(bodyBytes, &result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// DeleteAuthUser hard-deletes a user from Supabase Auth by their UUID.
+// Used by onboarding rollback to clean up a partially created auth user.
+func (s *SupabaseClient) DeleteAuthUser(userID string) error {
+	url := fmt.Sprintf("%s/auth/v1/admin/users/%s", s.ProjectURL, userID)
+
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %w", err)
+	}
+
+	req.Header.Set("apikey", s.ServiceKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.ServiceKey))
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to delete auth user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status code deleting auth user: %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
 }

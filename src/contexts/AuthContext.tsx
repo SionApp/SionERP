@@ -3,6 +3,7 @@ import { UserService } from '@/services/user.service';
 import { User as UserType } from '@/types/user.types';
 import { AuthError, Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { invalidatePermissionsCache } from '@/lib/permissions';
 
 interface AuthContextType {
   user: User | null;
@@ -82,15 +83,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // El trigger handle_new_user() actualiza automáticamente el estado de la invitación
-      // cuando se crea un usuario, así que no necesitamos hacer nada aquí
-      // Esto evita cargar todas las invitaciones en cada SIGNED_IN event
+      // Solo invalidar permisos en cambios reales de auth, no en refreshes silenciosos
+      if (event !== 'TOKEN_REFRESHED') {
+        invalidatePermissionsCache();
+      }
 
-      // Solo resetear el estado del usuario actual, no cargar automáticamente
-      if (!session?.user) {
+      if (session?.user && event === 'SIGNED_IN') {
+        loadCurrentUser(session.user);
+      } else if (!session?.user) {
         setCurrentUser(null);
         setCurrentUserLoaded(false);
       }
+      // TOKEN_REFRESHED: solo actualiza session/user refs — no recarga datos ni limpia cache
     });
 
     // THEN check for existing session
@@ -99,8 +103,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // No cargar automáticamente el usuario actual
-      if (!session?.user) {
+      if (session?.user) {
+        loadCurrentUser(session.user);
+      } else {
         setCurrentUser(null);
         setCurrentUserLoaded(false);
       }
@@ -132,7 +137,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Session may already be invalid server-side (e.g. after db reset)
+    }
+    // Force-clear all Supabase tokens from localStorage regardless of signOut result.
+    // Needed when the GoTrue server rejects signOut (e.g. token invalid after db reset)
+    // — in that case the JS client skips _removeSession() and the JWT stays in storage.
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('sb-'))
+      .forEach(k => localStorage.removeItem(k));
+    invalidatePermissionsCache();
     setCurrentUser(null);
     setCurrentUserLoaded(false);
   };

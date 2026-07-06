@@ -16,8 +16,9 @@ export function useAuxiliarySupervisorData() {
     loading: baseLoading,
     stats,
     groups,
+    pendingReports,
     refetch: refetchBase,
-  } = useDiscipleshipData({ level: 2, enabled: !!user });
+  } = useDiscipleshipData({ userId: user?.id, level: 2, enabled: !!user });
 
   // Estados adicionales específicos del supervisor auxiliar
   const [myReports, setMyReports] = useState<DiscipleshipReport[]>([]);
@@ -72,6 +73,7 @@ export function useAuxiliarySupervisorData() {
     
     // Datos específicos del supervisor auxiliar
     myReports,
+    pendingReports: pendingReports || [],
     
     // Estados de carga
     loading: baseLoading || loadingReports,

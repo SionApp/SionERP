@@ -1,0 +1,8 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Monograma J de JETRO, zona segura central (~55%) para íconos adaptativos -->
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 430 372 L 620 372" stroke-width="62"/>
+    <path d="M 560 372 L 560 560 Q 560 648 470 648 Q 384 648 372 558" stroke-width="80"/>
+  </g>
+  <circle cx="620" cy="372" r="40" fill="#F59E0B"/>
+</svg>

@@ -58,16 +58,12 @@ export const useDiscipleshipAnalytics = (zoneName?: string) => {
   const resolveAlert = useCallback(
     async (alertId: string) => {
       try {
-        await DiscipleshipAnalyticsService.getAlerts(); // Recargar alertas
-        // Actualizar estado local
-        setAlerts(prev => prev.map(a => (a.id === alertId ? { ...a, resolved: true } : a)));
+        setAlerts(prev => prev.filter(a => a.id !== alertId));
       } catch (err: unknown) {
         if (err instanceof Error) {
           setError(err.message);
-          console.error('Error resolving alert:', err);
         } else {
           setError('Error desconocido al resolver alerta');
-          console.error('Error resolving alert:', err);
         }
       }
     },

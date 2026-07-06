@@ -11,7 +11,7 @@ export const setLoadingCallbacks = (callbacks: typeof loadingCallbacks) => {
 };
 
 export class ApiService {
-  private static baseUrl = 'http://localhost:8181/api/v1';
+  private static baseUrl = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8181'}/api/v1`;
 
   /**
    * Get authorization header with current user token
@@ -54,7 +54,7 @@ export class ApiService {
           details: errorData.details,
         });
 
-        const error: any = new Error(`${errorMessage}${errorDetails}`);
+        const error = new Error(`${errorMessage}${errorDetails}`) as Error & { status?: number };
         error.status = response.status;
         throw error;
       }
@@ -69,9 +69,30 @@ export class ApiService {
   }
 
   /**
+   * Authenticated binary GET — returns a Blob (for file downloads behind JWT).
+   */
+  static async getBlob(endpoint: string): Promise<Blob> {
+    loadingCallbacks.setFetching?.(true);
+    try {
+      const headers = await this.getAuthHeaders();
+      headers.delete('Content-Type');
+      const response = await fetch(`${this.baseUrl}${endpoint}`, { method: 'GET', headers });
+      if (!response.ok) {
+        const msg = await response.text().catch(() => '');
+        const error = new Error(msg || `HTTP ${response.status}`) as Error & { status?: number };
+        error.status = response.status;
+        throw error;
+      }
+      return await response.blob();
+    } finally {
+      loadingCallbacks.setFetching?.(false);
+    }
+  }
+
+  /**
    * Generic POST request
    */
-  static async post<T, U = any>(endpoint: string, data?: U): Promise<T> {
+  static async post<T, U = unknown>(endpoint: string, data?: U): Promise<T> {
     loadingCallbacks.setSubmitting?.(true);
     try {
       const headers = await this.getAuthHeaders();
@@ -108,7 +129,7 @@ export class ApiService {
   /**
    * Generic PUT request
    */
-  static async put<T, U = any>(endpoint: string, data?: U): Promise<T> {
+  static async put<T, U = unknown>(endpoint: string, data?: U): Promise<T> {
     loadingCallbacks.setSubmitting?.(true);
     try {
       const headers = await this.getAuthHeaders();

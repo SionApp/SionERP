@@ -1,0 +1,93 @@
+name: Android APK
+
+# Regenera el APK automáticamente cuando cambia el frontend/mobile en develop.
+# - push a develop (paths de frontend) → compila y sube el APK como artifact (30 días).
+# - "Run workflow" manual con una versión (ej. v1.0.1) → además publica un GitHub Release.
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'src/**'
+      - 'android/**'
+      - 'index.html'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/android-release.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión para publicar como Release (ej. v1.0.1). Vacío = solo artifact.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build web (producción)
+        run: pnpm build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Capacitor sync
+        run: pnpm exec cap sync android
+
+      - name: Decodificar keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/android/app/release-key.jks"
+
+      - name: Generar keystore.properties
+        run: |
+          cat > android/keystore.properties <<EOF
+          storeFile=$GITHUB_WORKSPACE/android/app/release-key.jks
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Compilar APK firmado
+        run: cd android && ./gradlew assembleRelease --no-daemon
+
+      - name: Renombrar APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk SionERP.apk
+
+      - name: Subir artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SionERP-apk
+          path: SionERP.apk
+          retention-days: 30
+
+      - name: Publicar Release (solo si se pasó una versión)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.version != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: SionERP ${{ github.event.inputs.version }} — Android
+          files: SionERP.apk
+          generate_release_notes: true

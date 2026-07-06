@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Progress } from '@/components/ui/progress';
 import { useDiscipleshipAnalytics } from '@/hooks/useDiscipleshipAnalytics';
+import { CHART_COLORS } from '@/lib/chart-colors';
 import type { DiscipleshipDashboardStats } from '@/services/dashboard.service';
 import {
   Activity,
@@ -51,7 +52,20 @@ const formatWeekLabel = (dateStr: string): string => {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
     const day = date.getDate();
-    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const months = [
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ];
     return `${day} ${months[date.getMonth()]}`;
   } catch {
     return dateStr;
@@ -102,7 +116,7 @@ export const DiscipleshipAnalyticsSection = ({
   // Datos para el radar chart de salud espiritual por zona
   const spiritualHealthRadarData = zoneStats.map(zone => ({
     zone: zone.zoneName.replace('Zona ', ''),
-    salud: zone.healthIndex || 8,
+    salud: zone.healthIndex || 0,
     asistencia: (zone.avgAttendance / 20) * 10,
     crecimiento: Math.max(0, zone.growthRate / 2),
   }));
@@ -121,7 +135,7 @@ export const DiscipleshipAnalyticsSection = ({
     <div className="space-y-6 md:space-y-8">
       {/* Header con resumen ejecutivo */}
       <div className="text-center space-y-1 px-2">
-        <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+        <h2 className="text-2xl md:text-3xl font-bold text-foreground">
           Analytics de Discipulado
         </h2>
         <p className="text-sm md:text-base text-muted-foreground">
@@ -167,25 +181,26 @@ export const DiscipleshipAnalyticsSection = ({
         ].map((stat, index) => (
           <Card
             key={index}
-            className="relative overflow-hidden border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] hover:shadow-[var(--shadow-accent)] transition-all duration-300 hover:scale-105"
+            className="relative overflow-hidden border bg-card shadow-sm hover:shadow-md transition-shadow duration-200"
           >
-            <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-10`}></div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 md:pb-2 relative z-10 p-3 md:p-6">
               <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground leading-tight">
                 {stat.title}
               </CardTitle>
-              <div className={`p-1.5 md:p-2 rounded-lg bg-gradient-to-br ${stat.color} shadow-lg flex-shrink-0`}>
+              <div
+                className={`p-1.5 md:p-2 rounded-lg bg-gradient-to-br ${stat.color} shadow-lg flex-shrink-0`}
+              >
                 <stat.icon className="h-3 w-3 md:h-4 md:w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="relative z-10 p-3 sm:p-4 lg:p-6 pt-0">
-              <div className="text-xl md:text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
-                {stat.value}
-              </div>
+              <div className="text-xl md:text-3xl font-bold text-foreground">{stat.value}</div>
               <div className="flex items-center gap-1 mt-1 md:mt-2 flex-wrap">
                 <div className="flex items-center gap-0.5">
                   {getTrendIcon(stat.change)}
-                  <span className={`text-[10px] md:text-xs font-medium ${getTrendColor(stat.change)}`}>
+                  <span
+                    className={`text-[10px] md:text-xs font-medium ${getTrendColor(stat.change)}`}
+                  >
                     {stat.change > 0 ? '+' : ''}
                     {formatPercent(stat.change)}%
                   </span>
@@ -215,20 +230,39 @@ export const DiscipleshipAnalyticsSection = ({
           <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
             <ChartContainer
               config={{
-                attendance: { label: 'Asistencia', color: 'hsl(var(--primary))' },
-                visitors: { label: 'Visitantes', color: 'hsl(220 70% 50%)' },
-                conversions: { label: 'Conversiones', color: 'hsl(142 76% 36%)' },
+                attendance: { label: 'Asistencia', color: '#8b5cf6' },
+                visitors: { label: 'Visitantes', color: '#06b6d4' },
+                conversions: { label: 'Conversiones', color: CHART_COLORS.success },
               }}
               className="h-[180px] sm:h-[200px] lg:h-[300px] w-full"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={formattedWeeklyTrends} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <AreaChart
+                  data={formattedWeeklyTrends}
+                  margin={{ top: 10, right: 5, left: -20, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="gradAttendance" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradVisitors" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradConversions" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} />
                   <XAxis
                     dataKey="weekLabel"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={9}
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
                     interval="preserveStartEnd"
                     angle={-35}
                     textAnchor="end"
@@ -237,33 +271,38 @@ export const DiscipleshipAnalyticsSection = ({
                   <YAxis
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={9}
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
                     width={35}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Area
                     type="monotone"
                     dataKey="attendance"
-                    stackId="1"
-                    stroke="hsl(var(--primary))"
-                    fill="hsl(var(--primary))"
-                    fillOpacity={0.6}
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    fill="url(#gradAttendance)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: '#8b5cf6', strokeWidth: 0 }}
                   />
                   <Area
                     type="monotone"
                     dataKey="visitors"
-                    stackId="1"
-                    stroke="hsl(220 70% 50%)"
-                    fill="hsl(220 70% 50%)"
-                    fillOpacity={0.6}
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    fill="url(#gradVisitors)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: '#06b6d4', strokeWidth: 0 }}
                   />
                   <Area
                     type="monotone"
                     dataKey="conversions"
-                    stackId="1"
-                    stroke="hsl(142 76% 36%)"
-                    fill="hsl(142 76% 36%)"
-                    fillOpacity={0.6}
+                    stroke={CHART_COLORS.success}
+                    strokeWidth={2}
+                    fill="url(#gradConversions)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: CHART_COLORS.success, strokeWidth: 0 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -285,42 +324,48 @@ export const DiscipleshipAnalyticsSection = ({
           <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
             <ChartContainer
               config={{
-                groups: { label: 'Grupos', color: 'hsl(var(--primary))' },
-                members: { label: 'Miembros', color: 'hsl(220 70% 50%)' },
-                growth: { label: 'Crecimiento %', color: 'hsl(142 76% 36%)' },
+                salud: { label: 'Salud Espiritual', color: '#8b5cf6' },
+                asistencia: { label: 'Asistencia', color: '#06b6d4' },
               }}
               className="h-[180px] sm:h-[220px] lg:h-[300px] w-full mx-auto"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={spiritualHealthRadarData} cx="50%" cy="50%" outerRadius="65%">
-                  <PolarGrid stroke="hsl(var(--border))" />
+                  <PolarGrid stroke="hsl(var(--border))" strokeOpacity={0.5} />
                   <PolarAngleAxis
                     dataKey="zone"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9 }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 500 }}
                   />
                   <PolarRadiusAxis
                     angle={0}
                     domain={[0, 10]}
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 8 }}
-                    tickCount={5}
+                    tickCount={4}
+                    axisLine={false}
                   />
                   <Radar
                     name="Salud Espiritual"
                     dataKey="salud"
-                    stroke="hsl(var(--primary))"
-                    fill="hsl(var(--primary))"
-                    fillOpacity={0.3}
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    fill="#8b5cf6"
+                    fillOpacity={0.2}
+                    dot={{ fill: '#8b5cf6', r: 3, strokeWidth: 0 }}
                   />
                   <Radar
                     name="Asistencia"
                     dataKey="asistencia"
-                    stroke="hsl(220 70% 50%)"
-                    fill="hsl(220 70% 50%)"
-                    fillOpacity={0.3}
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    fill="#06b6d4"
+                    fillOpacity={0.15}
+                    dot={{ fill: '#06b6d4', r: 3, strokeWidth: 0 }}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Legend
                     wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
+                    iconType="circle"
+                    iconSize={8}
                   />
                 </RadarChart>
               </ResponsiveContainer>
@@ -342,34 +387,55 @@ export const DiscipleshipAnalyticsSection = ({
           <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
             <ChartContainer
               config={{
-                salud: { label: 'Salud Espiritual', color: 'hsl(var(--primary))' },
-                asistencia: { label: 'Asistencia', color: 'hsl(220 70% 50%)' },
-                crecimiento: { label: 'Crecimiento', color: 'hsl(142 76% 36%)' },
+                totalGroups: { label: 'Grupos', color: '#8b5cf6' },
+                totalMembers: { label: 'Miembros', color: '#06b6d4' },
               }}
               className="h-[180px] sm:h-[200px] lg:h-[300px] w-full"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={zoneStats} layout="vertical" margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <BarChart
+                  data={zoneStats}
+                  layout="vertical"
+                  margin={{ top: 5, right: 16, left: 0, bottom: 0 }}
+                  barCategoryGap="30%"
+                  barGap={4}
+                >
+                  <defs>
+                    <linearGradient id="gradGroups" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#7c3aed" />
+                      <stop offset="100%" stopColor="#a78bfa" />
+                    </linearGradient>
+                    <linearGradient id="gradMembers" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#0891b2" />
+                      <stop offset="100%" stopColor="#67e8f9" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} horizontal={false} />
                   <XAxis
                     type="number"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={9}
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
                   />
                   <YAxis
                     type="category"
                     dataKey="zoneName"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={9}
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
                     width={70}
-                    tickFormatter={(value: string) => value.length > 10 ? value.substring(0, 10) + '…' : value}
+                    tickFormatter={(value: string) =>
+                      value.length > 10 ? value.substring(0, 10) + '…' : value
+                    }
                   />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="totalGroups" fill="hsl(var(--primary))" name="Grupos" />
-                  <Bar dataKey="totalMembers" fill="hsl(220 70% 50%)" name="Miembros" />
-                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} />
+                  <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
+                  <Bar dataKey="totalGroups" fill="url(#gradGroups)" name="Grupos" radius={[0, 4, 4, 0]} maxBarSize={14} />
+                  <Bar dataKey="totalMembers" fill="url(#gradMembers)" name="Miembros" radius={[0, 4, 4, 0]} maxBarSize={14} />
+                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} iconType="circle" iconSize={8} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartContainer>
@@ -393,6 +459,11 @@ export const DiscipleshipAnalyticsSection = ({
               <h4 className="font-semibold text-xs md:text-sm text-muted-foreground text-center md:text-left">
                 Alertas Activas
               </h4>
+              {alerts.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  Sin alertas activas
+                </p>
+              )}
               {alerts.slice(0, 3).map((alert, alertIndex) => (
                 <div
                   key={
@@ -431,6 +502,11 @@ export const DiscipleshipAnalyticsSection = ({
               <h4 className="font-semibold text-xs md:text-sm text-muted-foreground text-center md:text-left">
                 Multiplicaciones Recientes
               </h4>
+              {multiplications.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  Sin multiplicaciones registradas
+                </p>
+              )}
               {multiplications.slice(0, 3).map((mult, index) => (
                 <div
                   key={
@@ -441,7 +517,9 @@ export const DiscipleshipAnalyticsSection = ({
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 md:p-3 rounded-lg bg-green-500/10 border border-green-500/20"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs md:text-sm font-medium truncate">{mult.parentGroupName}</p>
+                    <p className="text-xs md:text-sm font-medium truncate">
+                      {mult.parentGroupName}
+                    </p>
                     <p className="text-[10px] md:text-xs text-muted-foreground truncate">
                       {mult.newGroupName || 'En planificación'} • {mult.initialMembers} miembros
                     </p>
@@ -460,7 +538,12 @@ export const DiscipleshipAnalyticsSection = ({
               ))}
             </div>
 
-            <Button variant="outline" size="sm" className="w-full text-xs md:text-sm" onClick={() => redirectTo()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs md:text-sm"
+              onClick={() => redirectTo()}
+            >
               <Calendar className="h-3.5 w-3.5 md:h-4 md:w-4 mr-2" />
               Ver Panel Completo de Discipulado
             </Button>
@@ -502,7 +585,10 @@ export const DiscipleshipAnalyticsSection = ({
                       <p className="text-xs md:text-sm font-medium truncate max-w-[120px] md:max-w-none">
                         {leader.leaderName}
                       </p>
-                      <Badge variant="outline" className="text-[10px] md:text-xs truncate max-w-[80px] md:max-w-none">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] md:text-xs truncate max-w-[80px] md:max-w-none"
+                      >
                         {leader.groupName}
                       </Badge>
                     </div>
@@ -523,7 +609,9 @@ export const DiscipleshipAnalyticsSection = ({
                       </div>
                       <div className="flex items-center gap-0.5">
                         <TrendingUp className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                        <span className={`text-[10px] md:text-xs whitespace-nowrap ${getTrendColor(leader.growthRate)}`}>
+                        <span
+                          className={`text-[10px] md:text-xs whitespace-nowrap ${getTrendColor(leader.growthRate)}`}
+                        >
                           {leader.growthRate > 0 ? '+' : ''}
                           {formatPercent(leader.growthRate)}%
                         </span>

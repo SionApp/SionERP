@@ -51,6 +51,12 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
+    if (!user) {
+      // Clear modules on logout
+      setInstalledModules([]);
+      setLoading(false);
+      return;
+    }
     // Initial fetch
     refreshModules();
   }, [user?.id]); // Re-fetch when user ID changes (login/logout) to ensure fresh state

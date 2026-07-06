@@ -1,27 +1,26 @@
+import { ReportDetailSheet } from './ReportDetailSheet';
+import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
+import { ComplianceDashboard } from '@/components/discipleship/ComplianceDashboard';
+import { UserDetailSheet } from '@/components/UserDetailSheet';
+import { CreateGoalModal } from '@/components/discipleship/CreateGoalModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
+import { MobileSegment } from '@/components/mobile/MobileSegment';
+import { MobileStatTile } from '@/components/mobile/MobileStatTile';
+import { useMobileMode } from '@/hooks/useMobileMode';
+import { parseGoTime } from '@/lib/go-time';
 import { useAuth } from '@/hooks/useAuth';
 import { useGeneralSupervisorData } from '@/hooks/useGeneralSupervisorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
-import type { CreateReportRequest } from '@/types/discipleship.types';
-import { endOfWeek, format, startOfWeek, subWeeks } from 'date-fns';
+import type { DiscipleshipReport } from '@/types/discipleship.types';
+import { format } from 'date-fns';
+import { justEndedWeek } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
-import { SupervisionReportModal } from '@/components/discipleship/SupervisionReportModal';
 import {
   Building,
   CheckCircle,
@@ -30,13 +29,13 @@ import {
   Loader2,
   Map,
   Plus,
-  RefreshCw,
-  Send,
   Target,
   UserPlus,
   Users,
 } from 'lucide-react';
+import { CHART_COLORS } from '@/lib/chart-colors';
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Area,
   AreaChart,
@@ -55,6 +54,7 @@ interface DashboardStats {
   average_attendance: number;
   spiritual_health: number;
   pending_alerts: number;
+  zone_name?: string;
 }
 
 interface Subordinate {
@@ -71,9 +71,16 @@ interface Subordinate {
 
 const GeneralSupervisorDashboard: React.FC = React.memo(() => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const isMobileApp = useMobileMode();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<DiscipleshipReport | null>(null);
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [selectedSupervisor, setSelectedSupervisor] = useState<Subordinate | null>(null);
+  const [supervisorSheetOpen, setSupervisorSheetOpen] = useState(false);
+  const [goalModalOpen, setGoalModalOpen] = useState(false);
 
   // Usar hook específico del supervisor general
   const {
@@ -83,15 +90,38 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
     subordinates,
     zoneStats,
     myReports,
+    pendingReports,
     error,
     refetch,
     refetchReports,
   } = useGeneralSupervisorData();
 
-  // Calcular período semanal (semana anterior)
-  const today = new Date();
-  const periodStart = startOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
-  const periodEnd = endOfWeek(subWeeks(today, 1), { weekStartsOn: 0 });
+  const handleApproveReport = async (reportId: string) => {
+    try {
+      await DiscipleshipService.approveReport(reportId);
+      toast.success('Reporte aprobado');
+      refetch();
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(msg || 'Error al aprobar el reporte');
+    }
+  };
+
+  const handleRejectReport = async (reportId: string, feedback: string) => {
+    try {
+      await DiscipleshipService.rejectReport(reportId, feedback);
+      toast.success('Reporte rechazado');
+      refetch();
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(msg || 'Error al rechazar el reporte');
+    }
+  };
+
+  // Período ISO Monday-anchored (semana más reciente completada).
+  const _justEnded = justEndedWeek(new Date());
+  const periodStart = _justEnded.monday;
+  const periodEnd = _justEnded.saturday;
 
   // Validar si ya existe reporte para este período
   const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
@@ -100,6 +130,20 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
   });
 
   if (loading) {
+    if (isMobileApp) {
+      return (
+        <div className="px-4 pt-4 space-y-3">
+          <Skeleton className="h-10 w-full rounded-xl" />
+          <div className="flex gap-2">
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} className="h-20 w-24 rounded-2xl shrink-0" />
+            ))}
+          </div>
+          <Skeleton className="h-9 w-full rounded-full" />
+          <Skeleton className="h-56 w-full rounded-xl" />
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -108,35 +152,349 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
     );
   }
 
-  return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 md:gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Dashboard Supervisor General
-          </h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            {user?.email} - {(user as any)?.zone_name || 'Zona no asignada'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={() => setShowReportModal(true)}
-            disabled={hasCurrentPeriodReport}
-            variant={hasCurrentPeriodReport ? 'outline' : 'default'}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {hasCurrentPeriodReport ? 'Reporte enviado' : 'Nuevo Reporte'}
-          </Button>
-          <Badge variant="secondary" className="text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2">
-            <span className="hidden sm:inline">Nivel 3 - Supervisor General</span>
-            <span className="sm:hidden">N3</span>
-          </Badge>
-        </div>
-      </div>
+  const pendingReportsCount = pendingReports.length;
 
-      {/* Dialog para crear reporte */}
+  // ── Botón de reporte (compartido) ──
+  const reportButton = (
+    <Button
+      onClick={() => setShowReportModal(true)}
+      disabled={hasCurrentPeriodReport}
+      variant={hasCurrentPeriodReport ? 'outline' : 'default'}
+      className="w-full sm:w-auto"
+    >
+      <Plus className="h-4 w-4 mr-2" />
+      {hasCurrentPeriodReport ? 'Reporte enviado' : 'Nuevo Reporte'}
+    </Button>
+  );
+
+  // ── Contenido de cada tab (compartido web/mobile) ──
+  const overviewContent = (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Crecimiento del Territorio</CardTitle>
+          <CardDescription>Tendencias de las últimas 12 semanas</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {weeklyTrends.length > 0 ? (
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={weeklyTrends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="asistencia"
+                    stackId="1"
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
+                    fillOpacity={0.6}
+                    name="Asistencia"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="visitantes"
+                    stackId="2"
+                    stroke={CHART_COLORS.success}
+                    fill={CHART_COLORS.success}
+                    fillOpacity={0.8}
+                    name="Visitantes"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-12">
+              No hay datos de tendencias disponibles
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Objetivos Mensuales</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span>Asistencia Promedio (Meta: 85%)</span>
+                <span>{Math.round(stats.average_attendance || 0)}%</span>
+              </div>
+              <Progress value={stats.average_attendance || 0} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span>Salud Espiritual (Meta: 8/10)</span>
+                <span>{(stats.spiritual_health || 0).toFixed(1)}</span>
+              </div>
+              <Progress value={(stats.spiritual_health / 10) * 100} className="h-2" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Acciones Rápidas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => navigate('/dashboard/zones')}
+            >
+              <Map className="w-4 h-4 mr-2" />
+              Ver Mapa de Zonas
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => setGoalModalOpen(true)}
+            >
+              <Target className="w-4 h-4 mr-2" />
+              Definir Objetivos
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => navigate('/dashboard/register')}
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Agregar Supervisor
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+
+  const zoneAnalysisContent = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Supervisores Auxiliares</CardTitle>
+        <CardDescription>Rendimiento de supervisores bajo tu zona</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {subordinates.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8">
+            No hay supervisores auxiliares asignados
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {subordinates.map(supervisor => (
+              <div key={supervisor.id} className="border rounded-lg p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold truncate">{supervisor.user_name}</h3>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {supervisor.user_email}
+                    </p>
+                  </div>
+                  <Badge variant="default" className="shrink-0">
+                    {Math.round(supervisor.performance_score)}%
+                  </Badge>
+                </div>
+                <div className="grid gap-2 grid-cols-2 md:grid-cols-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Grupos: </span>
+                    <span className="font-medium">{supervisor.groups_assigned}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Miembros: </span>
+                    <span className="font-medium">{supervisor.total_members}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Asistencia: </span>
+                    <span className="font-medium">{Math.round(supervisor.avg_attendance)}%</span>
+                  </div>
+                  <div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedSupervisor(supervisor);
+                        setSupervisorSheetOpen(true);
+                      }}
+                    >
+                      Ver Detalle
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <Progress value={supervisor.performance_score} className="h-1" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const reportContent = (
+    <>
+      {myReports.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Mis Reportes Recientes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {myReports.slice(0, 5).map(report => {
+                const reportData = report.report_data as {
+                  new_disciples_care?: number;
+                  visited_groups?: number;
+                };
+                return (
+                  <div
+                    key={report.id}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        Semana del{' '}
+                        {format(new Date(report.period_start), 'dd MMM', { locale: es })}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Atención Nvos: {reportData?.new_disciples_care || 0} • VD:{' '}
+                        {reportData?.visited_groups || 0}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={
+                        report.status === 'approved'
+                          ? 'default'
+                          : report.status === 'submitted'
+                            ? 'secondary'
+                            : report.status === 'revision_required'
+                              ? 'destructive'
+                              : 'outline'
+                      }
+                    >
+                      {report.status === 'approved'
+                        ? 'Aprobado'
+                        : report.status === 'submitted'
+                          ? 'Pendiente'
+                          : report.status === 'revision_required'
+                            ? 'Revisar'
+                            : 'Borrador'}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0">
+              <CardTitle>Reporte Semanal</CardTitle>
+              <CardDescription>
+                Período: {format(periodStart, 'dd MMM', { locale: es })} al{' '}
+                {format(periodEnd, 'dd MMM yyyy', { locale: es })}
+              </CardDescription>
+            </div>
+            {reportButton}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {hasCurrentPeriodReport ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-600" />
+              <p>Ya has enviado el reporte semanal para este período</p>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Haz clic en "Nuevo Reporte" para crear un reporte semanal</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const approvalsContent = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Cola de Aprobaciones</CardTitle>
+        <CardDescription>Reportes pendientes de tu aprobación</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {pendingReports.length === 0 ? (
+          <div className="text-center py-8">
+            <CheckCircle className="w-12 h-12 mx-auto text-green-500 mb-4" />
+            <p className="text-muted-foreground">No hay reportes pendientes</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {(pendingReports as unknown as DiscipleshipReport[]).map(report => (
+              <div
+                key={report.id}
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg"
+              >
+                <div className="min-w-0">
+                  <h4 className="font-medium text-sm truncate">{report.reporter_name}</h4>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {report.report_type} · Período:{' '}
+                    {parseGoTime(report.period_end)?.toLocaleDateString('es-AR', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    }) ?? report.period_end}
+                  </p>
+                  <p className="text-xs text-muted-foreground flex items-center mt-1">
+                    <Clock className="w-3 h-3 mr-1 shrink-0" />
+                    Enviado:{' '}
+                    {parseGoTime(report.submitted_at)?.toLocaleDateString('es-AR', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    }) ?? 'Sin fecha'}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="flex-1 sm:flex-none"
+                    onClick={() => {
+                      setSelectedReport(report);
+                      setReportSheetOpen(true);
+                    }}
+                  >
+                    Ver
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApproveReport(report.id)}
+                    className="flex-1 sm:flex-none"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Aprobar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // ── Sheets / dialogs / modal (compartidos) ──
+  const sharedOverlays = (
+    <>
       <SupervisionReportModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
@@ -145,6 +503,128 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
         periodEnd={periodEnd}
         hierarchyLevel={3}
       />
+
+      <ReportDetailSheet
+        report={selectedReport}
+        open={reportSheetOpen}
+        onOpenChange={open => {
+          setReportSheetOpen(open);
+          if (!open) setSelectedReport(null);
+        }}
+        onApprove={handleApproveReport}
+        onReject={handleRejectReport}
+      />
+
+      <UserDetailSheet
+        user={
+          selectedSupervisor
+            ? {
+                id: selectedSupervisor.user_id,
+                email: selectedSupervisor.user_email,
+                first_name: selectedSupervisor.user_name.split(' ')[0] ?? '',
+                last_name: selectedSupervisor.user_name.split(' ').slice(1).join(' '),
+                role: 'supervisor',
+                is_active: true,
+                id_number: '',
+                phone: '',
+                created_at: '',
+                updated_at: '',
+              }
+            : null
+        }
+        isOpen={supervisorSheetOpen}
+        onClose={() => {
+          setSupervisorSheetOpen(false);
+          setSelectedSupervisor(null);
+        }}
+      />
+
+      <Dialog open={goalModalOpen} onOpenChange={setGoalModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Crear Objetivo Estratégico</DialogTitle>
+          </DialogHeader>
+          <CreateGoalModal onSuccess={() => setGoalModalOpen(false)} canSeeAll={false} />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
+  // ── Modo mobile exclusivo ──
+  if (isMobileApp) {
+    const mobileTabs = [
+      { value: 'overview', label: 'Resumen' },
+      { value: 'zone-analysis', label: 'Zonal' },
+      { value: 'monthly-report', label: 'Reporte' },
+      {
+        value: 'approvals',
+        label: pendingReportsCount > 0 ? `Aprob. · ${pendingReportsCount}` : 'Aprob.',
+      },
+      { value: 'compliance', label: 'Cumplimiento' },
+    ];
+
+    return (
+      <div className="pb-6">
+        {/* Acción principal */}
+        <div className="px-4 pt-4">{reportButton}</div>
+
+        {/* Stats: chips horizontales */}
+        <div className="flex gap-2 px-4 pt-4 overflow-x-auto snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <MobileStatTile label="Grupos" value={stats.total_groups || 0} />
+          <MobileStatTile label="Miembros" value={stats.total_members || 0} />
+          <MobileStatTile label="Sup. Aux" value={stats.subordinates_count || 0} />
+          <MobileStatTile
+            label="Reporte"
+            value={hasCurrentPeriodReport ? 'Enviado' : 'Pendiente'}
+            tone={hasCurrentPeriodReport ? 'success' : 'warning'}
+          />
+        </div>
+
+        {/* Sub-tabs */}
+        <MobileSegment
+          scrollable
+          options={mobileTabs}
+          value={selectedTab}
+          onChange={setSelectedTab}
+          className="px-4 pt-4"
+        />
+
+        <div className="px-3 pt-3 space-y-4">
+          {selectedTab === 'overview' && overviewContent}
+          {selectedTab === 'zone-analysis' && zoneAnalysisContent}
+          {selectedTab === 'monthly-report' && reportContent}
+          {selectedTab === 'approvals' && approvalsContent}
+          {selectedTab === 'compliance' && <ComplianceDashboard />}
+        </div>
+
+        {sharedOverlays}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 md:space-y-6 p-3 sm:p-4 md:p-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 md:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
+            Dashboard Supervisor General
+          </h1>
+          <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate">
+            {user?.email} - {stats?.zone_name || 'Zona no asignada'}
+          </p>
+        </div>
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <Badge
+            variant="secondary"
+            className="text-xs sm:text-sm md:text-lg px-3 md:px-4 py-1.5 md:py-2 self-start sm:self-auto"
+          >
+            <span className="hidden sm:inline">Nivel 3 - Supervisor General</span>
+            <span className="sm:hidden">Nivel 3</span>
+          </Badge>
+          {reportButton}
+        </div>
+      </div>
 
       {/* Quick Stats */}
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -207,274 +687,69 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 md:gap-0">
-          <TabsTrigger value="overview" className="text-xs md:text-sm">
-            Resumen
-          </TabsTrigger>
-          <TabsTrigger value="zone-analysis" className="text-xs md:text-sm">
-            Análisis Zonal
-          </TabsTrigger>
-          <TabsTrigger value="monthly-report" className="text-xs md:text-sm">
-            Reporte Semanal
-          </TabsTrigger>
-          <TabsTrigger value="multiplication" className="text-xs md:text-sm">
-            Multiplicación
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-5 h-auto min-w-max sm:min-w-0 gap-1">
+            <TabsTrigger
+              value="overview"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Resumen
+            </TabsTrigger>
+            <TabsTrigger
+              value="zone-analysis"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Análisis Zonal
+            </TabsTrigger>
+            <TabsTrigger
+              value="monthly-report"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Reporte Semanal
+            </TabsTrigger>
+            <TabsTrigger
+              value="approvals"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              <span className="hidden sm:inline">Aprobaciones</span>
+              <span className="sm:hidden">Aprob.</span>
+              {pendingReportsCount > 0 && (
+                <Badge variant="destructive" className="ml-1 text-[10px] h-4 px-1">
+                  {pendingReportsCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="compliance"
+              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
+            >
+              Cumplimiento
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-4">
-          {/* Territory Growth Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Crecimiento del Territorio</CardTitle>
-              <CardDescription>Tendencias de las últimas 12 semanas</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {weeklyTrends.length > 0 ? (
-                <div style={{ width: '100%', height: 300 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={weeklyTrends}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Area
-                        type="monotone"
-                        dataKey="asistencia"
-                        stackId="1"
-                        stroke="#3b82f6"
-                        fill="#3b82f6"
-                        fillOpacity={0.6}
-                        name="Asistencia"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="visitantes"
-                        stackId="2"
-                        stroke="#22c55e"
-                        fill="#22c55e"
-                        fillOpacity={0.8}
-                        name="Visitantes"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground py-12">
-                  No hay datos de tendencias disponibles
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Goals Progress */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Objetivos Mensuales</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Asistencia Promedio (Meta: 85%)</span>
-                    <span>{Math.round(stats.average_attendance || 0)}%</span>
-                  </div>
-                  <Progress value={stats.average_attendance || 0} className="h-2" />
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Salud Espiritual (Meta: 8/10)</span>
-                    <span>{(stats.spiritual_health || 0).toFixed(1)}</span>
-                  </div>
-                  <Progress value={(stats.spiritual_health / 10) * 100} className="h-2" />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Acciones Rápidas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start">
-                  <Map className="w-4 h-4 mr-2" />
-                  Ver Mapa de Zonas
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Target className="w-4 h-4 mr-2" />
-                  Definir Objetivos
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Agregar Supervisor
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+          {overviewContent}
         </TabsContent>
 
         <TabsContent value="zone-analysis" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Supervisores Auxiliares</CardTitle>
-              <CardDescription>Rendimiento de supervisores bajo tu zona</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {subordinates.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  No hay supervisores auxiliares asignados
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {subordinates.map(supervisor => (
-                    <div key={supervisor.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="font-semibold">{supervisor.user_name}</h3>
-                          <p className="text-sm text-muted-foreground">{supervisor.user_email}</p>
-                        </div>
-                        <Badge variant="default">
-                          Rendimiento: {Math.round(supervisor.performance_score)}%
-                        </Badge>
-                      </div>
-                      <div className="grid gap-2 md:grid-cols-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Grupos: </span>
-                          <span className="font-medium">{supervisor.groups_assigned}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Miembros: </span>
-                          <span className="font-medium">{supervisor.total_members}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Asistencia: </span>
-                          <span className="font-medium">
-                            {Math.round(supervisor.avg_attendance)}%
-                          </span>
-                        </div>
-                        <div>
-                          <Button size="sm" variant="outline">
-                            Ver Detalle
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="mt-2">
-                        <Progress value={supervisor.performance_score} className="h-1" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {zoneAnalysisContent}
         </TabsContent>
 
         <TabsContent value="monthly-report" className="space-y-4">
-          {/* Recent Reports Section */}
-          {myReports.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Mis Reportes Recientes
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {myReports.slice(0, 5).map(report => {
-                    const reportData = report.report_data as {
-                      new_disciples_care?: number; visited_groups?: number;
-                    };
-                    return (
-                      <div
-                        key={report.id}
-                        className="flex items-center justify-between p-3 border rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium">
-                            Semana del {format(new Date(report.period_start), 'dd MMM', { locale: es })}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Atención Nvos: {reportData?.new_disciples_care || 0} • VD: {reportData?.visited_groups || 0}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            report.status === 'approved'
-                              ? 'default'
-                              : report.status === 'submitted'
-                                ? 'secondary'
-                                : report.status === 'revision_required'
-                                  ? 'destructive'
-                                  : 'outline'
-                          }
-                        >
-                          {report.status === 'approved'
-                            ? 'Aprobado'
-                            : report.status === 'submitted'
-                              ? 'Pendiente'
-                              : report.status === 'revision_required'
-                                ? 'Revisar'
-                                : 'Borrador'}
-                        </Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Reporte Semanal</CardTitle>
-                  <CardDescription>
-                    Período: {format(periodStart, 'dd MMM', { locale: es })} al {format(periodEnd, 'dd MMM yyyy', { locale: es })}
-                  </CardDescription>
-                </div>
-                <Button
-                  onClick={() => setShowReportModal(true)}
-                  disabled={hasCurrentPeriodReport}
-                  variant={hasCurrentPeriodReport ? 'outline' : 'default'}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  {hasCurrentPeriodReport ? 'Reporte enviado' : 'Nuevo Reporte'}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {hasCurrentPeriodReport ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-600" />
-                  <p>Ya has enviado el reporte semanal para este período</p>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Haz clic en "Nuevo Reporte" para crear un reporte semanal</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {reportContent}
         </TabsContent>
 
-        <TabsContent value="multiplication" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Plan de Multiplicación</CardTitle>
-              <CardDescription>Grupos en proceso de multiplicación</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                Funcionalidad de multiplicación próximamente
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="approvals" className="space-y-4">
+          {approvalsContent}
+        </TabsContent>
+
+        <TabsContent value="compliance" className="space-y-4">
+          <ComplianceDashboard />
         </TabsContent>
       </Tabs>
+
+      {sharedOverlays}
     </div>
   );
 });

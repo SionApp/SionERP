@@ -1,9 +1,26 @@
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  CalendarDays,
+  Clock,
+  Globe,
+  MapPin,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  Pencil,
+  Check,
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -11,534 +28,480 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Calendar,
-  Plus,
-  Edit,
-  Trash2,
-  Eye,
-  MapPin,
-  Clock,
-  Users,
-  Globe,
-  Search,
-  Filter,
-  MoreHorizontal,
-  CalendarDays,
-  Image as ImageIcon,
-  Upload,
-  Settings,
-  Share2,
-  Copy,
-  ExternalLink,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useMobileMode } from '@/hooks/useMobileMode';
+import { ROLE_LEVELS } from '@/lib/permissions';
+import { EventsService } from '@/services/events.service';
+import { EVENT_CATEGORY_META, formatEventDate } from './events/event-meta';
+import type { ChurchEvent, CreateEventRequest, EventCategory } from '@/types/event.types';
+import { MobileEventsScreen } from '@/components/mobile/screens/EventsScreen';
 
-const EventsPage = () => {
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+const EMPTY_FORM: CreateEventRequest = {
+  title: '',
+  description: '',
+  eventDate: '',
+  startTime: '',
+  endTime: '',
+  location: '',
+  category: 'service',
+  isRecurring: false,
+  isPublished: true,
+  maxAttendees: null,
+  organizer: '',
+};
 
-  const eventCategories = [
-    {
-      id: 'service',
-      name: 'Servicios',
-      color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
-    },
-    {
-      id: 'conference',
-      name: 'Conferencias',
-      color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
-    },
-    {
-      id: 'worship',
-      name: 'Adoración',
-      color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
-    },
-    {
-      id: 'youth',
-      name: 'Jóvenes',
-      color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400',
-    },
-    {
-      id: 'children',
-      name: 'Niños',
-      color: 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400',
-    },
-    {
-      id: 'community',
-      name: 'Comunitario',
-      color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/20 dark:text-teal-400',
-    },
-  ];
+// ─────────────────────────────────────────────
+// Create / edit dialog (controlled)
+// ─────────────────────────────────────────────
+function EventFormDialog({
+  open,
+  onOpenChange,
+  editing,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  editing: ChurchEvent | null;
+}) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState<CreateEventRequest>(EMPTY_FORM);
 
-  const sampleEvents = [
-    {
-      id: 1,
-      title: 'Servicio Dominical',
-      description: 'Únete a nosotros para un tiempo de adoración y la Palabra de Dios.',
-      date: '2024-04-07',
-      time: '10:00',
-      endTime: '12:00',
-      location: 'Santuario Principal',
-      category: 'service',
-      isRecurring: true,
-      isPublished: true,
-      attendees: 250,
-      maxAttendees: 300,
-      image: '/api/placeholder/400/200',
-      organizer: 'Pastor Juan Pérez',
-    },
-    {
-      id: 2,
-      title: 'Conferencia de Jóvenes 2024',
-      description:
-        'Tres días de enseñanzas poderosas, adoración y compañerismo para jóvenes de 15-25 años.',
-      date: '2024-04-15',
-      time: '18:00',
-      endTime: '21:00',
-      location: 'Centro de Convenciones',
-      category: 'youth',
-      isRecurring: false,
-      isPublished: true,
-      attendees: 180,
-      maxAttendees: 200,
-      image: '/api/placeholder/400/200',
-      organizer: 'Pastor de Jóvenes María González',
-    },
-    {
-      id: 3,
-      title: 'Noche de Adoración',
-      description:
-        'Una noche especial dedicada completamente a la adoración y la presencia de Dios.',
-      date: '2024-04-20',
-      time: '19:00',
-      endTime: '21:30',
-      location: 'Santuario Principal',
-      category: 'worship',
-      isRecurring: false,
-      isPublished: false,
-      attendees: 0,
-      maxAttendees: 300,
-      image: '/api/placeholder/400/200',
-      organizer: 'Ministerio de Adoración',
-    },
-  ];
-
-  const getCategoryInfo = (categoryId: string) => {
-    return eventCategories.find(cat => cat.id === categoryId) || eventCategories[0];
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-ES', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  const EventCard = ({ event }: { event: any }) => {
-    const category = getCategoryInfo(event.category);
-
-    return (
-      <Card className="group hover:shadow-lg transition-all duration-300 overflow-hidden">
-        <div className="relative">
-          <div className="h-48 bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
-            <ImageIcon className="w-12 h-12 text-muted-foreground" />
-          </div>
-          <div className="absolute top-3 right-3">
-            <Badge className={category.color}>{category.name}</Badge>
-          </div>
-          {!event.isPublished && (
-            <div className="absolute top-3 left-3">
-              <Badge variant="secondary">Borrador</Badge>
-            </div>
-          )}
-        </div>
-
-        <CardContent className="p-6">
-          <div className="space-y-3">
-            <div>
-              <h3 className="font-bold text-lg line-clamp-2 group-hover:text-primary transition-colors">
-                {event.title}
-              </h3>
-              <p className="text-muted-foreground text-sm line-clamp-2 mt-1">{event.description}</p>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <CalendarDays className="w-4 h-4" />
-                <span>{formatDate(event.date)}</span>
-              </div>
-
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="w-4 h-4" />
-                <span>
-                  {event.time} - {event.endTime}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <MapPin className="w-4 h-4" />
-                <span>{event.location}</span>
-              </div>
-
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Users className="w-4 h-4" />
-                <span>
-                  {event.attendees}/{event.maxAttendees} asistentes
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t">
-              <div className="flex items-center gap-2">
-                {event.isRecurring && (
-                  <Badge variant="outline" className="text-xs">
-                    Recurrente
-                  </Badge>
-                )}
-                {event.isPublished && (
-                  <Badge variant="outline" className="text-xs">
-                    <Globe className="w-3 h-3 mr-1" />
-                    Publicado
-                  </Badge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setSelectedEvent(event)}>
-                  <Eye className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Edit className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+  // Sync form when opening (create → empty, edit → event values).
+  const [syncedId, setSyncedId] = useState<string | null>(null);
+  const targetId = editing?.id ?? null;
+  if (open && syncedId !== targetId) {
+    setSyncedId(targetId);
+    setForm(
+      editing
+        ? {
+            title: editing.title,
+            description: editing.description,
+            eventDate: editing.eventDate,
+            startTime: editing.startTime,
+            endTime: editing.endTime,
+            location: editing.location,
+            category: editing.category,
+            isRecurring: editing.isRecurring,
+            isPublished: editing.isPublished,
+            maxAttendees: editing.maxAttendees,
+            organizer: editing.organizer,
+          }
+        : EMPTY_FORM
     );
-  };
+  }
 
-  const CreateEventDialog = () => (
-    <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (editing) await EventsService.updateEvent(editing.id, form);
+      else await EventsService.createEvent(form);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events'] });
+      onOpenChange(false);
+      setSyncedId(null);
+      toast.success(editing ? 'Evento actualizado' : 'Evento creado');
+    },
+    onError: () => toast.error('No se pudo guardar el evento'),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.title.trim()) return toast.error('El título es requerido');
+    if (!form.eventDate) return toast.error('La fecha es requerida');
+    saveMutation.mutate();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Crear Nuevo Evento</DialogTitle>
-          <DialogDescription>Completa la información del evento que deseas crear</DialogDescription>
+          <DialogTitle>{editing ? 'Editar evento' : 'Crear nuevo evento'}</DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-6 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="title">Título del Evento *</Label>
-              <Input id="title" placeholder="Nombre del evento" />
+              <Label htmlFor="ev-title">Título *</Label>
+              <Input
+                id="ev-title"
+                value={form.title}
+                onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                placeholder="Nombre del evento"
+              />
             </div>
-
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="description">Descripción</Label>
-              <Textarea id="description" placeholder="Describe el evento en detalle..." rows={3} />
+              <Label htmlFor="ev-desc">Descripción</Label>
+              <Textarea
+                id="ev-desc"
+                value={form.description}
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                placeholder="Describí el evento…"
+                rows={3}
+              />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="category">Categoría *</Label>
-              <Select>
+              <Label>Categoría *</Label>
+              <Select
+                value={form.category}
+                onValueChange={v => setForm(p => ({ ...p, category: v as EventCategory }))}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una categoría" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {eventCategories.map(category => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
+                  {(Object.keys(EVENT_CATEGORY_META) as EventCategory[]).map(c => (
+                    <SelectItem key={c} value={c}>
+                      {EVENT_CATEGORY_META[c].label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="organizer">Organizador</Label>
-              <Input id="organizer" placeholder="Nombre del organizador" />
+              <Label htmlFor="ev-org">Organizador</Label>
+              <Input
+                id="ev-org"
+                value={form.organizer}
+                onChange={e => setForm(p => ({ ...p, organizer: e.target.value }))}
+                placeholder="Nombre del organizador"
+              />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="date">Fecha *</Label>
-              <Input id="date" type="date" />
+              <Label htmlFor="ev-date">Fecha *</Label>
+              <Input
+                id="ev-date"
+                type="date"
+                value={form.eventDate}
+                onChange={e => setForm(p => ({ ...p, eventDate: e.target.value }))}
+              />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="time">Hora de Inicio *</Label>
-              <Input id="time" type="time" />
+              <Label htmlFor="ev-cap">Capacidad</Label>
+              <Input
+                id="ev-cap"
+                type="number"
+                value={form.maxAttendees ?? ''}
+                onChange={e =>
+                  setForm(p => ({
+                    ...p,
+                    maxAttendees: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
+                placeholder="Sin límite"
+              />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="endTime">Hora de Fin</Label>
-              <Input id="endTime" type="time" />
+              <Label htmlFor="ev-start">Hora inicio</Label>
+              <Input
+                id="ev-start"
+                type="time"
+                value={form.startTime}
+                onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
+              />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="maxAttendees">Capacidad Máxima</Label>
-              <Input id="maxAttendees" type="number" placeholder="300" />
+              <Label htmlFor="ev-end">Hora fin</Label>
+              <Input
+                id="ev-end"
+                type="time"
+                value={form.endTime}
+                onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
+              />
             </div>
-
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="location">Ubicación *</Label>
-              <Input id="location" placeholder="Dirección o nombre del lugar" />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="image">Imagen del Evento</Label>
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 bg-muted rounded-lg flex items-center justify-center">
-                  <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <Button variant="outline">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Subir Imagen
-                </Button>
-              </div>
+              <Label htmlFor="ev-loc">Ubicación</Label>
+              <Input
+                id="ev-loc"
+                value={form.location}
+                onChange={e => setForm(p => ({ ...p, location: e.target.value }))}
+                placeholder="Dirección o nombre del lugar"
+              />
             </div>
           </div>
 
-          <div className="space-y-4 pt-4 border-t">
+          <div className="space-y-3 pt-2 border-t">
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Evento Recurrente</Label>
-                <p className="text-sm text-muted-foreground">Se repite automáticamente</p>
-              </div>
-              <Switch />
+              <Label htmlFor="ev-rec">Evento recurrente</Label>
+              <Switch
+                id="ev-rec"
+                checked={form.isRecurring}
+                onCheckedChange={v => setForm(p => ({ ...p, isRecurring: v }))}
+              />
             </div>
-
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Publicar en Website</Label>
-                <p className="text-sm text-muted-foreground">Visible para visitantes</p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Requiere Registro</Label>
-                <p className="text-sm text-muted-foreground">Los asistentes deben registrarse</p>
-              </div>
-              <Switch />
+              <Label htmlFor="ev-pub">Publicado</Label>
+              <Switch
+                id="ev-pub"
+                checked={form.isPublished}
+                onCheckedChange={v => setForm(p => ({ ...p, isPublished: v }))}
+              />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button
-              onClick={() => {
-                setIsCreateDialogOpen(false);
-                toast.success('Evento creado exitosamente');
-              }}
-            >
-              Crear Evento
+            <Button type="submit" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Guardando…' : editing ? 'Guardar' : 'Crear evento'}
             </Button>
           </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
+}
 
+// ─────────────────────────────────────────────
+// Event card
+// ─────────────────────────────────────────────
+function EventCard({
+  event,
+  canManage,
+  onEdit,
+  onDelete,
+  onToggleRsvp,
+  rsvpPending,
+}: {
+  event: ChurchEvent;
+  canManage: boolean;
+  onEdit: (e: ChurchEvent) => void;
+  onDelete: (e: ChurchEvent) => void;
+  onToggleRsvp: (e: ChurchEvent) => void;
+  rsvpPending: boolean;
+}) {
+  const cat = EVENT_CATEGORY_META[event.category] ?? EVENT_CATEGORY_META.service;
+  const going = event.myStatus === 'going';
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+    <Card className="group overflow-hidden transition-shadow hover:shadow-lg">
+      <div className={cn('relative flex h-28 items-center justify-center', cat.banner)}>
+        <cat.Icon className="h-10 w-10 text-white/80" />
+        <Badge className={cn('absolute right-3 top-3 border-0', cat.chip)}>{cat.label}</Badge>
+        {!event.isPublished && (
+          <Badge variant="secondary" className="absolute left-3 top-3">
+            Borrador
+          </Badge>
+        )}
+      </div>
+      <CardContent className="space-y-3 p-4">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Gestión de Eventos
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Crea y administra eventos para tu congregación
+          <h3 className="line-clamp-1 font-bold">{event.title}</h3>
+          {event.description && (
+            <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{event.description}</p>
+          )}
+        </div>
+        <div className="space-y-1.5 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2">
+            <CalendarDays className="h-4 w-4" />
+            <span className="capitalize">{formatEventDate(event.eventDate)}</span>
+          </p>
+          {(event.startTime || event.endTime) && (
+            <p className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              {event.startTime}
+              {event.endTime ? ` – ${event.endTime}` : ''}
+            </p>
+          )}
+          {event.location && (
+            <p className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              {event.location}
+            </p>
+          )}
+          <p className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            {event.attendeesCount}
+            {event.maxAttendees ? ` / ${event.maxAttendees}` : ''} inscriptos
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Crear Evento
-        </Button>
+
+        <div className="flex items-center justify-between gap-2 border-t pt-3">
+          <Button
+            size="sm"
+            variant={going ? 'default' : 'outline'}
+            className="gap-1.5"
+            onClick={() => onToggleRsvp(event)}
+            disabled={rsvpPending}
+          >
+            {going ? <Check className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+            {going ? 'Voy' : 'Anotarme'}
+          </Button>
+          {canManage && (
+            <div className="flex items-center gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(event)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-destructive"
+                onClick={() => onDelete(event)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────
+const EventsPage = () => {
+  const isMobileApp = useMobileMode();
+  const qc = useQueryClient();
+  const { hasAccess } = usePermissions();
+  const canManage = hasAccess(ROLE_LEVELS.staff);
+
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | EventCategory>('all');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<ChurchEvent | null>(null);
+
+  const { data: events = [], isLoading } = useQuery({
+    queryKey: ['events'],
+    // Members see only published; staff see everything (incl. drafts).
+    queryFn: () => EventsService.getEvents(canManage ? undefined : { published: true }),
+  });
+
+  const rsvpMutation = useMutation({
+    mutationFn: (ev: ChurchEvent) =>
+      ev.myStatus === 'going'
+        ? EventsService.unregister(ev.id)
+        : EventsService.register(ev.id, 'going'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['events'] }),
+    onError: () => toast.error('No se pudo actualizar tu inscripción'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => EventsService.deleteEvent(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Evento eliminado');
+    },
+    onError: () => toast.error('No se pudo eliminar el evento'),
+  });
+
+  const filtered = useMemo(
+    () =>
+      events.filter(e => {
+        if (categoryFilter !== 'all' && e.category !== categoryFilter) return false;
+        if (search.trim() && !e.title.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      }),
+    [events, categoryFilter, search]
+  );
+
+  function openCreate() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
+  function openEdit(e: ChurchEvent) {
+    setEditing(e);
+    setDialogOpen(true);
+  }
+
+  if (isMobileApp) {
+    return (
+      <MobileEventsScreen
+        events={filtered}
+        isLoading={isLoading}
+        canManage={canManage}
+        search={search}
+        onSearch={setSearch}
+        categoryFilter={categoryFilter}
+        onCategoryFilter={setCategoryFilter}
+        onCreate={openCreate}
+        onEdit={openEdit}
+        onDelete={e => deleteMutation.mutate(e.id)}
+        onToggleRsvp={e => rsvpMutation.mutate(e)}
+        rsvpPending={rsvpMutation.isPending}
+        dialog={
+          <EventFormDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} />
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4 p-3 sm:p-4 md:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
+            Gestión de Eventos
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Creá y administrá eventos para tu congregación
+          </p>
+        </div>
+        {canManage && (
+          <Button onClick={openCreate} className="w-full gap-2 sm:w-auto">
+            <Plus className="h-4 w-4" />
+            Crear evento
+          </Button>
+        )}
       </div>
 
-      {/* Filters and Search */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Buscar eventos..." className="pl-10" />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Select defaultValue="all">
-                <SelectTrigger className="w-[180px]">
-                  <Filter className="w-4 h-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las categorías</SelectItem>
-                  {eventCategories.map(category => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select defaultValue="upcoming">
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="upcoming">Próximos</SelectItem>
-                  <SelectItem value="past">Pasados</SelectItem>
-                  <SelectItem value="draft">Borradores</SelectItem>
-                  <SelectItem value="published">Publicados</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <CardContent className="flex flex-col gap-3 p-4 md:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar eventos…"
+              className="pl-10"
+            />
           </div>
+          <Select
+            value={categoryFilter}
+            onValueChange={v => setCategoryFilter(v as typeof categoryFilter)}
+          >
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {(Object.keys(EVENT_CATEGORY_META) as EventCategory[]).map(c => (
+                <SelectItem key={c} value={c}>
+                  {EVENT_CATEGORY_META[c].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
-      {/* Events Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sampleEvents.map(event => (
-          <EventCard key={event.id} event={event} />
-        ))}
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-primary">12</div>
-            <div className="text-sm text-muted-foreground">Eventos este mes</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-green-600">850</div>
-            <div className="text-sm text-muted-foreground">Total asistentes</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-orange-600">3</div>
-            <div className="text-sm text-muted-foreground">Próximos eventos</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-purple-600">8</div>
-            <div className="text-sm text-muted-foreground">Eventos publicados</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <CreateEventDialog />
-
-      {/* Event Detail Modal */}
-      {selectedEvent && (
-        <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-between">
-                {selectedEvent.title}
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
-                    <Edit className="w-4 h-4 mr-1" />
-                    Editar
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Share2 className="w-4 h-4 mr-1" />
-                    Compartir
-                  </Button>
-                </div>
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-6">
-              <div className="h-48 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg flex items-center justify-center">
-                <ImageIcon className="w-12 h-12 text-muted-foreground" />
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-muted-foreground">{selectedEvent.description}</p>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <CalendarDays className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">{formatDate(selectedEvent.date)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">
-                        {selectedEvent.time} - {selectedEvent.endTime}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">{selectedEvent.location}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">
-                        {selectedEvent.attendees}/{selectedEvent.maxAttendees} asistentes
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2">
-                  <Badge className={getCategoryInfo(selectedEvent.category).color}>
-                    {getCategoryInfo(selectedEvent.category).name}
-                  </Badge>
-                  {selectedEvent.isRecurring && <Badge variant="outline">Recurrente</Badge>}
-                  {selectedEvent.isPublished && (
-                    <Badge variant="outline">
-                      <Globe className="w-3 h-3 mr-1" />
-                      Publicado
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="text-sm text-muted-foreground">
-                  <strong>Organizador:</strong> {selectedEvent.organizer}
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-72 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          {events.length === 0 ? 'No hay eventos todavía.' : 'Sin coincidencias.'}
+        </p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map(event => (
+            <EventCard
+              key={event.id}
+              event={event}
+              canManage={canManage}
+              onEdit={openEdit}
+              onDelete={e => deleteMutation.mutate(e.id)}
+              onToggleRsvp={e => rsvpMutation.mutate(e)}
+              rsvpPending={rsvpMutation.isPending}
+            />
+          ))}
+        </div>
       )}
+
+      <EventFormDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} />
     </div>
   );
 };

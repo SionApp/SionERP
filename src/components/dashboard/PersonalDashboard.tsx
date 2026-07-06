@@ -18,7 +18,31 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { NotificationCenter } from '@/components/ui/notifications';
-import { mockNotifications } from '@/mocks/discipleship/data.mock';
+
+// Notification type for the personal dashboard
+interface DashboardNotification {
+  id: string;
+  type: 'success' | 'warning' | 'info' | 'error';
+  title: string;
+  message: string;
+  actionText?: string;
+  actionUrl?: string;
+  createdAt: string;
+  read: boolean;
+}
+
+const initialNotifications: DashboardNotification[] = [
+  {
+    id: 'notif-001',
+    type: 'success',
+    title: '¡Nuevo Grupo Asignado!',
+    message: 'Has sido asignado como líder del grupo "Célula Esperanza".',
+    actionText: 'Ver Dashboard',
+    actionUrl: '/dashboard/discipleship',
+    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    read: false,
+  },
+];
 
 interface PersonalDashboardProps {
   title?: string;
@@ -46,7 +70,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
     nextMeeting: '2024-09-25',
   };
 
-  const [notifications, setNotifications] = React.useState(mockNotifications);
+  const [notifications, setNotifications] = React.useState<DashboardNotification[]>(initialNotifications);
 
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
@@ -78,20 +102,20 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
   const roleInfo = getRoleInfo();
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             {title}
           </h1>
-          <p className="text-muted-foreground mt-1">{subtitle}</p>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">{subtitle}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* Personal Info Card */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4 lg:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -99,10 +123,10 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
                 Mi Información de Discipulado
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               {/* Profile Section */}
-              <div className="flex items-center gap-4">
-                <Avatar className="w-16 h-16">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3 sm:gap-4">
+                <Avatar className="w-16 h-16 shrink-0">
                   <AvatarImage
                     src={`https://api.dicebear.com/7.x/initials/svg?seed=${(user as any)?.full_name || user?.email}`}
                   />
@@ -113,30 +137,30 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
                       .join('')}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg sm:text-xl font-semibold truncate">
                     {(user as any)?.full_name || user?.email}
                   </h3>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex flex-wrap justify-center sm:justify-start items-center gap-2 mt-1">
                     <Badge className={`${roleInfo.color} text-white`}>
                       Nivel {roleInfo.level} - {roleInfo.label}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Mail className="w-4 h-4" />
-                      {user?.email}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-xs sm:text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1 min-w-0">
+                      <Mail className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{user?.email}</span>
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Phone className="w-4 h-4" />
-                      {user?.phone}
+                    <span className="flex items-center gap-1 min-w-0">
+                      <Phone className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{user?.phone}</span>
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Zone and Group Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
                 <div className="p-4 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <MapPin className="w-5 h-5 text-blue-600" />

@@ -12,10 +12,62 @@ import type {
 } from '@/types/settings.types';
 import { ApiService } from './api.service';
 
+export interface PublicSystemSettings {
+  /** Nombre de la iglesia (church_info.name) — la marca del TENANT, no la de JETRO. */
+  church_name: string;
+  default_theme: string;
+  default_language: string;
+  timezone: string;
+  animations_enabled: boolean;
+  maintenance_mode: boolean;
+  session_timeout_minutes: number;
+  logo_url: string | null;
+}
+
+export interface PublicBranding {
+  church_name: string;
+  logo_url: string | null;
+}
+
 export class SettingsService {
   // =====================================================
   // SYSTEM SETTINGS
   // =====================================================
+
+  /** Subset seguro de settings para cualquier usuario autenticado. */
+  static async getPublicSettings(): Promise<PublicSystemSettings | null> {
+    try {
+      return await ApiService.get<PublicSystemSettings>('/settings/public');
+    } catch (error) {
+      console.error('Error fetching public settings:', error);
+      return null; // no bloquear la UI si falla
+    }
+  }
+
+  /** Público (sin auth): nombre + logo de la iglesia, para la pantalla de login. */
+  static async getPublicBranding(): Promise<PublicBranding | null> {
+    try {
+      const base = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8181'}/api/v1`;
+      const res = await fetch(`${base}/public/branding`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Público (sin auth): ¿está habilitado el auto-registro? */
+  static async getRegistrationStatus(): Promise<boolean> {
+    try {
+      const base = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8181'}/api/v1`;
+      const res = await fetch(`${base}/public/registration-status`);
+      if (!res.ok) return true;
+      const data = await res.json();
+      return data.allow_registrations !== false;
+    } catch {
+      return true; // ante la duda, no bloquear el formulario (el trigger es el gate real)
+    }
+  }
 
   static async getSystemSettings(): Promise<SystemSettings> {
     try {

@@ -1,11 +1,13 @@
 import { Loader2, MapPin, Navigation, X } from 'lucide-react';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import MapLibreMap, { MapMouseEvent, Marker } from 'react-map-gl/maplibre';
+import { MapContainer, TileLayer, Marker, useMapEvent, ZoomControl } from 'react-leaflet';
 import { Button } from './button';
 import { Card, CardContent } from './card';
 import { Input } from './input';
 import { Label } from './label';
+import { cn } from '@/lib/utils';
 
 export interface TypeGeolocalization {
   Valid: boolean;
@@ -25,6 +27,9 @@ interface GeolocationInputProps {
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
+  /** Mobile-only: stack the controls full-width instead of the inline label+buttons row.
+   *  Opt-in — the web layout is unchanged unless this is set. */
+  compact?: boolean;
 }
 
 // Usar Nominatim (OpenStreetMap) para geocodificación - Gratuito y sin token
@@ -43,7 +48,31 @@ interface NominatimFeature {
   };
 }
 
-const DEFAULT_CENTER = { longitude: -69.6549, latitude: 11.4045 }; // Coro, Falcón, Venezuela
+const DEFAULT_CENTER: [number, number] = [11.4045, -69.6549]; // Coro, Falcón, Venezuela
+
+// Custom red dot marker
+const redDotIcon = L.divIcon({
+  html: '<div class="w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg"></div>',
+  className: '',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
+// ── Map click handler (inside MapContainer) ──
+function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
+  useMapEvent('click', e => {
+    onMapClick(e.latlng.lat, e.latlng.lng);
+  });
+  return null;
+}
+
+// ── Map fit helper ──
+function FitToPosition({ position, zoom }: { position: [number, number]; zoom: number }) {
+  const map = useMapEvent('ready', () => {
+    map.setView(position, zoom, { animate: true });
+  });
+  return null;
+}
 
 export const GeolocationInput: React.FC<GeolocationInputProps> = ({
   value,
@@ -52,6 +81,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
   placeholder = 'Buscar dirección...',
   required = false,
   disabled = false,
+  compact = false,
 }) => {
   const getCoordValue = (coord?: TypeGeolocalization | number): number | undefined => {
     if (typeof coord === 'number') return coord;
@@ -72,11 +102,10 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
   const lng = getCoordValue(value?.longitude);
   const hasCoordinates = lat !== undefined && lng !== undefined;
 
-  const [viewState, setViewState] = useState({
-    longitude: lng ?? DEFAULT_CENTER.longitude,
-    latitude: lat ?? DEFAULT_CENTER.latitude,
-    zoom: hasCoordinates ? 15 : 12,
-  });
+  const [mapPosition, setMapPosition] = useState<[number, number]>(
+    hasCoordinates ? [lat!, lng!] : DEFAULT_CENTER
+  );
+  const [mapZoom, setMapZoom] = useState(hasCoordinates ? 15 : 12);
 
   // Geocodificación: buscar direcciones usando Nominatim
   const searchAddresses = useCallback(async (query: string) => {
@@ -87,11 +116,10 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
 
     setLoading(true);
     try {
-      // Nominatim requiere un User-Agent
       const url = `${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=ve&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'SionERP/1.0', // Nominatim requiere User-Agent
+          'User-Agent': 'JETRO/1.0',
         },
       });
 
@@ -122,7 +150,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
 
     debounceTimer.current = setTimeout(() => {
       searchAddresses(newAddress);
-    }, 500); // Nominatim tiene rate limiting, usar 500ms
+    }, 500);
   };
 
   // Seleccionar una sugerencia
@@ -141,12 +169,8 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
       longitude: lng,
     });
 
-    // Actualizar vista del mapa
-    setViewState({
-      longitude: lng,
-      latitude: lat,
-      zoom: 15,
-    });
+    setMapPosition([lat, lng]);
+    setMapZoom(15);
 
     if (!showMap) {
       setShowMap(true);
@@ -166,13 +190,13 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
     navigator.geolocation.getCurrentPosition(
       async position => {
         const { latitude, longitude } = position.coords;
+        let address = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
         try {
-          // Geocodificación reversa usando Nominatim
           const url = `${NOMINATIM_URL}/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
           const response = await fetch(url, {
             headers: {
-              'User-Agent': 'SionERP/1.0',
+              'User-Agent': 'JETRO/1.0',
             },
           });
 
@@ -183,31 +207,27 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
           const data = await response.json();
 
           if (data && data.display_name) {
-            const address = data.display_name;
-            setAddress(address);
-
-            onChange({
-              address,
-              latitude,
-              longitude,
-            });
-
-            // Actualizar vista del mapa
-            setViewState({
-              longitude,
-              latitude,
-              zoom: 15,
-            });
-
-            if (!showMap) {
-              setShowMap(true);
-            }
+            address = data.display_name;
           }
         } catch (error) {
-          console.error('Error in reverse geocoding:', error);
+          console.error('Error in reverse geocoding, usando coordenadas como fallback:', error);
           setLocationError('Error al obtener la dirección');
         } finally {
           setLoading(false);
+        }
+
+        setAddress(address);
+        onChange({
+          address,
+          latitude,
+          longitude,
+        });
+
+        setMapPosition([latitude, longitude]);
+        setMapZoom(15);
+
+        if (!showMap) {
+          setShowMap(true);
         }
       },
       error => {
@@ -221,15 +241,14 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
 
   // Manejar click en el mapa para seleccionar ubicación
   const handleMapClick = useCallback(
-    async (event: MapMouseEvent) => {
-      const { lng, lat } = event.lngLat;
+    async (lat: number, lng: number) => {
+      let address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
       try {
-        // Geocodificación reversa usando Nominatim
         const url = `${NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
         const response = await fetch(url, {
           headers: {
-            'User-Agent': 'SionERP/1.0',
+            'User-Agent': 'JETRO/1.0',
           },
         });
 
@@ -240,18 +259,18 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
         const data = await response.json();
 
         if (data && data.display_name) {
-          const address = data.display_name;
-          setAddress(address);
-
-          onChange({
-            address,
-            latitude: lat,
-            longitude: lng,
-          });
+          address = data.display_name;
         }
       } catch (error) {
-        console.error('Error in reverse geocoding:', error);
+        console.error('Error in reverse geocoding, usando coordenadas como fallback:', error);
       }
+
+      setAddress(address);
+      onChange({
+        address,
+        latitude: lat,
+        longitude: lng,
+      });
     },
     [onChange]
   );
@@ -270,31 +289,55 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
 
   // Sincronizar con value externo
   useEffect(() => {
-    if (value) {
-      setAddress(value.address);
-      setViewState(prev => ({
-        ...prev,
-        longitude: lng,
-        latitude: lat,
-        zoom: prev.zoom < 14 ? 15 : prev.zoom,
-      }));
+    if (!value) return;
+    setAddress(value.address);
+    if (lat !== undefined && lng !== undefined) {
+      setMapPosition([lat, lng]);
+      setMapZoom(prev => (prev < 14 ? 15 : prev));
+    } else if (value.address) {
+      // Tiene address pero no coords — geocodificar para posicionar el mapa
+      const geocode = async () => {
+        try {
+          const url = `${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(value.address)}&limit=1&addressdetails=1`;
+          const res = await fetch(url, { headers: { 'User-Agent': 'JETRO/1.0' } });
+          const data: NominatimFeature[] = await res.json();
+          if (data?.length > 0) {
+            const resolvedLat = parseFloat(data[0].lat);
+            const resolvedLng = parseFloat(data[0].lon);
+            setMapPosition([resolvedLat, resolvedLng]);
+            setMapZoom(15);
+            onChange({ address: value.address, latitude: resolvedLat, longitude: resolvedLng });
+          }
+        } catch {
+          // silently fail — mapa queda en posición default
+        }
+      };
+      geocode();
     }
-  }, [value]);
+  }, [value, lat, lng, onChange]);
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label htmlFor="geolocation-input">
-          {label}
-          {required && <span className="text-destructive ml-1">*</span>}
-        </Label>
-        <div className="flex gap-2">
+      <div
+        className={cn(
+          'flex items-center justify-between',
+          compact && 'flex-col items-stretch gap-2'
+        )}
+      >
+        {(label || required) && !compact && (
+          <Label htmlFor="geolocation-input">
+            {label}
+            {required && <span className="text-destructive ml-1">*</span>}
+          </Label>
+        )}
+        <div className={cn('flex gap-2', compact && 'grid grid-cols-2')}>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={detectCurrentLocation}
             disabled={disabled || loading}
+            className={cn(compact && 'w-full')}
           >
             <Navigation className="w-4 h-4 mr-1" />
             Mi ubicación
@@ -305,6 +348,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
             size="sm"
             onClick={() => setShowMap(!showMap)}
             disabled={disabled}
+            className={cn(compact && 'w-full')}
           >
             <MapPin className="w-4 h-4 mr-1" />
             {showMap ? 'Ocultar mapa' : 'Mostrar mapa'}
@@ -369,36 +413,22 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
       {showMap && (
         <Card>
           <CardContent className="p-0">
-            <MapLibreMap
-              {...viewState}
-              onMove={evt => setViewState(evt.viewState)}
-              onClick={handleMapClick}
-              style={{ width: '100%', height: 300 }}
-              mapStyle={{
-                version: 8,
-                sources: {
-                  osm: {
-                    type: 'raster',
-                    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                    tileSize: 256,
-                    attribution: '© OpenStreetMap contributors',
-                  },
-                },
-                layers: [
-                  {
-                    id: 'osm-layer',
-                    type: 'raster',
-                    source: 'osm',
-                  },
-                ],
-              }}
-            >
-              {hasCoordinates && (
-                <Marker longitude={lng} latitude={lat}>
-                  <div className="w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg" />
-                </Marker>
-              )}
-            </MapLibreMap>
+            <div className="h-[300px] w-full">
+              <MapContainer
+                center={mapPosition}
+                zoom={mapZoom}
+                className="h-full w-full"
+                zoomControl={false}
+              >
+                <ZoomControl position="topright" />
+                <TileLayer
+                  attribution="&copy; OpenStreetMap contributors"
+                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                />
+                <MapClickHandler onMapClick={handleMapClick} />
+                {hasCoordinates && <Marker position={[lat!, lng!]} icon={redDotIcon} />}
+              </MapContainer>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -408,7 +438,7 @@ export const GeolocationInput: React.FC<GeolocationInputProps> = ({
         <div className="text-xs text-muted-foreground flex items-center gap-2">
           <MapPin className="w-3 h-3" />
           <span>
-            {lat.toFixed(6)}, {lng.toFixed(6)}
+            {lat!.toFixed(6)}, {lng!.toFixed(6)}
           </span>
         </div>
       )}

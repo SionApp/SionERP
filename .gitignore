@@ -18,6 +18,18 @@ dist-ssr
 .env.*.local
 apps/backend-go/.env
 
+# AI agent context (internal — not for version control)
+CLAUDE.md
+AGENTS.md
+.atl/
+.claude/
+.opencode/
+.pi/
+graphify-out/
+
+# Build artifacts
+apps/backend-go/tmp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -28,3 +40,19 @@ apps/backend-go/.env
 *.njsproj
 *.sln
 *.sw?
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Datos sensibles de la iglesia (PII)
+data/
+.vercel
+
+# Supabase CLI local cache
+supabase/.temp/
+
+# Android signing (NUNCA commitear keystore ni passwords)
+android/keystore.properties
+*.jks
+*.keystore

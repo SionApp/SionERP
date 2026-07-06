@@ -66,16 +66,7 @@ AFTER INSERT OR UPDATE OR DELETE ON public.discipleship_groups
 FOR EACH ROW
 EXECUTE FUNCTION update_zone_stats();
 
--- Insertar zonas iniciales
-INSERT INTO zones (name, description, color, center_lat, center_lng, boundaries) VALUES
-('Zona Norte', 'Sectores del norte de la ciudad', '#3b82f6', 10.2580, -67.5910, 
- '{"type":"Polygon","coordinates":[[[-67.62,10.28],[-67.58,10.28],[-67.58,10.24],[-67.62,10.24],[-67.62,10.28]]]}'),
-('Zona Sur', 'Sectores del sur de la ciudad', '#ef4444', 10.2050, -67.5870,
- '{"type":"Polygon","coordinates":[[[-67.62,10.22],[-67.58,10.22],[-67.58,10.18],[-67.62,10.18],[-67.62,10.22]]]}'),
-('Zona Este', 'Sectores del este de la ciudad', '#10b981', 10.2300, -67.5700,
- '{"type":"Polygon","coordinates":[[[-67.60,10.26],[-67.56,10.26],[-67.56,10.20],[-67.60,10.20],[-67.60,10.26]]]}'),
-('Zona Oeste', 'Sectores del oeste de la ciudad', '#f59e0b', 10.2300, -67.6200,
- '{"type":"Polygon","coordinates":[[[-67.64,10.26],[-67.60,10.26],[-67.60,10.20],[-67.64,10.20],[-67.64,10.26]]]}');
+-- Las zonas reales se cargan desde supabase/seed.sql (generado por scripts/generate-seed.mjs)
 
 -- Migrar datos existentes de zone_name a zone_id
 UPDATE users u SET zone_id = z.id

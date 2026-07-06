@@ -19,8 +19,9 @@ export function useCoordinatorData() {
     zoneStats,
     weeklyTrends,
     subordinates,
+    pendingReports,
     refetch: refetchBase,
-  } = useDiscipleshipData({ level: 4, enabled: !!user });
+  } = useDiscipleshipData({ userId: user?.id, level: 4, enabled: !!user });
 
   // Estados adicionales específicos del coordinador
   const [myReports, setMyReports] = useState<DiscipleshipReport[]>([]);
@@ -78,6 +79,7 @@ export function useCoordinatorData() {
     
     // Datos específicos del coordinador
     myReports,
+    pendingReports: pendingReports || [],
     
     // Estados de carga
     loading: baseLoading || loadingReports,

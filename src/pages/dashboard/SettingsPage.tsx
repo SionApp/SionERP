@@ -19,14 +19,13 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
+import { applyBrandColors } from '@/hooks/useBrandColors';
 import { SettingsService } from '@/services/settings.service';
 import type { ChurchInfo, NotificationConfig, SystemSettings } from '@/types/settings.types';
 import {
   Bell,
   Church,
   Database,
-  Eye,
-  EyeOff,
   Loader2,
   Map,
   RotateCcw,
@@ -40,7 +39,6 @@ import { toast } from 'sonner';
 const SettingsPage = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -135,35 +133,72 @@ const SettingsPage = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             Configuración del Sistema
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Administra y personaliza la configuración de tu iglesia
           </p>
         </div>
-        <Button variant="outline" onClick={loadAllSettings} disabled={isLoading}>
+        <Button
+          variant="outline"
+          onClick={loadAllSettings}
+          disabled={isLoading}
+          className="w-full sm:w-auto"
+        >
           <RotateCcw className="w-4 h-4 mr-2" />
           Recargar
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="church">Iglesia</TabsTrigger>
-          <TabsTrigger value="zones">Zonas</TabsTrigger>
-          <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
-          <TabsTrigger value="security">Seguridad</TabsTrigger>
-          <TabsTrigger value="backup">Respaldos</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-6">
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-full lg:grid lg:grid-cols-6 h-auto min-w-max lg:min-w-0 gap-1 lg:gap-0">
+            <TabsTrigger
+              value="general"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              General
+            </TabsTrigger>
+            <TabsTrigger
+              value="church"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Iglesia
+            </TabsTrigger>
+            <TabsTrigger
+              value="zones"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Zonas
+            </TabsTrigger>
+            <TabsTrigger
+              value="notifications"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Notificaciones
+            </TabsTrigger>
+            <TabsTrigger
+              value="security"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Seguridad
+            </TabsTrigger>
+            <TabsTrigger
+              value="backup"
+              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
+            >
+              Respaldos
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ===== TAB: GENERAL ===== */}
-        <TabsContent value="general" className="space-y-6">
+        <TabsContent value="general" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -172,29 +207,22 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Configuraciones básicas del sistema</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               {systemSettings && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="site_name">Nombre del Sistema</Label>
-                      <Input
-                        id="site_name"
-                        value={systemSettings.site_name}
-                        onChange={e =>
-                          setSystemSettings({
-                            ...systemSettings,
-                            site_name: e.target.value,
-                          })
-                        }
-                        placeholder="Nombre del sistema"
-                      />
+                  <div className="rounded-lg border bg-muted/40 p-3 sm:p-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Plataforma: JETRO</p>
+                      <p className="text-xs text-muted-foreground">
+                        El nombre y logo de tu iglesia se configuran en la pestaña{' '}
+                        <span className="font-medium">Iglesia</span> — JETRO se muestra siempre
+                        junto a esa marca, no se reemplaza.
+                      </p>
                     </div>
+                    <Badge variant="outline">v{systemSettings.site_version}</Badge>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="site_version">Versión</Label>
-                      <Input id="site_version" value={systemSettings.site_version} disabled />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
                     <div className="space-y-2">
                       <Label htmlFor="timezone">Zona Horaria</Label>
@@ -211,15 +239,24 @@ const SettingsPage = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="America/Argentina/Buenos_Aires">
+                            América/Buenos_Aires (UTC-3)
+                          </SelectItem>
+                          <SelectItem value="America/Santiago">América/Santiago (UTC-3)</SelectItem>
+                          <SelectItem value="America/Sao_Paulo">
+                            América/São Paulo (UTC-3)
+                          </SelectItem>
                           <SelectItem value="America/Santo_Domingo">
-                            America/Santo_Domingo (UTC-4)
+                            América/Santo_Domingo (UTC-4)
                           </SelectItem>
-                          <SelectItem value="America/Caracas">America/Caracas (UTC-4)</SelectItem>
-                          <SelectItem value="America/Bogota">America/Bogotá (UTC-5)</SelectItem>
-                          <SelectItem value="America/Lima">America/Lima (UTC-5)</SelectItem>
+                          <SelectItem value="America/Caracas">América/Caracas (UTC-4)</SelectItem>
+                          <SelectItem value="America/Bogota">América/Bogotá (UTC-5)</SelectItem>
+                          <SelectItem value="America/Lima">América/Lima (UTC-5)</SelectItem>
                           <SelectItem value="America/Mexico_City">
-                            America/Mexico_City (UTC-6)
+                            América/Mexico_City (UTC-6)
                           </SelectItem>
+                          <SelectItem value="Europe/Madrid">Europa/Madrid (UTC+1)</SelectItem>
+                          <SelectItem value="UTC">UTC</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -332,7 +369,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: IGLESIA ===== */}
-        <TabsContent value="church" className="space-y-6">
+        <TabsContent value="church" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -341,10 +378,10 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Datos generales de tu congregación</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               {churchInfo && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="church_name">Nombre de la Iglesia</Label>
                       <Input
@@ -468,7 +505,7 @@ const SettingsPage = () => {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Logo y Branding</h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                       {/* Logo */}
                       <div className="space-y-2">
                         <Label>Logo Principal</Label>
@@ -498,23 +535,22 @@ const SettingsPage = () => {
                             <input
                               type="color"
                               value={churchInfo.primary_color}
-                              onChange={e =>
-                                setChurchInfo({
-                                  ...churchInfo,
-                                  primary_color: e.target.value,
-                                })
-                              }
+                              onChange={e => {
+                                const next = { ...churchInfo, primary_color: e.target.value };
+                                setChurchInfo(next);
+                                applyBrandColors(next.primary_color, next.secondary_color);
+                              }}
                               className="w-10 h-10 rounded-lg border cursor-pointer"
                             />
                             <Input
                               id="primary_color"
                               value={churchInfo.primary_color}
-                              onChange={e =>
-                                setChurchInfo({
-                                  ...churchInfo,
-                                  primary_color: e.target.value,
-                                })
-                              }
+                              onChange={e => {
+                                const next = { ...churchInfo, primary_color: e.target.value };
+                                setChurchInfo(next);
+                                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value))
+                                  applyBrandColors(next.primary_color, next.secondary_color);
+                              }}
                               placeholder="#1e40af"
                               className="flex-1"
                             />
@@ -527,27 +563,60 @@ const SettingsPage = () => {
                             <input
                               type="color"
                               value={churchInfo.secondary_color}
-                              onChange={e =>
-                                setChurchInfo({
-                                  ...churchInfo,
-                                  secondary_color: e.target.value,
-                                })
-                              }
+                              onChange={e => {
+                                const next = { ...churchInfo, secondary_color: e.target.value };
+                                setChurchInfo(next);
+                                applyBrandColors(next.primary_color, next.secondary_color);
+                              }}
                               className="w-10 h-10 rounded-lg border cursor-pointer"
                             />
                             <Input
                               id="secondary_color"
                               value={churchInfo.secondary_color}
-                              onChange={e =>
-                                setChurchInfo({
-                                  ...churchInfo,
-                                  secondary_color: e.target.value,
-                                })
-                              }
+                              onChange={e => {
+                                const next = { ...churchInfo, secondary_color: e.target.value };
+                                setChurchInfo(next);
+                                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value))
+                                  applyBrandColors(next.primary_color, next.secondary_color);
+                              }}
                               placeholder="#fbbf24"
                               className="flex-1"
                             />
                           </div>
+                        </div>
+
+                        {/* Live preview */}
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="text-xs text-muted-foreground font-medium">Vista previa</p>
+                          <div className="flex flex-wrap gap-2 items-center">
+                            <span
+                              className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white"
+                              style={{ background: churchInfo.primary_color }}
+                            >
+                              Botón primario
+                            </span>
+                            <span
+                              className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium"
+                              style={{
+                                background: churchInfo.secondary_color,
+                                color: '#1a1a1a',
+                              }}
+                            >
+                              Botón secundario
+                            </span>
+                            <span
+                              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                              style={{ background: churchInfo.primary_color }}
+                            >
+                              Badge
+                            </span>
+                          </div>
+                          <div
+                            className="h-2 w-full rounded-full"
+                            style={{
+                              background: `linear-gradient(to right, ${churchInfo.primary_color}, ${churchInfo.secondary_color})`,
+                            }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -558,7 +627,7 @@ const SettingsPage = () => {
                   {/* Redes Sociales */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Redes Sociales</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="social_facebook">Facebook</Label>
                         <Input
@@ -635,7 +704,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: ZONAS ===== */}
-        <TabsContent value="zones" className="space-y-6">
+        <TabsContent value="zones" className="space-y-3 sm:space-y-6">
           <ZoneManagement />
           <Card>
             <CardHeader>
@@ -652,7 +721,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: NOTIFICACIONES ===== */}
-        <TabsContent value="notifications" className="space-y-6">
+        <TabsContent value="notifications" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -661,7 +730,7 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Gestiona cómo y cuándo enviar notificaciones</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               {notificationConfig && (
                 <>
                   <div className="space-y-6">
@@ -783,136 +852,15 @@ const SettingsPage = () => {
                           />
                         </div>
 
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label>Reportes Semanales</Label>
-                            <p className="text-sm text-muted-foreground">
-                              Enviar resumen semanal automático
-                            </p>
-                          </div>
-                          <Switch
-                            checked={notificationConfig.weekly_reports}
-                            onCheckedChange={checked =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                weekly_reports: checked,
-                              })
-                            }
-                          />
-                        </div>
                       </div>
                     </div>
 
                     <Separator />
 
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4">Configuración SMTP</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_host">Servidor SMTP</Label>
-                          <Input
-                            id="smtp_host"
-                            value={notificationConfig.smtp_host || ''}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_host: e.target.value,
-                              })
-                            }
-                            placeholder="smtp.gmail.com"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_port">Puerto</Label>
-                          <Input
-                            id="smtp_port"
-                            type="number"
-                            value={notificationConfig.smtp_port}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_port: parseInt(e.target.value) || 587,
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_user">Usuario</Label>
-                          <Input
-                            id="smtp_user"
-                            value={notificationConfig.smtp_user || ''}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_user: e.target.value,
-                              })
-                            }
-                            placeholder="tu-email@gmail.com"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_password">Contraseña</Label>
-                          <div className="relative">
-                            <Input
-                              id="smtp_password"
-                              type={showPassword ? 'text' : 'password'}
-                              value={notificationConfig.smtp_password || ''}
-                              onChange={e =>
-                                setNotificationConfig({
-                                  ...notificationConfig,
-                                  smtp_password: e.target.value,
-                                })
-                              }
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-0 top-0 h-full px-3"
-                              onClick={() => setShowPassword(!showPassword)}
-                            >
-                              {showPassword ? (
-                                <EyeOff className="h-4 w-4" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_from_email">Email Remitente</Label>
-                          <Input
-                            id="smtp_from_email"
-                            value={notificationConfig.smtp_from_email || ''}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_from_email: e.target.value,
-                              })
-                            }
-                            placeholder="noreply@iglesia.com"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp_from_name">Nombre Remitente</Label>
-                          <Input
-                            id="smtp_from_name"
-                            value={notificationConfig.smtp_from_name}
-                            onChange={e =>
-                              setNotificationConfig({
-                                ...notificationConfig,
-                                smtp_from_name: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Los correos del sistema se envían a través de un proveedor gestionado
+                      (Resend) — no requiere configuración SMTP.
+                    </p>
                   </div>
 
                   <div className="flex justify-end pt-4">
@@ -932,7 +880,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: SEGURIDAD ===== */}
-        <TabsContent value="security" className="space-y-6">
+        <TabsContent value="security" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -941,7 +889,7 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Configuraciones de seguridad y acceso</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
@@ -1020,7 +968,7 @@ const SettingsPage = () => {
         </TabsContent>
 
         {/* ===== TAB: RESPALDOS ===== */}
-        <TabsContent value="backup" className="space-y-6">
+        <TabsContent value="backup" className="space-y-3 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1029,43 +977,26 @@ const SettingsPage = () => {
               </CardTitle>
               <CardDescription>Gestión de respaldos del sistema</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="p-4 border-dashed">
-                  <div className="text-center space-y-2">
-                    <Database className="w-8 h-8 mx-auto text-muted-foreground" />
-                    <h4 className="font-medium">Exportar Datos</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Descarga una copia completa de los datos
-                    </p>
-                    <Button variant="outline" className="mt-2">
-                      Exportar
-                    </Button>
-                  </div>
-                </Card>
-
-                <Card className="p-4 border-dashed">
-                  <div className="text-center space-y-2">
-                    <Database className="w-8 h-8 mx-auto text-muted-foreground" />
-                    <h4 className="font-medium">Importar Datos</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Restaurar desde un archivo de respaldo
-                    </p>
-                    <Button variant="outline" className="mt-2">
-                      Importar
-                    </Button>
-                  </div>
-                </Card>
+            <CardContent className="space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6">
+              <div className="rounded-lg border border-dashed p-6 text-center space-y-3">
+                <Database className="w-10 h-10 mx-auto text-muted-foreground/50" />
+                <div>
+                  <h4 className="font-medium">Respaldos en desarrollo</h4>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    La exportación e importación de datos estará disponible en una próxima versión.
+                    Por ahora, Supabase realiza respaldos automáticos diariamente.
+                  </p>
+                </div>
+                <Badge variant="outline">Supabase Backup: Activo</Badge>
               </div>
 
-              <div className="p-4 bg-muted rounded-lg">
-                <h4 className="font-medium mb-2">Último Respaldo</h4>
-                <p className="text-sm text-muted-foreground">
-                  Los respaldos automáticos se realizan diariamente a las 3:00 AM
-                </p>
-                <Badge variant="outline" className="mt-2">
-                  Automático: Habilitado
-                </Badge>
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <h4 className="font-medium text-sm">Información de respaldo</h4>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Respaldo automático cada 24 horas vía Supabase</li>
+                  <li>Retención de 7 días en plan gratuito</li>
+                  <li>Restauración disponible desde el panel de Supabase</li>
+                </ul>
               </div>
             </CardContent>
           </Card>

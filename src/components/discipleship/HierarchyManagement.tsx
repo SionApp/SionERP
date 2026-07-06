@@ -1,6 +1,8 @@
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -19,12 +21,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DiscipleshipService } from '@/services/discipleship.service';
-import { UserService } from '@/services/user.service';
-import type { AssignHierarchyRequest, DiscipleshipHierarchy } from '@/types/discipleship.types';
+import { MobileListItem } from '@/components/mobile/MobileListItem';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { useZones } from '@/hooks/useZones';
-import { User } from '@/types/user.types';
-import { Edit, Loader2, Search, Users } from 'lucide-react';
+import { DiscipleshipService, type UserForHierarchy } from '@/services/discipleship.service';
+import type { AssignHierarchyRequest } from '@/types/discipleship.types';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Edit,
+  Loader2,
+  MapPin,
+  Search,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -49,19 +60,40 @@ const normalizeNullString = (value: unknown): string | null => {
   return String(value);
 };
 
-interface UserWithHierarchy extends User {
-  hierarchy?: DiscipleshipHierarchy;
+const PAGE_SIZE = 10;
+
+const AVATAR_TONES = [
+  'bg-amber-100 text-amber-700',
+  'bg-orange-100 text-orange-700',
+  'bg-rose-100 text-rose-700',
+  'bg-pink-100 text-pink-700',
+  'bg-purple-100 text-purple-700',
+  'bg-violet-100 text-violet-700',
+  'bg-indigo-100 text-indigo-700',
+  'bg-sky-100 text-sky-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-teal-100 text-teal-700',
+];
+
+function getAvatarTone(name: string) {
+  return AVATAR_TONES[name.length % AVATAR_TONES.length];
+}
+
+function getInitials(firstName: string, lastName: string) {
+  return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
 }
 
 const HierarchyManagement = () => {
+  const isMobileApp = useMobileMode();
   const { zones } = useZones();
-  const [users, setUsers] = useState<UserWithHierarchy[]>([]);
-  const [hierarchies, setHierarchies] = useState<DiscipleshipHierarchy[]>([]);
+  const [users, setUsers] = useState<UserForHierarchy[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserWithHierarchy | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserForHierarchy | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(25);
 
   const [formData, setFormData] = useState<AssignHierarchyRequest>({
     user_id: '',
@@ -71,45 +103,13 @@ const HierarchyManagement = () => {
     territory: '',
   });
 
-  // Cargar usuarios y jerarquías
+  // Cargar usuarios con su nivel de jerarquía desde el endpoint de discipulado.
+  // Usa /discipleship/users en lugar de /users para no depender del rol de sistema.
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [usersData, hierarchiesData] = await Promise.all([
-        UserService.getAllUsers(),
-        DiscipleshipService.getHierarchy().catch(err => {
-          console.warn('Error loading hierarchy, continuing with empty array:', err);
-          return [] as DiscipleshipHierarchy[];
-        }),
-      ]);
-
-      // Validar que hierarchiesData sea un array
-      const validHierarchies = Array.isArray(hierarchiesData) ? hierarchiesData : [];
-
-      // Normalizar jerarquías (manejar valores null del backend)
-      const normalizedHierarchies = validHierarchies.map(h => ({
-        ...h,
-        supervisor_id: normalizeNullString(h.supervisor_id),
-        zone_name: normalizeNullString(h.zone_name),
-        territory: normalizeNullString(h.territory),
-      }));
-
-      // Crear un mapa de jerarquías por user_id
-      const hierarchyMap = new Map<string, DiscipleshipHierarchy>();
-      normalizedHierarchies.forEach(h => {
-        if (h && h.user_id) {
-          hierarchyMap.set(h.user_id, h);
-        }
-      });
-
-      // Combinar usuarios con sus jerarquías
-      const usersWithHierarchy = (usersData || []).map(user => ({
-        ...user,
-        hierarchy: hierarchyMap.get(user.id),
-      }));
-
-      setUsers(usersWithHierarchy);
-      setHierarchies(normalizedHierarchies);
+      const usersData = await DiscipleshipService.getUsersForHierarchy();
+      setUsers(Array.isArray(usersData) ? usersData : []);
     } catch (error: unknown) {
       console.error('Error loading data:', error);
       if (error instanceof Error) {
@@ -117,9 +117,7 @@ const HierarchyManagement = () => {
       } else {
         toast.error('Error al cargar datos');
       }
-      // Asegurar que siempre tengamos un array vacío
       setUsers([]);
-      setHierarchies([]);
     } finally {
       setLoading(false);
     }
@@ -140,28 +138,37 @@ const HierarchyManagement = () => {
         (user.id_number || '').includes(searchTerm)
     );
 
+  // Paginación
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pagedUsers = filteredUsers.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // Reset a página 1 al cambiar búsqueda
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+    setMobileVisibleCount(25);
+  };
+
   // Abrir diálogo para editar jerarquía
-  const handleEditHierarchy = (user: UserWithHierarchy) => {
+  const handleEditHierarchy = (user: UserForHierarchy) => {
     try {
       if (!user || !user.id) {
         toast.error('Usuario inválido');
         return;
       }
 
-      const hierarchy = user.hierarchy;
-      const hierarchyLevel = hierarchy?.hierarchy_level;
-      const supervisorId = hierarchy?.supervisor_id;
-      const zoneName = hierarchy?.zone_name;
-      const territory = hierarchy?.territory;
-
       setSelectedUser(user);
       setFormData({
         user_id: user.id,
         hierarchy_level:
-          hierarchyLevel && hierarchyLevel >= 1 && hierarchyLevel <= 5 ? hierarchyLevel : 1,
-        supervisor_id: supervisorId || '',
-        zone_name: zoneName || '',
-        territory: territory || '',
+          user.hierarchy_level && user.hierarchy_level >= 1 && user.hierarchy_level <= 5
+            ? user.hierarchy_level
+            : 1,
+        supervisor_id: user.supervisor_id || '',
+        zone_name: user.zone_name || '',
+        territory: user.territory || '',
       });
       setIsDialogOpen(true);
     } catch (error) {
@@ -215,60 +222,100 @@ const HierarchyManagement = () => {
     }
   };
 
-  // Obtener usuarios que pueden ser supervisores (nivel 2, 3, 4, 5)
-  const getAvailableSupervisors = (currentUserId: string, currentLevel: number) => {
-    if (!Array.isArray(hierarchies) || !Array.isArray(users)) {
-      return [];
-    }
+  // supervisor_id apunta HACIA ARRIBA: es quien supervisa a este usuario.
+  // Ejemplo: un Líder (N1) tiene como supervisor a un Supervisor Auxiliar (N2).
+  // Un Supervisor Auxiliar gestiona hasta 5 Líderes porque esos Líderes
+  // tienen su supervisor_id apuntando a él — no al revés.
+  // → buscar nivel N+1. Excepción: Pastoral (N5) supervisa a todos los
+  //   coordinadores sin importar zona (suele haber uno solo).
+  const getAvailableSupervisors = (
+    currentUserId: string,
+    currentLevel: number,
+    zoneName?: string
+  ) => {
+    if (!Array.isArray(users)) return [];
 
-    return hierarchies
-      .filter(
-        h =>
-          h &&
-          h.user_id &&
-          h.user_id !== currentUserId &&
-          h.hierarchy_level < currentLevel &&
-          h.hierarchy_level >= 2
-      )
-      .map(h => {
-        const user = users.find(u => u && u.id === h.user_id);
-        return {
-          id: h.user_id,
-          name: user
-            ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Usuario sin nombre'
-            : 'Usuario desconocido',
-          level: h.hierarchy_level,
-        };
-      });
+    const targetLevel = currentLevel + 1;
+    if (targetLevel > 5) return [];
+
+    return users
+      .filter(u => {
+        if (!u || !u.id || u.id === currentUserId) return false;
+        if (u.hierarchy_level !== targetLevel) return false;
+        // Pastoral supervisa a todos sin importar zona
+        if (targetLevel === 5) return true;
+        if (zoneName && normalizeNullString(u.zone_name) !== zoneName) return false;
+        return true;
+      })
+      .map(u => ({
+        id: u.id,
+        name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Usuario sin nombre',
+        level: u.hierarchy_level!,
+      }));
+  };
+
+  const supervisorLabelForLevel = (level: number) => {
+    const labels: Record<number, string> = {
+      1: 'Supervisor Auxiliar (reporta a)',
+      2: 'Supervisor General (reporta a)',
+      3: 'Coordinador (reporta a)',
+      4: 'Pastoral (reporta a)',
+    };
+    return labels[level] ?? 'Reporta a';
   };
 
   const getLevelBadge = (level: number | undefined) => {
     if (!level) return <Badge variant="outline">Sin jerarquía</Badge>;
 
-    const colors = {
-      1: 'default',
-      2: 'secondary',
-      3: 'default',
-      4: 'secondary',
-      5: 'default',
+    const configs = {
+      1: { label: 'Líder', className: 'bg-emerald-500 hover:bg-emerald-600' },
+      2: { label: 'Sup. Auxiliar', className: 'bg-blue-500 hover:bg-blue-600' },
+      3: { label: 'Sup. General', className: 'bg-indigo-500 hover:bg-indigo-600' },
+      4: { label: 'Coordinador', className: 'bg-purple-500 hover:bg-purple-600' },
+      5: { label: 'Pastoral', className: 'bg-amber-500 hover:bg-amber-600 text-white' },
     } as const;
 
-    const labels = {
-      1: 'Líder',
-      2: 'Sup. Auxiliar',
-      3: 'Sup. General',
-      4: 'Coordinador',
-      5: 'Pastoral',
+    const config = configs[level as keyof typeof configs] || {
+      label: `Nivel ${level}`,
+      className: '',
     };
 
+    return <Badge className={config.className}>{config.label}</Badge>;
+  };
+
+  // Pill compacto de nivel para las filas mobile
+  const getMobileLevelPill = (level: number | undefined) => {
+    const configs: Record<number, { label: string; className: string }> = {
+      1: { label: 'Líder', className: 'bg-emerald-500/10 text-emerald-600' },
+      2: { label: 'Sup. Aux.', className: 'bg-blue-500/10 text-blue-600' },
+      3: { label: 'Sup. Gral.', className: 'bg-indigo-500/10 text-indigo-600' },
+      4: { label: 'Coord.', className: 'bg-purple-500/10 text-purple-600' },
+      5: { label: 'Pastoral', className: 'bg-amber-500/10 text-amber-600' },
+    };
+    const config = level ? configs[level] : undefined;
     return (
-      <Badge variant={colors[level as keyof typeof colors] || 'outline'}>
-        {labels[level as keyof typeof labels] || `Nivel ${level}`}
-      </Badge>
+      <span
+        className={cn(
+          'text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap',
+          config?.className ?? 'bg-muted text-muted-foreground'
+        )}
+      >
+        {config?.label ?? 'Sin jerarquía'}
+      </span>
     );
   };
 
   if (loading) {
+    if (isMobileApp) {
+      return (
+        <div className="px-4 pt-4 space-y-2">
+          <Skeleton className="h-9 w-full rounded-xl" />
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="space-y-4">
         <Skeleton className="h-12 w-full" />
@@ -292,13 +339,243 @@ const HierarchyManagement = () => {
     );
   }
 
+  // ── Dialog compartido entre web y mobile — key fuerza remount limpio al cambiar usuario ──
+  const hierarchyDialog = (
+    <Dialog
+      key={selectedUser?.id ?? 'new'}
+      open={isDialogOpen}
+      onOpenChange={open => {
+        setIsDialogOpen(open);
+        if (!open) setSelectedUser(null);
+      }}
+    >
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {selectedUser
+              ? `Asignar Jerarquía - ${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`
+              : 'Asignar Jerarquía'}
+          </DialogTitle>
+          <DialogDescription>
+            Define el nivel de jerarquía y la estructura de supervisión para este usuario en el
+            módulo de discipulado
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* Nivel de Jerarquía */}
+          <div>
+            <Label htmlFor="hierarchy_level">Nivel de Jerarquía *</Label>
+            <Select
+              value={(formData.hierarchy_level || 1).toString()}
+              onValueChange={value => {
+                const level = parseInt(value, 10);
+                if (!isNaN(level)) {
+                  // Al cambiar nivel limpiamos el supervisor porque cambia el tipo esperado
+                  setFormData(prev => ({ ...prev, hierarchy_level: level, supervisor_id: '' }));
+                }
+              }}
+            >
+              <SelectTrigger id="hierarchy_level">
+                <SelectValue placeholder="Selecciona un nivel" />
+              </SelectTrigger>
+              <SelectContent>
+                {HIERARCHY_LEVELS.map(level => (
+                  <SelectItem key={level.value} value={level.value.toString()}>
+                    {level.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              El nivel determina qué dashboard verá el usuario y sus permisos en discipulado
+            </p>
+          </div>
+
+          {/* Zona — va ANTES del supervisor para que filtre las opciones */}
+          <div>
+            <Label htmlFor="zone_name">Zona</Label>
+            <Select
+              value={formData.zone_name || '__none__'}
+              onValueChange={value =>
+                setFormData(prev => ({
+                  ...prev,
+                  zone_name: value === '__none__' ? '' : value,
+                  supervisor_id: '', // limpiar supervisor al cambiar zona
+                }))
+              }
+            >
+              <SelectTrigger id="zone_name">
+                <SelectValue placeholder="Selecciona una zona (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin zona</SelectItem>
+                {zones.map(zone => (
+                  <SelectItem key={zone.id} value={zone.name}>
+                    {zone.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Supervisor — filtrado por zona y nivel. Nivel 5 (Pastoral) no tiene supervisor */}
+          {formData.hierarchy_level >= 1 && formData.hierarchy_level < 5 && (
+            <div>
+              <Label htmlFor="supervisor_id">
+                {supervisorLabelForLevel(formData.hierarchy_level || 2)}
+              </Label>
+              <Select
+                value={formData.supervisor_id || '__none__'}
+                onValueChange={value =>
+                  setFormData(prev => ({
+                    ...prev,
+                    supervisor_id: value === '__none__' ? '' : value,
+                  }))
+                }
+              >
+                <SelectTrigger id="supervisor_id">
+                  <SelectValue placeholder="Selecciona (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin asignar</SelectItem>
+                  {getAvailableSupervisors(
+                    formData.user_id || '',
+                    formData.hierarchy_level || 2,
+                    formData.zone_name || undefined
+                  ).map(sup => (
+                    <SelectItem key={sup.id} value={sup.id}>
+                      {sup.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {formData.zone_name && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Mostrando solo usuarios de <strong>{formData.zone_name}</strong>
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Territorio */}
+          <div>
+            <Label htmlFor="territory">Territorio</Label>
+            <Input
+              id="territory"
+              placeholder="Descripción del territorio (opcional)"
+              value={formData.territory || ''}
+              onChange={e => setFormData(prev => ({ ...prev, territory: e.target.value }))}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Descripción del área geográfica o territorio asignado
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSaveHierarchy} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar Jerarquía'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  // ── Modo mobile exclusivo: lista compacta con paginación lazy ──
+  if (isMobileApp) {
+    return (
+      <>
+        {hierarchyDialog}
+        <div className="-mx-3 -mt-3">
+          {/* Sticky search */}
+          <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-lg border-b border-border/30 px-4 pt-3 pb-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="h-9 pl-9 rounded-xl"
+                placeholder="Buscar por nombre, email o cédula..."
+                value={searchTerm}
+                onChange={e => handleSearchChange(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <p className="px-4 py-2 text-xs text-muted-foreground">
+            {filteredUsers.length} usuario{filteredUsers.length !== 1 ? 's' : ''}
+            {searchTerm ? ` de ${users.length}` : ''}
+          </p>
+
+          {filteredUsers.length === 0 ? (
+            <div className="flex flex-col items-center py-10 gap-2 text-muted-foreground">
+              <Users className="h-10 w-10 opacity-20" />
+              <p className="text-sm">No se encontraron usuarios</p>
+            </div>
+          ) : (
+            <div className="mx-4 rounded-2xl border border-border divide-y divide-border bg-card overflow-hidden">
+              {filteredUsers.slice(0, mobileVisibleCount).map(user => {
+                const supervisor = user.supervisor_id
+                  ? users.find(u => u && u.id === user.supervisor_id)
+                  : null;
+                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                const subtitle = supervisor
+                  ? `${user.zone_name || 'Sin zona'} · Rep. a ${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim()
+                  : user.zone_name || 'Sin zona';
+                return (
+                  <MobileListItem
+                    key={user.id}
+                    leading={
+                      <div
+                        className={cn(
+                          'w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                          getAvatarTone(`${user.first_name || ''}${user.last_name || ''}`)
+                        )}
+                      >
+                        {getInitials(user.first_name || '', user.last_name || '')}
+                      </div>
+                    }
+                    title={fullName || 'Sin nombre'}
+                    subtitle={subtitle}
+                    trailing={getMobileLevelPill(user.hierarchy_level ?? undefined)}
+                    onClick={() => handleEditHierarchy(user)}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {filteredUsers.length > mobileVisibleCount && (
+            <div className="px-4 py-4">
+              <button
+                onClick={() => setMobileVisibleCount(c => c + 25)}
+                className="w-full py-2.5 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground cursor-pointer active:bg-accent transition-colors"
+              >
+                Cargar más ({mobileVisibleCount} de {filteredUsers.length})
+              </button>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Gestión de Jerarquías</h2>
-          <p className="text-sm text-muted-foreground">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Gestión de Jerarquías</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">
             Asigna y gestiona los niveles de jerarquía en el módulo de discipulado
           </p>
         </div>
@@ -312,7 +589,7 @@ const HierarchyManagement = () => {
             <Input
               placeholder="Buscar por nombre, email o cédula..."
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
@@ -324,7 +601,11 @@ const HierarchyManagement = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Usuarios ({filteredUsers.length})
+            Usuarios
+            <span className="text-sm font-normal text-muted-foreground">
+              ({filteredUsers.length}
+              {searchTerm ? ` de ${users.length}` : ''})
+            </span>
           </CardTitle>
           <CardDescription>
             Lista de usuarios y sus jerarquías actuales en el módulo de discipulado
@@ -338,191 +619,187 @@ const HierarchyManagement = () => {
                 <p>No se encontraron usuarios</p>
               </div>
             ) : (
-              filteredUsers
+              pagedUsers
                 .filter(user => user && user.id)
                 .map(user => {
-                  const hierarchy = user.hierarchy;
-                  const supervisor =
-                    hierarchy?.supervisor_id && hierarchy.supervisor_id !== null
-                      ? users.find(u => u && u.id === hierarchy.supervisor_id)
-                      : null;
+                  const supervisor = user.supervisor_id
+                    ? users.find(u => u && u.id === user.supervisor_id)
+                    : null;
 
                   return (
                     <div
                       key={user.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors gap-3"
+                      className="group relative flex flex-col gap-4 p-4 sm:p-5 border border-border/50 rounded-2xl bg-card hover:bg-accent/5 transition-all duration-300 shadow-sm hover:shadow-md"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <p className="font-medium">
-                              {user.first_name || ''} {user.last_name || ''}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <Avatar className="h-10 w-10 shrink-0">
+                            <AvatarFallback
+                              className={cn(
+                                'text-xs font-semibold',
+                                getAvatarTone(`${user.first_name || ''}${user.last_name || ''}`)
+                              )}
+                            >
+                              {getInitials(user.first_name || '', user.last_name || '')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                              <h3 className="font-bold text-base truncate">
+                                {user.first_name || ''} {user.last_name || ''}
+                              </h3>
+                              {getLevelBadge(user.hierarchy_level ?? undefined)}
+                            </div>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {user.email || ''}
                             </p>
-                            <p className="text-sm text-muted-foreground">{user.email || ''}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {getLevelBadge(hierarchy?.hierarchy_level)}
-                            {hierarchy?.zone_name && (
-                              <Badge variant="outline">{hierarchy.zone_name}</Badge>
-                            )}
                           </div>
                         </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-xl opacity-0 group-hover:opacity-100 sm:opacity-0 transition-opacity bg-accent/50"
+                            onClick={() => handleEditHierarchy(user)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-accent/30 border border-border/30">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                            <MapPin className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                              Zona
+                            </p>
+                            <p className="text-sm font-medium truncate">
+                              {user.zone_name || 'Sin zona'}
+                            </p>
+                          </div>
+                        </div>
+
                         {supervisor && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Supervisor: {supervisor.first_name || ''} {supervisor.last_name || ''}
-                          </p>
-                        )}
-                        {!hierarchy && (
-                          <p className="text-xs text-amber-600 mt-1">
-                            Sin jerarquía asignada - No tiene acceso al módulo de discipulado
-                          </p>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                              <UserCheck className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                                Supervisor
+                              </p>
+                              <p className="text-sm font-medium truncate">
+                                {supervisor.first_name || ''} {supervisor.last_name || ''}
+                              </p>
+                            </div>
+                          </div>
                         )}
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => handleEditHierarchy(user)}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        {hierarchy ? 'Editar' : 'Asignar'}
-                      </Button>
+
+                      {!user.hierarchy_level && (
+                        <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                            Pendiente de asignación
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="sm:hidden">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="w-full rounded-xl gap-2 font-semibold"
+                          onClick={() => handleEditHierarchy(user)}
+                        >
+                          <Edit className="h-4 w-4" />
+                          {user.hierarchy_level ? 'Editar Jerarquía' : 'Asignar Jerarquía'}
+                        </Button>
+                      </div>
                     </div>
                   );
                 })
             )}
           </div>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t mt-4">
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Mostrando{' '}
+                <span className="font-medium text-foreground">
+                  {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredUsers.length)}
+                </span>{' '}
+                de <span className="font-medium text-foreground">{filteredUsers.length}</span>{' '}
+                usuarios
+              </p>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                {/* Números de página */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      // Mostrar primera, última, actual y adyacentes
+                      return page === 1 || page === totalPages || Math.abs(page - safePage) <= 1;
+                    })
+                    .reduce<(number | 'ellipsis')[]>((acc, page, idx, arr) => {
+                      if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
+                        acc.push('ellipsis');
+                      }
+                      acc.push(page);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === 'ellipsis' ? (
+                        <span
+                          key={`ellipsis-${idx}`}
+                          className="px-1 text-muted-foreground text-sm"
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <Button
+                          key={item}
+                          variant={safePage === item ? 'default' : 'outline'}
+                          size="icon"
+                          className="h-8 w-8 text-xs"
+                          onClick={() => setCurrentPage(item as number)}
+                        >
+                          {item}
+                        </Button>
+                      )
+                    )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Dialog para editar jerarquía */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedUser
-                ? `Asignar Jerarquía - ${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`
-                : 'Asignar Jerarquía'}
-            </DialogTitle>
-            <DialogDescription>
-              Define el nivel de jerarquía y la estructura de supervisión para este usuario en el
-              módulo de discipulado
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Nivel de Jerarquía */}
-            <div>
-              <Label htmlFor="hierarchy_level">Nivel de Jerarquía *</Label>
-              <Select
-                value={(formData.hierarchy_level || 1).toString()}
-                onValueChange={value => {
-                  const level = parseInt(value, 10);
-                  if (!isNaN(level)) {
-                    setFormData(prev => ({ ...prev, hierarchy_level: level }));
-                  }
-                }}
-              >
-                <SelectTrigger id="hierarchy_level">
-                  <SelectValue placeholder="Selecciona un nivel" />
-                </SelectTrigger>
-                <SelectContent>
-                  {HIERARCHY_LEVELS.map(level => (
-                    <SelectItem key={level.value} value={level.value.toString()}>
-                      {level.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                El nivel determina qué dashboard verá el usuario y sus permisos en discipulado
-              </p>
-            </div>
-
-            {/* Supervisor */}
-            {formData.hierarchy_level > 1 && (
-              <div>
-                <Label htmlFor="supervisor_id">Supervisor</Label>
-                <Select
-                  value={formData.supervisor_id || '__none__'}
-                  onValueChange={value =>
-                    setFormData(prev => ({
-                      ...prev,
-                      supervisor_id: value === '__none__' ? '' : value,
-                    }))
-                  }
-                >
-                  <SelectTrigger id="supervisor_id">
-                    <SelectValue placeholder="Selecciona un supervisor (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin supervisor</SelectItem>
-                    {getAvailableSupervisors(
-                      formData.user_id || '',
-                      formData.hierarchy_level || 1
-                    ).map(supervisor => (
-                      <SelectItem key={supervisor.id} value={supervisor.id}>
-                        {supervisor.name} (Nivel {supervisor.level})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Usuario que supervisará a este usuario en la jerarquía
-                </p>
-              </div>
-            )}
-
-            {/* Zona */}
-            <div>
-              <Label htmlFor="zone_name">Zona</Label>
-              <Select
-                value={formData.zone_name || '__none__'}
-                onValueChange={value =>
-                  setFormData(prev => ({ ...prev, zone_name: value === '__none__' ? '' : value }))
-                }
-              >
-                <SelectTrigger id="zone_name">
-                  <SelectValue placeholder="Selecciona una zona (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sin zona</SelectItem>
-                  {zones.map(zone => (
-                    <SelectItem key={zone.id} value={zone.name}>
-                      {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Territorio */}
-            <div>
-              <Label htmlFor="territory">Territorio</Label>
-              <Input
-                id="territory"
-                placeholder="Descripción del territorio (opcional)"
-                value={formData.territory || ''}
-                onChange={e => setFormData(prev => ({ ...prev, territory: e.target.value }))}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Descripción del área geográfica o territorio asignado
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveHierarchy} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                'Guardar Jerarquía'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {hierarchyDialog}
     </div>
   );
 };

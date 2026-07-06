@@ -1,333 +1,389 @@
 # Índice Técnico — SionERP
 
-**Versión**: 1.0  
-**Fecha**: 18 de Abril de 2026  
-**Última actualización**: Esta versión
+**Versión**: 2.0
+**Fecha**: Mayo 2026
+**Última actualización**: Migración analytics, alertas automáticas, objetivos estratégicos, Sentry
 
 ---
 
 ## 1. Visión General del Proyecto
 
-SionERP es un sistema de gestión cristiana que abarca:
+SionERP es un sistema de gestión cristiana para iglesias. Módulos implementados:
 
 - **Discipulado**: Sistema jerárquico de células con 5 niveles de liderazgo
-- **Zonas**: Gestión geográfica de grupos y líderes
-- **Usuarios**: Gestión de miembros, roles y permisos
-- **Reportes**: Métricas y analytics por nivel jerárquico
-- **Configuración**: Módulos, settings, church info
+- **Zonas**: Gestión geográfica de grupos y líderes con mapa Leaflet
+- **Usuarios**: CRUD completo con RBAC (6 niveles de rol)
+- **Reportes**: Métricas por nivel jerárquico con analytics basados en JSONB
+- **Objetivos Estratégicos (Goals)**: Seguimiento de metas con progreso automático
+- **Alertas**: 7 tipos automáticos (4 críticas + 3 celebración)
+- **Configuración**: Módulos, settings, church info, preferencias de usuario
 
 **Stack Tecnológico**:
 
-- **Frontend**: React + TypeScript + Vite
-- **Backend**: Go + Echo
-- **Base de Datos**: PostgreSQL (Supabase)
-- **Auth**: Supabase Auth (JWT)
+| Capa | Tecnología |
+|------|-----------|
+| **Frontend** | React 18 + TypeScript + Vite, Tailwind CSS, shadcn/ui, TanStack Query, Zod |
+| **Backend** | Go 1.24 + Echo v4 |
+| **Base de Datos** | PostgreSQL (Supabase) |
+| **Auth** | Supabase Auth (JWT) |
+| **Monitoreo** | Sentry (`@sentry/react` frontend, `sentry-go` backend) |
+| **PWA** | Service Worker + offline support |
+| **Mapas** | Leaflet (migrado desde MapLibre en Mayo 2026) |
 
 ---
 
-## 2. Estructura del Proyecto
+## 2. Cambios Recientes (Mayo 2026)
+
+### 2.1 Unificación de IDs de Usuario
+- **Cambio**: Se eliminó el campo `auth_id` de `public.users`. El `id` en `public.users` es el MISMO UUID que `auth.users.id`.
+- **Impacto**: Middleware `AuthMiddleware` busca por `id` únicamente. `CreateUserDirect` usa UN SOLO UUID.
+- **Migración**: `20260504000002_cleanup_auth_id.sql`
+
+### 2.2 Sistema de Roles y Permisos (RBAC)
+- **Jerarquía**: `admin`(500) > `pastor`(400) > `staff`(300) > `supervisor`(200) > `server`(100) > `member`(0)
+- **Backend**: `middleware/role_check.go` con `RequireRole()` por ruta
+- **Frontend**: `src/lib/permissions.ts` + hook `usePermissions` + componente `Can` + `ProtectedRoute`
+- **has_admin_access**: flag que habilita acceso total para pastor y staff con permisos elevados
+
+### 2.3 Migración de Métricas — `discipleship_metrics` ELIMINADA
+- **`discipleship_metrics` fue dropeada** (`20260501000000_drop_discipleship_metrics.sql`). No existe más.
+- Toda la analítica ahora lee de `discipleship_reports.report_data` (columna JSONB con 13 métricas objetivas).
+- Nueva fórmula de temperatura espiritual: 1 punto por cada una de las 13 métricas activas (máx. 13 pts, no subjetivo).
+
+### 2.4 Sistema de Alertas Automáticas (7 tipos)
+Implementado en `handlers/discipleship_alerts.go` → `GenerateAutomaticAlerts()`:
+
+**Críticas (prioridad 2-3)**:
+- `no_reports` — sin reportes en 2 semanas
+- `low_attendance` — asistencia < 50% por 4 semanas
+- `spiritual_decline` — temperatura espiritual < 5 por 4 semanas
+- `no_growth` — sin crecimiento en el período
+
+**Celebración (prioridad 5)**:
+- `consistency_milestone` — racha consistente de reportes
+- `evangelism_champion` — métricas de evangelismo destacadas
+- `solid_group` — grupo clasificado como sólido
+
+### 2.5 Fases de Grupo
+Calculadas en frontend a partir de datos del backend:
+- 🌱 `germinating` — < 4 reportes totales
+- 🌿 `growing` — 4+ reportes totales
+- 💎 `solid` — 24+ reportes, 12+ con temp ≥ 8, temp actual ≥ 8
+- 🔥 `multiplying` — `is_multiplying=true` en 2+ reportes últimos 28 días
+- ⚠️ `at_risk` — tiene alertas críticas activas
+
+### 2.6 Módulo de Objetivos Estratégicos (Goals)
+- Tabla `discipleship_goals` con `goal_type`, `target_metric`, `current_value`, `deadline`, `priority`, `zone_id`
+- Endpoints CRUD completos + `extend`, `close-incomplete`, `auto-update`
+- Integrado en `PastoralDashboard` y `CoordinatorDashboard` (tab "Estratégico")
+
+### 2.7 Monitoreo con Sentry
+- **Frontend**: `@sentry/react` en `src/main.tsx` — inicialización condicional por `VITE_SENTRY_DSN`
+- **Backend**: `sentry-go` con middleware custom en `main.go` (compatible con echo/v4)
+- El middleware official `sentryecho` es incompatible con echo/v4 (usa v5). Se usa middleware propio.
+
+---
+
+## 3. Estructura del Proyecto
 
 ```
 SionERP/
 ├── apps/
-│   └── backend-go/          # API REST en Go
-│       ├── main.go          # Punto de entrada
-│       ├── routes/         # Definición de rutas
-│       ├── handlers/        # Controladores (lógica HTTP)
-│       ├── models/          # Modelos de datos
-│       ├── middleware/      # Middlewares auth y módulos
-│       ├── database/       # Queries a BD
-│       ├── cache/          # Caché en memoria
-│       ├── config/         # Configuración
-│       └── utils/           # Utilidades
-├── src/                     # Frontend React
-│   ├── pages/
-│   │   ├── dashboard/      # Dashboards por nivel jerárquico
-│   │   ├── Login.tsx
-│   │   ├── Register.tsx
-│   │   ├── SetupPage.tsx
+│   └── backend-go/             # API REST en Go
+│       ├── main.go             # Entry point + Sentry + Echo setup
+│       ├── routes/routes.go    # Todas las rutas y sus middlewares
+│       ├── handlers/           # Controladores HTTP (uno por módulo)
+│       ├── models/             # Structs de datos con json/db tags
+│       ├── middleware/         # Auth, roles, módulos, audit log
+│       ├── config/             # DB connection, email
+│       ├── services/           # Bootstrap super admin
+│       └── utils/CONST.go      # Niveles de rol y módulos
+├── src/                        # Frontend React
+│   ├── pages/dashboard/
+│   │   ├── discipleship/       # Dashboards por nivel (5 componentes)
+│   │   ├── DiscipleshipPage.tsx
+│   │   ├── GoalsDashboard.tsx
 │   │   └── ...
 │   ├── components/
-│   │   ├── dashboard/      # Componentes de dashboards
-│   │   └── ...
-│   ├── services/           # Servicios API (llamadas al backend)
-│   ├── hooks/            # Hooks de React para datos
-│   ├── lib/              # Utilidades y helpers
-│   └── __tests__/        # Tests unitarios
+│   │   ├── discipleship/       # Modales y gestión
+│   │   ├── dashboard/          # Widgets de dashboard
+│   │   └── ui/                 # shadcn components
+│   ├── hooks/                  # Hooks con TanStack Query por nivel
+│   ├── services/               # Servicios de API
+│   ├── lib/permissions.ts      # RBAC frontend
+│   └── types/                  # TypeScript types
 ├── supabase/
-│   ├── migrations/        # SQL migrations
-│   └── seed.sql          # Datos iniciales
-├── docs/                 # Documentación técnica
-└── packages/             # Paquetes compartidos
+│   ├── migrations/             # SQL migrations numeradas
+│   └── seed.sql
+└── docs/                       # Documentación técnica
 ```
 
 ---
 
-## 3. Estado de Implementación por Módulo
+## 4. Estado de Implementación
 
-### 3.1 Backend Go — Endpoints
+### 4.1 Endpoints del Backend
 
-| Módulo           | Ruta base              | Métodos                                                    | Estado      |
-| ---------------- | ---------------------- | ---------------------------------------------------------- | ----------- |
-| **Auth**         | `/api/v1/auth`         | POST login, logout                                         | ✅ Completo |
-| **Users**        | `/api/v1/users`        | CRUD completo                                              | ✅ Completo |
-| **Dashboard**    | `/api/v1/dashboard`    | GET stats                                                  | ✅ Completo |
-| **Setup**        | `/api/v1/setup`        | GET status, POST perform                                   | ✅ Completo |
-| **Modules**      | `/api/v1/modules`      | PUT actualizar estado                                      | ✅ Completo |
-| **Invitations**  | `/api/v1/invitations`  | CRUD completos                                             | ✅ Completo |
-| **Settings**     | `/api/v1/settings`     | Sistema, church, notifications                             | ✅ Completo |
-| **Preferences**  | `/api/v1/preferences`  | GET, PUT user prefs                                        | ✅ Completo |
-| **Discipleship** | `/api/v1/discipleship` | Grupos, jerarquía, métricas, reportes, alertas, asistencia | ✅ Completo |
-| **Zones**        | `/api/v1/zones`        | CRUD completos + stats                                     | ✅ Completo |
+| Módulo | Ruta base | Endpoints | Auth | Nivel mínimo |
+|--------|-----------|-----------|------|-------------|
+| **Health** | `/api/v1/health` | GET | ❌ público | — |
+| **Debug** | `/api/v1/debug/sentry-test` | GET | ❌ público | — ⚠️ temporal |
+| **Auth** | `/api/v1/auth` | POST login, logout | ❌ público | — |
+| **Setup** | `/api/v1/setup` | GET status, POST perform | opcional | — |
+| **Users** | `/api/v1/users` | CRUD + `/direct` | ✅ | staff (300) |
+| **Users/me** | `/api/v1/users/me` | GET, PUT, PUT onboarding | ✅ | member (0) |
+| **Dashboard** | `/api/v1/dashboard` | GET stats | ✅ | member (0) |
+| **Permissions** | `/api/v1/permissions/me` | GET | ✅ | member (0) |
+| **Invitations** | `/api/v1/invitations` | CRUD + resend + accept | ✅ | staff (300) |
+| **Modules** | `/api/v1/modules/:key` | PUT | ✅ | pastor (400) |
+| **Settings** | `/api/v1/settings` | system, church, notifications | ✅ | pastor (400) |
+| **Preferences** | `/api/v1/preferences` | GET, PUT | ✅ | member (0) |
+| **Discipleship** | `/api/v1/discipleship` | Ver detalle abajo | ✅ + módulo | variable |
+| **Zones** | `/api/v1/zones` | CRUD + map + stats + groups | ✅ + módulo | variable |
 
-**Notas**:
+#### Discipleship sub-rutas
 
-- Todos los endpoints requieren auth (jwt) excepto `/api/v1/auth/*` y `/api/v1/setup/*`
-- Algunos endpoints requieren módulo activo (ej. `/discipleship` requiere módulo "discipleship" habilitado)
+| Ruta | Métodos | Nivel mínimo |
+|------|---------|-------------|
+| `/groups` | GET | member |
+| `/groups` | POST, PUT | supervisor (200) |
+| `/groups/:id` | DELETE | staff (300) |
+| `/groups/:id/members` | GET, POST | member |
+| `/members/:memberId` | PUT, DELETE | member |
+| `/groups/:id/attendance` | GET, POST, bulk | member |
+| `/hierarchy` | GET, POST | member |
+| `/levels` | CRUD | member |
+| `/reports` | GET, POST | member |
+| `/reports/:id/approve` `reject` | PUT | supervisor |
+| `/goals` | GET, POST | member |
+| `/goals/:id` | PUT, DELETE | member (dueño o admin) |
+| `/goals/:id/extend` `close-incomplete` `auto-update` | POST | member |
+| `/alerts` | GET, POST | member |
+| `/alerts/:id/resolve` | PUT | member |
+| `/alerts/generate` | POST | member |
+| `/analytics` | GET | member |
+| `/weekly-trends` | GET | member |
+| `/dashboard-stats` | GET | member |
+| `/leaders/:id/stats` | GET | member |
+| `/supervisors/:id/subordinates` | GET | member |
+| `/multiplications` | GET | member |
 
----
+### 4.2 Dashboards del Frontend por Nivel
 
-### 3.2 Frontend — Servicios
+| Nivel | Dashboard | Componente | Tabs |
+|-------|-----------|-----------|------|
+| Pastor / isFullAccess | Ejecutivo | `PastoralDashboard.tsx` | Vista General, Estratégico, Aprobaciones, Alertas, Salud |
+| 4 — Coordinador | Estratégico | `CoordinatorDashboard.tsx` | Resumen, Supervisores, Objetivos (GoalsDashboard), Reportes |
+| 3 — Sup. General | Zonal | `GeneralSupervisorDashboard.tsx` | — |
+| 2 — Sup. Auxiliar | Supervisión | `AuxiliarySupervisorDashboard.tsx` | — |
+| 1 — Líder | Grupo | `LeaderDashboard.tsx` | Mi Grupo, Reportes, Asistencia |
+| Sin nivel / sin acceso | Pantalla bloqueada | — | — |
 
-| Servicio                            | Uso                         | Estado      |
-| ----------------------------------- | --------------------------- | ----------- |
-| `api.service.ts`                    | Cliente HTTP base           | ✅ Completo |
-| `user.service.ts`                   | Gestión de usuarios         | ✅ Completo |
-| `dashboard.service.ts`              | Stats del dashboard         | ✅ Completo |
-| `discipleship.service.ts`           | Grupos, jerarquía, reportes | ✅ Completo |
-| `discipleship-analytics.service.ts` | Analytics y métricas        | ✅ Completo |
-| `zones.service.ts`                  | Gestión de zonas            | ✅ Completo |
-| `settings.service.ts`               | Settings del sistema        | ✅ Completo |
+### 4.3 Servicios del Frontend
 
----
-
-### 3.3 Frontend — Dashboards por Nivel
-
-| Nivel | Rol                 | Dashboard                | Componente                         | Estado      |
-| ----- | ------------------- | ------------------------ | ---------------------------------- | ----------- |
-| 5     | Pastor              | Dashboard Ejecutivo      | `PastoralDashboard.tsx`            | ✅ Completo |
-| 4     | Coordinador         | Dashboard Estratégico    | `CoordinatorDashboard.tsx`         | ✅ Completo |
-| 3     | Supervisor General  | Dashboard Zonal          | `GeneralSupervisorDashboard.tsx`   | ✅ Completo |
-| 2     | Supervisor Auxiliar | Dashboard de Supervisión | `AuxiliarySupervisorDashboard.tsx` | ✅ Completo |
-| 1     | Líder               | Dashboard de Grupo       | `LeaderDashboard.tsx`              | ✅ Completo |
-
----
-
-### 3.4 Base de Datos — Tablas
-
-| Tabla                    | Estado       | Descripción               |
-| ------------------------ | ------------ | ------------------------- |
-| `users`                  | ✅ Existente | Usuarios del sistema      |
-| `discipleship_hierarchy` | ✅ Existente | Jerarquía de 5 niveles    |
-| `discipleship_groups`    | ✅ Existente | Grupos de células         |
-| `discipleship_metrics`   | ✅ Existente | Métricas semanales        |
-| `discipleship_reports`   | ✅ Existente | Reportes por nivel        |
-| `zones`                  | ✅ Existente | Zonas geográficas         |
-| `group_members`          | ✅ Existente | Miembros de grupos        |
-| `audit_logs`             | ✅ Existente | Auditoría de cambios      |
-| `invitations`            | ✅ Existente | Invitaciones de usuarios  |
-| `settings`               | ✅ Existente | Configuración del sistema |
-| `user_preferences`       | ✅ Existente | Preferencias por usuario  |
-| `alerts`                 | ✅ Existente | Alertas del sistema       |
-
-**Pending de verificar en código** (no found en migrations):
-
-- `training_modules` - Módulos de capacitación
-- `user_training_progress` - Progreso de capacitación
-- `notifications` - Sistema de notificaciones
+| Servicio | Responsabilidad |
+|---------|----------------|
+| `api.service.ts` | Cliente HTTP base, manejo de errores |
+| `user.service.ts` | CRUD usuarios, perfil, onboarding |
+| `dashboard.service.ts` | Stats del dashboard principal |
+| `discipleship.service.ts` | Grupos, jerarquía, reportes, alertas, asistencia, goals |
+| `discipleship-analytics.service.ts` | Analytics, tendencias, stats por nivel |
+| `zones.service.ts` | Zonas con mapa Leaflet |
+| `settings.service.ts` | Settings del sistema e iglesia |
 
 ---
 
-### 3.5 Mocks en el Código
+## 5. Base de Datos — Tablas
 
-| Archivo                                   | Estado                  | Notas                      |
-| ----------------------------------------- | ----------------------- | -------------------------- |
-| `src/mocks/discipleship/data.mock.ts`     | ⚠️ legacy               | Ya no se usa en producción |
-| `src/mocks/discipleship/services.mock.ts` | ⚠️ legacy               | Ya no se usa en producción |
-| **`PersonalDashboard.tsx`**               | ❌ **Pendiente migrar** | Usa `mockNotifications`    |
+### 5.1 Tablas del Módulo Discipleship (confirmadas en código)
 
-**Plan**: Migrar `PersonalDashboard.tsx` al sistema real de notificaciones cuando esté implementado.
+| Tabla | Descripción | Notas |
+|-------|------------|-------|
+| `discipleship_groups` | Grupos/células | Tiene `active_members` (actualizado por handler de asistencia) |
+| `discipleship_hierarchy` | Jerarquía 1-5 | `hierarchy_level`, `supervisor_id` |
+| `discipleship_group_members` | Membresía en grupos | |
+| `discipleship_attendance` | Asistencia individual | `present`, `meeting_date` |
+| `discipleship_reports` | Reportes semanales | `report_data` (JSONB, 13 métricas) + `is_multiplying` |
+| `discipleship_goals` | Objetivos estratégicos | `goal_type`, `target_metric`, `current_value`, `deadline` |
+| `discipleship_alerts` | Alertas | `alert_type`, `resolved`, `priority` (5=celebración) |
+| `discipleship_levels` | Nombres de niveles configurables | 1-5, personalizables por iglesia |
+| `discipleship_multiplications` | Conteo de multiplicaciones | Liviana, para dashboard |
+| `cell_multiplication_tracking` | Historial detallado | Usado en analytics y goals |
+
+> ⚠️ **`discipleship_metrics` NO EXISTE** — fue dropeada en `20260501000000_drop_discipleship_metrics.sql`. Nunca escribir queries a esta tabla.
+
+### 5.2 Tablas del Sistema
+
+| Tabla | Descripción |
+|-------|------------|
+| `users` | Usuarios con `role`, `role_level`, `has_admin_access` |
+| `zones` | Zonas geográficas |
+| `invitations` | Invitaciones de usuarios |
+| `settings` | Configuración del sistema |
+| `user_preferences` | Preferencias por usuario |
+| `audit_logs` | Auditoría de cambios de acceso |
+| `church_info` | Información de la iglesia |
+
+### 5.3 Métricas JSONB — Campos de `report_data`
+
+Los reportes semanales almacenan 13 métricas en `discipleship_reports.report_data`:
+
+**Numéricas (1 punto si > 0)**:
+`attendance_nd`, `attendance_dm`, `attendance_friends`, `attendance_kids`, `group_discipleships`, `group_evangelism`, `leader_new_disciples_care`, `leader_mature_disciples_care`, `spiritual_journal_days`, `leader_evangelism`
+
+**Booleanas (1 punto si = true)**:
+`service_attendance_sunday`, `service_attendance_prayer`, `doctrine_attendance`
+
+**Temperatura espiritual** = suma de puntos sobre 28 días (máx. 13 por reporte). Objetivo > 8.
 
 ---
 
-## 4. Arquitectura de Rutas del Backend
-
-### 4.1 Diagrama de Rutas
+## 6. Arquitectura de Rutas del Backend
 
 ```
 /api/v1/
-├── /health                    # Health check (público)
-├── /auth/
-│   ├── POST /login            # Iniciar sesión
-│   └── POST /logout          # Cerrar sesión
-├── /users                   # (protegido)
-│   ├── GET /               # Listar usuarios
-│   ├── POST /              # Crear usuario
-│   ├── GET /:id            # Obtener usuario
-│   ├── PUT /:id            # Actualizar usuario
-│   ├── DELETE /:id         # Eliminar usuario
-│   ├── GET /me             # Perfil actual
-│   └── PUT /me             # Actualizar perfil
-├── /dashboard/stats         # Estadísticas
-├── /setup/
-│   ├── GET /status         # Estado de setup
-│   └── POST /             # Realizar setup
-├── /modules/:key           # Actualizar módulo
-├── /invitations/           # Gestión de invitaciones
-├── /settings/
-│   ├── /system            # Settings del sistema
-│   ├── /church           # Info de la iglesia
-│   └── /notifications    # Config de notificaciones
-├── /preferences/         # Preferencias de usuario
-├── /discipleship/        # Módulo de discipulado
-│   ├── /groups          # Grupos de células
-│   ├── /hierarchy     # Jerarquía
-│   ├── /levels        # Niveles
-│   ├── /metrics      # Métricas
-│   ├── /reports     # Reportes
-│   ��── /alerts     # Alertas
-│   ├── /analytics  # Analytics
-│   └── /attendance # Asistencia
-└── /zones/           # Gestión de zonas
-    ├── /map           # Datos para mapa
-    ├── /:id/stats   # Stats de zona
-    └── /:id/groups # Grupos de zona
+├── GET  /health                           # público
+├── GET  /debug/sentry-test                # público ⚠️ temporal
+├── POST /auth/login
+├── POST /auth/logout
+├── GET  /setup/status
+├── POST /setup
+│
+├── [AUTH] GET  /permissions/me
+├── [AUTH] GET  /users/me
+├── [AUTH] PUT  /users/me
+├── [AUTH] PUT  /users/me/onboarding
+├── [AUTH] GET  /dashboard/stats
+├── [AUTH] GET  /preferences
+├── [AUTH] PUT  /preferences
+│
+├── [AUTH+staff] GET    /users
+├── [AUTH+staff] POST   /users
+├── [AUTH+staff] GET    /users/:id
+├── [AUTH+staff] PUT    /users/:id
+├── [AUTH+staff] DELETE /users/:id
+├── [AUTH+staff] POST   /users/direct
+│
+├── [AUTH+staff]  GET/POST /invitations
+├── [AUTH+pastor] PUT      /modules/:key
+├── [AUTH+pastor] GET/PUT  /settings/system
+├── [AUTH+pastor] GET/PUT  /settings/church
+├── [AUTH+pastor] GET/PUT  /settings/notifications
+│
+└── [AUTH+módulo_discipleship] /discipleship/...
+    └── [AUTH+módulo_zones] /zones/...
 ```
 
-### Middlewares Applied
+### Middlewares en orden de ejecución
 
-| Ruta                              | Middleware                      | Función                |
-| --------------------------------- | ------------------------------- | ---------------------- |
-| Todas (excepto `/auth`, `/setup`) | `SupabaseAuth()`                | Valida JWT             |
-| `/discipleship/*`                 | `RequireModule("discipleship")` | Requiere módulo activo |
-| `/zones/*`                        | `RequireModule("zones")`        | Requiere módulo activo |
+```
+Request → Logger → Sentry (si DSN) → Recover → CORS → Route handlers
+                              ↓
+                       SupabaseAuth (rutas protegidas)
+                              ↓
+                       RequireModule (rutas de módulo)
+                              ↓
+                       RequireRole (rutas con nivel mínimo)
+```
 
 ---
 
-## 5. Flujos de Datos Principales
+## 7. Flujos de Datos Principales
 
-### 5.1 Login y Acceso
+### 7.1 Login y Redirección por Nivel
 
 ```
-Usuario → Login.tsx → API /auth/login
+Login → /auth/login → JWT válido
                           ↓
-                    Validar credentials con Supabase
+                    GET /permissions/me
                           ↓
-                    Generar JWT
-                          ↓
-                   .Redirect a Dashboard según nivel
+                    ¿discipleship_level?
+                          ├── null + no fullAccess → "Sin acceso" en DiscipleshipPage
+                          ├── level 1 → LeaderDashboard
+                          ├── level 2 → AuxiliarySupervisorDashboard
+                          ├── level 3 → GeneralSupervisorDashboard
+                          ├── level 4 → CoordinatorDashboard
+                          └── level 5 / isFullAccess → PastoralDashboard
 ```
 
-### 5.2 Reporte Semanal (Líder)
+### 7.2 Reporte Semanal (Líder)
 
 ```
-LeaderDashboard → Formulario semanal
-                ↓
-POST /api/v1/discipleship/metrics
-                ↓
-POST /api/v1/discipleship/reports
-                ↓
-Alerta automática al supervisor si asistencia < umbral
+LeaderDashboard → LeaderReportModal
+                        ↓
+               13 métricas + is_multiplying
+                        ↓
+          POST /discipleship/reports (con report_data JSONB)
+                        ↓
+               UPDATE discipleship_groups.active_members
+                        ↓
+          POST /discipleship/alerts/generate (automático)
+                        ↓
+               7 alertas evaluadas con dedup
 ```
 
-### 5.3 Gestión de Zonas
+### 7.3 Dashboard Pastoral — Carga de Datos
 
 ```
-ZonesPage → Listar zonas
-           ↓
-GET /api/v1/zones
-           ↓
-Seleccionar zona → GET /api/v1/zones/:id/stats
-                      ↓
-                 Asignar grupos y usuarios
+PastoralDashboard → useDiscipleshipData({ level: 5 })
+                             ↓ Promise.allSettled
+       ┌─────────────────────┬──────────────────────┐
+       ↓                     ↓                      ↓
+/weekly-trends        /analytics             /dashboard-stats
+/reports?submitted    /alerts?resolved=false  /goals
+       └─────────────────────┴──────────────────────┘
+                             ↓
+                    Recharts + tablas + KPIs
 ```
 
 ---
 
-## 6. Guías de Contribución
+## 8. Variables de Entorno
 
-### 6.1 Agregar Nueva Ruta al Backend
+### Backend (`apps/backend-go/.env`)
 
-1. **Crear handler** en `apps/backend-go/handlers/`
+| Variable | Descripción | Default |
+|----------|------------|---------|
+| `PORT` | Puerto del servidor | `8081` |
+| `SUPABASE_URL` | URL de Supabase | — |
+| `SUPABASE_DB_URL` | URL directa a PostgreSQL | — |
+| `SUPABASE_ANON_KEY` | Anon key | — |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key | — |
+| `JWT_SECRET` | Secret para validar JWT | — |
+| `ALLOWED_ORIGINS` | CORS origins | `http://localhost:5173` |
+| `ENVIRONMENT` | `development` \| `production` | `development` |
+| `SENTRY_DSN` | DSN del proyecto Go en Sentry | — (opcional) |
+| `SION_ADMIN_EMAIL` | Email del super admin bootstrap | — |
+| `SION_ADMIN_PASSWORD` | Password del super admin bootstrap | — |
 
-   ```go
-   func (h *Handler) NewEndpoint(c echo.Context) error {
-       // lógica
-   }
-   ```
+### Frontend (`.env`)
 
-2. **Registrar ruta** en `apps/backend-go/routes/routes.go`
-
-   ```go
-   module.POST("/endpoint", handler.NewEndpoint)
-   ```
-
-3. **Agregar middleware si es necesario**
-   ```go
-   module.Use(middleware.RequireModule("module_name"))
-   ```
-
----
-
-### 6.2 Agregar Nuevo Componente al Frontend
-
-1. **Crear componente** en `src/components/`
-2. **Crear hook si necesita datos** en `src/hooks/`
-3. **Agregar ruta** en el router
-4. **Agregar permisos** en `src/lib/permissions.ts`
+| Variable | Descripción |
+|----------|------------|
+| `VITE_SUPABASE_URL` | URL de Supabase |
+| `VITE_SUPABASE_ANON_KEY` | Anon key |
+| `VITE_SENTRY_DSN` | DSN del proyecto React en Sentry (opcional) |
 
 ---
 
-### 6.3 Agregar Nueva Tabla a la Base de Datos
-
-1. **Crear migration** en `supabase/migrations/`
-
-   ```sql
-   CREATE TABLE public.new_table ();
-   ```
-
-2. **Agregar modelo en Go** en `apps/backend-go/models/`
-3. **Agregar handler y rutas**
-4. **Agregar servicio en Frontend** si es necesario
-5. **Agregar tipo en TypeScript** si es necesario
-
----
-
-## 7. Variables de Entorno
-
-### Backend Go (.env)
-
-| Variable               | Descripción         | Default |
-| ---------------------- | ------------------- | ------- |
-| `PORT`                 | Puerto del servidor | 8081    |
-| `SUPABASE_URL`         | URL de Supabase     | -       |
-| `SUPABASE_KEY`         | Key de Supabase     | -       |
-| `SUPABASE_SERVICE_KEY` | Service role key    | -       |
-
-### Frontend (.env)
-
-| Variable                 | Descripción     |
-| ------------------------ | --------------- |
-| `VITE_SUPABASE_URL`      | URL de Supabase |
-| `VITE_SUPABASE_ANON_KEY` | Anon key        |
-
----
-
-## 8. Comandos de Desarrollo
+## 9. Comandos de Desarrollo
 
 ### Backend
 
 ```bash
 cd apps/backend-go
 
-# Instalar dependencias
+# Dependencias
 go mod download
 
-# Ejecutar con hot reload (air)
+# Dev con hot reload
 air
 
 # Build
-go build -o backend-sion
+go build -o backend-sion ./...
+
+# Verificar compilación
+go build ./...
 ```
 
 ### Frontend
@@ -336,11 +392,14 @@ go build -o backend-sion
 # Instalar dependencias
 yarn install
 
-# Ejecutar desarrollo
+# Desarrollo
 yarn dev
 
 # Build producción
 yarn build
+
+# Tests
+yarn test
 ```
 
 ### Base de Datos
@@ -349,334 +408,135 @@ yarn build
 # Aplicar migrations
 supabase db push
 
-# Resetear DB
+# Resetear DB (dev)
 supabase db reset
+
+# Ver estado
+supabase status
 ```
 
 ---
 
-## 9. Tests
+## 10. Tests
 
 ### Backend
-
-- Tests unitarios en Go con estándar `testing`
-- Ubicación: junto a cada archivo `_test.go`
+- **Estado**: No hay tests unitarios en `apps/backend-go/` aún.
+- **Herramienta planeada**: Go built-in `testing` package.
 
 ### Frontend
-
-- Tests con Vitest y React Testing Library
-- Ubicación: `src/__tests__/`
+- **Framework**: Vitest + React Testing Library
+- **Ubicación**: `src/__tests__/`
+- **Configuración**: Jest preset, jsdom environment
+- **Archivo de ejemplo**: `src/__tests__/utils/permissions.test.ts`
 
 ---
 
-## 10. Pendientes y Known Issues
+## 11. Guías de Contribución
+
+### 11.1 Agregar Nuevo Endpoint al Backend
+
+```
+1. Crear handler en handlers/nuevo_modulo.go
+   → struct NuevoHandler + NewNuevoHandler() + métodos
+   
+2. Registrar en routes/routes.go
+   → nuevoHandler := handlers.NewNuevoHandler()
+   → ruta := protected.Group("/nuevo")
+   → ruta.Use(middleware.RequireRole(utils.LevelStaff))
+   → ruta.GET("", nuevoHandler.GetItems)
+   
+3. Agregar modelo en models/ si hace falta
+
+4. Hacer go build ./... para verificar
+```
+
+### 11.2 Agregar Nueva Migration
+
+```
+1. Crear archivo en supabase/migrations/
+   → Nombre: YYYYMMDDHHMMSS_descripcion.sql
+   
+2. Escribir SQL idempotente
+   → Usar IF NOT EXISTS, IF EXISTS
+
+3. Aplicar: supabase db push
+```
+
+### 11.3 Agregar Nuevo Componente Frontend
+
+```
+1. Componente en src/components/ o src/pages/
+2. Hook en src/hooks/ si necesita datos remotos
+   → Usar TanStack Query (useQuery / useMutation)
+3. Servicio en src/services/ si es un nuevo módulo
+4. Tipos en src/types/
+5. Permisos con <Can I={ROLE_LEVELS.staff}> para acciones
+```
+
+---
+
+## 12. Dos Capas de Roles — CONCEPTUAL CLAVE
+
+El sistema tiene DOS capas de roles **independientes**:
+
+| Capa | Tabla / Campo | Valores | Uso |
+|------|--------------|---------|-----|
+| **ERP** | `users.role` | admin/pastor/staff/supervisor/server/member | Acceso general a la app |
+| **Módulo** | `discipleship_hierarchy.hierarchy_level` | 1-5 | Vista y acceso dentro del módulo |
+
+Un usuario con `role = member` puede ser Líder de Grupo (`hierarchy_level = 1`).
+Un usuario con `role = pastor` tiene `isFullAccess = true` y ve todo sin hierarchy_level.
+
+**Nunca confundir** el nivel ERP con el nivel de módulo. Son independientes y complementarios.
+
+---
+
+## 13. Pendientes y Known Issues
 
 ### Pendientes de Implementación
 
-1. **Migrar PersonalDashboard.tsx** — Actualmente usa mocks, debe usar backend real
-2. **Verificar training_modules y user_training_progress** — ¿Están implementados?
-3. **Verificar tabla notifications** — ¿Existe o es necesario?
-4. **Dashboard multi-módulo por rol** — El dashboard debe mostrar datos de TODOS los módulos activos (discipulado, zonas, eventos, reportes, etc.) según el rol del usuario
+| Item | Prioridad | Notas |
+|------|-----------|-------|
+| Preferencias de usuario (UI) | Alta | Backend ✅, frontend falta |
+| Configuración de iglesia (UI) | Alta | Backend ✅, frontend falta |
+| PersonalDashboard con datos reales | Media | Actualmente usa `mockNotifications` |
+| Módulo de Notificaciones | Baja | Planeado, no implementado |
+| Tests backend Go | Baja | Estructura planeada, no implementada |
+| Eliminar `/debug/sentry-test` | Media | Endpoint temporal de verificación |
 
 ### Known Issues
 
-- El módulo "events" y "reports" están mencionados en código pero el análisis está incompleto
-- Algunos documentos en `docs/` pueden estar desactualizados
+- `PersonalDashboard.tsx` usa `mockNotifications` — pendiente migrar al backend cuando se implemente el módulo de notificaciones
+- El módulo "events" tiene ruta en el sidebar pero sin pantalla de contenido real
+- Secciones de `ReportsPage.tsx`, `RolesPage.tsx` pueden tener funcionalidad parcial
 
 ---
 
-## 11. Dashboard Multi-Módulo — Requerimiento Clave
+## 14. KPIs y Analytics — Referencia
 
-### 11.1 Problema Actual
+Ver documento dedicado:
 
-El dashboard actual **solo muestra datos del módulo Discipulado**. Está diseñado para un sistema mono-módulo, no para un ERP multi-módulo.
+📄 **`docs/DISCIPLESHIP_DASHBOARD_KPIS.md`**
 
-### 11.2 Requerimiento
-
-El dashboard debe ser **dinámico** y mostrar:
-
-- **Widgets de cada módulo activo**: Para cada módulo habilitado (discipulado, zonas, eventos, reportes), mostrar un widget relevante
-- **Según el rol del usuario**: Un pastor verá diferente a un líder, y diferente a un staff administrativo
-- **No abruma**: Solo mostrar lo relevante para el rol específico
-
-### 11.3 Arquitectura Propuesta
-
-```
-Dashboard Dinámico
-├── Cargar módulos activos del sistema
-├── Cargar permisos/rol del usuario
-├── Por cada módulo activo:
-│   └── Si el usuario tiene acceso:
-│       └── Renderizar widget del módulo
-└──Mostrar widgets relevantes solo
-```
-
-### 11.4 Módulos Actuales y Potentiales
-
-| Módulo          | Widget sugerida para Dashboard              |
-| --------------- | ------------------------------------------- |
-| **Discipulado** | Métricas de grupos, asistencia, crecimiento |
-| **Zonas**       | Mapa de zonas, grupos por zona              |
-| **Eventos**     | Próximos eventos, asistencia                |
-| **Reportes**    | Reportes pendientes de aprobar              |
-| **Usuarios**    | Nuevos miembros, estados                    |
-| **Finanzas**    | (futuro) state financiero                   |
-
-### 11.5 Pendiente Detallado
-
-- [ ] Definir estructura de "Widget" genérico para módulos
-- [ ] Crear endpoint que devuelva módulos ativos + permisos del usuario
-- [ ] Modificar frontend para renderizar dinámicamente según módulos activos
-- [ ] Agregar widgets para cada módulo existente (o crear skip si no hay datos aún)
-- [ ] Definir qué ve cada rol en cada módulo
-
-**Nota**: Este es un requerimiento crítico para la evolución del sistema hacia un ERP real.
+Contiene:
+- Tablas reales de BD (post-migración, sin `discipleship_metrics`)
+- Queries SQL activos en `dashboard.go`
+- Fórmula de temperatura espiritual (13 puntos objetivos)
+- Consultas de verificación para Supabase SQL Editor
 
 ---
 
-## 13. Dashboard de Discipulado — Pastoral y Otros
+## 15. Referencias Rápidas
 
-### 13.1 Estructura de Dashboards por Nivel
-
-El sistema tiene dashboards específicos por nivel jerárquico en el módulo de discipulado:
-
-| Nivel | Rol                 | Dashboard                          | Ubicación       |
-| ----- | ------------------- | ---------------------------------- | --------------- |
-| 5     | Pastor              | `PastoralDashboard.tsx`            | ✅ Implementado |
-| 4     | Coordinador         | `CoordinatorDashboard.tsx`         | ✅ Implementado |
-| 3     | Supervisor General  | `GeneralSupervisorDashboard.tsx`   | ✅ Implementado |
-| 2     | Supervisor Auxiliar | `AuxiliarySupervisorDashboard.tsx` | ✅ Implementado |
-| 1     | Líder               | `LeaderDashboard.tsx`              | ✅ Implementado |
-
-### 13.2 pastoralDashboard — Tabs y Fuentes de Datos
-
-El `PastoralDashboard` tiene 5 tabs, cada unoconectado a endpoints específicos:
-
-| Tab                   | Usa estos datos                | Endpoint del Backend                                                                                    | Tabla en DB                                            |
-| --------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **Vista General**     | weeklyTrends, zoneStats, stats | `/discipleship/weekly-trends`, `/discipleship/analytics/zones`, `/discipleship/dashboard-stats?level=5` | `discipleship_metrics`, `discipleship_groups`, `zones` |
-| **Estratégico**       | goals                          | `/discipleship/goals`                                                                                   | `discipleship_goals`                                   |
-| **Aprobaciones**      | pendingReports                 | `/discipleship/reports?status=submitted`                                                                | `discipleship_reports`                                 |
-| **Alertas**           | alerts                         | `/discipleship/alerts?resolved=false`                                                                   | `discipleship_alerts`                                  |
-| **Salud del Sistema** | stats varios                   | `/discipleship/dashboard-stats`                                                                         | Varias                                                 |
-
-### 13.3 Hook que Carga los Datos
-
-Todos los dashboards de discipulado usan el hook `useDiscipleshipData`:
-
-```typescript
-// src/hooks/useDiscipleshipData.ts
-const { loading, stats, zoneStats, weeklyTrends, goals, alerts, pendingReports, refetch } =
-  useDiscipleshipData({ level: 5 }); // nivel 5 = Pastor
-```
-
-El hook determina qué datos cargar según el nivel del usuario.
-
-### 13.4 Endpoints del Backend Go
-
-| Endpoint                                            | Retorna               | Tabla(s) Involved                             |
-| --------------------------------------------------- | --------------------- | --------------------------------------------- |
-| `GET /api/v1/discipleship/dashboard-stats?level=X`  | Stats según nivel     | `discipleship_groups`, `discipleship_metrics` |
-| `GET /api/v1/discipleship/weekly-trends?weeks=N`    | Tendencias por semana | `discipleship_metrics`                        |
-| `GET /api/v1/discipleship/analytics/zones`          | Stats por zona        | `discipleship_groups`, `zones`                |
-| `GET /api/v1/discipleship/goals`                    | Objetivos             | `discipleship_goals`                          |
-| `GET /api/v1/discipleship/reports?status=submitted` | Reportes pendientes   | `discipleship_reports`                        |
-| `GET /api/v1/discipleship/alerts?resolved=false`    | Alertas activas       | `discipleship_alerts`                         |
-
-### 13.5 Tablas de la Base de Datos
-
-| Tabla                  | Uso                    | Estado Actual        |
-| ---------------------- | ---------------------- | -------------------- |
-| `discipleship_groups`  | Grupos de células      | ✅ Existe            |
-| `discipleship_metrics` | Métricas semanales     | ✅ Tiene 6 registros |
-| `discipleship_goals`   | Objetivos estratégicos | ⚠️ Vacía o sin datos |
-| `discipleship_reports` | Reportes por nivel     | ⚠️ Vacía o sin datos |
-| `discipleship_alerts`  | Alertas del sistema    | ⚠️ Vacía o sin datos |
-| `zones`                | Zonas geográficas      | ✅ Existe            |
-
-### 13.6 Por qué Parece "Mockeado"
-
-El dashboard **NO está mockeado**. El código está bien conectado al backend. Si las gráficas o datos aparecen en 0 o muestran "No hay datos", es porque:
-
-1. Las tablas de la base de datos están vacías
-2. No se han creado registros de prueba
-
-Para verificar:
-
-```sql
--- Verificar datos en cada tabla
-SELECT COUNT(*) FROM discipleship_groups;
-SELECT COUNT(*) FROM discipleship_metrics;  -- Tiene 6 registros
-SELECT COUNT(*) FROM discipleship_goals;
-SELECT COUNT(*) FROM discipleship_reports WHERE status = 'submitted';
-SELECT COUNT(*) FROM discipleship_alerts WHERE resolved = false;
-```
-
-### 13.7 Cómo Agregar Datos de Prueba
-
-Los datos se pueden agregar desde:
-
-1. **La UI del sistema** — Crear grupos, objetivos, reportes desde los formularios
-2. **Seed de Supabase** — En `supabase/seed.sql` hay datos de ejemplo
-3. **Directamente en SQL** — Insertando registros en las tablas
-
-### 13.8 Recomendación
-
-El dashboard está **totalmente funcional** a nivel de código. Solo falta populación de datos en:
-
-- `discipleship_goals`
-- `discipleship_reports`
-- `discipleship_alerts`
-
-Crear algunos objetivos y reportes de prueba para ver el dashboard completo en acción.
+| Recurso | Ubicación |
+|---------|-----------|
+| Entry point backend | `apps/backend-go/main.go` |
+| Todas las rutas + middlewares | `apps/backend-go/routes/routes.go` |
+| Niveles de rol (constantes) | `apps/backend-go/utils/CONST.go` |
+| RBAC frontend | `src/lib/permissions.ts` |
+| KPIs y tablas de discipulado | `docs/DISCIPLESHIP_DASHBOARD_KPIS.md` |
+| Módulo discipulado completo | `docs/DISCIPLESHIP_MODULE.md` |
 
 ---
 
-## 12. Especificación de Widgets para Dashboard Multi-Módulo
-
-### 12.1 Interfaz de Widget
-
-Cada-widget-debe-tener-esta-estructura:
-
-```typescript
-interface DashboardWidget {
-  module: string; // 'discipulado' | 'zonas' | 'eventos' | 'reportes' | 'usuarios'
-  title: string; // Título visible del widget
-  icon: string; // Icono (lucide-react)
-  roles: string[]; // Roles que pueden ver este widget
-  priority: number; // Orden de visualización (1 = arriba)
-  component: string; // Componente React a renderizar
-  dataEndpoint: string; // Endpoint del backend
-}
-```
-
-### 12.2 Widgets por Módulo
-
-| Módulo          | Widget Title            | Roles                     | Priority | Endpoint                         | Notas                           |
-| --------------- | ----------------------- | ------------------------- | -------- | -------------------------------- | ------------------------------- |
-| **discipulado** | Métricas de Discipulado | admin, pastor, staff      | 1        | `/api/v1/discipleship/analytics` | Grupos, asistencia, crecimiento |
-| **zonas**       | Vista de Zonas          | admin, pastor             | 2        | `/api/v1/zones`                  | Mapa y stats de zonas           |
-| **eventos**     | Próximos Eventos        | todos                     | 3        | `/api/v1/events`                 | Lista de eventos                |
-| **reportes**    | Reportes Pendientes     | admin, pastor, supervisor | 4        | `/api/v1/discipleship/reports`   | Reportes por aprobar            |
-| **usuarios**    | Usuarios Recientes      | admin, pastor, staff      | 5        | `/api/v1/users`                  | Últimos registrados             |
-
-### 12.3 Estructura de Renderizado
-
-```tsx
-// Pseudocódigo del DashboardHome
-const DashboardHome = () => {
-  const { installedModules, currentUserRole } = useDashboardStats();
-
-  // Filtrar widgets según: módulo activo + rol del usuario
-  const activeWidgets = WIDGETS.filter(
-    widget => installedModules.includes(widget.module) && widget.roles.includes(user.role)
-  ).sort((a, b) => a.priority - b.priority);
-
-  return (
-    <div className="grid...">
-      {activeWidgets.map(widget => (
-        <WidgetRenderer key={widget.module} widget={widget} />
-      ))}
-    </div>
-  );
-};
-```
-
-### 12.4 Registro de Widgets (Frontend)
-
-Ubicación propuesta: `src/config/dashboard-widgets.ts`
-
-```typescript
-export const DASHBOARD_WIDGETS: DashboardWidget[] = [
-  {
-    module: 'discipulado',
-    title: 'Métricas de Discipulado',
-    icon: 'Users',
-    roles: ['admin', 'pastor', 'staff'],
-    priority: 1,
-    component: 'DiscipleshipWidget',
-    dataEndpoint: '/api/v1/discipleship/analytics',
-  },
-  {
-    module: 'zonas',
-    title: 'Distribución por Zonas',
-    icon: 'MapPin',
-    roles: ['admin', 'pastor'],
-    priority: 2,
-    component: 'ZonesWidget',
-    dataEndpoint: '/api/v1/zones',
-  },
-  {
-    module: 'eventos',
-    title: 'Próximos Eventos',
-    icon: 'Calendar',
-    roles: ['admin', 'pastor', 'staff', 'usuario'],
-    priority: 3,
-    component: 'EventsWidget',
-    dataEndpoint: '/api/v1/events',
-  },
-  // ... más widgets
-];
-```
-
-### 12.5 Ejemplo de Componente de Widget
-
-```typescript
-// src/components/dashboard/widgets/DiscipleshipWidget.tsx
-interface DiscipleshipWidgetProps {
-  data: DiscipleshipDashboardStats;
-}
-
-export const DiscipleshipWidget = ({ data }: DiscipleshipWidgetProps) => {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Métricas de Discipulado</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4">
-          <StatItem label="Grupos" value={data.totalGroups} />
-          <StatItem label="Miembros" value={data.totalMembers} />
-          <StatItem label="Asistencia Promedio" value={data.avgAttendance} />
-          <StatItem label="Crecimiento" value={data.monthlyGrowth} />
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-```
-
-### 12.6 Tareas de Implementación
-
-- [ ] **Crear archivo de configuración** `src/config/dashboard-widgets.ts`
-- [ ] **Crear componentes base** para cada widget en `src/components/dashboard/widgets/`
-- [ ] **Modificar `DashboardHome.tsx`** para usar el sistema de widgets dinámicos
-- [ ] **Agregar endpoints** en Go para cada módulo si no existen
-- [ ] **Actualizar tipos** en TypeScript
-
-### 12.7 Reglas de Expansión
-
-Cuando se agrega un **nuevo módulo**:
-
-1. Agregar widget en `src/config/dashboard-widgets.ts`
-2. Crear componente en `src/components/dashboard/widgets/{Module}Widget.tsx`
-3. Agregar endpoint en backend Go
-4. El dashboard automáticamente lo renderiza si:
-   - El módulo está activo (`installedModules.includes(module)`)
-   - El usuario tiene el rol permitido (`widget.roles.includes(user.role)`)
-
----
-
-## 11. Referencias Rápidas
-
-| Recurso      | Ubicación                             |
-| ------------ | ------------------------------------- |
-| Backend main | `apps/backend-go/main.go`             |
-| Rutas API    | `apps/backend-go/routes/routes.go`    |
-| DB Schema    | `docs/ESQUEMA_BASE_DATOS_COMPLETO.md` |
-| Discipulado  | `docs/DISCIPLESHIP_MODULE.md`         |
-| Permisos     | `src/lib/permissions.ts`              |
-
----
-
-_Documento mantenido automáticamente. Actualizar al agregar/modificar módulos._
+_Documento técnico mantenido activamente. Actualizar al agregar o modificar módulos, rutas, tablas o decisiones de arquitectura._
