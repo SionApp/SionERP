@@ -15,19 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { MusicService } from '@/services/music.service';
-import type { MusicAssignment, MusicEvent, MusicEventType } from '@/types/music.types';
-
-const EVENT_TYPE_LABEL: Record<MusicEventType, string> = {
-  viernes: 'Viernes',
-  domingo: 'Domingo',
-  especial: 'Especial',
-};
-
-const EVENT_TYPE_GRADIENT: Record<MusicEventType, string> = {
-  viernes: 'from-blue-500 to-indigo-600',
-  domingo: 'from-emerald-500 to-teal-600',
-  especial: 'from-amber-500 to-orange-600',
-};
+import type { MusicAssignment, MusicEvent } from '@/types/music.types';
+import { EVENT_TYPE_GRADIENT, EVENT_TYPE_LABEL } from './event-visual';
 
 function daysUntil(iso: string): number {
   const target = new Date(`${iso}T00:00:00`);
@@ -147,13 +136,11 @@ function StatTile({
   value,
   icon,
   tone = 'default',
-  delay = 0,
 }: {
   label: string;
   value: number | string;
   icon: React.ReactNode;
   tone?: 'default' | 'primary' | 'warning' | 'success';
-  delay?: number;
 }) {
   const tones = {
     default: 'bg-card',
@@ -162,14 +149,7 @@ function StatTile({
     success: 'bg-emerald-500/10 border-emerald-500/30',
   };
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-3 sm:p-4 animate-slide-up transition-all',
-        'hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10',
-        tones[tone]
-      )}
-      style={{ animationDelay: `${delay}ms`, animationFillMode: 'backwards' }}
-    >
+    <div className={cn('rounded-xl border border-border p-3 sm:p-4', tones[tone])}>
       <div className="flex items-center gap-2 mb-1 text-muted-foreground">
         {icon}
         <span className="text-xs font-medium">{label}</span>
@@ -211,8 +191,7 @@ function NextCultoHeroCard({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-2xl text-white shadow-lg animate-slide-up',
-        'transition-shadow hover:shadow-xl hover:shadow-primary/20',
+        'relative overflow-hidden rounded-2xl text-white shadow-lg',
         'bg-gradient-to-br',
         EVENT_TYPE_GRADIENT[event.eventType]
       )}
@@ -238,12 +217,7 @@ function NextCultoHeroCard({
             </div>
           </div>
           <div className="text-right shrink-0">
-            <div
-              className={cn(
-                'text-3xl sm:text-4xl font-extrabold tabular-nums leading-none',
-                dCount >= 0 && dCount <= 1 && 'animate-pulse-dot'
-              )}
-            >
+            <div className="text-3xl sm:text-4xl font-extrabold tabular-nums leading-none">
               {dCount >= 0 ? dCount : '—'}
             </div>
             <p className="text-xs opacity-80 mt-1">{dLabel}</p>
@@ -355,26 +329,22 @@ export function DirectorMusicHero({ onOpenEvent }: { onOpenEvent: (e: MusicEvent
           value={activeMembers}
           icon={<Users className="h-3.5 w-3.5" />}
           tone="primary"
-          delay={0}
         />
         <StatTile
           label="Cultos este mes"
           value={cultosThisMonth}
           icon={<CalendarDays className="h-3.5 w-3.5" />}
-          delay={60}
         />
         <StatTile
           label="Repertorio"
           value={repertoireSize}
           icon={<Music2 className="h-3.5 w-3.5" />}
-          delay={120}
         />
         <StatTile
           label="Próximos cultos"
           value={upcoming.length}
           icon={<TrendingUp className="h-3.5 w-3.5" />}
           tone={upcoming.length === 0 ? 'warning' : 'success'}
-          delay={180}
         />
       </div>
     </div>

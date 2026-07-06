@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -141,27 +143,32 @@ export default function MusicInstruments({ isDirector }: { isDirector: boolean }
                       <Icon className={cn('h-3.5 w-3.5', meta.text)} />
                       <span className="text-sm">{ins.name}</span>
                       {isDirector && (
-                        <div className="ml-1 flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              toggleMutation.mutate({ id: ins.id, isActive: !ins.isActive })
+                        <div className="ml-1 flex items-center gap-2">
+                          <Switch
+                            checked={ins.isActive}
+                            onCheckedChange={v =>
+                              toggleMutation.mutate({ id: ins.id, isActive: v })
                             }
-                            className={cn(
-                              'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                              ins.isActive ? 'text-emerald-300' : 'text-muted-foreground'
-                            )}
-                          >
-                            {ins.isActive ? 'Activo' : 'Inactivo'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteMutation.mutate(ins.id)}
-                            className="text-destructive hover:opacity-70"
-                            aria-label={`Eliminar ${ins.name}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                            aria-label={
+                              ins.isActive ? `Desactivar ${ins.name}` : `Activar ${ins.name}`
+                            }
+                            className="scale-75"
+                          />
+                          <ConfirmDialog
+                            trigger={
+                              <button
+                                type="button"
+                                className="text-destructive hover:opacity-70"
+                                aria-label={`Eliminar ${ins.name}`}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            }
+                            title="¿Eliminar instrumento?"
+                            description={`Se quita "${ins.name}" del catálogo de la iglesia.`}
+                            confirmLabel="Eliminar"
+                            onConfirm={() => deleteMutation.mutate(ins.id)}
+                          />
                         </div>
                       )}
                     </div>

@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import MusicPage from '@/pages/dashboard/MusicPage';
 import MusicMembers from '@/pages/dashboard/music/MusicMembers';
 import { MusicService } from '@/services/music.service';
@@ -34,7 +35,11 @@ import { usePermissions } from '@/hooks/usePermissions';
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </QueryClientProvider>
+  );
 }
 
 function renderWithDirector() {

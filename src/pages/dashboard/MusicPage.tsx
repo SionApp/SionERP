@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -33,7 +34,6 @@ import {
 import { cn } from '@/lib/utils';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { useMobileMode } from '@/hooks/useMobileMode';
-import { usePermissions } from '@/hooks/usePermissions';
 import { MusicService } from '@/services/music.service';
 import { AssignmentStates, MusicEventTypes } from '@/types/music.types';
 import type {
@@ -47,31 +47,17 @@ import type {
 } from '@/types/music.types';
 import MusicMembers from './music/MusicMembers';
 import MusicInstruments from './music/MusicInstruments';
-import EventDetailDialog from './music/EventDetail';
 import { DirectorMusicHero } from './music/MusicHero';
 import { ServidorMusicHero } from './music/ServidorHero';
 import { ChannelAudios } from './music/ChannelAudios';
 import { ServidorRepertoire } from './music/ServidorRepertoire';
+import { RepertoireList } from './music/RepertoireList';
+import { MusicFab } from './music/MusicFab';
 import { InstrumentChip, resolveCategory } from './music/instrument-visual';
+import { EVENT_TYPE_COLOR, EVENT_TYPE_LABEL } from './music/event-visual';
+import { useMusicAccess } from './music/use-music-access';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import './music/music-theme.css';
-
-function useMusicAccess() {
-  const { permissions } = usePermissions();
-  // System pastor/admin always manage. Staff and others depend on their
-  // music module role (director vs servidor), independent of the system role.
-  const systemDirector =
-    !!permissions && (permissions.has_admin_access || permissions.role === 'pastor');
-
-  const { data: moduleRole } = useQuery({
-    queryKey: ['music-my-module-role'],
-    queryFn: () => MusicService.getMyModuleRole(),
-    enabled: !!permissions && !systemDirector,
-    staleTime: 60_000,
-  });
-
-  const isDirector = systemDirector || (moduleRole?.isDirector ?? false);
-  return { isDirector };
-}
 
 const STATE_VARIANT: Record<AssignmentState, 'default' | 'secondary' | 'destructive'> = {
   asignado: 'secondary',
@@ -83,18 +69,6 @@ const STATE_LABEL: Record<AssignmentState, string> = {
   asignado: 'Asignado',
   confirmado: 'Confirmado',
   no_puedo: 'No puedo',
-};
-
-const EVENT_TYPE_LABEL: Record<MusicEventType, string> = {
-  viernes: 'Viernes',
-  domingo: 'Domingo',
-  especial: 'Especial',
-};
-
-const EVENT_TYPE_COLOR: Record<MusicEventType, string> = {
-  viernes: 'bg-blue-500',
-  domingo: 'bg-emerald-500',
-  especial: 'bg-amber-500',
 };
 
 const FUNCION_LABEL: Record<string, string> = {
@@ -353,7 +327,10 @@ function CronogramaCalendar({
         {Array.from({ length: totalCells }).map((_, i) => {
           const dayNum = i - startOffset + 1;
           const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
-          if (!inMonth) return <div key={i} className="aspect-square rounded-md bg-muted/20" />;
+          if (!inMonth)
+            return (
+              <div key={i} className="min-h-[3.5rem] rounded-md bg-muted/20 sm:aspect-square" />
+            );
           const iso = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
           const dayEvents = eventsByDate.get(iso) ?? [];
           const isToday = iso === todayISO;
@@ -361,7 +338,7 @@ function CronogramaCalendar({
             <div
               key={i}
               className={cn(
-                'aspect-square rounded-md border border-border p-1 flex flex-col gap-0.5 overflow-hidden',
+                'min-h-[3.5rem] rounded-md border border-border p-1 flex flex-col gap-0.5 overflow-hidden sm:aspect-square',
                 isToday && 'ring-2 ring-primary',
                 dayEvents.length === 0 && 'bg-card',
                 dayEvents.length > 0 && 'bg-muted/30'
@@ -620,15 +597,22 @@ function CultosTab({
                     </Badge>
                   )}
                   {isDirector && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-destructive"
-                      onClick={() => deleteMutation.mutate(ev.id)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      Eliminar
-                    </Button>
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs text-destructive"
+                          disabled={deleteMutation.isPending}
+                        >
+                          Eliminar
+                        </Button>
+                      }
+                      title="¿Eliminar culto?"
+                      description={`Se elimina el culto del ${ev.eventDate}${ev.title ? ` — "${ev.title}"` : ''} junto con su equipo asignado y su repertorio. No se puede deshacer.`}
+                      confirmLabel="Eliminar culto"
+                      onConfirm={() => deleteMutation.mutate(ev.id)}
+                    />
                   )}
                 </div>
               </div>
@@ -695,43 +679,13 @@ function CultosTab({
 // CANCIONES — stats globales
 // ─────────────────────────────────────────────
 function CancionesTab() {
-  const [filter, setFilter] = useState('');
   const { data: stats = [], isLoading } = useQuery({
     queryKey: ['music-song-stats'],
     queryFn: () => MusicService.getSongStats(500),
   });
 
-  const ranked = useMemo(
-    () =>
-      [...stats].sort((a, b) => {
-        if (b.timesPlayed !== a.timesPlayed) return b.timesPlayed - a.timesPlayed;
-        return (b.lastPlayedDate ?? '').localeCompare(a.lastPlayedDate ?? '');
-      }),
-    [stats]
-  );
-
-  const filtered = useMemo(
-    () =>
-      filter.trim()
-        ? ranked.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()))
-        : ranked,
-    [ranked, filter]
-  );
-
-  const maxPlays = ranked[0]?.timesPlayed ?? 0;
   const totalPlays = stats.reduce((acc, s) => acc + s.timesPlayed, 0);
   const neverPlayed = stats.filter(s => s.timesPlayed === 0).length;
-
-  function relativeLastPlayed(date: string | null): string {
-    if (!date) return 'Nunca tocada';
-    const d = new Date(`${date}T12:00:00`);
-    const diff = Math.round((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
-    if (diff <= 0) return 'Hoy';
-    if (diff === 1) return 'Ayer';
-    if (diff < 30) return `Hace ${diff} días`;
-    if (diff < 60) return 'Hace 1 mes';
-    return `Hace ${Math.floor(diff / 30)} meses`;
-  }
 
   return (
     <div className="space-y-4">
@@ -768,78 +722,12 @@ function CancionesTab() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Ranking del repertorio</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {stats.length > 0 && (
-            <Input
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-              placeholder="Buscar canción…"
-            />
-          )}
-          {isLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3, 4].map(i => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
-              {stats.length === 0
-                ? 'No hay canciones en el repertorio. Agregalas desde el detalle de cada culto.'
-                : 'Sin coincidencias.'}
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {filtered.map((s, i) => {
-                const pct = maxPlays > 0 ? Math.round((s.timesPlayed / maxPlays) * 100) : 0;
-                return (
-                  <div
-                    key={s.id}
-                    className="relative rounded-lg border border-border overflow-hidden"
-                  >
-                    <div
-                      className="absolute inset-y-0 left-0 bg-primary/10"
-                      style={{ width: `${pct}%` }}
-                    />
-                    <div className="relative flex items-center justify-between px-3 py-2.5 gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span
-                          className={cn(
-                            'text-xs font-bold tabular-nums w-5 text-center shrink-0',
-                            i === 0 && 'text-amber-500',
-                            i === 1 && 'text-zinc-400',
-                            i === 2 && 'text-orange-700',
-                            i > 2 && 'text-muted-foreground'
-                          )}
-                        >
-                          {i + 1}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm truncate">{s.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {relativeLastPlayed(s.lastPlayedDate)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {s.historicalKey && (
-                          <Badge variant="outline" className="text-xs">
-                            {s.historicalKey}
-                          </Badge>
-                        )}
-                        <Badge
-                          variant={s.timesPlayed === 0 ? 'outline' : 'secondary'}
-                          className="text-xs tabular-nums"
-                        >
-                          {s.timesPlayed}×
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <CardContent>
+          <RepertoireList
+            stats={stats}
+            isLoading={isLoading}
+            emptyHint="No hay canciones en el repertorio. Agregalas desde el detalle de cada culto."
+          />
         </CardContent>
       </Card>
     </div>
@@ -1127,14 +1015,7 @@ function ServidorView({ embedExtras = true }: { embedExtras?: boolean }) {
         </DialogContent>
       </Dialog>
 
-      <button
-        type="button"
-        onClick={() => setUnavailOpen(true)}
-        className="fixed bottom-24 right-4 z-30 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-lg shadow-primary/30 transition-opacity hover:opacity-90 sm:right-6"
-      >
-        <CalendarOff className="h-4 w-4" />
-        <span className="text-sm font-semibold">Avisar ausencia</span>
-      </button>
+      <MusicFab icon={CalendarOff} label="Avisar ausencia" onClick={() => setUnavailOpen(true)} />
     </div>
   );
 }
@@ -1235,14 +1116,7 @@ function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void 
       )}
       {screen === 'canciones' && <CancionesTab />}
 
-      <button
-        type="button"
-        onClick={() => setCreateOpen(true)}
-        className="fixed bottom-24 right-4 z-30 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-lg shadow-primary/30 transition-opacity hover:opacity-90 sm:right-6"
-      >
-        <Plus className="h-4 w-4" />
-        <span className="text-sm font-semibold">Nuevo culto</span>
-      </button>
+      <MusicFab icon={Plus} label="Nuevo culto" onClick={() => setCreateOpen(true)} />
       <CreateEventDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
@@ -1253,18 +1127,11 @@ function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void 
 // ─────────────────────────────────────────────
 export default function MusicPage() {
   const isMobileApp = useMobileMode();
+  const navigate = useNavigate();
   const { isDirector } = useMusicAccess();
-  const [detailEvent, setDetailEvent] = useState<MusicEvent | null>(null);
   const [createEventOpen, setCreateEventOpen] = useState(false);
 
-  const detailDialog = (
-    <EventDetailDialog
-      event={detailEvent}
-      open={!!detailEvent}
-      onOpenChange={o => !o && setDetailEvent(null)}
-      isDirector={isDirector}
-    />
-  );
+  const openEvent = (e: MusicEvent) => navigate(`/dashboard/music/eventos/${e.id}`);
 
   const body = !isDirector ? (
     <>
@@ -1273,7 +1140,7 @@ export default function MusicPage() {
     </>
   ) : (
     <>
-      <DirectorMusicHero onOpenEvent={setDetailEvent} />
+      <DirectorMusicHero onOpenEvent={openEvent} />
       <Tabs defaultValue="cronograma">
         <TabsList className="w-full sm:w-auto flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
@@ -1283,10 +1150,10 @@ export default function MusicPage() {
           <TabsTrigger value="canciones">Canciones</TabsTrigger>
         </TabsList>
         <TabsContent value="cronograma" className="mt-4">
-          <CronogramaTab isDirector={isDirector} onOpenEvent={setDetailEvent} />
+          <CronogramaTab isDirector={isDirector} onOpenEvent={openEvent} />
         </TabsContent>
         <TabsContent value="cultos" className="mt-4">
-          <CultosTab isDirector={isDirector} onOpenEvent={setDetailEvent} />
+          <CultosTab isDirector={isDirector} onOpenEvent={openEvent} />
         </TabsContent>
         <TabsContent value="integrantes" className="mt-4">
           <MusicMembers isDirector={isDirector} />
@@ -1301,14 +1168,7 @@ export default function MusicPage() {
 
       <ChannelAudios />
 
-      <button
-        type="button"
-        onClick={() => setCreateEventOpen(true)}
-        className="fixed bottom-24 right-4 z-30 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-lg shadow-primary/30 transition-opacity hover:opacity-90 sm:right-6"
-      >
-        <Plus className="h-4 w-4" />
-        <span className="text-sm font-semibold">Nuevo culto</span>
-      </button>
+      <MusicFab icon={Plus} label="Nuevo culto" onClick={() => setCreateEventOpen(true)} />
       <CreateEventDialog open={createEventOpen} onOpenChange={setCreateEventOpen} />
     </>
   );
@@ -1319,10 +1179,9 @@ export default function MusicPage() {
       <>
         <MobileScreen title="Música" subtitle={isDirector ? 'Equipo de alabanza' : 'Mis cultos'}>
           <div className="music-shell music-aurora min-h-screen px-4 py-4 space-y-5">
-            {isDirector ? <DirectorMobile onOpenEvent={setDetailEvent} /> : <ServidorMobile />}
+            {isDirector ? <DirectorMobile onOpenEvent={openEvent} /> : <ServidorMobile />}
           </div>
         </MobileScreen>
-        {detailDialog}
       </>
     );
   }
@@ -1336,7 +1195,6 @@ export default function MusicPage() {
         </p>
       </div>
       {body}
-      {detailDialog}
     </div>
   );
 }
