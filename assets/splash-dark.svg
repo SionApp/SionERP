@@ -1,0 +1,9 @@
+<svg viewBox="0 0 2732 2732" xmlns="http://www.w3.org/2000/svg">
+  <rect width="2732" height="2732" fill="#0F1F4D"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 1190 1110 L 1500 1110" stroke-width="98"/>
+    <path d="M 1410 1110 L 1410 1410 Q 1410 1548 1268 1548 Q 1130 1548 1110 1402" stroke-width="126"/>
+  </g>
+  <circle cx="1500" cy="1110" r="64" fill="#F59E0B"/>
+  <text x="1366" y="1820" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="224" font-weight="800" letter-spacing="40" fill="#FFFFFF">JETRO</text>
+</svg>

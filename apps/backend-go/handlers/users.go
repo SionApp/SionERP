@@ -7,12 +7,13 @@ import (
 	"backend-sion/models"
 	"backend-sion/utils"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -24,14 +25,44 @@ func NewUserHandler() *UserHandler {
 	return &UserHandler{}
 }
 
+// getUserRoleLevel returns the role level for a given user ID, or -1 if not found.
+// Uses the global pool directly — this is a permission-check lookup by PK
+// (globally unique UUID), not a tenant data query.
+func getUserRoleLevel(userID string) int {
+	var role string
+	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&role)
+	if err != nil {
+		return -1
+	}
+	return utils.GetRoleLevel(role)
+}
+
 // GetUsers obtiene la lista de usuarios con su estado de invitación
+// Applies resource-level filtering based on the requesting user's role:
+//   - admin/pastor: all users
+//   - staff: all users except admin/owner
+//   - supervisor: only users assigned to them (same cell_leader_id or zone)
+//   - server/member: only their own profile
 func (h *UserHandler) GetUsers(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
-	roleParam := c.QueryParam("role")
+	churchID, _ := c.Get("church_id").(string)
+
+	// Get requesting user's role for resource-level filtering
+	requestingUserID := c.Get("user_id").(string)
+	var requestingRole string
+	err = q.QueryRow("SELECT role FROM users WHERE id = $1", requestingUserID).Scan(&requestingRole)
+	if err != nil {
+		c.Logger().Error("Error fetching requesting user role:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Error verifying permissions",
+		})
+	}
+
+	requestingRoleLevel := utils.GetRoleLevel(requestingRole)
 
 	query := `
 		SELECT
@@ -42,20 +73,50 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			u.cell_group, u.cell_leader_id, u.role, u.pastoral_notes, u.is_active,
 			u.discipleship_level,
 			u.whatsapp, u.created_at, u.updated_at,
-			i.status as invitation_status,
+			i.status        AS invitation_status,
+			i.expires_at    AS invitation_expires_at,
+			i.id            AS invitation_id,
 			COALESCE(u.zone_id::text, '') as zone_id,
-			COALESCE(z.name, '') as zone_name
+			COALESCE(z.name, '') as zone_name,
+			u.onboarding_completed,
+			NULL::timestamptz AS last_sign_in_at
 		FROM users u
-		LEFT JOIN user_invitations i ON u.email = i.email
-			AND i.status IN ('pending', 'accepted')
-		LEFT JOIN zones z ON u.zone_id = z.id
+		LEFT JOIN user_invitations i ON u.email = i.email AND i.church_id = u.church_id
+		LEFT JOIN zones z ON u.zone_id = z.id AND z.church_id = u.church_id
 		WHERE u.is_active = true
 	`
 
 	args := []interface{}{}
 	argCount := 0
 
-	// Filtrar por roles si viene el parámetro
+	// ── Tenant isolation: scope to current church ──
+	if churchID != "" {
+		argCount++
+		query += fmt.Sprintf(" AND u.church_id = $%d", argCount)
+		args = append(args, churchID)
+	}
+
+	// ── Resource-level filtering ──
+	// Use role level (int) for cleaner comparison with constants
+	switch {
+	case requestingRoleLevel >= utils.LevelPastor: // pastor (400) and above (admin 500) → see all users
+		// No additional filter
+	case requestingRoleLevel >= utils.LevelStaff: // staff → cannot see admin
+		argCount++
+		query += fmt.Sprintf(" AND u.role NOT IN ($%d)", argCount)
+		args = append(args, utils.RoleAdmin)
+	case requestingRoleLevel >= utils.LevelSupervisor: // supervisor → only see their subordinates
+		argCount++
+		query += fmt.Sprintf(" AND (u.cell_leader_id = $%d OR u.zone_id = (SELECT zone_id FROM users WHERE id = $%d))", argCount, argCount)
+		args = append(args, requestingUserID)
+	default: // server/member → only their own profile
+		argCount++
+		query += fmt.Sprintf(" AND u.id = $%d", argCount)
+		args = append(args, requestingUserID)
+	}
+
+	// Optional role filter
+	roleParam := c.QueryParam("role")
 	if roleParam != "" {
 		rolesStr := strings.Split(roleParam, ",")
 		roles := make([]string, 0, len(rolesStr))
@@ -66,7 +127,6 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			}
 		}
 		if len(roles) > 0 {
-			// Construir la query con múltiples placeholders para IN clause
 			inPlaceholders := make([]string, len(roles))
 			for i := range roles {
 				argCount++
@@ -77,9 +137,47 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 		}
 	}
 
-	query += " ORDER BY u.created_at DESC"
+	// Optional search filter
+	search := c.QueryParam("search")
+	if search != "" {
+		argCount++
+		query += fmt.Sprintf(
+			" AND (u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.email ILIKE $%d OR u.id_number ILIKE $%d)",
+			argCount, argCount, argCount, argCount,
+		)
+		args = append(args, "%"+search+"%")
+	}
 
-	rows, err := db.DB.Query(query, args...)
+	// Pagination params
+	page := 1
+	limit := 20
+	if p, err2 := strconv.Atoi(c.QueryParam("page")); err2 == nil && p > 0 {
+		page = p
+	}
+	if l, err2 := strconv.Atoi(c.QueryParam("limit")); err2 == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+
+	// Count total matching rows (reuse same WHERE clauses)
+	var total int
+	countQuery := "SELECT COUNT(*) FROM (" + query + ") sub"
+	if err = q.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		c.Logger().Error("Count query error in GetUsers: ", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Error counting users",
+		})
+	}
+
+	// Add ORDER BY + LIMIT + OFFSET
+	offset := (page - 1) * limit
+	argCount++
+	query += fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d", argCount)
+	args = append(args, limit)
+	argCount++
+	query += fmt.Sprintf(" OFFSET $%d", argCount)
+	args = append(args, offset)
+
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		c.Logger().Error("Database query error in GetUsers: ", err)
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -102,8 +200,12 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
 			&user.IsActive, &user.DiscipleshipLevel, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
 			&user.InvitationStatus,
+			&user.InvitationExpiresAt,
+			&user.InvitationID,
 			&user.ZoneID,
 			&user.ZoneName,
+			&user.OnboardingCompleted,
+			&user.LastSignInAt,
 		)
 		if err != nil {
 			c.Logger().Error("Row scan error in GetUsers: ", err)
@@ -126,12 +228,56 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"users": users,
-		"total": len(users),
+		"total": total,
+		"page":  page,
+		"limit": limit,
 	})
 }
 
 func (h *UserHandler) GetUser(c echo.Context) error {
 	userID := c.Param("id")
+	currentUserID := c.Get("user_id").(string)
+
+	q := config.Tx(c)
+
+	// Get requesting user's role for resource-level filtering
+	var requestingRole string
+	err := q.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&requestingRole)
+	if err != nil {
+		c.Logger().Error("Error fetching requesting user role:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error": "Error verifying permissions",
+		})
+	}
+	requestingRoleLevel := utils.GetRoleLevel(requestingRole)
+
+	// Enforce resource-level access
+	if requestingRoleLevel < 3 && currentUserID != userID {
+		// server/member can only see themselves; supervisor can only see their subordinates
+		if requestingRoleLevel <= 1 {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"error":   "Access denied",
+				"message": "You can only view your own profile",
+			})
+		}
+		// Check if supervisor has access to this user
+		var cellLeaderID, userZoneID sql.NullString
+		err = q.QueryRow(
+			"SELECT cell_leader_id, zone_id FROM users WHERE id = $1", userID,
+		).Scan(&cellLeaderID, &userZoneID)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, map[string]interface{}{
+				"error":   "User not found",
+				"message": "The requested user does not exist",
+			})
+		}
+		if cellLeaderID.String != currentUserID {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"error":   "Access denied",
+				"message": "You can only view users assigned to you",
+			})
+		}
+	}
 
 	query := `
 		SELECT id, first_name, last_name, id_number, email, phone, address,
@@ -139,12 +285,12 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
-			   whatsapp,created_at, updated_at
+			   whatsapp, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
 	var user models.User
-	err := config.GetDB().DB.QueryRow(query, userID).Scan(
+	err = q.QueryRow(query, userID).Scan(
 		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
@@ -184,25 +330,28 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 		})
 	}
 
+	q := config.Tx(c)
+	churchID, _ := c.Get("church_id").(string)
+
 	query := `
 		INSERT INTO users (
 			first_name, last_name, id_number, email, phone, address,
 			birth_date, marital_status, occupation, education_level,
 			how_found_church, ministry_interest, first_visit_date,
 			baptized, baptism_date, is_active_member, membership_date,
-			cell_group, role, pastoral_notes, whatsapp
+			cell_group, role, pastoral_notes, whatsapp, church_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 		) RETURNING id
 	`
 
 	var userID string
-	err := config.GetDB().DB.QueryRow(
+	err := q.QueryRow(
 		query, req.FirstName, req.LastName, req.IdNumber, req.Email, req.Phone,
 		req.Address, req.BirthDate, req.MaritalStatus, req.Occupation,
 		req.EducationLevel, req.HowFoundChurch, req.MinistryInterest, req.FirstVisitDate,
 		req.Baptized, req.BaptismDate, req.IsActiveMember, req.MembershipDate,
-		req.CellGroup, req.Role, req.PastoralNotes, req.WhatsApp,
+		req.CellGroup, req.Role, req.PastoralNotes, req.WhatsApp, churchID,
 	).Scan(&userID)
 	if err != nil {
 		c.Logger().Error("Database error in CreateUser: ", err)
@@ -223,8 +372,11 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	userID := c.Param("id")
 	currentUserID := c.Get("user_id").(string)
 
+	q := config.Tx(c)
+
 	var currentUserRole string
-	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole)
+	var isCurrentUserSuperAdmin bool
+	err := q.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole, &isCurrentUserSuperAdmin)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
@@ -239,6 +391,50 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
+	// ── Resource-level: cannot edit users above your level ──
+	currentUserRoleLevel := utils.GetRoleLevel(currentUserRole)
+	targetRoleLevel := getUserRoleLevel(userID)
+
+	// Higher level = more power. If my level is LOWER (less power) than target, I can't edit.
+	if currentUserRoleLevel < targetRoleLevel {
+		c.Logger().Error("Unauthorized update attempt:", currentUserID, "role_level", currentUserRoleLevel,
+			"trying to edit user", userID, "role_level", targetRoleLevel)
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "You cannot edit users with a higher role level than yours",
+		})
+	}
+
+	// ── System super admin is protected ──
+	var isTargetSuperAdmin bool
+	q.QueryRow("SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&isTargetSuperAdmin)
+	if isTargetSuperAdmin && !isCurrentUserSuperAdmin {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "Cannot modify the system administrator account",
+		})
+	}
+
+	// server can only edit themselves (lowest role with permissions)
+	if currentUserRoleLevel <= utils.LevelServer && currentUserID != userID {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "You can only edit your own profile",
+		})
+	}
+
+	// supervisor can only edit their subordinates
+	if currentUserRoleLevel == utils.LevelSupervisor && currentUserID != userID {
+		var cellLeaderID sql.NullString
+		q.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
+		if cellLeaderID.String != currentUserID {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"error":   "Forbidden",
+				"message": "You can only edit users assigned to you",
+			})
+		}
+	}
+
 	var req models.UpdateUserRequest
 	if err := c.Bind(&req); err != nil {
 		c.Logger().Error("Bind error in UpdateUser:", err)
@@ -248,7 +444,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
-	if currentUserID != userID && (currentUserRole != "pastor" && currentUserRole != "staff") {
+	if currentUserID != userID && !utils.IsAdminRole(currentUserRole) {
 		c.Logger().Error("Unauthorized access in UpdateUser:", currentUserID, "is not allowed to update user", userID)
 		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"error":   "Unauthorized",
@@ -278,7 +474,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
-	result, err := config.GetDB().DB.Exec(query, args...)
+	result, err := q.Exec(query, args...)
 	if err != nil {
 		c.Logger().Error(fmt.Sprintf("Database error in UpdateUser for user %s: %v", userID, err))
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
@@ -306,57 +502,73 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 
 func (h *UserHandler) DeleteUser(c echo.Context) error {
 	userID := c.Param("id")
-	userToDelete := c.Get("user_id").(string)
+	currentUserID := c.Get("user_id").(string)
 
-	var currentUserRole string
+	q := config.Tx(c)
 
-	err := config.GetDB().DB.QueryRow("SELECT role FROM users WHERE id = $1", userToDelete).Scan(&currentUserRole)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			c.Logger().Error("User not found in database:", err)
-			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-				"error":   "User not found",
-				"message": "You must be a valid user to perform this action. User not found in database",
-			})
-		}
-		c.Logger().Error("Database error fetching user role:", err)
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"error":   "Database error",
-			"message": err.Error(),
+	// Cannot delete yourself
+	if currentUserID == userID {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid operation",
+			"message": "You cannot delete your own account",
 		})
 	}
 
-	if currentUserRole != utils.RolePastor && currentUserRole != utils.RoleStaff {
-		c.Logger().Error("Unauthorized delete attempt:", currentUserRole, "is not allowed to delete user", userID)
-		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-			"error":   "Unauthorized",
-			"message": "You are not allowed to delete this user",
-		})
-	}
+	// ── Resource-level: cannot delete users above your level ──
+	currentUserRoleLevel := getUserRoleLevel(currentUserID)
+	targetRoleLevel := getUserRoleLevel(userID)
 
-	var exists bool
-	err = config.GetDB().DB.QueryRow("SELECT EXISTS(SELECT FROM users WHERE id = $1", userToDelete).Scan(&exists)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-				"error":   "Database error",
-				"message": "You must be a valid user to perform this action",
-			})
-		}
-	}
-
-	if !exists {
+	if targetRoleLevel == -1 {
 		return c.JSON(http.StatusNotFound, map[string]interface{}{
 			"error":   "User not found",
 			"message": fmt.Sprintf("User with ID %s does not exist", userID),
 		})
 	}
 
+	if currentUserRoleLevel < targetRoleLevel {
+		c.Logger().Error("Unauthorized delete attempt:", currentUserID, "role_level", currentUserRoleLevel,
+			"trying to delete user", userID, "role_level", targetRoleLevel)
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "You cannot delete users with a higher role level than yours",
+		})
+	}
+
+	// ── System super admin is protected ──
+	var isTargetSuperAdmin bool
+	q.QueryRow("SELECT COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&isTargetSuperAdmin)
+	if isTargetSuperAdmin {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "Cannot delete the system administrator account",
+		})
+	}
+
+	// supervisor can only delete their subordinates
+	if currentUserRoleLevel == utils.LevelSupervisor {
+		var cellLeaderID sql.NullString
+		q.QueryRow("SELECT cell_leader_id FROM users WHERE id = $1", userID).Scan(&cellLeaderID)
+		if cellLeaderID.String != currentUserID {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"error":   "Forbidden",
+				"message": "You can only delete users assigned to you",
+			})
+		}
+	}
+
+	// server/member cannot delete anyone
+	if currentUserRoleLevel <= utils.LevelServer {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "You do not have permission to delete users",
+		})
+	}
+
 	query := `UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1`
-	result, err := config.GetDB().DB.Exec(query, userID)
+	result, err := q.Exec(query, userID)
 
 	if err != nil {
-		c.Logger().Error(fmt.Sprintf("Database error in UpdateUser for user %s: %v", userID, err))
+		c.Logger().Error(fmt.Sprintf("Database error in DeleteUser for user %s: %v", userID, err))
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Database error",
 			"message": err.Error(),
@@ -366,14 +578,14 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s", userID))
+		c.Logger().Warn(fmt.Sprintf("No rows affected when deleting user %s", userID))
 		return c.JSON(http.StatusNotFound, map[string]interface{}{
 			"error":   "User not found",
 			"message": fmt.Sprintf("User with ID %s does not exist", userID),
 		})
 	}
 
-	c.Logger().Info(fmt.Sprintf("User deleted successfully with ID: %s and userToDelete: %s", userID, userToDelete))
+	c.Logger().Info(fmt.Sprintf("User deleted successfully: target=%s by=%s", userID, currentUserID))
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "User deleted successfully",
 		"user_id": userID,
@@ -390,6 +602,9 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		})
 	}
 
+	q := config.Tx(c)
+
+	// Query by id (single source of truth - same as Auth ID)
 	query := `
 		SELECT id, first_name, last_name, id_number, email, phone, address,
 			   birth_date, marital_status, occupation, education_level,
@@ -397,12 +612,13 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
 			   whatsapp, created_at, updated_at, emergency_contact_name, emergency_contact_phone,
-			   territory, zone_name, active_groups_count, discipleship_level
+			   territory, zone_name, active_groups_count, discipleship_level,
+			   onboarding_completed
 		FROM users
 		WHERE id = $1
-	`
+		`
 	var user models.User
-	err := config.GetDB().DB.QueryRow(query, userID).Scan(
+	err := q.QueryRow(query, userID).Scan(
 		&user.ID, &user.FirstName, &user.LastName, &user.IdNumber, &user.Email,
 		&user.Phone, &user.Address, &user.BirthDate, &user.MaritalStatus,
 		&user.Occupation, &user.EducationLevel, &user.HowFoundChurch,
@@ -411,6 +627,7 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 		&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
 		&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt, &user.EmergencyContactName, &user.EmergencyContactPhone,
 		&user.Territory, &user.ZoneName, &user.ActiveGroupsCount, &user.DiscipleshipLevel,
+		&user.OnboardingCompleted,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -444,6 +661,7 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
+	// Obtener el user_id del JWT (que ahora es el MISMO que el id en users)
 	userID, ok := c.Get("user_id").(string)
 	if !ok {
 		c.Logger().Error("Invalid user_id in context")
@@ -453,9 +671,25 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
-	query, args, err := database.BuildUpdateQuery(&req, "users", "id", userID)
+	q := config.Tx(c)
+
+	// Verificar que el usuario exista con ese ID
+	var actualUserID string
+	err := q.QueryRow(
+		"SELECT id FROM users WHERE id = $1", userID,
+	).Scan(&actualUserID)
+
 	if err != nil {
-		c.Logger().Error(fmt.Sprintf("Database error in UpdateCurrentUser for user %s: %v", userID, err))
+		c.Logger().Error(fmt.Sprintf("User not found with ID %s: %v", userID, err))
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error":   "User not found",
+			"message": "Your user profile was not found in the database",
+		})
+	}
+
+	query, args, err := database.BuildUpdateQuery(&req, "users", "id", actualUserID)
+	if err != nil {
+		c.Logger().Error(fmt.Sprintf("Database error in UpdateCurrentUser for user %s: %v", actualUserID, err))
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Error updating user profile",
 			"message": err.Error(),
@@ -463,20 +697,273 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 		})
 	}
 
-	result, err := config.GetDB().DB.Exec(query, args...)
+	result, err := q.Exec(query, args...)
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s: %v", userID, err))
+		c.Logger().Warn(fmt.Sprintf("No rows affected when updating user %s: %v", actualUserID, err))
+		return c.JSON(http.StatusNotFound, map[string]interface{}{
+			"error":   "User not found",
+			"message": fmt.Sprintf("User with ID %s does not exist", actualUserID),
+		})
+	}
+	c.Logger().Info(fmt.Sprintf("Profile updated successfully with ID: %s", actualUserID))
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Profile updated successfully",
+		"user_id": actualUserID,
+		"user":    req,
+	})
+}
+
+// CompleteOnboarding marks the user as having completed their onboarding
+func (h *UserHandler) CompleteOnboarding(c echo.Context) error {
+	userID, ok := c.Get("user_id").(string)
+	if !ok {
+		c.Logger().Error("Invalid user_id in context")
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error":   "Unauthorized",
+			"message": "User ID not found in authentication context",
+		})
+	}
+
+	var req struct {
+		FirstName *string `json:"first_name,omitempty"`
+		LastName  *string `json:"last_name,omitempty"`
+		Phone     *string `json:"phone,omitempty"`
+		Address   *string `json:"address,omitempty"`
+		IdNumber  *string `json:"id_number,omitempty"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid request body",
+			"message": err.Error(),
+		})
+	}
+
+	// Build dynamic update query with onboarding_completed
+	updates := []string{"onboarding_completed = true", "updated_at = NOW()"}
+	args := []interface{}{}
+	argIdx := 1
+
+	if req.FirstName != nil && *req.FirstName != "" {
+		updates = append(updates, fmt.Sprintf("first_name = $%d", argIdx))
+		args = append(args, *req.FirstName)
+		argIdx++
+	}
+	if req.LastName != nil && *req.LastName != "" {
+		updates = append(updates, fmt.Sprintf("last_name = $%d", argIdx))
+		args = append(args, *req.LastName)
+		argIdx++
+	}
+	if req.Phone != nil && *req.Phone != "" {
+		updates = append(updates, fmt.Sprintf("phone = $%d", argIdx))
+		args = append(args, *req.Phone)
+		argIdx++
+	}
+	if req.Address != nil && *req.Address != "" {
+		updates = append(updates, fmt.Sprintf("address = $%d", argIdx))
+		args = append(args, *req.Address)
+		argIdx++
+	}
+	if req.IdNumber != nil && *req.IdNumber != "" {
+		updates = append(updates, fmt.Sprintf("id_number = $%d", argIdx))
+		args = append(args, *req.IdNumber)
+		argIdx++
+	}
+
+	args = append(args, userID)
+
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(updates, ", "), argIdx)
+
+	result, err := config.Tx(c).Exec(query, args...)
+	if err != nil {
+		c.Logger().Error(fmt.Sprintf("Database error in CompleteOnboarding for user %s: %v", userID, err))
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error completing onboarding",
+			"message": err.Error(),
+		})
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
 		return c.JSON(http.StatusNotFound, map[string]interface{}{
 			"error":   "User not found",
 			"message": fmt.Sprintf("User with ID %s does not exist", userID),
 		})
 	}
-	c.Logger().Info(fmt.Sprintf("Profile updated successfully with ID: %s", userID))
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Profile updated successfully",
+		"message": "Onboarding completed successfully",
 		"user_id": userID,
-		"user":    req,
+	})
+}
+
+// CreateUserDirect creates a user with a password directly (no invitation link)
+// Used by admins to create users without email/SMTP
+func (h *UserHandler) CreateUserDirect(c echo.Context) error {
+	currentUserID := c.Get("user_id").(string)
+
+	q := config.Tx(c)
+
+	var currentUserRole string
+	err := q.QueryRow("SELECT role FROM users WHERE id = $1", currentUserID).Scan(&currentUserRole)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error":   "User not found",
+			"message": "You must be a valid user to perform this action",
+		})
+	}
+
+	if currentUserRole != utils.RolePastor && currentUserRole != utils.RoleStaff && currentUserRole != "admin" {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":   "Forbidden",
+			"message": "Only admin, pastor, or staff can create users directly",
+		})
+	}
+
+	var req struct {
+		Email     string `json:"email" validate:"required,email"`
+		Password  string `json:"password" validate:"required,min=6"`
+		FirstName string `json:"first_name" validate:"required,min=2"`
+		LastName  string `json:"last_name" validate:"required,min=2"`
+		Role      string `json:"role" validate:"required"`
+		Phone     string `json:"phone,omitempty"`
+		IdNumber  string `json:"id_number,omitempty"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Invalid request body",
+			"message": err.Error(),
+		})
+	}
+
+	if err := validate.Struct(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":   "Validation error",
+			"message": err.Error(),
+		})
+	}
+
+	supabase := config.NewSupabaseClient()
+	churchID, _ := c.Get("church_id").(string)
+
+	// Check if user already exists in public.users (data without login access)
+	var existingUserID, existingRole string
+	err = q.QueryRow(
+		"SELECT id, role FROM users WHERE email = $1 AND church_id = $2", req.Email, churchID,
+	).Scan(&existingUserID, &existingRole)
+
+	if err == nil {
+		// User exists in public.users — check if they already have auth access
+		authUser, authErr := supabase.GetUserByEmail(req.Email)
+		if authErr == nil && authUser != nil {
+			// User already has login access
+			return c.JSON(http.StatusConflict, map[string]interface{}{
+				"error":   "User already has access",
+				"message": fmt.Sprintf("%s ya tiene acceso al sistema. Podés cambiar su rol desde la gestión de usuarios.", req.Email),
+			})
+		}
+
+		// User exists in public.users but has NO auth access — grant them access
+		// Use the SAME UUID for Supabase Auth (so id in users = id in auth)
+		authUser, err = supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
+			"first_name": req.FirstName,
+			"last_name":  req.LastName,
+			"role":       req.Role,
+		}, map[string]interface{}{
+			// Phase 0: forward the creating admin's church_id into the new user's JWT.
+			// TODO(phase 2a): validate churchID is non-empty after JWT backfill.
+			"church_id": c.Get("church_id"),
+		}, existingUserID) // ← Pasar el ID de users para que sea el mismo en Auth
+		if err != nil {
+			c.Logger().Error("Failed to create auth for existing user:", err)
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error":   "Error creating user",
+				"message": fmt.Sprintf("Failed to create authentication account: %v", err),
+			})
+		}
+
+		// Update existing profile
+		_, err = q.Exec(
+			`UPDATE users SET role = $1, first_name = $2, last_name = $3,
+			 phone = COALESCE(NULLIF($4, ''), phone), id_number = COALESCE(NULLIF($5, ''), id_number),
+			 onboarding_completed = true, updated_at = NOW()
+			 WHERE id = $6`,
+			req.Role, req.FirstName, req.LastName, req.Phone, req.IdNumber, existingUserID,
+		)
+		if err != nil {
+			c.Logger().Error("Failed to update existing user profile:", err)
+			return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"error":   "Error updating user profile",
+				"message": err.Error(),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"message":              "User granted access successfully",
+			"user_id":              authUser.ID,
+			"email":                req.Email,
+			"onboarding_completed": true,
+		})
+	}
+
+	// User doesn't exist anywhere — create from scratch
+	// Generate ONE UUID to use for BOTH Supabase Auth and public.users
+	// This ensures: id in users = id in auth.users (single source of truth)
+	newUserID := uuid.New().String()
+
+	_, err = supabase.CreateUserWithEmailPassword(req.Email, req.Password, map[string]interface{}{
+		"first_name": req.FirstName,
+		"last_name":  req.LastName,
+		"role":       req.Role,
+	}, map[string]interface{}{
+		// Phase 0: forward the creating admin's church_id into the new user's JWT.
+		// TODO(phase 2a): validate churchID is non-empty after JWT backfill.
+		"church_id": c.Get("church_id"),
+	}, newUserID)
+	if err != nil {
+		c.Logger().Error("Failed to create user in Supabase Auth:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error creating user",
+			"message": fmt.Sprintf("Failed to create authentication account: %v", err),
+		})
+	}
+
+	// Create user profile in users table with the SAME UUID
+	query := `
+		INSERT INTO users (
+			id, email, first_name, last_name, role, phone, id_number,
+			address, onboarding_completed, is_active, church_id, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7,
+			'', true, true, $8, NOW(), NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			role = EXCLUDED.role,
+			first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), users.first_name),
+			last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), users.last_name),
+			phone = COALESCE(NULLIF(EXCLUDED.phone, ''), users.phone),
+			onboarding_completed = true,
+			updated_at = NOW()
+		RETURNING id
+		`
+
+	var userID string
+	err = q.QueryRow(
+		query, newUserID, req.Email, req.FirstName, req.LastName, req.Role, req.Phone, req.IdNumber, churchID,
+	).Scan(&userID)
+	if err != nil {
+		c.Logger().Error("Database error in CreateUserDirect:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Error creating user profile",
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"message":              "User created successfully",
+		"user_id":              userID,
+		"email":                req.Email,
+		"onboarding_completed": true,
 	})
 }

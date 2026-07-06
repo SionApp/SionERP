@@ -110,27 +110,18 @@ export const usePreferences = () => {
     [applyTheme]
   );
 
-  // Cargar preferencias al montar (esperar a que ThemeProvider esté listo)
+  // Cargar preferencias UNA SOLA VEZ al montar.
+  // NO incluir currentTheme como dependencia — si lo hacemos, cada vez que el usuario
+  // cambia el tema con el toggle, este efecto re-corre y pisa el cambio con el valor del backend.
   useEffect(() => {
-    // Solo cargar preferencias si setTheme está disponible
-    if (!setTheme) {
-      return;
-    }
-
-    // Esperar a que el tema esté disponible (indica que ThemeProvider está listo)
-    if (currentTheme === undefined) {
-      // ThemeProvider aún no está listo, esperar un poco más
-      const timer = setTimeout(() => {
-        if (setTheme) {
-          loadPreferences();
-        }
-      }, 300);
-      return () => clearTimeout(timer);
-    } else {
-      // ThemeProvider está listo, cargar preferencias
+    if (!setTheme) return;
+    // Pequeño delay para asegurar que ThemeProvider (next-themes) ya montó
+    const timer = setTimeout(() => {
       loadPreferences();
-    }
-  }, [currentTheme, setTheme, loadPreferences]);
+    }, 150);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ← intencional: solo al montar, nunca en cambios de tema
 
   // Suscribirse a cambios en tiempo real
   useEffect(() => {

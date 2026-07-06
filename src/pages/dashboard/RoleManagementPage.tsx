@@ -1,20 +1,25 @@
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -22,527 +27,587 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import { useAuth } from '@/contexts/AuthContext';
+import { ROLE_DISPLAY_NAMES, ROLE_LEVELS, invalidatePermissionsCache } from '@/lib/permissions';
+import { ApiService } from '@/services/api.service';
+import { UserService } from '@/services/user.service';
+import { User, UserRole } from '@/types/user.types';
 import {
-  Shield,
-  Users,
-  Plus,
-  Edit,
-  Trash2,
-  Search,
-  Settings,
-  Lock,
-  Unlock,
-  Eye,
-  EyeOff,
-  UserPlus,
-  UserMinus,
-  Crown,
   Award,
-  Star,
-  AlertTriangle,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Crown,
+  Loader2,
+  Search,
+  Shield,
+  Star,
+  UserCheck,
+  UserCog,
+  Users,
   X,
 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-const RoleManagementPage = () => {
-  const [selectedRole, setSelectedRole] = useState<any>(null);
-  const [isCreateRoleOpen, setIsCreateRoleOpen] = useState(false);
-  const [isAssignRoleOpen, setIsAssignRoleOpen] = useState(false);
+// ── Static role definitions (match backend behavior) ──────────────────────────
 
-  const systemRoles = [
-    {
-      id: 'pastor',
-      name: 'Pastor',
-      description: 'Acceso completo al sistema, puede gestionar todos los aspectos de la iglesia',
-      users: 2,
-      color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
-      icon: Crown,
-      isSystem: true,
-      permissions: {
-        users: { create: true, read: true, update: true, delete: true },
-        roles: { create: true, read: true, update: true, delete: true },
-        reports: { create: true, read: true, update: true, delete: true },
-        events: { create: true, read: true, update: true, delete: true },
-        settings: { create: true, read: true, update: true, delete: true },
-      },
-    },
-    {
-      id: 'staff',
-      name: 'Staff',
-      description: 'Personal de la iglesia con acceso administrativo limitado',
-      users: 5,
-      color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
-      icon: Award,
-      isSystem: true,
-      permissions: {
-        users: { create: true, read: true, update: true, delete: false },
-        roles: { create: false, read: true, update: false, delete: false },
-        reports: { create: true, read: true, update: true, delete: false },
-        events: { create: true, read: true, update: true, delete: true },
-        settings: { create: false, read: true, update: false, delete: false },
-      },
-    },
-    {
-      id: 'supervisor',
-      name: 'Supervisor',
-      description: 'Líderes de área con permisos de supervisión',
-      users: 8,
-      color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
-      icon: Star,
-      isSystem: true,
-      permissions: {
-        users: { create: false, read: true, update: true, delete: false },
-        roles: { create: false, read: true, update: false, delete: false },
-        reports: { create: false, read: true, update: false, delete: false },
-        events: { create: true, read: true, update: true, delete: false },
-        settings: { create: false, read: true, update: false, delete: false },
-      },
-    },
-    {
-      id: 'server',
-      name: 'Servidor',
-      description: 'Miembros activos con acceso básico al sistema',
-      users: 45,
-      color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
-      icon: Users,
-      isSystem: true,
-      permissions: {
-        users: { create: false, read: true, update: false, delete: false },
-        roles: { create: false, read: false, update: false, delete: false },
-        reports: { create: false, read: false, update: false, delete: false },
-        events: { create: false, read: true, update: false, delete: false },
-        settings: { create: false, read: false, update: false, delete: false },
-      },
-    },
-  ];
+interface RoleDef {
+  id: UserRole;
+  icon: React.ElementType;
+  gradient: string;
+  bg: string;
+  text: string;
+  border: string;
+  description: string;
+  permissions: {
+    category: string;
+    actions: { label: string; allowed: boolean }[];
+  }[];
+}
 
-  const customRoles = [
-    {
-      id: 'music_director',
-      name: 'Director Musical',
-      description: 'Responsable del ministerio de música y adoración',
-      users: 3,
-      color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400',
-      icon: Settings,
-      isSystem: false,
-      isActive: true,
-      permissions: {
-        users: { create: false, read: true, update: false, delete: false },
-        roles: { create: false, read: false, update: false, delete: false },
-        reports: { create: false, read: true, update: false, delete: false },
-        events: { create: true, read: true, update: true, delete: false },
-        settings: { create: false, read: false, update: false, delete: false },
-      },
-    },
-    {
-      id: 'youth_leader',
-      name: 'Líder de Jóvenes',
-      description: 'Coordinador de actividades juveniles',
-      users: 2,
-      color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/20 dark:text-teal-400',
-      icon: Settings,
-      isSystem: false,
-      isActive: true,
-      permissions: {
-        users: { create: false, read: true, update: false, delete: false },
-        roles: { create: false, read: false, update: false, delete: false },
-        reports: { create: false, read: true, update: false, delete: false },
-        events: { create: true, read: true, update: true, delete: false },
-        settings: { create: false, read: false, update: false, delete: false },
-      },
-    },
-  ];
+const ROLE_DEFS: RoleDef[] = [
+  {
+    id: 'admin',
+    icon: Shield,
+    gradient: 'from-slate-600 to-slate-800',
+    bg: 'bg-slate-500/10',
+    text: 'text-slate-600 dark:text-slate-400',
+    border: 'border-slate-500/20',
+    description: 'Acceso total al sistema. Gestiona módulos, roles, configuración y usuarios.',
+    permissions: [
+      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: true }, { label: 'Ver', allowed: true }, { label: 'Editar', allowed: true }, { label: 'Eliminar', allowed: true }] },
+      { category: 'Roles', actions: [{ label: 'Asignar', allowed: true }, { label: 'Ver', allowed: true }] },
+      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: true }, { label: 'Ver', allowed: true }] },
+      { category: 'Reportes', actions: [{ label: 'Generar', allowed: true }, { label: 'Ver', allowed: true }] },
+      { category: 'Configuración', actions: [{ label: 'Editar', allowed: true }, { label: 'Ver', allowed: true }] },
+    ],
+  },
+  {
+    id: 'pastor',
+    icon: Crown,
+    gradient: 'from-red-500 to-rose-600',
+    bg: 'bg-red-500/10',
+    text: 'text-red-600 dark:text-red-400',
+    border: 'border-red-500/20',
+    description: 'Líder espiritual. Acceso administrativo completo excepto gestión de módulos del sistema.',
+    permissions: [
+      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: true }, { label: 'Ver', allowed: true }, { label: 'Editar', allowed: true }, { label: 'Eliminar', allowed: true }] },
+      { category: 'Roles', actions: [{ label: 'Asignar', allowed: true }, { label: 'Ver', allowed: true }] },
+      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: true }, { label: 'Ver', allowed: true }] },
+      { category: 'Reportes', actions: [{ label: 'Generar', allowed: true }, { label: 'Ver', allowed: true }] },
+      { category: 'Configuración', actions: [{ label: 'Editar', allowed: true }, { label: 'Ver', allowed: true }] },
+    ],
+  },
+  {
+    id: 'staff',
+    icon: Award,
+    gradient: 'from-blue-500 to-indigo-600',
+    bg: 'bg-blue-500/10',
+    text: 'text-blue-600 dark:text-blue-400',
+    border: 'border-blue-500/20',
+    description: 'Equipo pastoral. Gestión de usuarios y acceso a reportes. Sin acceso a configuración.',
+    permissions: [
+      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: true }, { label: 'Ver', allowed: true }, { label: 'Editar', allowed: true }, { label: 'Eliminar', allowed: false }] },
+      { category: 'Roles', actions: [{ label: 'Asignar', allowed: false }, { label: 'Ver', allowed: true }] },
+      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: false }, { label: 'Ver', allowed: true }] },
+      { category: 'Reportes', actions: [{ label: 'Generar', allowed: true }, { label: 'Ver', allowed: true }] },
+      { category: 'Configuración', actions: [{ label: 'Editar', allowed: false }, { label: 'Ver', allowed: true }] },
+    ],
+  },
+  {
+    id: 'supervisor',
+    icon: Star,
+    gradient: 'from-purple-500 to-violet-600',
+    bg: 'bg-purple-500/10',
+    text: 'text-purple-600 dark:text-purple-400',
+    border: 'border-purple-500/20',
+    description: 'Supervisión de grupos celulares. Acceso a reportes de sus subordinados.',
+    permissions: [
+      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: false }, { label: 'Ver', allowed: true }, { label: 'Editar', allowed: true }, { label: 'Eliminar', allowed: false }] },
+      { category: 'Roles', actions: [{ label: 'Asignar', allowed: false }, { label: 'Ver', allowed: true }] },
+      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: false }, { label: 'Ver', allowed: false }] },
+      { category: 'Reportes', actions: [{ label: 'Generar', allowed: false }, { label: 'Ver', allowed: true }] },
+      { category: 'Configuración', actions: [{ label: 'Editar', allowed: false }, { label: 'Ver', allowed: false }] },
+    ],
+  },
+  {
+    id: 'server',
+    icon: UserCheck,
+    gradient: 'from-emerald-500 to-green-600',
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    border: 'border-emerald-500/20',
+    description: 'Miembro servidor. Acceso básico: perfil propio, módulos asignados.',
+    permissions: [
+      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: false }, { label: 'Ver', allowed: false }, { label: 'Editar', allowed: false }, { label: 'Eliminar', allowed: false }] },
+      { category: 'Roles', actions: [{ label: 'Asignar', allowed: false }, { label: 'Ver', allowed: false }] },
+      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: false }, { label: 'Ver', allowed: false }] },
+      { category: 'Reportes', actions: [{ label: 'Generar', allowed: false }, { label: 'Ver', allowed: false }] },
+      { category: 'Configuración', actions: [{ label: 'Editar', allowed: false }, { label: 'Ver', allowed: false }] },
+    ],
+  },
+  {
+    id: 'member',
+    icon: Users,
+    gradient: 'from-orange-400 to-amber-500',
+    bg: 'bg-orange-400/10',
+    text: 'text-orange-600 dark:text-orange-400',
+    border: 'border-orange-400/20',
+    description: 'Miembro general. Solo puede ver y editar su propio perfil.',
+    permissions: [
+      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: false }, { label: 'Ver', allowed: false }, { label: 'Editar', allowed: false }, { label: 'Eliminar', allowed: false }] },
+      { category: 'Roles', actions: [{ label: 'Asignar', allowed: false }, { label: 'Ver', allowed: false }] },
+      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: false }, { label: 'Ver', allowed: false }] },
+      { category: 'Reportes', actions: [{ label: 'Generar', allowed: false }, { label: 'Ver', allowed: false }] },
+      { category: 'Configuración', actions: [{ label: 'Editar', allowed: false }, { label: 'Ver', allowed: false }] },
+    ],
+  },
+];
 
-  const allRoles = [...systemRoles, ...customRoles];
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-  const availablePermissions = [
-    { id: 'users.create', name: 'Crear Usuarios', category: 'Usuarios' },
-    { id: 'users.read', name: 'Ver Usuarios', category: 'Usuarios' },
-    { id: 'users.update', name: 'Editar Usuarios', category: 'Usuarios' },
-    { id: 'users.delete', name: 'Eliminar Usuarios', category: 'Usuarios' },
-    { id: 'roles.create', name: 'Crear Roles', category: 'Roles' },
-    { id: 'roles.read', name: 'Ver Roles', category: 'Roles' },
-    { id: 'roles.update', name: 'Editar Roles', category: 'Roles' },
-    { id: 'roles.delete', name: 'Eliminar Roles', category: 'Roles' },
-    { id: 'reports.create', name: 'Crear Reportes', category: 'Reportes' },
-    { id: 'reports.read', name: 'Ver Reportes', category: 'Reportes' },
-    { id: 'reports.update', name: 'Editar Reportes', category: 'Reportes' },
-    { id: 'reports.delete', name: 'Eliminar Reportes', category: 'Reportes' },
-    { id: 'events.create', name: 'Crear Eventos', category: 'Eventos' },
-    { id: 'events.read', name: 'Ver Eventos', category: 'Eventos' },
-    { id: 'events.update', name: 'Editar Eventos', category: 'Eventos' },
-    { id: 'events.delete', name: 'Eliminar Eventos', category: 'Eventos' },
-    { id: 'settings.create', name: 'Crear Configuraciones', category: 'Configuración' },
-    { id: 'settings.read', name: 'Ver Configuraciones', category: 'Configuración' },
-    { id: 'settings.update', name: 'Editar Configuraciones', category: 'Configuración' },
-    { id: 'settings.delete', name: 'Eliminar Configuraciones', category: 'Configuración' },
-  ];
+function initials(u: User) {
+  const f = u.first_name?.[0] ?? '';
+  const l = u.last_name?.[0] ?? '';
+  return (f + l).toUpperCase() || u.email[0].toUpperCase();
+}
 
-  const RoleCard = ({ role, isCustom = false }: { role: any; isCustom?: boolean }) => {
-    const Icon = role.icon;
-    const totalPermissions = Object.values(role.permissions).reduce(
-      (acc: number, perms: any) => acc + Object.values(perms).filter(Boolean).length,
-      0
-    ) as number;
+// ── Main component ─────────────────────────────────────────────────────────────
 
-    return (
-      <Card className="group hover:shadow-lg transition-all duration-300">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-12 h-12 rounded-xl ${role.color.split(' ')[0]}-50 dark:${role.color.split(' ')[2].replace('dark:', '')}950/20 flex items-center justify-center`}
-              >
-                <Icon className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                  {role.name}
-                  {role.isSystem && (
-                    <Badge variant="outline" className="text-xs">
-                      Sistema
-                    </Badge>
-                  )}
-                </h3>
-                <p className="text-sm text-muted-foreground line-clamp-2">{role.description}</p>
-              </div>
-            </div>
-          </div>
+export default function RoleManagementPage() {
+  const { currentUser } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedRole, setExpandedRole] = useState<UserRole | null>(null);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignUserId, setAssignUserId] = useState('');
+  const [assignRole, setAssignRole] = useState<UserRole | ''>('');
+  const [assignSearch, setAssignSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [confirmChange, setConfirmChange] = useState<{ user: User; newRole: UserRole } | null>(null);
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Usuarios asignados:</span>
-              <span className="font-semibold">{role.users}</span>
-            </div>
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Permisos activos:</span>
-              <span className="font-semibold">{totalPermissions}</span>
-            </div>
-
-            {!role.isActive && isCustom && (
-              <Badge variant="secondary" className="w-full justify-center">
-                Inactivo
-              </Badge>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 mt-4 pt-4 border-t">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={() => setSelectedRole(role)}
-            >
-              <Eye className="w-4 h-4 mr-1" />
-              Ver Detalles
-            </Button>
-
-            {!role.isSystem && (
-              <>
-                <Button variant="outline" size="sm">
-                  <Edit className="w-4 h-4" />
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const data = await UserService.getUsers();
+      setUsers(data);
+    } catch {
+      toast.error('Error al cargar usuarios');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const CreateRoleDialog = () => (
-    <Dialog open={isCreateRoleOpen} onOpenChange={setIsCreateRoleOpen}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Crear Nuevo Rol</DialogTitle>
-          <DialogDescription>
-            Define un nuevo rol personalizado con permisos específicos
-          </DialogDescription>
-        </DialogHeader>
+  // Group users by role
+  const usersByRole = useMemo(() => {
+    const map: Partial<Record<UserRole, User[]>> = {};
+    for (const u of users) {
+      if (!map[u.role]) map[u.role] = [];
+      map[u.role]!.push(u);
+    }
+    return map;
+  }, [users]);
 
-        <div className="space-y-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="role-name">Nombre del Rol *</Label>
-              <Input id="role-name" placeholder="Ej: Coordinador de Eventos" />
-            </div>
+  // Users available to assign (filtered by search)
+  const filteredForAssign = useMemo(() => {
+    const q = assignSearch.toLowerCase();
+    return users.filter(u =>
+      !q ||
+      u.first_name?.toLowerCase().includes(q) ||
+      u.last_name?.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q)
+    );
+  }, [users, assignSearch]);
 
-            <div className="space-y-2">
-              <Label htmlFor="role-color">Color</Label>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-500 border"></div>
-                <Input id="role-color" defaultValue="#3b82f6" placeholder="#3b82f6" />
-              </div>
-            </div>
+  const doRoleChange = async (userId: string, newRole: UserRole) => {
+    setSaving(true);
+    try {
+      await ApiService.put(`/users/${userId}`, { role: newRole });
+      invalidatePermissionsCache();
+      toast.success(`Rol actualizado a ${ROLE_DISPLAY_NAMES[newRole]}`);
+      await loadUsers();
+      setAssignOpen(false);
+      setAssignUserId('');
+      setAssignRole('');
+      setAssignSearch('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al actualizar rol';
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+      setConfirmChange(null);
+    }
+  };
 
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="role-description">Descripción</Label>
-              <Textarea
-                id="role-description"
-                placeholder="Describe las responsabilidades de este rol..."
-                rows={3}
-              />
-            </div>
-          </div>
+  const handleAssignSubmit = () => {
+    if (!assignUserId || !assignRole) return;
+    const user = users.find(u => u.id === assignUserId);
+    if (!user) return;
+    if (user.role === assignRole) {
+      toast.info('El usuario ya tiene ese rol');
+      return;
+    }
+    setConfirmChange({ user, newRole: assignRole });
+  };
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Rol Activo</Label>
-                <p className="text-sm text-muted-foreground">
-                  Los usuarios pueden ser asignados a este rol
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Permisos</h3>
-
-            {['Usuarios', 'Roles', 'Reportes', 'Eventos', 'Configuración'].map(category => (
-              <div key={category} className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-                  {category}
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pl-4 border-l-2 border-muted">
-                  {availablePermissions
-                    .filter(perm => perm.category === category)
-                    .map(permission => (
-                      <div key={permission.id} className="flex items-center space-x-2">
-                        <Checkbox id={permission.id} />
-                        <Label
-                          htmlFor={permission.id}
-                          className="text-sm font-normal cursor-pointer"
-                        >
-                          {permission.name}
-                        </Label>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={() => setIsCreateRoleOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => {
-                setIsCreateRoleOpen(false);
-                toast.success('Rol creado exitosamente');
-              }}
-            >
-              Crear Rol
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Gestión de Roles
-          </h1>
-          <p className="text-muted-foreground mt-1">Administra roles y permisos del sistema</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsAssignRoleOpen(true)}>
-            <UserPlus className="w-4 h-4 mr-2" />
+    <>
+      <div className="space-y-6 p-3 sm:p-4 md:p-6 max-w-5xl">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestión de Roles</h1>
+              <Badge variant="secondary" className="tabular-nums">
+                {users.length} usuarios
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Administrá los roles del sistema y asignalos a los miembros.
+            </p>
+          </div>
+          <Button onClick={() => setAssignOpen(true)} className="w-full sm:w-auto">
+            <UserCog className="w-4 h-4 mr-2" />
             Asignar Rol
           </Button>
-          <Button onClick={() => setIsCreateRoleOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Crear Rol
-          </Button>
+        </div>
+
+        {/* ── Stats strip ── */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl border border-border/50 bg-card p-4 text-center">
+            <p className="text-2xl font-bold">{ROLE_DEFS.length}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Roles del sistema</p>
+          </div>
+          <div className="rounded-xl border border-border/50 bg-card p-4 text-center">
+            <p className="text-2xl font-bold">{users.length}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Usuarios activos</p>
+          </div>
+          <div className="rounded-xl border border-border/50 bg-card p-4 text-center">
+            <p className="text-2xl font-bold text-primary">
+              {usersByRole['admin']?.length ?? 0 + (usersByRole['pastor']?.length ?? 0)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">Con acceso admin</p>
+          </div>
+        </div>
+
+        {/* ── Role cards ── */}
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {ROLE_DEFS.map(def => {
+            const Icon = def.icon;
+            const roleUsers = usersByRole[def.id] ?? [];
+            const isExpanded = expandedRole === def.id;
+            const level = ROLE_LEVELS[def.id];
+
+            return (
+              <div
+                key={def.id}
+                className="rounded-2xl border border-border/50 bg-card overflow-hidden shadow-sm"
+              >
+                {/* Color accent */}
+                <div className={`h-0.5 bg-gradient-to-r ${def.gradient}`} />
+
+                <div className="p-4 sm:p-5">
+                  {/* Role header */}
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl ${def.bg} flex items-center justify-center flex-shrink-0`}>
+                        <Icon className={`w-5 h-5 ${def.text}`} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-sm leading-tight">
+                            {ROLE_DISPLAY_NAMES[def.id]}
+                          </h3>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${def.bg} ${def.text} ${def.border}`}>
+                            Nivel {level}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                          {def.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xl font-bold leading-tight">{roleUsers.length}</p>
+                      <p className="text-xs text-muted-foreground">usuarios</p>
+                    </div>
+                  </div>
+
+                  {/* Permissions mini-matrix */}
+                  <div className="grid grid-cols-1 gap-1.5 mb-3">
+                    {def.permissions.map(cat => (
+                      <div key={cat.category} className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground w-24 flex-shrink-0 uppercase tracking-wide font-medium">
+                          {cat.category}
+                        </span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {cat.actions.map(action => (
+                            <span
+                              key={action.label}
+                              className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                action.allowed
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-muted text-muted-foreground/50 line-through'
+                              }`}
+                            >
+                              {action.allowed ? (
+                                <Check className="w-2.5 h-2.5" />
+                              ) : (
+                                <X className="w-2.5 h-2.5" />
+                              )}
+                              {action.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Toggle users button */}
+                  <button
+                    onClick={() => setExpandedRole(isExpanded ? null : def.id)}
+                    disabled={roleUsers.length === 0}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium border transition-colors duration-200 ${
+                      roleUsers.length === 0
+                        ? 'border-border/30 text-muted-foreground/40 cursor-default'
+                        : 'border-border/50 hover:bg-muted/40 cursor-pointer'
+                    }`}
+                  >
+                    <span>
+                      {roleUsers.length === 0
+                        ? 'Sin usuarios asignados'
+                        : `Ver ${roleUsers.length} usuario${roleUsers.length !== 1 ? 's' : ''}`}
+                    </span>
+                    {roleUsers.length > 0 && (
+                      isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Expanded users list */}
+                {isExpanded && roleUsers.length > 0 && (
+                  <div className="border-t border-border/30 bg-muted/20 px-4 sm:px-5 py-3 space-y-2 max-h-56 overflow-y-auto">
+                    {roleUsers.map(u => (
+                      <div key={u.id} className="flex items-center gap-3">
+                        <Avatar className="w-7 h-7 flex-shrink-0">
+                          <AvatarFallback className={`text-[10px] font-bold ${def.bg} ${def.text}`}>
+                            {initials(u)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">
+                            {u.first_name} {u.last_name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
+                        </div>
+                        {/* Don't allow changing own role */}
+                        {u.id !== currentUser?.id && (
+                          <button
+                            onClick={() => {
+                              setAssignUserId(u.id);
+                              setAssignRole('');
+                              setAssignOpen(true);
+                            }}
+                            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 cursor-pointer px-2 py-1 rounded-lg hover:bg-muted"
+                          >
+                            Cambiar
+                          </button>
+                        )}
+                        {u.id === currentUser?.id && (
+                          <span className="text-[10px] text-muted-foreground/50 flex-shrink-0 px-2">Vos</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      <Tabs defaultValue="system" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-          <TabsTrigger value="system">Roles del Sistema</TabsTrigger>
-          <TabsTrigger value="custom">Roles Personalizados</TabsTrigger>
-        </TabsList>
+      {/* ── Assign Role Dialog ── */}
+      <Dialog
+        open={assignOpen}
+        onOpenChange={open => {
+          setAssignOpen(open);
+          if (!open) {
+            setAssignUserId('');
+            setAssignRole('');
+            setAssignSearch('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCog className="w-5 h-5 text-primary" />
+              Asignar Rol
+            </DialogTitle>
+            <DialogDescription>
+              Cambiá el rol de un usuario. El cambio aplica de inmediato.
+            </DialogDescription>
+          </DialogHeader>
 
-        <TabsContent value="system" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Roles del Sistema
-              </CardTitle>
-              <CardDescription>
-                Roles predefinidos con permisos establecidos por el sistema
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {systemRoles.map(role => (
-              <RoleCard key={role.id} role={role} />
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="custom" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                Roles Personalizados
-              </CardTitle>
-              <CardDescription>Roles creados específicamente para tu organización</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Buscar roles personalizados..." className="pl-10" />
-                  </div>
-                </div>
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="active">Activos</SelectItem>
-                    <SelectItem value="inactive">Inactivos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {customRoles.map(role => (
-              <RoleCard key={role.id} role={role} isCustom />
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* Role Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-primary">6</div>
-            <div className="text-sm text-muted-foreground">Total de roles</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-green-600">65</div>
-            <div className="text-sm text-muted-foreground">Usuarios asignados</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-orange-600">2</div>
-            <div className="text-sm text-muted-foreground">Roles personalizados</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-2xl font-bold text-purple-600">20</div>
-            <div className="text-sm text-muted-foreground">Permisos únicos</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <CreateRoleDialog />
-
-      {/* Role Detail Modal */}
-      {selectedRole && (
-        <Dialog open={!!selectedRole} onOpenChange={() => setSelectedRole(null)}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3">
-                <selectedRole.icon className="w-6 h-6" />
-                {selectedRole.name}
-                {selectedRole.isSystem && <Badge variant="outline">Sistema</Badge>}
-              </DialogTitle>
-              <DialogDescription>{selectedRole.description}</DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Usuarios Asignados</Label>
-                  <div className="text-2xl font-bold">{selectedRole.users}</div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Permisos Activos</Label>
-                  <div className="text-2xl font-bold">
-                    {
-                      Object.values(selectedRole.permissions).reduce(
-                        (acc: number, perms: any) =>
-                          acc + Object.values(perms).filter(Boolean).length,
-                        0
-                      ) as number
-                    }
-                  </div>
-                </div>
+          <div className="space-y-4 py-2">
+            {/* User selector */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Usuario
+              </Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nombre o email..."
+                  value={assignSearch}
+                  onChange={e => setAssignSearch(e.target.value)}
+                  className="pl-9 text-sm"
+                />
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Permisos Detallados</h3>
-
-                {Object.entries(selectedRole.permissions).map(([module, perms]: [string, any]) => (
-                  <div key={module} className="space-y-2">
-                    <h4 className="font-medium capitalize">{module}</h4>
-                    <div className="grid grid-cols-4 gap-2">
-                      {Object.entries(perms).map(([action, allowed]: [string, any]) => (
-                        <div key={action} className="flex items-center gap-2 text-sm">
-                          {allowed ? (
-                            <Check className="w-4 h-4 text-green-600" />
-                          ) : (
-                            <X className="w-4 h-4 text-red-600" />
-                          )}
-                          <span className={allowed ? 'text-green-600' : 'text-red-600'}>
-                            {action.charAt(0).toUpperCase() + action.slice(1)}
-                          </span>
+              <div className="rounded-xl border border-border/50 max-h-48 overflow-y-auto">
+                {filteredForAssign.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">Sin resultados</p>
+                ) : (
+                  filteredForAssign.map(u => {
+                    const def = ROLE_DEFS.find(d => d.id === u.role);
+                    const isSelected = assignUserId === u.id;
+                    const isSelf = u.id === currentUser?.id;
+                    return (
+                      <button
+                        key={u.id}
+                        disabled={isSelf}
+                        onClick={() => setAssignUserId(u.id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-primary/10 border-l-2 border-primary'
+                            : 'hover:bg-muted/40'
+                        } ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      >
+                        <Avatar className="w-7 h-7 flex-shrink-0">
+                          <AvatarFallback className={`text-[10px] font-bold ${def?.bg ?? ''} ${def?.text ?? ''}`}>
+                            {initials(u)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">
+                            {u.first_name} {u.last_name}
+                            {isSelf && <span className="text-muted-foreground ml-1">(vos)</span>}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${def?.bg ?? 'bg-muted'} ${def?.text ?? 'text-muted-foreground'} flex-shrink-0`}>
+                          {ROLE_DISPLAY_NAMES[u.role]}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
               </div>
-
-              {!selectedRole.isSystem && (
-                <div className="flex justify-end gap-2 pt-4 border-t">
-                  <Button variant="outline">
-                    <Edit className="w-4 h-4 mr-2" />
-                    Editar Rol
-                  </Button>
-                  <Button variant="outline">
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Asignar Usuarios
-                  </Button>
-                </div>
-              )}
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
-  );
-};
 
-export default RoleManagementPage;
+            {/* Role selector */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Nuevo Rol
+              </Label>
+              <Select
+                value={assignRole}
+                onValueChange={v => setAssignRole(v as UserRole)}
+                disabled={!assignUserId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccioná un rol..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_DEFS.map(def => {
+                    const currentUserRole = users.find(u => u.id === assignUserId)?.role;
+                    return (
+                      <SelectItem
+                        key={def.id}
+                        value={def.id}
+                        disabled={def.id === currentUserRole}
+                      >
+                        <div className="flex items-center gap-2">
+                          <def.icon className={`w-3.5 h-3.5 ${def.text}`} />
+                          <span>{ROLE_DISPLAY_NAMES[def.id]}</span>
+                          {def.id === currentUserRole && (
+                            <span className="text-muted-foreground text-xs">(actual)</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Footer buttons */}
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setAssignOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!assignUserId || !assignRole || saving}
+                onClick={handleAssignSubmit}
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Guardar cambio
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Confirm role change ── */}
+      <AlertDialog open={!!confirmChange} onOpenChange={open => !open && setConfirmChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Confirmar cambio de rol?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vas a cambiar el rol de{' '}
+              <strong>
+                {confirmChange?.user.first_name} {confirmChange?.user.last_name}
+              </strong>{' '}
+              de <strong>{ROLE_DISPLAY_NAMES[confirmChange?.user.role ?? 'member']}</strong> a{' '}
+              <strong>{ROLE_DISPLAY_NAMES[confirmChange?.newRole ?? 'member']}</strong>. El
+              cambio aplica de inmediato y afecta su acceso al sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmChange(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmChange) doRoleChange(confirmChange.user.id, confirmChange.newRole);
+              }}
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}

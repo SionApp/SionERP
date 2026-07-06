@@ -1,0 +1,3 @@
+# Las capturas viven en el bucket público de Supabase, no en el repo.
+*.png
+urls.json

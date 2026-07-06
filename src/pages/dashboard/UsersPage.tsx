@@ -1,456 +1,184 @@
 import DeleteUserDialog from '@/components/DeleteUserDialog';
-import { DynamicFilter, FilterField, FilterValues } from '@/components/DynamicFilter';
 import UserDetailSheet from '@/components/UserDetailSheet';
 import { InviteUserModal } from '@/components/dashboard/InviteUserModal';
-import { Column, DataTable } from '@/components/ui/DataTable';
-import { Badge } from '@/components/ui/badge';
+import { ImportUsersModal } from '@/components/users/ImportUsersModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Can } from '@/components/Can';
+import { MobileUsersScreen } from '@/components/mobile/screens/UsersScreen';
+import { useMobileMode } from '@/hooks/useMobileMode';
+import { usePermissions } from '@/hooks/usePermissions';
+import { ROLE_LEVELS } from '@/lib/permissions';
 import { UserService } from '@/services/user.service';
-import { Invitation } from '@/types/invitation.types';
 import { User } from '@/types/user.types';
-import { Calendar, Edit, Eye, Mail, Plus, SendHorizontal, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { buildUsersColumns } from './users/users-columns';
+import { UsersTable } from './users/users-table';
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type PaginationState,
+  type RowSelectionState,
+} from '@tanstack/react-table';
+import { Plus, Search, Upload } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+const ROLE_OPTIONS = [
+  { value: 'all', label: 'Todos los roles' },
+  { value: 'pastor', label: 'Pastor' },
+  { value: 'staff', label: 'Staff' },
+  { value: 'supervisor', label: 'Supervisor' },
+  { value: 'server', label: 'Servidor' },
+  { value: 'member', label: 'Miembro' },
+];
+
 const UsersPage = () => {
+  const navigate = useNavigate();
+  const isMobileApp = useMobileMode();
+  const { canManageUsers, canManageRoles, isLoading: isLoadingPermissions } = usePermissions();
+
+  // Data state
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<FilterValues>({});
+  const [total, setTotal] = useState(0);
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+
+  // Modals
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [showInviteModalUser, setShowInviteModalUser] = useState<User | null>(null);
-  const navigate = useNavigate();
+  const [importOpen, setImportOpen] = useState(false);
 
-  const filterFields: FilterField[] = [
-    {
-      key: 'search',
-      label: 'Búsqueda general',
-      type: 'text',
-      placeholder: 'Nombre, email o cédula...',
+  // Table state
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [pagination] = useState<PaginationState>({ pageIndex: 0, pageSize: limit });
+
+  // Debounce search
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Mobile: paginación acumulativa ("Cargar más")
+  const [mobilePage, setMobilePage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadUsers = useCallback(
+    async (p: number, lim: number, q: string, role: string, append = false) => {
+      try {
+        if (append) setLoadingMore(true);
+        else setLoading(true);
+        const res = await UserService.getUsers({
+          page: p,
+          limit: lim,
+          search: q || undefined,
+          role: role !== 'all' ? role : undefined,
+        });
+        setUsers(prev => (append ? [...prev, ...res.users] : res.users));
+        setTotal(res.total);
+      } catch {
+        toast.error('Error al cargar los usuarios');
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     },
-    {
-      key: 'role',
-      label: 'Rol',
-      type: 'select',
-      options: [
-        { value: 'pastor', label: 'Pastor' },
-        { value: 'staff', label: 'Staff' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'server', label: 'Servidor' },
-      ],
-    },
-    { key: 'baptized', label: 'Solo bautizados', type: 'boolean' },
-    { key: 'whatsapp', label: 'Con WhatsApp', type: 'boolean' },
-    { key: 'created_at', label: 'Fecha de registro', type: 'dateRange' },
-  ];
+    []
+  );
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const usersData = await UserService.getAllUsers();
-      setUsers(usersData);
-    } catch (error) {
-      toast.error('Error al cargar los usuarios');
-    } finally {
-      setLoading(false);
-    }
+  const handleLoadMore = async () => {
+    const next = mobilePage + 1;
+    setMobilePage(next);
+    await loadUsers(next, limit, search, roleFilter, true);
   };
 
-  const filteredUsers = users.filter(user => {
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      const matchesSearch =
-        user.first_name.toLowerCase().includes(searchLower) ||
-        user.last_name.toLowerCase().includes(searchLower) ||
-        user.email.toLowerCase().includes(searchLower) ||
-        user.id_number.includes(filters.search);
+  useEffect(() => {
+    loadUsers(page, limit, search, roleFilter);
+  }, [page, limit, roleFilter, loadUsers]);
 
-      if (!matchesSearch) return false;
-    }
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setPage(1);
+      setMobilePage(1);
+      loadUsers(1, limit, value, roleFilter);
+    }, 400);
+  };
 
-    if (filters.role && user.role !== filters.role) {
-      return false;
-    }
+  const handleRoleChange = (value: string) => {
+    setRoleFilter(value);
+    setPage(1);
+    setMobilePage(1);
+  };
 
-    if (filters.baptized && !user.baptized) {
-      return false;
-    }
+  const columns = useMemo(
+    () =>
+      buildUsersColumns({
+        onView: u => setSelectedUserId(u.id),
+        onEdit: u => navigate('/dashboard/register-user', { state: { userId: u.id } }),
+        onInvite: u => setShowInviteModalUser(u),
+        onDelete: u => setDeletingUser(u),
+        canEdit: canManageUsers,
+        canDelete: canManageRoles,
+      }),
+    [canManageUsers, canManageRoles, navigate]
+  );
 
-    if (filters.whatsapp && !user.whatsapp) {
-      return false;
-    }
-
-    if (filters.created_at?.from) {
-      const userDate = new Date(user.created_at);
-      const fromDate = new Date(filters.created_at.from);
-      if (userDate < fromDate) return false;
-
-      if (filters.created_at.to) {
-        const toDate = new Date(filters.created_at.to);
-        if (userDate > toDate) return false;
-      }
-    }
-
-    return true;
+  const table = useReactTable({
+    data: users,
+    columns,
+    state: { rowSelection, pagination },
+    getRowId: row => row.id,
+    manualPagination: true,
+    pageCount: Math.ceil(total / limit),
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
-  const getRoleBadgeVariant = (role: string) => {
-    switch (role) {
-      case 'pastor':
-        return 'red';
-      case 'staff':
-        return 'yellow';
-      case 'supervisor':
-        return 'green';
-      case 'server':
-        return 'purple';
-      default:
-        return 'default';
-    }
-  };
-
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'pastor':
-        return 'Pastor';
-      case 'staff':
-        return 'Staff';
-      case 'supervisor':
-        return 'Supervisor';
-      case 'server':
-        return 'Servidor';
-      default:
-        return role;
-    }
-  };
-  const loadInvitations = async () => {
-    try {
-      setLoadingInvitations(true);
-      const invitations = await UserService.loadInvitations();
-      setInvitations(invitations || []);
-    } catch (error) {
-      console.error('Error loading invitations:', error);
-      toast.error('Error al cargar las invitaciones');
-    } finally {
-      setLoadingInvitations(false);
-    }
-  };
-
-  const handleResendInvitation = async (invitationId: string) => {
-    try {
-      await UserService.resendInvitation(invitationId);
-      toast.success('Invitación reenviada correctamente');
-      loadInvitations();
-    } catch (error) {
-      console.error('Error resending invitation:', error);
-      toast.error('Error al reenviar la invitación');
-    }
-  };
-
-  useEffect(() => {
-    loadInvitations();
-  }, []);
-
-  const handleDetailUser = (user: User) => {
-    setSelectedUserId(user.id);
-  };
-
-  const handleEditUser = (user: User) => {
-    navigate(`/dashboard/register-user`, { state: { userId: user.id } });
-  };
-
-  const handleDeleteUser = (user: User) => {
-    setDeletingUser(user);
-  };
+  const selectedCount = Object.keys(rowSelection).length;
 
   const confirmDeleteUser = async () => {
     if (!deletingUser) return;
-
     try {
       setIsDeleting(true);
       await UserService.deleteUser(deletingUser.id);
-      toast.success(
-        `Usuario ${deletingUser.first_name} ${deletingUser.last_name} eliminado correctamente`
-      );
+      toast.success(`Usuario ${deletingUser.first_name} ${deletingUser.last_name} eliminado`);
       setDeletingUser(null);
-      loadUsers();
-    } catch (error) {
-      console.error('Error deleting user:', error);
+      loadUsers(page, limit, search, roleFilter);
+    } catch {
       toast.error('Error al eliminar el usuario');
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const columns: Column<User & { invitation_status: string }>[] = [
-    {
-      key: 'first_name',
-      label: 'Nombre Completo',
-      render: user => (
-        <div>
-          <div className="font-medium">
-            {user.first_name} {user.last_name}
-          </div>
-          <div className="text-sm text-muted-foreground">{user.email}</div>
-        </div>
-      ),
-      responsive: 'always',
-      sortable: true,
-      width: '250px',
-    },
-    {
-      key: 'id_number',
-      label: 'Cédula',
-      render: user => (
-        <div className="text-sm">
-          <div>{user.id_number}</div>
-          <div className="text-muted-foreground">{user.phone}</div>
-        </div>
-      ),
-      responsive: 'lg',
-      sortable: true,
-      width: '150px',
-    },
-    {
-      key: 'role',
-      label: 'Rol',
-      render: user => (
-        <div className="space-y-1">
-          <Badge variant={getRoleBadgeVariant(user.role)}>{getRoleDisplayName(user.role)}</Badge>
-        </div>
-      ),
-      responsive: 'md',
-      sortable: true,
-      width: '120px',
-    },
-    {
-      key: 'address',
-      label: 'Dirección',
-      render: user => (
-        <div className="text-sm max-w-xs truncate" title={user.address}>
-          {user.address}
-        </div>
-      ),
-      responsive: 'xl',
-      width: '200px',
-    },
-    {
-      key: 'created_at',
-      label: 'Registrado',
-      render: user => (
-        <div className="text-sm">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {new Date(user.created_at).toLocaleDateString()}
-          </div>
-        </div>
-      ),
-      responsive: 'lg',
-      sortable: true,
-      width: '120px',
-    },
-    {
-      key: 'invitation_status',
-      label: 'Estado',
-      render: user => {
-        const invitation = invitations.find(inv => inv.email === user.email);
-
-        if (!invitation) {
-          return <Badge variant="outline">No invitado</Badge>;
-        }
-
-        const isExpired = new Date(invitation.expires_at) < new Date();
-
-        return (
-          <div className="flex items-center gap-2">
-            <Badge
-              variant={
-                invitation.status === 'resent'
-                  ? 'outline'
-                  : invitation.status === 'accepted'
-                    ? 'green'
-                    : invitation.status === 'pending' && !isExpired
-                      ? 'yellow'
-                      : 'red'
-              }
-            >
-              {invitation.status === 'resent'
-                ? 'Invitación reenviada'
-                : invitation.status === 'pending' && !isExpired
-                  ? 'Invitación pendiente'
-                  : invitation.status === 'accepted'
-                    ? 'Aceptada'
-                    : 'Expirada'}
-            </Badge>
-
-            {invitation.status === 'pending' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleResendInvitation(invitation.id)}
-                className="h-6 w-6 p-0"
-                title="Reenviar invitación"
-              >
-                <SendHorizontal className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-        );
-      },
-      responsive: 'md',
-    },
-  ];
-
-  const userActions = (user: User) => (
-    <div className="flex items-center gap-1">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => handleDetailUser(user)}
-        title="Ver detalles"
-        className="h-8 w-8 p-0"
-      >
-        <Eye className="h-3 w-3" />
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => handleEditUser(user)}
-        title="Editar usuario"
-        className="h-8 w-8 p-0"
-      >
-        <Edit className="h-3 w-3" />
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => handleDeleteUser(user)}
-        title="Eliminar usuario"
-        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
-      {user.invitation_status !== 'accepted' && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowInviteModalUser(user)}
-          title="Invitar usuario"
-          className="h-8 w-8 p-0"
-        >
-          <Mail className="h-3 w-3" />
-        </Button>
-      )}
-    </div>
-  );
-
-  const mobileCardRender = (user: User, actions?: React.ReactNode) => (
-    <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors space-y-3">
-      <div className="flex justify-between items-start">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-base truncate">
-            {user.first_name} {user.last_name}
-          </h3>
-          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-        </div>
-        <div className="flex flex-col gap-1 ml-2">
-          <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
-            {getRoleDisplayName(user.role)}
-          </Badge>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div>
-          <span className="text-muted-foreground">Cédula:</span>
-          <p className="font-medium">{user.id_number}</p>
-        </div>
-        <div>
-          <span className="text-muted-foreground">Teléfono:</span>
-          <p className="font-medium">{user.phone}</p>
-        </div>
-      </div>
-
-      {user.whatsapp && (
-        <div className="flex justify-start">
-          <Badge variant="outline" className="text-xs">
-            📱 WhatsApp
-          </Badge>
-        </div>
-      )}
-
-      <div className="flex justify-between items-center pt-2 border-t">
-        <div className="text-xs text-muted-foreground">
-          <span>Registrado: </span>
-          <span className="font-medium">{new Date(user.created_at).toLocaleDateString()}</span>
-        </div>
-        <div className="flex items-center gap-1">{actions}</div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Gestión de Usuarios
-          </h1>
-          <p className="text-muted-foreground mt-1">Administra los usuarios registrados en el sistema</p>
-        </div>
-        <Button onClick={() => navigate('/dashboard/register-user')} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Usuario
-        </Button>
-      </div>
-
-      <DynamicFilter
-        fields={filterFields}
-        onFilterChange={setFilters}
-        onClear={() => setFilters({})}
-      />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Usuarios ({filteredUsers.length})</CardTitle>
-          <CardDescription>Lista de todos los usuarios registrados</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            data={filteredUsers.map(
-              user =>
-                ({
-                  ...user,
-                  invitation_status:
-                    invitations.find(inv => inv.email === user.email)?.status || 'pending',
-                }) as User & { invitation_status: 'pending' | 'accepted' | 'expired' }
-            )}
-            columns={columns}
-            actions={userActions}
-            loading={loading}
-            emptyMessage="No se encontraron usuarios"
-            pagination={true}
-            itemsPerPage={10}
-            searchable={false}
-            mobileCardRender={mobileCardRender}
-          />
-        </CardContent>
-      </Card>
-
+  // ── Modales compartidos entre web y mobile (viven fuera del branch) ──
+  const sharedModals = (
+    <>
       <UserDetailSheet
-        user={selectedUserId ? users.find(user => user.id === selectedUserId) : null} // Obtener usuario seleccionado
+        user={selectedUserId ? (users.find(u => u.id === selectedUserId) ?? null) : null}
         isOpen={!!selectedUserId}
         onClose={() => setSelectedUserId(null)}
+        onEdit={u => navigate('/dashboard/register-user', { state: { userId: u.id } })}
       />
 
       <DeleteUserDialog
@@ -465,8 +193,143 @@ const UsersPage = () => {
         user={showInviteModalUser}
         isOpen={!!showInviteModalUser}
         onClose={() => setShowInviteModalUser(null)}
-        onInviteSent={() => loadInvitations()}
+        onInviteSent={() => loadUsers(page, limit, search, roleFilter)}
       />
+
+      <ImportUsersModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onComplete={() => {
+          setImportOpen(false);
+          loadUsers(page, limit, search, roleFilter);
+        }}
+      />
+    </>
+  );
+
+  // ── Modo mobile exclusivo ──
+  if (isMobileApp) {
+    return (
+      <>
+        <MobileUsersScreen
+          users={users}
+          total={total}
+          loading={loading || isLoadingPermissions}
+          loadingMore={loadingMore}
+          search={search}
+          onSearchChange={handleSearchChange}
+          roleFilter={roleFilter}
+          onRoleChange={handleRoleChange}
+          roleOptions={ROLE_OPTIONS.map(o => ({
+            value: o.value,
+            label: o.value === 'all' ? 'Todos' : o.label,
+          }))}
+          canCreate={canManageUsers}
+          onCreate={() => navigate('/dashboard/register-user')}
+          onImport={() => setImportOpen(true)}
+          onSelectUser={u => setSelectedUserId(u.id)}
+          hasMore={users.length < total}
+          onLoadMore={handleLoadMore}
+        />
+        {sharedModals}
+      </>
+    );
+  }
+
+  return (
+    <div className="space-y-4 p-2 sm:p-4 md:p-6">
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">
+          Gestión de Usuarios
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Administrá los usuarios registrados en el sistema
+        </p>
+      </div>
+
+      <Card>
+        {/* Card header: title + search + actions */}
+        <CardHeader className="border-b px-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="text-xl leading-none">Usuarios</CardTitle>
+              <CardDescription className="mt-1">
+                {total} usuario{total !== 1 ? 's' : ''} en total
+              </CardDescription>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  className="h-8 w-full pl-8 sm:w-56"
+                  placeholder="Buscar usuarios..."
+                  value={search}
+                  onChange={e => handleSearchChange(e.target.value)}
+                />
+              </div>
+              <Can I={ROLE_LEVELS.staff}>
+                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Importar</span>
+                </Button>
+                <Button size="sm" onClick={() => navigate('/dashboard/register-user')}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Nuevo Usuario</span>
+                </Button>
+              </Can>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="flex flex-col gap-3 px-0 py-0">
+          {/* Filter bar */}
+          <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Select value={roleFilter} onValueChange={handleRoleChange}>
+                <SelectTrigger className="h-8 w-auto gap-1 text-sm">
+                  <span className="text-muted-foreground">Rol:</span>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectGroup>
+                    {ROLE_OPTIONS.map(o => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {selectedCount > 0
+                ? `${selectedCount} seleccionado${selectedCount !== 1 ? 's' : ''}`
+                : ''}
+            </span>
+          </div>
+
+          {/* Table */}
+          {!isLoadingPermissions && (
+            <UsersTable
+              table={table}
+              loading={loading}
+              serverPage={page}
+              serverTotal={total}
+              serverLimit={limit}
+              onPageChange={setPage}
+              onLimitChange={lim => {
+                setLimit(lim);
+                setPage(1);
+              }}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {sharedModals}
     </div>
   );
 };

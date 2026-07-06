@@ -18,8 +18,9 @@ export function useGeneralSupervisorData() {
     weeklyTrends,
     subordinates,
     zoneStats,
+    pendingReports,
     refetch: refetchBase,
-  } = useDiscipleshipData({ level: 3, enabled: !!user });
+  } = useDiscipleshipData({ userId: user?.id, level: 3, enabled: !!user });
 
   // Estados adicionales específicos del supervisor general
   const [myReports, setMyReports] = useState<DiscipleshipReport[]>([]);
@@ -76,6 +77,7 @@ export function useGeneralSupervisorData() {
     
     // Datos específicos del supervisor general
     myReports,
+    pendingReports: pendingReports || [],
     
     // Estados de carga
     loading: baseLoading || loadingReports,

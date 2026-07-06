@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ApiService } from '@/services/api.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type {
   GroupMemberWithDetails,
@@ -107,20 +106,15 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
   const loadUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const response = await ApiService.get<{ users: User[] } | User[]>('/users');
-      let userList: User[] = [];
-      if (Array.isArray(response)) {
-        userList = response as User[];
-      } else if (response && typeof response === 'object' && 'users' in response) {
-        userList = (response.users as User[]) || [];
-      }
+      const usersData = await DiscipleshipService.getUsersForHierarchy();
+      const userList = usersData || [];
 
       const normalized = userList
         .filter(u => u.id)
         .map(u => ({
           id: String(normalizeNullString(u.id) || ''),
           full_name:
-            u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Sin nombre',
+            `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Sin nombre',
           email: normalizeNullString(u.email) || '',
           phone: normalizeNullString(u.phone) || '',
         }));
@@ -310,7 +304,7 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
         {members.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No hay miembros en este grupo</p>
+            <p>Los miembros de este grupo todavía no están registrados en el sistema</p>
             <Button
               variant="outline"
               className="mt-4"

@@ -14,8 +14,23 @@ export const createUserSchema = z.object({
   }),
   birth_date: z.string().optional(),
   address: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().min(10, 'El teléfono debe tener al menos 10 caracteres'),
+  marital_status: z.string().optional(),
+  occupation: z.string().optional(),
+  education_level: z.string().optional(),
+  how_found_church: z.string().optional(),
+  ministry_interest: z.string().optional(),
+  first_visit_date: z.string().optional(),
+  cell_group: z.string().optional(),
+  pastoral_notes: z.string().optional(),
+  baptism_date: z.string().optional(),
+  baptized: z.boolean().optional(),
+  is_active_member: z.boolean().optional(),
+  membership_date: z.string().optional(),
+  cell_leader_id: z.string().optional(),
 });
 
 export const profileUpdateSchema = z.object({
@@ -49,7 +64,7 @@ export const registerUserSchema = z.object({
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
   first_name: z.string().min(2, 'Los nombres son requeridos'),
   last_name: z.string().min(2, 'Los apellidos son requeridos'),
-  id_number: z.string().min(8, 'La cédula debe tener al menos 8 caracteres'),
+  id_number: z.string().min(7, 'La cédula debe tener al menos 7 caracteres'),
   phone: z.string().min(10, 'El teléfono debe tener al menos 10 caracteres'),
   whatsapp: z.boolean().optional(),
   role: z.enum(userRoles, {

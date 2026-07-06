@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Mail, Lock, User, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { SettingsService } from '@/services/settings.service';
 import { User as UserType } from '@/types/user.types';
 const registerSchema = z
   .object({
@@ -36,8 +37,14 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [registrationsAllowed, setRegistrationsAllowed] = useState(true);
   const navigate = useNavigate();
   const { signUp, user, isLoading: authLoading } = useAuth();
+
+  // ¿El auto-registro está habilitado? (el enforcement real vive en la DB)
+  useEffect(() => {
+    SettingsService.getRegistrationStatus().then(setRegistrationsAllowed);
+  }, []);
 
   const {
     register,
@@ -88,6 +95,13 @@ const Register = () => {
           setError('password', {
             message: 'La contraseña no cumple los requisitos',
           });
+        } else if (
+          error.message?.includes('registrations_disabled') ||
+          error.message?.includes('Database error saving new user')
+        ) {
+          setError('root', {
+            message: 'El registro de nuevos usuarios está deshabilitado. Contactá a tu administrador.',
+          });
         } else {
           setError('root', {
             message: 'Error al registrarse. Intenta de nuevo.',
@@ -129,6 +143,14 @@ const Register = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {!registrationsAllowed && (
+            <Alert className="mb-4">
+              <AlertDescription>
+                El registro de nuevos usuarios está deshabilitado por el administrador. Si
+                necesitás una cuenta, pedí una invitación.
+              </AlertDescription>
+            </Alert>
+          )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {errors.root && (
               <Alert variant="destructive">
@@ -222,7 +244,7 @@ const Register = () => {
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading || !registrationsAllowed}>
               {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />

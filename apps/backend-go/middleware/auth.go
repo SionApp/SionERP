@@ -3,6 +3,7 @@ package middleware
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"sync"
 
 	"backend-sion/config"
+	"backend-sion/utils"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
@@ -92,10 +94,18 @@ func ecPublicKeyFromJWK(key jwkKey) (*ecdsa.PublicKey, error) {
 	return pubKey, nil
 }
 
+// AppMetaClaims holds the app_metadata object from the Supabase JWT.
+// Supabase writes church_id here during user creation (Phase 0+); existing
+// tokens won't have it until the Phase 2a JWT backfill migration runs.
+type AppMetaClaims struct {
+	ChurchID string `json:"church_id"`
+}
+
 type Claims struct {
-	Sub   string `json:"sub"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Sub     string        `json:"sub"`
+	Email   string        `json:"email"`
+	Role    string        `json:"role"`
+	AppMeta AppMetaClaims `json:"app_metadata"`
 	jwt.RegisteredClaims
 }
 
@@ -126,31 +136,52 @@ func SupabaseAuth() echo.MiddlewareFunc {
 					"error": "Invalid token: " + err.Error(),
 				})
 			}
-			var dbRole string
 
-			// Obtener la conexión a la base de datos de forma segura
+			// Get the database connection safely
+			var dbRole string
+			var isSuperAdmin bool
+			var actualUserID string // Este será el business UUID (id)
 			db := config.GetDB()
 			if db != nil && db.DB != nil {
-				err = db.DB.QueryRow("SELECT role FROM users WHERE id = $1", claims.Sub).Scan(&dbRole)
+				// Buscar por id (que ahora es el MISMO que el JWT sub/Auth ID)
+				err := db.DB.QueryRow("SELECT id, role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", claims.Sub).Scan(&actualUserID, &dbRole, &isSuperAdmin)
 				if err != nil {
-					fmt.Printf("Could not fetch user role for %s: %v\n", claims.Sub, err)
-					dbRole = "guest" // valor por defecto si falla
+					fmt.Printf("⚠️  User not found with id = %s (JWT sub). Error: %v\n", claims.Sub, err)
+					dbRole = utils.RoleGuest
+					actualUserID = claims.Sub
 				}
 			} else {
 				fmt.Printf("⚠️  Database connection not available, using default role\n")
-				dbRole = "guest"
+				dbRole = utils.RoleGuest
+				actualUserID = claims.Sub
 			}
 
-			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", claims.Sub, claims.Email, claims.Role)
+			fmt.Printf("✅ Token valid - User: %s, Email: %s, Role: %s\n", actualUserID, claims.Email, dbRole)
 
-			// Agregar claims al contexto
+			// Resolve church_id: prefer JWT app_metadata claim (Phase 0+).
+			// Fallback to users.church_id column for tokens issued before Phase 2a
+			// JWT backfill ran (i.e., existing sessions that haven't refreshed yet).
+			// Uses the global pool — the tenant tx doesn't exist yet at this point.
+			churchID := claims.AppMeta.ChurchID
+			if churchID == "" && db != nil && db.DB != nil {
+				var dbChurchID sql.NullString
+				if qErr := db.DB.QueryRow(
+					"SELECT church_id FROM users WHERE id = $1", actualUserID,
+				).Scan(&dbChurchID); qErr == nil && dbChurchID.Valid {
+					churchID = dbChurchID.String
+				}
+			}
+
+			// Agregar claims al contexto - USAR SIEMPRE EL BUSINESS UUID (id)
 			c.Set("user", claims)
-			c.Set("user_id", claims.Sub)
+			c.Set("user_id", actualUserID) // ← ¡ESTE ES EL BUSINESS UUID!
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
 			c.Set("db_role", dbRole)
-			// Set admin_access flag for special email
-			c.Set("has_admin_access", hasAdminAccess(claims.Email, dbRole))
+			// Set admin_access flag for roles with admin privileges
+			c.Set("has_admin_access", HasAdminAccess(dbRole, isSuperAdmin))
+			// church_id for TenantTx — empty string until Phase 2 JWT backfill.
+			c.Set("church_id", churchID)
 			return next(c)
 		}
 	}
@@ -205,71 +236,60 @@ func validateSupabaseToken(tokenString string) (*Claims, error) {
 	return nil, fmt.Errorf("invalid token claims")
 }
 
-// hasAdminAccess checks if a user has admin access
-// Returns true if:
-//   - dbRole == "admin" OR
-//   - email == "boanegro4@yopmail.com" (special admin access)
-func hasAdminAccess(email, dbRole string) bool {
-	if dbRole == "admin" {
+// HasAdminAccess checks if a user has admin access
+// Uses utils.IsAdminRole (pastor or staff) — super admins always have access
+// HasAdminAccess checks if a user has admin-level access (pastor, staff, or super admin).
+func HasAdminAccess(dbRole string, isSuperAdmin bool) bool {
+	if isSuperAdmin {
 		return true
 	}
-	// Special admin access for specific email
-	if email == "boanegro4@yopmail.com" {
-		return true
-	}
-	return false
+	return utils.IsAdminRole(dbRole)
 }
 
-// OptionalAuth middleware attempts to validate Supabase JWT token if present
-// It does NOT return an error if the token is missing, essentially allowing "guest" access
-// This is useful for routes that have mixed public/private access logic (like /setup)
+// OptionalAuth middleware attempts to validate Supabase JWT token if present.
+// If the token is missing or invalid, proceeds as guest (no error returned).
 func OptionalAuth() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
-				// No auth header, proceed as guest
 				return next(c)
 			}
 
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 			if token == authHeader {
-				// Malformed header, proceed as guest (or could log it)
 				return next(c)
 			}
 
-			fmt.Printf("🔑 OptionalAuth: Validating token if present...\n")
-
-			// Validate token
 			claims, err := validateSupabaseToken(token)
 			if err != nil {
-				// Invalid token, just proceed as guest.
-				// The handler logic will decide if it needs strictly valid auth or not.
 				return next(c)
 			}
 
 			var dbRole string
+			var isSuperAdmin bool
+			var actualUserID string
 			db := config.GetDB()
 			if db != nil && db.DB != nil {
-				err = db.DB.QueryRow("SELECT role FROM users WHERE id = $1", claims.Sub).Scan(&dbRole)
+				err := db.DB.QueryRow(
+					"SELECT id, role, COALESCE(is_super_admin, false) FROM users WHERE id = $1",
+					claims.Sub,
+				).Scan(&actualUserID, &dbRole, &isSuperAdmin)
 				if err != nil {
-					fmt.Printf("OptionalAuth: Could not fetch user role for %s: %v\n", claims.Sub, err)
-					dbRole = "guest"
+					dbRole = utils.RoleGuest
+					actualUserID = claims.Sub
 				}
 			} else {
-				dbRole = "guest"
+				dbRole = utils.RoleGuest
+				actualUserID = claims.Sub
 			}
 
-			fmt.Printf("✅ OptionalAuth: Token valid - Role: %s\n", claims.Role)
-
-			// Add claims to context
 			c.Set("user", claims)
-			c.Set("user_id", claims.Sub)
+			c.Set("user_id", actualUserID)
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
 			c.Set("db_role", dbRole)
-			// Set admin_access flag for special email
-			c.Set("has_admin_access", hasAdminAccess(claims.Email, dbRole))
+			c.Set("has_admin_access", HasAdminAccess(dbRole, isSuperAdmin))
 
 			return next(c)
 		}

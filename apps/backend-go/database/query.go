@@ -4,8 +4,24 @@ package database
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 )
+
+// validColumnName acepta solo identificadores SQL simples en snake_case.
+// Las keys de BuildUpdateQueryFromMap vienen del JSON del cliente y se
+// interpolan en el SET — sin esta validación son un vector de inyección.
+var validColumnName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
+
+// protectedColumns nunca pueden actualizarse vía payload dinámico,
+// sin importar la tabla (identidad, tenant y timestamps).
+var protectedColumns = map[string]bool{
+	"id":         true,
+	"user_id":    true,
+	"church_id":  true,
+	"created_at": true,
+	"updated_at": true,
+}
 
 func BuildUpdateQuery(data interface{}, tableName, idColumn, idValue string) (string, []interface{}, error) {
 	var updates []string
@@ -73,16 +89,39 @@ func BuildUpdateQuery(data interface{}, tableName, idColumn, idValue string) (st
 	return query, args, nil
 }
 
-// BuildUpdateQueryFromMap construye una query UPDATE desde un map[string]interface{}
+// BuildUpdateQueryFromMap construye una query UPDATE desde un map[string]interface{}.
+// Los valores nil se SALTEAN (patch parcial: un campo ausente/null no se toca).
+// Útil cuando el cliente puede mandar el objeto entero y no querés pisar con null
+// (ej. la password SMTP que el GET devuelve en blanco).
 func BuildUpdateQueryFromMap(data map[string]interface{}, tableName, idColumn, idValue string) (string, []interface{}, error) {
+	return buildUpdateFromMap(data, tableName, idColumn, idValue, false)
+}
+
+// BuildUpdateQueryFromMapWithNulls es igual pero un valor null EXPLÍCITO se traduce
+// a `col = NULL` (permite LIMPIAR un campo). Usar solo en tablas donde eso es
+// deseado (ej. church_info: borrar logo/banner/teléfono/redes).
+func BuildUpdateQueryFromMapWithNulls(data map[string]interface{}, tableName, idColumn, idValue string) (string, []interface{}, error) {
+	return buildUpdateFromMap(data, tableName, idColumn, idValue, true)
+}
+
+func buildUpdateFromMap(data map[string]interface{}, tableName, idColumn, idValue string, allowNull bool) (string, []interface{}, error) {
 	var updates []string
 	var args []interface{}
 	argPos := 1
 
 	for key, value := range data {
-		// Skip nil values and the id column
-		if value == nil || key == idColumn || key == "id" {
+		// Saltar la columna id y las protegidas (identidad/tenant/timestamps)
+		if key == idColumn || protectedColumns[key] {
 			continue
+		}
+		// Sin allowNull, un nil se saltea (patch parcial); con allowNull, SET NULL.
+		if value == nil && !allowNull {
+			continue
+		}
+		// Rechazar cualquier cosa que no sea un identificador snake_case — la key se
+		// interpola en el SQL, así que una key malformada es un intento de inyección.
+		if !validColumnName.MatchString(key) {
+			return "", nil, fmt.Errorf("invalid column name: %q", key)
 		}
 
 		updates = append(updates, fmt.Sprintf("%s = $%d", key, argPos))

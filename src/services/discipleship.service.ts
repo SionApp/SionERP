@@ -1,14 +1,12 @@
 import type {
   AssignHierarchyRequest,
   CreateGroupRequest,
-  CreateMetricsRequest,
   CreateReportRequest,
   DiscipleshipAlert,
   DiscipleshipAnalytics,
   DiscipleshipGroup,
   DiscipleshipHierarchy,
   DiscipleshipLevel,
-  DiscipleshipMetrics,
   DiscipleshipReport,
   GroupFilters,
   GroupPerformance,
@@ -28,6 +26,49 @@ import type {
   UpdateDiscipleshipLevelRequest,
 } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
+
+// =====================================================
+// TIPOS: Cumplimiento de Reportes
+// =====================================================
+
+/** Respuesta del endpoint GET /discipleship/zone-rollup */
+export interface ZoneRollupResponse {
+  zone_total_discipleships: number;
+  zone_total_evangelism: number;
+  contributing_leaders: number;
+  unmapped_leaders: number;
+  caller_unmapped?: boolean;
+}
+
+/** Fila de cumplimiento por usuario + semana ISO */
+export interface ComplianceRow {
+  user_id: string;
+  user_name?: string;
+  iso_week: string;
+  period_start?: string;
+  status: 'pending' | 'on_time' | 'late' | 'missed';
+  missed_count: number;
+  report_id?: string;
+  due_date?: string;
+}
+
+/** Usuario con su nivel de jerarquía de discipulado actual (puede ser null si no tiene). */
+export interface UserForHierarchy {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  id_number: string;
+  role: string;
+  hierarchy_level: number | null;
+  supervisor_id: string | null;
+  zone_id: string | null;
+  zone_name: string | null;
+  territory: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
 
 export class DiscipleshipService {
   private static baseUrl = '/discipleship';
@@ -92,6 +133,17 @@ export class DiscipleshipService {
     return ApiService.get(`${this.baseUrl}/subordinates`);
   }
 
+  /**
+   * Obtiene la lista de usuarios con su nivel de jerarquía actual.
+   * Accesible a usuarios con nivel de discipulado >= 4 (Coordinador).
+   * Reemplaza el uso de UserService.getAllUsers() en HierarchyManagement,
+   * que requería rol de sistema staff (300) bloqueando usuarios con rol
+   * 'server' pero con nivel de discipulado Coordinador.
+   */
+  static async getUsersForHierarchy(): Promise<UserForHierarchy[]> {
+    return ApiService.get(`${this.baseUrl}/users`);
+  }
+
   // =====================================================
   // ANALYTICS
   // =====================================================
@@ -104,36 +156,21 @@ export class DiscipleshipService {
   }
 
   static async getZoneStats(): Promise<ZoneStats[]> {
-    return ApiService.get(`${this.baseUrl}/analytics/zones`);
+    return ApiService.get(`/zones`);
   }
 
   static async getGroupPerformance(): Promise<GroupPerformance[]> {
-    return ApiService.get(`${this.baseUrl}/analytics/performance`);
-  }
-
-  // =====================================================
-  // MÉTRICAS
-  // =====================================================
-
-  static async getMetrics(filters?: {
-    group_id?: string;
-    date_from?: string;
-    date_to?: string;
-  }): Promise<DiscipleshipMetrics[]> {
-    const params = new URLSearchParams();
-    if (filters?.group_id) params.append('group_id', filters.group_id);
-    if (filters?.date_from) params.append('date_from', filters.date_from);
-    if (filters?.date_to) params.append('date_to', filters.date_to);
-
-    const queryString = params.toString();
-    const url = `${this.baseUrl}/metrics${queryString ? `?${queryString}` : ''}`;
-    return ApiService.get(url);
-  }
-
-  static async createMetrics(
-    data: CreateMetricsRequest
-  ): Promise<{ metrics_id: string; message: string }> {
-    return ApiService.post(`${this.baseUrl}/metrics`, data);
+    const data = (await ApiService.get(`${this.baseUrl}/analytics`)) as any;
+    return ((data?.group_performance as any[]) || []).map((g: any) => ({
+      groupId: g.group_id || '',
+      groupName: g.group_name || 'Sin nombre',
+      leaderName: g.leader_name || 'Sin líder',
+      avgAttendance: g.avg_attendance || 0,
+      growthRate: g.growth_rate || 0,
+      spiritualTemp: g.spiritual_temp || 0,
+      status: g.status || 'active',
+      lastReportDate: g.last_report_date || '',
+    }));
   }
 
   // =====================================================
@@ -340,5 +377,27 @@ export class DiscipleshipService {
   ): Promise<MemberAttendanceStats> {
     const params = groupId ? `?group_id=${groupId}` : '';
     return ApiService.get(`${this.baseUrl}/attendance/stats/${userId}${params}`);
+  }
+
+  // =====================================================
+  // CUMPLIMIENTO DE REPORTES (report_compliance)
+  // =====================================================
+
+  static async getZoneRollup(
+    periodStart: string,
+    periodEnd: string
+  ): Promise<ZoneRollupResponse> {
+    return ApiService.get(
+      `${this.baseUrl}/zone-rollup?period_start=${periodStart}&period_end=${periodEnd}`
+    );
+  }
+
+  static async getMyCompliance(isoWeek?: string): Promise<ComplianceRow> {
+    const params = isoWeek ? `?iso_week=${isoWeek}` : '';
+    return ApiService.get(`${this.baseUrl}/compliance/me${params}`);
+  }
+
+  static async getSubordinatesCompliance(weeks = 8): Promise<ComplianceRow[]> {
+    return ApiService.get(`${this.baseUrl}/compliance/subordinates?weeks=${weeks}`);
   }
 }

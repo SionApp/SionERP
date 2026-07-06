@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { Toaster } from '@/components/ui/toaster';
@@ -14,9 +15,11 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SetupPage from './pages/SetupPage';
+import MobilePreviewPage from './pages/MobilePreviewPage';
 import DashboardHome from './pages/dashboard/DashboardHome';
 import DiscipleshipPage from './pages/dashboard/DiscipleshipPage';
 import EventsPage from './pages/dashboard/EventsPage';
+import { GoalsDashboard } from './pages/dashboard/GoalsDashboard';
 import ModulesManagementPage from './pages/dashboard/ModulesManagementPage';
 import ProfilePage from './pages/dashboard/ProfilePage';
 import RegisterUserPage from './pages/dashboard/RegisterUserPage';
@@ -29,61 +32,70 @@ import { ApiService } from './services/api.service';
 import { setLoadingCallbacks } from './services/api.service';
 import { setDashboardLoadingCallbacks } from './services/dashboard.service';
 import ZonesPage from './pages/dashboard/ZonesPage';
+import MusicPage from './pages/dashboard/MusicPage';
+import MusicEventDetailPage from './pages/dashboard/music/MusicEventDetailPage';
+import { useMagicLinkCallback } from './hooks/useMagicLinkCallback';
+import { ROLE_LEVELS } from './lib/permissions';
 
 const queryClient = new QueryClient();
+
+// Caché a nivel de módulo — persiste mientras la app está montada.
+// Evita re-verificar setup en cada navegación interna.
+let _setupVerified = false;
+let _setupRedirect: string | null = null;
 
 // SetupGuard component that checks setup status and redirects accordingly
 const SetupGuard = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const { user } = useAuth();
-  const [isChecking, setIsChecking] = useState(true);
-  const [shouldRedirect, setShouldRedirect] = useState<string | null>(null);
+  // Si ya verificamos antes, arrancamos con isChecking=false
+  const [isChecking, setIsChecking] = useState(!_setupVerified);
+  const [shouldRedirect, setShouldRedirect] = useState<string | null>(_setupRedirect);
 
   useEffect(() => {
-    const checkSetupStatus = async () => {
-      // Skip check for public routes
-      const publicRoutes = ['/setup', '/login', '/register'];
-      if (publicRoutes.includes(location.pathname)) {
-        setIsChecking(false);
-        return;
-      }
+    // Si ya verificamos en esta sesión, no volver a hacerlo
+    if (_setupVerified) {
+      setIsChecking(false);
+      setShouldRedirect(_setupRedirect);
+      return;
+    }
 
+    const publicRoutes = ['/setup', '/login', '/register', '/mobile-preview'];
+    if (publicRoutes.includes(location.pathname)) {
+      _setupVerified = true;
+      setIsChecking(false);
+      return;
+    }
+
+    const checkSetupStatus = async () => {
       try {
         const data = await ApiService.get<{
           is_initialized: boolean;
           has_admin: boolean;
         }>('/setup/status');
 
-        // If system is not initialized, redirect to /setup
-        if (!data.is_initialized) {
+        if (!data.is_initialized && !data.has_admin) {
+          _setupRedirect = '/setup';
           setShouldRedirect('/setup');
-          return;
         }
-
-        setIsChecking(false);
-      } catch (error: any) {
-        // If error is 401/403, it means system is initialized and requires auth
-        // Allow the route to handle it (ProtectedRoute will redirect to login)
-        if (error.status === 401 || error.status === 403) {
-          setIsChecking(false);
-          return;
-        }
-        // For other errors, if it might be because system is not initialized
-        // and we're not on a public route, try redirecting to setup
-        if (location.pathname !== '/setup' && location.pathname !== '/login' && location.pathname !== '/register') {
-          // Only redirect if it's likely a "not initialized" error
-          if (error.message?.includes('modules') || error.message?.includes('table')) {
+      } catch (error) {
+        const err = error as { status?: number; message?: string };
+        if (err.status !== 401 && err.status !== 403) {
+          if (err.message?.includes('modules') || err.message?.includes('table')) {
+            _setupRedirect = '/setup';
             setShouldRedirect('/setup');
-            return;
           }
         }
-        // For other errors, just continue
+      } finally {
+        _setupVerified = true;
         setIsChecking(false);
       }
     };
 
     checkSetupStatus();
-  }, [location.pathname, user?.id]);
+    // Solo verificar al montar la primera vez, no en cada cambio de ruta
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (isChecking) {
     return (
@@ -106,6 +118,9 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
 const AppContent = () => {
   const { isFetching, isSubmitting, setFetching, setSubmitting } = useLoadingContext();
 
+  // Manejar callback del magic link de Supabase
+  useMagicLinkCallback();
+
   useEffect(() => {
     // Configurar callbacks de loading para los servicios
     setLoadingCallbacks({ setFetching, setSubmitting });
@@ -126,6 +141,7 @@ const AppContent = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/setup" element={<SetupPage />} />
+            <Route path="/mobile-preview" element={<MobilePreviewPage />} />
             <Route
               path="/dashboard"
               element={
@@ -134,18 +150,139 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<DashboardHome />} />
-              <Route path="users" element={<UsersPage />} />
-              <Route path="register-user" element={<RegisterUserPage />} />
-              <Route path="reports" element={<ReportsPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="modules" element={<ModulesManagementPage />} />
-              <Route path="events" element={<EventsPage />} />
-              <Route path="role-management" element={<RoleManagementPage />} />
-              <Route path="roles" element={<RolesPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="discipleship" element={<DiscipleshipPage />} />
-              <Route path="zones" element={<ZonesPage />} />
+              {/* Member+ (base access) */}
+              <Route
+                index
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro">
+                    <DashboardHome />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="profile"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro">
+                    <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Staff+ (staff, supervisor, pastor, admin) */}
+              <Route
+                path="users"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
+                    <UsersPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="register-user"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
+                    <RegisterUserPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Supervisor+ (supervisor, pastor, admin) */}
+              <Route
+                path="reports"
+                element={
+                  <ProtectedRoute
+                    minRole={ROLE_LEVELS.supervisor}
+                    requiredModule="reports"
+                    requiredRoleName="Supervisor"
+                  >
+                    <ReportsPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Admin access (pastor or admin — defined by backend has_admin_access flag) */}
+              <Route
+                path="settings"
+                element={
+                  <ProtectedRoute requireAdminAccess>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="modules"
+                element={
+                  <ProtectedRoute requireAdminAccess>
+                    <ModulesManagementPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="roles"
+                element={
+                  <ProtectedRoute requireAdminAccess>
+                    <RolesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="role-management"
+                element={
+                  <ProtectedRoute requireAdminAccess>
+                    <RoleManagementPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Module-based (member+ but requires module installed) */}
+              <Route
+                path="discipleship"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship">
+                    <DiscipleshipPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="discipleship/goals"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship">
+                    <GoalsDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="zones"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="zones">
+                    <ZonesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="events"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="events">
+                    <EventsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="music"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
+                    <MusicPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="music/eventos/:id"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
+                    <MusicEventDetailPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
           </Routes>
         </SetupGuard>
@@ -181,4 +318,19 @@ const App = () => {
   );
 };
 
-export default App;
+const SentryWrappedApp = () => (
+  <Sentry.ErrorBoundary
+    fallback={({ error }) => (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+        <div className="text-center space-y-2">
+          <p className="text-lg font-semibold">Ocurrió un error inesperado</p>
+          <p className="text-sm text-muted-foreground">{String(error)}</p>
+        </div>
+      </div>
+    )}
+  >
+    <App />
+  </Sentry.ErrorBoundary>
+);
+
+export default SentryWrappedApp;

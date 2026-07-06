@@ -1,0 +1,58 @@
+/*
+ * Autonomous theme for the Music module. Scoped under `.music-shell` so it
+ * re-skins every shadcn component inside (they read these HSL vars) without
+ * touching a single component. Always dark — independent of the app's theme.
+ * ponytail: one file re-themes the whole module; per-component styling if a
+ * specific surface ever needs to break out of this palette.
+ *
+ * Paleta: "escenario oscuro" atado a la marca — azul JETRO (220) de base y
+ * dorado de la iglesia (45) como accent. Mantiene el efecto stage-lighting
+ * inmersivo pero se siente cálido y propio, no un theme neón genérico.
+ */
+
+.music-shell {
+  --background: 220 45% 8%;
+  --foreground: 220 20% 96%;
+
+  --card: 220 40% 12%;
+  --card-foreground: 220 20% 96%;
+
+  --popover: 220 42% 10%;
+  --popover-foreground: 220 20% 96%;
+
+  --primary: 220 85% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 30% 18%;
+  --secondary-foreground: 220 20% 96%;
+
+  --muted: 220 28% 16%;
+  --muted-foreground: 220 14% 70%;
+
+  --accent: 45 93% 55%;
+  --accent-foreground: 220 45% 8%;
+
+  --destructive: 0 75% 58%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 28% 24%;
+  --input: 220 28% 24%;
+  --ring: 220 85% 60%;
+
+  --radius: 1rem;
+
+  color: hsl(var(--foreground));
+  background-color: hsl(220 48% 6%);
+}
+
+/* Stage-lighting aurora behind the page content. Only on the page canvas, not
+ * on the dialog (which reuses the vars but stays flat for readability).
+ * Azul de marca + dos toques dorado/ámbar para el calor. */
+.music-aurora {
+  background-image:
+    radial-gradient(circle at 12% -5%, hsl(220 90% 45% / 0.28), transparent 42%),
+    radial-gradient(circle at 96% 6%, hsl(45 93% 52% / 0.16), transparent 38%),
+    radial-gradient(circle at 50% 118%, hsl(35 90% 50% / 0.14), transparent 46%);
+  background-attachment: local;
+  min-height: 100%;
+}

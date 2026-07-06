@@ -3,6 +3,7 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/models"
+	"backend-sion/utils"
 	"fmt"
 	"net/http"
 	"time"
@@ -24,7 +25,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	err := db.DB.QueryRow(`
     	SELECT COUNT(*)
 			FROM users
-			WHERE is_active = true
+			WHERE is_active = true AND is_active_member = true
 		`).Scan(&totalUser)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -48,7 +49,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	var activeRoles int
 
 	err = db.DB.QueryRow(
-		`SELECT COUNT(*)
+		`SELECT COUNT(DISTINCT role)
 			FROM users
 		  WHERE is_active = true
 		`).Scan(&activeRoles)
@@ -100,16 +101,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		LastLogin:        time.Now(),
 	}
 
-	discipleshipStats := models.DiscipleshipStats{
-		TotalGroups:     0,
-		TotalMembers:    0,
-		ActiveLeaders:   0,
-		AvgAttendance:   0,
-		MonthlyGrowth:   0,
-		SpiritualHealth: 0,
-		Multiplications: 0,
-		AlertsCount:     0,
-	}
+	discipleshipStats := h.getDiscipleshipStats(db)
 
 	// Fetch installed modules
 	installedModules := []string{}
@@ -140,16 +132,16 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 
 func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]models.RoleDistribution, error) {
 	roleColors := map[string]string{
-		"pastor":     "#ff7c7c",
-		"staff":      "#ffc658",
-		"supervisor": "#82ca9d",
-		"server":     "#8884d8",
+		utils.RolePastor:     "#ff7c7c",
+		utils.RoleStaff:      "#ffc658",
+		utils.RoleSupervisor: "#82ca9d",
+		utils.RoleServer:     "#8884d8",
 	}
 	roleNames := map[string]string{
-		"pastor":     "Pastor",
-		"staff":      "Personal",
-		"supervisor": "Supervisor",
-		"server":     "Servidor",
+		utils.RolePastor:     "Pastor",
+		utils.RoleStaff:      "Personal",
+		utils.RoleSupervisor: "Supervisor",
+		utils.RoleServer:     "Servidor",
 	}
 
 	query := `
@@ -225,16 +217,20 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentAct
 	var activities []models.RecentActivity
 	for rows.Next() {
 
-		var id, action, tableName, userEmail string
+		var id, action, tableName, userEmail, userName string
 		var changedAt time.Time
 
-		if err := rows.Scan(&id, &action, &tableName, &userEmail, &changedAt); err != nil {
+		if err := rows.Scan(&id, &action, &tableName, &userEmail, &userName, &changedAt); err != nil {
 			continue
 		}
 
 		timeAgo := formatTimeAgo(changedAt)
 
-		// Mapear tipos: Go usa "info", "success", "warning", "danger" / "error"
+		displayUser := userName
+		if displayUser == "" || displayUser == "Sistema" {
+			displayUser = userEmail
+		}
+
 		activityType := "info"
 		switch action {
 		case "INSERT", "create":
@@ -250,7 +246,7 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentAct
 		activities = append(activities, models.RecentActivity{
 			ID:     id,
 			Action: formattedAction,
-			User:   userEmail,
+			User:   displayUser,
 			Time:   timeAgo,
 			Type:   activityType,
 		})
@@ -277,6 +273,45 @@ func formatTimeAgo(t time.Time) string {
 	}
 }
 
+func (h *DashboardHandler) getDiscipleshipStats(db *config.Database) models.DiscipleshipStats {
+	stats := models.DiscipleshipStats{}
+
+	db.DB.QueryRow(`SELECT COUNT(*) FROM discipleship_groups WHERE status = 'active'`).Scan(&stats.TotalGroups)
+
+	db.DB.QueryRow(`SELECT COALESCE(SUM(active_members), 0) FROM discipleship_groups WHERE status = 'active'`).Scan(&stats.TotalMembers)
+
+	db.DB.QueryRow(`SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups WHERE status = 'active'`).Scan(&stats.ActiveLeaders)
+
+	db.DB.QueryRow(`
+		SELECT COALESCE(
+			AVG(CASE WHEN member_count > 0 THEN active_members::float / member_count * 100 ELSE 0 END), 0
+		)
+		FROM discipleship_groups WHERE status = 'active'
+	`).Scan(&stats.AvgAttendance)
+
+	db.DB.QueryRow(`SELECT COUNT(*) FROM discipleship_multiplications WHERE multiplication_date >= NOW() - INTERVAL '30 days'`).Scan(&stats.Multiplications)
+
+	db.DB.QueryRow(`SELECT COUNT(*) FROM discipleship_alerts WHERE resolved = false`).Scan(&stats.AlertsCount)
+
+	db.DB.QueryRow(`
+		SELECT COALESCE(AVG(spiritual_temperature), 0)
+		FROM discipleship_attendance
+		WHERE meeting_date >= NOW() - INTERVAL '30 days'
+	`).Scan(&stats.SpiritualHealth)
+
+	var prevMembers int
+	db.DB.QueryRow(`
+		SELECT COALESCE(SUM(active_members), 0)
+		FROM discipleship_groups
+		WHERE status = 'active' AND created_at <= NOW() - INTERVAL '30 days'
+	`).Scan(&prevMembers)
+	if prevMembers > 0 {
+		stats.MonthlyGrowth = float64(stats.TotalMembers-prevMembers) / float64(prevMembers) * 100
+	}
+
+	return stats
+}
+
 func formatAction(action, tableName string) string {
 	actionTextMap := map[string]string{
 		"INSERT": "creó",
@@ -284,9 +319,12 @@ func formatAction(action, tableName string) string {
 		"DELETE": "eliminó",
 	}
 	tableTextMap := map[string]string{
-		"users":   "usuario",
-		"events":  "evento",
-		"reports": "reporte",
+		"users":                "usuario",
+		"events":               "evento",
+		"reports":              "reporte",
+		"discipleship_goals":   "objetivo",
+		"goal_assignments":     "asignación de objetivo",
+		"goal_manual_progress": "progreso de objetivo",
 	}
 
 	actionText := actionTextMap[action]

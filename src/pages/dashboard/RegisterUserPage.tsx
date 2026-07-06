@@ -27,6 +27,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useMobileMode } from '@/hooks/useMobileMode';
+import { MobileRegisterScreen } from '@/components/mobile/screens/RegisterScreen';
 
 const getNumericCoord = (val: number | TypeGeolocalization | undefined): number | undefined => {
   if (val === undefined || val === null) return undefined;
@@ -43,7 +45,8 @@ const RegisterUserPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { canManageRoles, isLoading: isLoadingPermissions } = usePermissions();
+  const { canManageRoles, canManageUsers, isLoading: isLoadingPermissions } = usePermissions();
+  const isMobileApp = useMobileMode();
 
   const userId = location.state?.userId;
 
@@ -66,13 +69,11 @@ const RegisterUserPage = () => {
           user.longitude as number | TypeGeolocalization | undefined
         );
 
-        if (userLatitude !== undefined && userLongitude !== undefined) {
-          setGeolocation({
-            address: user.address || '',
-            latitude: userLatitude,
-            longitude: userLongitude,
-          });
-        }
+        setGeolocation({
+          address: user.address || '',
+          latitude: userLatitude,
+          longitude: userLongitude,
+        });
 
         reset({
           email: user.email,
@@ -141,6 +142,18 @@ const RegisterUserPage = () => {
   const baptized = watch('baptized');
   const isActiveMember = watch('is_active_member');
 
+  const handleGeolocationChange = useCallback(
+    (value: GeolocationResult | null) => {
+      setGeolocation(value);
+      if (value) {
+        setValue('address', value.address);
+        setValue('latitude', getNumericCoord(value.latitude));
+        setValue('longitude', getNumericCoord(value.longitude));
+      }
+    },
+    [setValue]
+  );
+
   // Handler para mostrar errores de validación
   const onError = (errors: Record<string, { message?: string }>) => {
     console.log('Errores de validación:', errors);
@@ -199,14 +212,34 @@ const RegisterUserPage = () => {
     }
   };
 
+  // Mobile gets its own dedicated screen (daas philosophy: mobile ≠ shrunk web).
+  if (isMobileApp) {
+    return (
+      <MobileRegisterScreen
+        isEditMode={isEditMode}
+        loading={loading}
+        canManageUsers={canManageUsers}
+        canManageRoles={canManageRoles}
+        register={register}
+        errors={errors}
+        watch={watch}
+        setValue={setValue}
+        onFormSubmit={handleSubmit(onSubmit, onError)}
+        geolocation={geolocation}
+        onGeolocationChange={handleGeolocationChange}
+        onCancel={() => navigate('/dashboard/users')}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             {isEditMode ? 'Editar Usuario' : 'Registro de Usuarios'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             {isEditMode
               ? 'Modifica los datos del usuario seleccionado'
               : 'Registra un nuevo usuario en el sistema'}
@@ -215,23 +248,23 @@ const RegisterUserPage = () => {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="px-3 sm:px-4 md:px-6 pt-4 sm:pt-5 md:pt-6 pb-2 sm:pb-3">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-xl">
             {isEditMode ? <Save className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
             {isEditMode ? 'Datos del Usuario' : 'Datos del Usuario'}
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
             {isEditMode
               ? 'Modifica los campos que desees cambiar del usuario'
               : 'Completa todos los campos requeridos para registrar un nuevo usuario'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
+        <CardContent className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6">
+          <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4 sm:space-y-6">
             {/* Información Personal */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Información Personal</h3>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-3 md:gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">Nombre *</Label>
                   <Input
@@ -295,15 +328,8 @@ const RegisterUserPage = () => {
               <div className="space-y-2">
                 <Label>Dirección y Ubicación</Label>
                 <GeolocationInput
-                  value={geolocation || undefined}
-                  onChange={value => {
-                    setGeolocation(value);
-                    if (value) {
-                      setValue('address', value.address);
-                      setValue('latitude', getNumericCoord(value.latitude));
-                      setValue('longitude', getNumericCoord(value.longitude));
-                    }
-                  }}
+                  value={geolocation}
+                  onChange={handleGeolocationChange}
                   label="Ubicación en el mapa (opcional)"
                   placeholder="Buscar dirección o seleccionar en el mapa..."
                 />
@@ -403,8 +429,8 @@ const RegisterUserPage = () => {
               </div>
             </div>
 
-            {/* Role and Configuration - Solo visible para staff y pastor */}
-            {!isLoadingPermissions && canManageRoles && (
+            {/* Role and Configuration - Staff+ can create users, but only assign roles below their level */}
+            {!isLoadingPermissions && canManageUsers && (
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Rol y Configuración</h3>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -420,10 +446,14 @@ const RegisterUserPage = () => {
                       <SelectContent>
                         <SelectItem value="member">Miembro</SelectItem>
                         <SelectItem value="server">Servidor</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="staff">Personal Administrativo</SelectItem>
-                        <SelectItem value="pastor">Pastor</SelectItem>
-                        <SelectItem value="admin">Administrador</SelectItem>
+                        {canManageRoles && (
+                          <>
+                            <SelectItem value="supervisor">Supervisor</SelectItem>
+                            <SelectItem value="staff">Personal Administrativo</SelectItem>
+                            <SelectItem value="pastor">Pastor</SelectItem>
+                            <SelectItem value="admin">Administrador</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                     {errors.role && (

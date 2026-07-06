@@ -21,11 +21,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DataTable, Column } from '@/components/ui/DataTable';
+import { MobileListItem } from '@/components/mobile/MobileListItem';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { UserPlus, Search, MapPin, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useZones } from '@/hooks/useZones';
 import { useDiscipleshipLevels } from '@/hooks/useDiscipleshipLevels';
-import { ApiService } from '@/services/api.service';
+import { DiscipleshipService } from '@/services/discipleship.service';
 import { ZonesService } from '@/services/zones.service';
 import { normalizeNullString } from '@/lib/utils';
 import { getDiscipleshipLevelConfig } from '@/lib/discipleship';
@@ -51,6 +53,7 @@ interface UserZoneAssignmentProps {
 }
 
 const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment }) => {
+  const isMobileApp = useMobileMode();
   const { zones, loading: zonesLoading } = useZones();
   const { levels: discipleshipLevels, loading: levelsLoading } = useDiscipleshipLevels({
     autoLoad: true,
@@ -64,33 +67,23 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [assignZoneId, setAssignZoneId] = useState<string | undefined>(undefined);
   const [assigning, setAssigning] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(25);
 
   const loadUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const response = await ApiService.get<{ users: AssignmentUser[] } | AssignmentUser[]>(
-        '/users'
-      );
-
-      let userList: AssignmentUser[] = [];
-      if (Array.isArray(response)) {
-        userList = response as AssignmentUser[];
-      } else if (response && typeof response === 'object' && 'users' in response) {
-        userList = (response.users as AssignmentUser[]) || [];
-      }
+      const usersData = await DiscipleshipService.getUsersForHierarchy();
+      const userList = usersData || [];
 
       const normalizedUsers = userList.map(user => ({
-        ...user,
         id: String(normalizeNullString(user.id) || ''),
-        full_name:
-          user.full_name ||
-          `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
-          'Sin nombre',
+        full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Sin nombre',
         email: normalizeNullString(user.email) || 'Sin email',
         phone: normalizeNullString(user.phone) || 'Sin teléfono',
         role: normalizeNullString(user.role) || 'member',
         zone_name: normalizeNullString(user.zone_name) || undefined,
         zone_id: normalizeNullString(user.zone_id) || undefined,
+        discipleship_level: user.hierarchy_level ?? undefined,
       }));
 
       setUsers(normalizedUsers);
@@ -106,6 +99,30 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  // Refresh users when zones are updated (deleted, created, etc.)
+  useEffect(() => {
+    const handleZonesUpdated = () => {
+      loadUsers();
+    };
+    window.addEventListener('zones-updated', handleZonesUpdated);
+    return () => window.removeEventListener('zones-updated', handleZonesUpdated);
+  }, [loadUsers]);
+
+  // Reset selected zone filter if it references a deleted zone
+  useEffect(() => {
+    if (selectedZone !== 'all' && selectedZone !== 'sin-zona') {
+      const zoneExists = zones.some(z => z.name === selectedZone);
+      if (!zoneExists) {
+        setSelectedZone('all');
+      }
+    }
+  }, [zones, selectedZone]);
+
+  // Reset visible count when filters change in mobile
+  useEffect(() => {
+    setMobileVisibleCount(25);
+  }, [searchTerm, selectedZone]);
 
   const filteredUsers = useMemo(() => {
     let result = users;
@@ -291,6 +308,109 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
     </div>
   );
 
+  // Shared assign dialog — used in both mobile and web
+  const assignDialog = (
+    <Dialog
+      open={isDialogOpen}
+      onOpenChange={open => {
+        setIsDialogOpen(open);
+        if (!open) {
+          setSelectedUser(null);
+          setAssignZoneId(undefined);
+          setSelectedRole('keep');
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>
+            {selectedUser ? `Asignar ${selectedUser.full_name} a Zona` : 'Asignar a Zona'}
+          </DialogTitle>
+          <DialogDescription>
+            Selecciona una zona y opcionalmente actualiza el rol
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="assign-zone">Zona</Label>
+            <Select
+              value={assignZoneId || ''}
+              onValueChange={value => setAssignZoneId(value || undefined)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona una zona" />
+              </SelectTrigger>
+              <SelectContent>
+                {zones.map(zone => (
+                  <SelectItem key={zone.id} value={zone.id}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: zone.color }}
+                      />
+                      {zone.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="assign-role">Nivel de Discipulado (opcional)</Label>
+            <Select value={selectedRole} onValueChange={setSelectedRole}>
+              <SelectTrigger>
+                <SelectValue placeholder="Mantener nivel actual" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keep">Mantener nivel actual</SelectItem>
+                {discipleshipLevels.map(level => (
+                  <SelectItem key={level.id} value={level.id}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: level.color }}
+                      />
+                      {level.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDialogOpen(false);
+                setSelectedUser(null);
+                setAssignZoneId(undefined);
+                setSelectedRole('keep');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                selectedUser && assignZoneId && handleAssignToZone(selectedUser, assignZoneId)
+              }
+              disabled={!assignZoneId || assigning}
+            >
+              {assigning ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4 mr-2" />
+              )}
+              Asignar
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (loadingUsers || zonesLoading || levelsLoading) {
     return (
       <Card>
@@ -309,34 +429,25 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
     );
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <UserPlus className="w-5 h-5" />
-          Asignación de Usuarios a Zonas
-        </CardTitle>
-        <CardDescription>Busca usuarios y asígnalos a zonas de discipulado</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <Label htmlFor="search">Buscar Usuario</Label>
+  // ── Mobile: lista compacta ──
+  if (isMobileApp) {
+    return (
+      <>
+        {assignDialog}
+        <div className="-mx-3 -mt-3">
+          {/* Sticky search + zone filter */}
+          <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-lg border-b border-border/30 px-4 pt-3 pb-2 space-y-2">
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                id="search"
+                className="h-9 pl-9 rounded-xl"
+                placeholder="Buscar usuario..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nombre, email o teléfono..."
-                className="pl-10"
               />
             </div>
-          </div>
-          <div className="md:w-48">
-            <Label htmlFor="zone-filter">Filtrar por Zona</Label>
             <Select value={selectedZone} onValueChange={setSelectedZone}>
-              <SelectTrigger>
+              <SelectTrigger className="h-9 rounded-xl">
                 <SelectValue placeholder="Todas las zonas" />
               </SelectTrigger>
               <SelectContent>
@@ -350,119 +461,130 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        <DataTable
-          data={filteredUsers}
-          columns={columns}
-          loading={loadingUsers}
-          pagination
-          itemsPerPage={10}
-          emptyMessage="No se encontraron usuarios con los criterios de búsqueda"
-          mobileCardRender={mobileCardRender}
-        />
+          <p className="px-4 py-2 text-xs text-muted-foreground">
+            {filteredUsers.length} usuario{filteredUsers.length !== 1 ? 's' : ''}
+          </p>
 
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={open => {
-            setIsDialogOpen(open);
-            if (!open) {
-              setSelectedUser(null);
-              setAssignZoneId(undefined);
-              setSelectedRole('keep');
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedUser ? `Asignar ${selectedUser.full_name} a Zona` : 'Asignar a Zona'}
-              </DialogTitle>
-              <DialogDescription>
-                Selecciona una zona y opcionalmente actualiza el rol
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="assign-zone">Zona</Label>
-                <Select
-                  value={assignZoneId || ''}
-                  onValueChange={value => setAssignZoneId(value || undefined)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona una zona" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {zones.map(zone => (
-                      <SelectItem key={zone.id} value={zone.id}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: zone.color }}
-                          />
-                          {zone.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="assign-role">Nivel de Discipulado (opcional)</Label>
-                <Select value={selectedRole} onValueChange={setSelectedRole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Mantener nivel actual" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="keep">Mantener nivel actual</SelectItem>
-                    {discipleshipLevels.map(level => (
-                      <SelectItem key={level.id} value={level.id}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: level.color }}
-                          />
-                          {level.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsDialogOpen(false);
-                    setSelectedUser(null);
-                    setAssignZoneId(undefined);
-                    setSelectedRole('keep');
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={() =>
-                    selectedUser && assignZoneId && handleAssignToZone(selectedUser, assignZoneId)
+          <div className="mx-4 rounded-2xl border border-border divide-y divide-border bg-card overflow-hidden">
+            {filteredUsers.slice(0, mobileVisibleCount).map(user => {
+              const levelConfig = getDiscipleshipLevelConfig(user.discipleship_level);
+              const zone = zones.find(z => z.id === user.zone_id || z.name === user.zone_name);
+              const initials = user.full_name
+                .split(' ')
+                .map(n => n[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase();
+              return (
+                <MobileListItem
+                  key={user.id}
+                  leading={
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                      {initials}
+                    </div>
                   }
-                  disabled={!assignZoneId || assigning}
-                >
-                  {assigning ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Check className="w-4 h-4 mr-2" />
-                  )}
-                  Asignar
-                </Button>
+                  title={user.full_name}
+                  subtitle={levelConfig.label}
+                  trailing={
+                    zone ? (
+                      <span
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                        style={{ borderColor: zone.color, color: zone.color }}
+                      >
+                        {zone.name}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground px-2 py-0.5 rounded-full border border-border">
+                        Sin zona
+                      </span>
+                    )
+                  }
+                  onClick={() => openAssignDialog(user)}
+                />
+              );
+            })}
+          </div>
+
+          {filteredUsers.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-12">
+              No se encontraron usuarios
+            </p>
+          )}
+
+          {filteredUsers.length > mobileVisibleCount && (
+            <div className="px-4 py-4">
+              <button
+                onClick={() => setMobileVisibleCount(c => c + 25)}
+                className="w-full py-2.5 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground cursor-pointer active:bg-accent transition-colors"
+              >
+                Cargar más ({mobileVisibleCount} de {filteredUsers.length})
+              </button>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // ── Web: DataTable ──
+  return (
+    <>
+      {assignDialog}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="w-5 h-5" />
+            Asignación de Usuarios a Zonas
+          </CardTitle>
+          <CardDescription>Busca usuarios y asígnalos a zonas de discipulado</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <Label htmlFor="search">Buscar Usuario</Label>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+                <Input
+                  id="search"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por nombre, email o teléfono..."
+                  className="pl-10"
+                />
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+            <div className="md:w-48">
+              <Label htmlFor="zone-filter">Filtrar por Zona</Label>
+              <Select value={selectedZone} onValueChange={setSelectedZone}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas las zonas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las zonas</SelectItem>
+                  <SelectItem value="sin-zona">Sin zona asignada</SelectItem>
+                  {zones.map(zone => (
+                    <SelectItem key={zone.id} value={zone.name}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DataTable
+            data={filteredUsers}
+            columns={columns}
+            loading={loadingUsers}
+            pagination
+            itemsPerPage={10}
+            emptyMessage="No se encontraron usuarios con los criterios de búsqueda"
+            mobileCardRender={mobileCardRender}
+          />
+        </CardContent>
+      </Card>
+    </>
   );
 };
 

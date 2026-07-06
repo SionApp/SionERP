@@ -31,9 +31,13 @@ export interface User {
   discipleship_level?: number;
   is_active_member?: boolean;
   is_active: boolean;
+  onboarding_completed?: boolean;
   created_at: string;
   updated_at: string;
   invitation_status?: string;
+  invitation_expires_at?: string;
+  invitation_id?: string;
+  last_sign_in_at?: string;
 
   // Campos de discipulado
   zone_id?: string;
@@ -41,6 +45,8 @@ export interface User {
   territory?: string;
   active_groups_count?: number;
   cell_leader_id?: string;
+
+  avatar_url?: string;
 
   // Campo computado (opcional para compatibilidad)
   full_name?: string;
