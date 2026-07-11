@@ -1,0 +1,30 @@
+-- Fase 0 (scalability-hardening-1k-multitenant): observabilidad de Postgres.
+--
+-- pg_stat_statements trackea tiempo acumulado, llamadas y filas por query
+-- normalizada. Es la fuente de datos para Fase 2 (auditoría de queries lentas
+-- top-10 por frecuencia×costo) — sin esto, no hay forma de saber qué query
+-- optimizar primero, solo intuición.
+--
+-- No requiere reinicio en Supabase-managed Postgres (la extensión ya está
+-- preloaded vía shared_preload_libraries en la imagen de Supabase); en un
+-- Postgres self-hosted normal SÍ requeriría agregar
+-- "shared_preload_libraries = 'pg_stat_statements'" a postgresql.conf y
+-- reiniciar el server antes de poder crear la extensión.
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+-- =============================================================================
+-- Slow-query log — esto es config del proyecto Supabase, NO se puede setear
+-- por SQL/migración porque log_min_duration_statement vive en postgresql.conf
+-- y Supabase-managed no expone ALTER SYSTEM para superusers no-privilegiados
+-- en todos los planes.
+--
+-- Acción manual pendiente (Fase 0, fuera de esta migración):
+--   1. Supabase Dashboard → Project Settings → Database → "Query Performance"
+--      (o Settings → Database → Postgres Config en planes que lo exponen).
+--   2. Setear log_min_duration_statement a ~200ms (loguea queries que tardan
+--      más que el p95 objetivo del diseño: p95 < 300ms). Ajustar tras el
+--      baseline de Fase 1 si genera demasiado volumen de log.
+--   3. Alternativa si el plan no expone esa config: confiar solo en
+--      pg_stat_statements (esta migración) para el top-10 por costo — cubre
+--      el mismo caso de uso para Fase 2 sin necesitar log tuning.
+-- =============================================================================
