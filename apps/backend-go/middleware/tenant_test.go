@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // ── minimal sql.DB mock ───────────────────────────────────────────────────────
@@ -109,6 +110,26 @@ func TestTenantTxPassThroughWhenNoChurchID(t *testing.T) {
 	}
 	if !handlerCalled {
 		t.Error("downstream handler was not called")
+	}
+}
+
+// TestTenantTxPassThroughRecordsTenantMetric verifies the Fase 0 observability
+// wiring: even on the pass-through (no-op) path, TenantTx() records a request
+// against the per-tenant counter — bucketed as "none" when church_id is absent.
+// This closes the loop between tenant.go and metrics.go RecordTenantRequest.
+func TestTenantTxPassThroughRecordsTenantMetric(t *testing.T) {
+	before := testutil.ToFloat64(tenantRequestsTotal.WithLabelValues("none"))
+
+	c, _ := newCtxWithChurch(t, "") // no church_id
+	mw := TenantTx()
+	wrapped := mw(func(c echo.Context) error { return c.JSON(http.StatusOK, "ok") })
+	if err := wrapped(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	after := testutil.ToFloat64(tenantRequestsTotal.WithLabelValues("none"))
+	if after != before+1 {
+		t.Errorf("none-bucket tenant count = %v; want %v", after, before+1)
 	}
 }
 

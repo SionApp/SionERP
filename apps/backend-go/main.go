@@ -3,6 +3,7 @@ package main
 import (
 	"backend-sion/config"
 	"backend-sion/handlers"
+	appMiddleware "backend-sion/middleware"
 	"backend-sion/routes"
 	"backend-sion/services"
 	"log"
@@ -60,6 +61,11 @@ func main() {
 	db := config.GetDB()
 	defer db.Close()
 
+	// Fase 0 observability: wire db.Stats() (InUse/Idle/WaitCount/MaxOpenConnections)
+	// into Prometheus gauges — the key metric for the known pool-cap bottleneck
+	// (SetMaxOpenConns(15), see config/database.go).
+	appMiddleware.RegisterPoolStats(db.DB)
+
 	// Bootstrap super admin from env vars (first-time deploy)
 	if err := services.BootstrapSuperAdmin(db.DB); err != nil {
 		log.Printf("[bootstrap] WARNING: %v", err)
@@ -73,6 +79,11 @@ func main() {
 		e.Use(sentryMiddleware())
 	}
 	e.Use(middleware.Recover())
+	// Fase 0 observability: per-endpoint latency histogram (method+route+status),
+	// scraped at GET /metrics below. Wired after Recover so a recovered panic's
+	// resulting status still gets measured, and before routes so every route
+	// registered by SetupRoutes is covered.
+	e.Use(appMiddleware.MetricsMiddleware())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     []string{"*"}, // En producción, especificar orígenes permitidos
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
@@ -90,6 +101,14 @@ func main() {
 			"description": "API Backend para la Iglesia Sion",
 		})
 	})
+
+	// Fase 0 observability: Prometheus scrape endpoint. Intentionally OUTSIDE
+	// /api/v1 and the authenticated group — scrapers don't carry a Supabase
+	// JWT. Guard it via METRICS_TOKEN in any environment reachable from the
+	// public internet (see MetricsHandler doc comment for the exact contract);
+	// prefer binding this to an internal network/VPC when the deploy target
+	// supports it.
+	e.GET("/metrics", appMiddleware.MetricsHandler())
 
 	// Setup all routes
 	routes.SetupRoutes(e)
