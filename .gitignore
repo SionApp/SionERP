@@ -26,6 +26,12 @@ AGENTS.md
 .opencode/
 .pi/
 graphify-out/
+.codegraph/
+
+# SDD / planning artifacts — INTERNAL, viven en Engram + repo privado.
+# Contienen estrategia comercial y debilidades sin parchear: NO exponer en el repo público.
+docs/superpowers/
+openspec/
 
 # Build artifacts
 apps/backend-go/tmp/
