@@ -53,6 +53,7 @@ apps/backend-go/tmp/
 # Test artifacts
 test-results/
 playwright-report/
+tools/loadtest/results/
 
 # Datos sensibles de la iglesia (PII)
 data/

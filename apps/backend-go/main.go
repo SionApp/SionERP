@@ -84,6 +84,10 @@ func main() {
 	// resulting status still gets measured, and before routes so every route
 	// registered by SetupRoutes is covered.
 	e.Use(appMiddleware.MetricsMiddleware())
+	// Fase 3 (scalability): bound every request with a context deadline so a
+	// handler stuck behind the saturated DB pool fails fast instead of hanging
+	// for the client's full 60s. Complements the DB statement_timeout.
+	e.Use(appMiddleware.RequestTimeout())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     []string{"*"}, // En producción, especificar orígenes permitidos
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
