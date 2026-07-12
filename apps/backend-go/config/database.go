@@ -3,6 +3,7 @@ package config
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -55,6 +56,33 @@ var (
 	once       sync.Once
 )
 
+// statementTimeoutMs resolves the per-query timeout (ms) from STATEMENT_TIMEOUT_MS,
+// defaulting to 5000. Returns 0 to disable (STATEMENT_TIMEOUT_MS=0).
+func statementTimeoutMs() int {
+	ms := 5000
+	if v := os.Getenv("STATEMENT_TIMEOUT_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			ms = n
+		}
+	}
+	return ms
+}
+
+// applyStatementTimeout appends a server-side statement_timeout to a postgres
+// URL DSN via the libpq `options` runtime parameter (PGOPTIONS-style). No-op
+// when ms<=0 or a statement_timeout is already present. The value is URL-encoded
+// so the space survives lib/pq's URL parsing.
+func applyStatementTimeout(dbURL string, ms int) string {
+	if ms <= 0 || strings.Contains(dbURL, "statement_timeout") {
+		return dbURL
+	}
+	sep := "?"
+	if strings.Contains(dbURL, "?") {
+		sep = "&"
+	}
+	return dbURL + sep + "options=" + url.QueryEscape(fmt.Sprintf("-c statement_timeout=%d", ms))
+}
+
 func NewDatabase() (*Database, error) {
 	dbURL := os.Getenv("SUPABASE_DB_URL")
 	if dbURL == "" {
@@ -72,6 +100,14 @@ func NewDatabase() (*Database, error) {
 			}
 		}
 	}
+
+	// Fase 3 (scalability): cap every query with a server-side statement_timeout
+	// so a hung query is aborted by Postgres and its pooled connection released —
+	// instead of being held for the whole request, which saturated the 15-conn
+	// pool at ~200 VUs in the baseline (see the hardening spec). Applies to ALL
+	// queries (tx and non-tx), enforced regardless of whether the Go call passes
+	// a context. Override with STATEMENT_TIMEOUT_MS (0 disables).
+	dbURL = applyStatementTimeout(dbURL, statementTimeoutMs())
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
