@@ -33,6 +33,9 @@ graphify-out/
 docs/superpowers/
 openspec/
 
+# Load-test run outputs (el harness tools/loadtest/ SÍ se commitea; los resultados crudos no).
+tools/loadtest/results/
+
 # Build artifacts
 apps/backend-go/tmp/
 
