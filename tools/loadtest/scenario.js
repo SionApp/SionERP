@@ -25,7 +25,7 @@ const SUPABASE_URL = __ENV.SUPABASE_URL || 'http://127.0.0.1:54321';
 const SUPABASE_ANON_KEY = __ENV.SUPABASE_ANON_KEY || '';
 const TENANTS = parseInt(__ENV.TENANTS || '20', 10);
 const LOADTEST_PASSWORD = __ENV.LOADTEST_PASSWORD || 'LoadTest123!';
-const PROFILE = __ENV.PROFILE || 'smoke'; // 'smoke' | 'baseline'
+const PROFILE = __ENV.PROFILE || 'smoke'; // 'smoke' | 'baseline' | 'steady'
 const THINK_MIN_S = parseFloat(__ENV.THINK_MIN_S || '1');
 const THINK_MAX_S = parseFloat(__ENV.THINK_MAX_S || '3');
 
@@ -50,6 +50,23 @@ export const options =
           { duration: '1m30s', target: 300 },
           { duration: '1m30s', target: 500 },
           { duration: '30s', target: 0 },
+        ],
+        thresholds: {
+          http_req_duration: ['p(95)<300', 'p(99)<800'],
+          http_req_failed: ['rate<0.01'],
+        },
+      }
+    : PROFILE === 'steady'
+    ? {
+        // Realistic sustained load: ~1k users spread across many tenants doing
+        // normal navigation. With 1-3s think time and ~200ms responses, that's
+        // ~120-150 concurrent in-flight requests, NOT 1k. Holds STEADY_VUS
+        // (def 150) for a few minutes — this is the actual production target,
+        // the SLO gate that matters, vs. baseline's 500-VU stress spike.
+        stages: [
+          { duration: '30s', target: parseInt(__ENV.STEADY_VUS || '150', 10) },
+          { duration: '2m30s', target: parseInt(__ENV.STEADY_VUS || '150', 10) },
+          { duration: '20s', target: 0 },
         ],
         thresholds: {
           http_req_duration: ['p(95)<300', 'p(99)<800'],
