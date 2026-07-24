@@ -23,13 +23,16 @@ interface UsePermissionsReturn {
 }
 
 export function usePermissions(): UsePermissionsReturn {
-  const { user } = useAuth();
+  const { user, isFederatedReadOnly } = useAuth();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleAllowedModules, setRoleAllowedModules] = useState<string[]>([...MANAGED_MODULES]);
 
   useEffect(() => {
-    if (!user) {
+    // Una sesión federada (BonDev, sólo lectura) no tiene `user` de Supabase
+    // pero sí está autenticada — fetchPermissions() igual funciona (la
+    // identidad la resuelve el backend desde la cookie), ver AuthContext.
+    if (!user && !isFederatedReadOnly) {
       invalidatePermissionsCache();
       setPermissions(null);
       setLoading(false);
@@ -38,12 +41,16 @@ export function usePermissions(): UsePermissionsReturn {
 
     let cancelled = false;
 
-    fetchPermissions(user.id).then(async data => {
+    fetchPermissions(user?.id).then(async data => {
       if (cancelled) return;
       setPermissions(data);
 
-      // Pastor always gets full module access — skip DB check
-      if (data.role === 'pastor' || data.has_admin_access) {
+      // Pastor y sesiones federadas (BonDev) saltean el chequeo de
+      // role_module_access — para federadas además es necesario: esa
+      // tabla se lee vía el cliente JS de Supabase con SU PROPIA sesión,
+      // que una sesión federada no tiene (no hay JWT de Supabase), así que
+      // ese query fallaría/colgaría sin este atajo.
+      if (data.role === 'pastor' || data.has_admin_access || data.is_federated) {
         setRoleAllowedModules([...MANAGED_MODULES]);
         setLoading(false);
         return;
@@ -69,7 +76,7 @@ export function usePermissions(): UsePermissionsReturn {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, isFederatedReadOnly]);
 
   const hasAccess = (requiredLevel: number, requiredModule?: string): boolean => {
     if (!permissions) return false;
@@ -86,8 +93,8 @@ export function usePermissions(): UsePermissionsReturn {
     setPermissions(null);
     setRoleAllowedModules([...MANAGED_MODULES]);
     setLoading(true);
-    if (user) {
-      fetchPermissions(user.id).then(data => {
+    if (user || isFederatedReadOnly) {
+      fetchPermissions(user?.id).then(data => {
         setPermissions(data);
         setLoading(false);
       });
