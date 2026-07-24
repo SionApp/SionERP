@@ -113,6 +113,16 @@ type Claims struct {
 func SupabaseAuth() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			// Acceso federado (BonDev): si FederatedSessionAuth (registrado
+			// ANTES en el grupo protegido, ver routes.go) ya autenticó una
+			// sesión de sólo lectura, no hay nada que validar acá — sería
+			// intentar leer un JWT de Supabase donde no lo hay. Guard
+			// puramente aditivo: para toda request normal "is_federated"
+			// nunca está seteado y este bloque no hace nada.
+			if isFederated, _ := c.Get("is_federated").(bool); isFederated {
+				return next(c)
+			}
+
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
 				return c.JSON(http.StatusUnauthorized, map[string]string{

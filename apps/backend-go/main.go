@@ -8,6 +8,7 @@ import (
 	"backend-sion/services"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	sentry "github.com/getsentry/sentry-go"
@@ -15,6 +16,36 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
+
+// corsAllowOrigins resuelve la lista de orígenes permitidos desde
+// CORS_ORIGINS (coma-separado). Sin setear, devuelve ["*"] — el
+// comportamiento previo, sin cambios de default.
+//
+// Gotcha real (encontrado en vivo, 2026-07-24): "*" + AllowCredentials=true
+// es una combinación que el spec de CORS prohíbe — el browser bloquea
+// silenciosamente cualquier fetch con `credentials:'include'` cross-origin
+// (falla con net::ERR_FAILED, sin mensaje útil en la Network tab más allá
+// de eso). Esto rompe, por ejemplo, el acceso federado (BonDev): la cookie
+// httpOnly de sesión nunca llega si el frontend corre en un origen
+// distinto al backend (dev local: :5173 vs :8181). Setear CORS_ORIGINS con
+// los orígenes reales (ej. "http://localhost:5173,https://sionerp.app")
+// arregla esto sin tocar código.
+func corsAllowOrigins() []string {
+	v := os.Getenv("CORS_ORIGINS")
+	if v == "" {
+		return []string{"*"}
+	}
+	var origins []string
+	for _, o := range strings.Split(v, ",") {
+		if t := strings.TrimSpace(o); t != "" {
+			origins = append(origins, t)
+		}
+	}
+	if len(origins) == 0 {
+		return []string{"*"}
+	}
+	return origins
+}
 
 func sentryMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -89,7 +120,7 @@ func main() {
 	// for the client's full 60s. Complements the DB statement_timeout.
 	e.Use(appMiddleware.RequestTimeout())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{"*"}, // En producción, especificar orígenes permitidos
+		AllowOrigins:     corsAllowOrigins(), // CORS_ORIGINS (coma-separado); sin setear, mantiene "*" (comportamiento previo)
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
