@@ -12,14 +12,29 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// federatedInstalledModules devuelve las keys de módulos instalados —
-// compartido entre el camino normal de GetMyPermissions y el especial de
-// una sesión federada (mismo query, evita duplicarlo).
-func federatedInstalledModules() ([]string, error) {
+// installedModulesForChurch devuelve las keys de módulos instalados de UNA
+// iglesia — compartido entre el camino normal de GetMyPermissions y el
+// especial de una sesión federada.
+//
+// FIX de seguridad (2026-07-24): la versión anterior corría sobre
+// config.GetDB().DB (pool global, sin scoping) con un WHERE sin church_id
+// — devolvía los módulos instalados de TODAS las iglesias de la base,
+// mezclados, a cualquiera que pegara este endpoint. Usa config.Tx(c)
+// (hereda el scoping real de TenantTx/RLS, mismo mecanismo que el resto de
+// los handlers) + WHERE church_id explícito — doble capa, ninguna
+// dependiendo de que la otra esté bien configurada.
+//
+// Nota aparte (no arreglada acá, encontrada de paso): la tabla `modules`
+// tiene una policy RLS "Allow public read access to modules" (USING true)
+// que en la práctica anula tenant_isolation para SELECT — cualquier query
+// directa a esa tabla, sin este WHERE explícito, sigue leakeando entre
+// iglesias sin importar el rol de conexión. Vale la pena revisarla aparte.
+func installedModulesForChurch(c echo.Context) ([]string, error) {
+	churchID, _ := c.Get("church_id").(string)
 	modules := []string{}
-	rows, err := config.GetDB().DB.Query(`
-		SELECT key FROM modules WHERE is_installed = true ORDER BY key
-	`)
+	rows, err := config.Tx(c).Query(`
+		SELECT key FROM modules WHERE is_installed = true AND church_id = $1 ORDER BY key
+	`, churchID)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +70,7 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 	// escrituras están bloqueadas de todas formas server-side
 	// (FederatedReadOnly), esto es sólo de qué VE, no de qué puede tocar.
 	if isFederated, _ := c.Get("is_federated").(bool); isFederated {
-		modules, err := federatedInstalledModules()
+		modules, err := installedModulesForChurch(c)
 		if err != nil {
 			log.Printf("❌ Error querying modules table: %v", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch installed modules"})
@@ -93,7 +108,7 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 	// Get role level
 	roleLevel := utils.GetRoleLevel(role)
 
-	modules, err := federatedInstalledModules()
+	modules, err := installedModulesForChurch(c)
 	if err != nil {
 		// Log the error and return 500 so the frontend knows something went wrong
 		log.Printf("❌ Error querying modules table: %v", err)
