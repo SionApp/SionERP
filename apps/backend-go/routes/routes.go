@@ -15,6 +15,7 @@ func SetupRoutes(e *echo.Echo) {
 	dashboardHandler := handlers.NewDashboardHandler()
 	authHandler := handlers.NewAuthHandler()
 	onboardingHandler := handlers.NewOnboardingHandler()
+	federatedHandler := handlers.NewFederatedHandler()
 
 	// API routes
 	api := e.Group("/api/v1")
@@ -40,6 +41,14 @@ func SetupRoutes(e *echo.Echo) {
 	onboarding := api.Group("/onboarding")
 	onboarding.POST("/church", onboardingHandler.ProvisionChurch)
 
+	// Acceso federado (BonDev, I2 fase 1 modo read): GET /federated/redeem —
+	// PÚBLICA a propósito, montada FUERA de /api/v1 (BonDev arma la URL
+	// exacta como https://{tenant}.sionerp.local/federated/redeem?token=...,
+	// pensada para abrirse directo en el browser, no como llamada de API).
+	// Sin SupabaseAuth/TenantTx: no hay sesión previa que canjear. Ver SDD
+	// completo en Engram, proyecto "sionerp", sdd/federated-access-verify/*.
+	e.GET("/federated/redeem", federatedHandler.Redeem)
+
 	// Public: la página de registro consulta si el auto-registro está habilitado
 	api.GET("/public/registration-status", handlers.NewSettingsHandler().GetRegistrationStatus)
 	// Public: nombre + logo de la iglesia para la pantalla de login (pre-auth)
@@ -47,7 +56,16 @@ func SetupRoutes(e *echo.Echo) {
 
 	// Protected routes (require authentication)
 	protected := api.Group("")
+	// Acceso federado: si hay una sesión federada válida (cookie httpOnly
+	// seteada por /federated/redeem), setea el contexto ANTES de
+	// SupabaseAuth — que trae su propio guard para saltearse cuando ve que
+	// ya está autenticada (ver middleware/auth.go). Si no hay sesión
+	// federada, este middleware es un no-op total.
+	protected.Use(middleware.FederatedSessionAuth())
 	protected.Use(middleware.SupabaseAuth())
+	// Bloquea cualquier escritura de una sesión federada ANTES de que la
+	// request llegue a abrir transacción — fail-fast, no sólo gating de UI.
+	protected.Use(middleware.FederatedReadOnly())
 	// Modo mantenimiento: 503 para no-staff cuando está activo (corre antes de abrir tx)
 	protected.Use(middleware.MaintenanceGate())
 	// ponytail: TenantTx registered here (Phase 0) but is a no-op pass-through when

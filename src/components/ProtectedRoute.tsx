@@ -22,7 +22,7 @@ const ProtectedRoute = ({
   requiredModule,
   requireAdminAccess,
 }: ProtectedRouteProps) => {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, isFederatedReadOnly } = useAuth();
   const { permissions, loading: permissionsLoading } = usePermissions();
 
   // Auth loading
@@ -37,8 +37,9 @@ const ProtectedRoute = ({
     );
   }
 
-  // Not authenticated
-  if (!user) {
+  // Not authenticated (una sesión federada de BonDev cuenta como autenticada
+  // aunque no haya `user` de Supabase — ver AuthContext.isFederatedReadOnly)
+  if (!user && !isFederatedReadOnly) {
     return <Navigate to="/login" replace />;
   }
 
@@ -80,10 +81,7 @@ const ProtectedRoute = ({
   }
 
   // Check module requirement
-  if (
-    requiredModule &&
-    (!permissions || !permissions.installed_modules.includes(requiredModule))
-  ) {
+  if (requiredModule && (!permissions || !permissions.installed_modules.includes(requiredModule))) {
     return (
       <AccessDeniedPage
         message="Este módulo no está instalado o no tienes acceso a él."
@@ -128,7 +126,9 @@ const AccessDeniedPage = ({
         <h2 className="text-2xl font-bold text-foreground mb-2">Acceso Denegado</h2>
         <p
           className="text-muted-foreground mb-6"
-          dangerouslySetInnerHTML={{ __html: defaultMessage.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+          dangerouslySetInnerHTML={{
+            __html: defaultMessage.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'),
+          }}
         />
         <a
           href="/dashboard"

@@ -7,9 +7,34 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
+
+// federatedInstalledModules devuelve las keys de módulos instalados —
+// compartido entre el camino normal de GetMyPermissions y el especial de
+// una sesión federada (mismo query, evita duplicarlo).
+func federatedInstalledModules() ([]string, error) {
+	modules := []string{}
+	rows, err := config.GetDB().DB.Query(`
+		SELECT key FROM modules WHERE is_installed = true ORDER BY key
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err == nil {
+			modules = append(modules, key)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("❌ Error iterating modules rows: %v", err)
+	}
+	return modules, nil
+}
 
 // PermissionsHandler handles permission-related endpoints
 type PermissionsHandler struct{}
@@ -21,6 +46,33 @@ func NewPermissionsHandler() *PermissionsHandler {
 
 // GetMyPermissions returns the current user's role level and accessible modules
 func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
+	// Acceso federado (BonDev): no hay fila en `users` para una sesión
+	// federada — devolvemos permisos sintetizados en vez de fallar el
+	// lookup por PK con 404 (ver middleware/federated.go, que setea estos
+	// mismos valores en el contexto). role_level = LevelStaff a propósito:
+	// suficiente para navegar la mayoría de las páginas de datos, pero sin
+	// has_admin_access (paneles de configuración quedan afuera) — las
+	// escrituras están bloqueadas de todas formas server-side
+	// (FederatedReadOnly), esto es sólo de qué VE, no de qué puede tocar.
+	if isFederated, _ := c.Get("is_federated").(bool); isFederated {
+		modules, err := federatedInstalledModules()
+		if err != nil {
+			log.Printf("❌ Error querying modules table: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch installed modules"})
+		}
+		expiresAt, _ := c.Get("federated_expires_at").(time.Time)
+		operatorName, _ := c.Get("federated_operator_name").(string)
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"role":                    middleware.FederatedRole,
+			"role_level":              utils.LevelStaff,
+			"has_admin_access":        false,
+			"installed_modules":       modules,
+			"is_federated":            true,
+			"federated_operator_name": operatorName,
+			"federated_expires_at":    expiresAt,
+		})
+	}
+
 	userID, ok := c.Get("user_id").(string)
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -41,11 +93,7 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 	// Get role level
 	roleLevel := utils.GetRoleLevel(role)
 
-	// Get installed modules from the `modules` table
-	modules := []string{}
-	rows, err := config.GetDB().DB.Query(`
-		SELECT key FROM modules WHERE is_installed = true ORDER BY key
-	`)
+	modules, err := federatedInstalledModules()
 	if err != nil {
 		// Log the error and return 500 so the frontend knows something went wrong
 		log.Printf("❌ Error querying modules table: %v", err)
@@ -53,16 +101,6 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 			"error":   "Failed to fetch installed modules",
 			"details": err.Error(),
 		})
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var key string
-		if err := rows.Scan(&key); err == nil {
-			modules = append(modules, key)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		log.Printf("❌ Error iterating modules rows: %v", err)
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
