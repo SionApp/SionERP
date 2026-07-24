@@ -1,4 +1,5 @@
 import { AppSidebar } from '@/components/AppSidebar';
+import { FederatedBanner } from '@/components/FederatedBanner';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { SetupModal } from '@/components/SetupModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -151,8 +152,9 @@ const DashboardLayout = () => {
     return (
       <>
         {/* Contenedor principal SIN overflow-hidden para no romper fixed children en Safari */}
-        <div className="h-[100dvh] w-full bg-background fixed inset-0">
-          <main className="h-full overflow-x-hidden overflow-y-auto pb-16">
+        <div className="h-[100dvh] w-full bg-background fixed inset-0 flex flex-col">
+          <FederatedBanner />
+          <main className="flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-16">
             <Outlet />
           </main>
         </div>
@@ -166,6 +168,7 @@ const DashboardLayout = () => {
   return (
     <SidebarProvider>
       <div className="h-[100dvh] flex flex-col w-full bg-gradient-to-br from-background via-background to-accent/5 overflow-hidden fixed inset-0">
+        <FederatedBanner />
         {/* Aviso para staff+: mantenimiento activo (los demás ven la pantalla de mantenimiento) */}
         {systemSettings?.maintenance_mode && isStaffPlus && (
           <div className="bg-amber-500/15 text-amber-700 dark:text-amber-400 text-xs sm:text-sm px-4 py-1.5 text-center border-b border-amber-500/30 shrink-0 z-50">

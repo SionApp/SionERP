@@ -8,6 +8,7 @@ import (
 	"backend-sion/services"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	sentry "github.com/getsentry/sentry-go"
@@ -15,6 +16,36 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
+
+// corsAllowOrigins resuelve la lista de orígenes permitidos desde
+// CORS_ORIGINS (coma-separado). Sin setear, devuelve ["*"] — el
+// comportamiento previo, sin cambios de default.
+//
+// Gotcha real (encontrado en vivo, 2026-07-24): "*" + AllowCredentials=true
+// es una combinación que el spec de CORS prohíbe — el browser bloquea
+// silenciosamente cualquier fetch con `credentials:'include'` cross-origin
+// (falla con net::ERR_FAILED, sin mensaje útil en la Network tab más allá
+// de eso). Esto rompe, por ejemplo, el acceso federado (BonDev): la cookie
+// httpOnly de sesión nunca llega si el frontend corre en un origen
+// distinto al backend (dev local: :5173 vs :8181). Setear CORS_ORIGINS con
+// los orígenes reales (ej. "http://localhost:5173,https://sionerp.app")
+// arregla esto sin tocar código.
+func corsAllowOrigins() []string {
+	v := os.Getenv("CORS_ORIGINS")
+	if v == "" {
+		return []string{"*"}
+	}
+	var origins []string
+	for _, o := range strings.Split(v, ",") {
+		if t := strings.TrimSpace(o); t != "" {
+			origins = append(origins, t)
+		}
+	}
+	if len(origins) == 0 {
+		return []string{"*"}
+	}
+	return origins
+}
 
 func sentryMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -73,8 +104,36 @@ func main() {
 
 	e := echo.New()
 
+	// Sólo HTTPS (2026-07-24, pedido explícito): en producción, Render
+	// termina TLS y reenvía HTTP puro al proceso — Echo detecta esto vía
+	// X-Forwarded-Proto (c.Scheme(), ver echo/context.go), así que
+	// HTTPSRedirect() funciona bien detrás de ese proxy sin configuración
+	// extra. Gateado a producción: en dev local no hay TLS, redirigir a
+	// https://localhost rompería todo (no hay certificado).
+	// Pre() en vez de Use(): corre ANTES que cualquier otro middleware —
+	// si la request no es HTTPS, no vale la pena ni loguearla.
+	if os.Getenv("ENVIRONMENT") == "production" {
+		e.Pre(middleware.HTTPSRedirect())
+	}
+
 	// Middleware
 	e.Use(middleware.Logger())
+	// HSTS + headers de seguridad estándar. HSTSMaxAge=1 año, le dice al
+	// browser "nunca más intentes HTTP con este dominio" — mitiga
+	// downgrade/SSL-stripping incluso si algún link viejo apunta a http://.
+	// El header sólo se manda cuando la request YA llegó por HTTPS (mismo
+	// chequeo de X-Forwarded-Proto que arriba) — no hace nada en dev local
+	// sobre HTTP, seguro dejarlo siempre activo.
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:      "1; mode=block",
+		ContentTypeNosniff: "nosniff",
+		XFrameOptions:      "SAMEORIGIN",
+		HSTSMaxAge:         31536000, // 1 año, valor estándar
+		// HSTSPreloadEnabled queda en false a propósito: sumarse a la
+		// preload list de los browsers es un compromiso mucho más difícil
+		// de revertir (aplica ANTES de la primera visita, a todos los
+		// subdominios) — decisión aparte, no algo para activar de taquito acá.
+	}))
 	if os.Getenv("SENTRY_DSN") != "" {
 		e.Use(sentryMiddleware())
 	}
@@ -89,7 +148,7 @@ func main() {
 	// for the client's full 60s. Complements the DB statement_timeout.
 	e.Use(appMiddleware.RequestTimeout())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{"*"}, // En producción, especificar orígenes permitidos
+		AllowOrigins:     corsAllowOrigins(), // CORS_ORIGINS (coma-separado); sin setear, mantiene "*" (comportamiento previo)
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type"},

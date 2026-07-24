@@ -34,7 +34,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [branding, setBranding] = useState<PublicBranding | null>(null);
   const navigate = useNavigate();
-  const { login, user, isLoading: authLoading } = useAuth();
+  const { login, user, isLoading: authLoading, isFederatedReadOnly } = useAuth();
 
   useEffect(() => {
     SettingsService.getPublicBranding().then(setBranding);
@@ -49,12 +49,13 @@ const Login = () => {
     resolver: zodResolver(loginSchema),
   });
 
-  // Redirect authenticated users
+  // Redirect authenticated users (una sesión federada de BonDev cuenta como
+  // autenticada aunque no haya `user` de Supabase — ver AuthContext)
   useEffect(() => {
-    if (user && !authLoading) {
+    if ((user || isFederatedReadOnly) && !authLoading) {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, authLoading, navigate]);
+  }, [user, isFederatedReadOnly, authLoading, navigate]);
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
