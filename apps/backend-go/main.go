@@ -104,8 +104,36 @@ func main() {
 
 	e := echo.New()
 
+	// Sólo HTTPS (2026-07-24, pedido explícito): en producción, Render
+	// termina TLS y reenvía HTTP puro al proceso — Echo detecta esto vía
+	// X-Forwarded-Proto (c.Scheme(), ver echo/context.go), así que
+	// HTTPSRedirect() funciona bien detrás de ese proxy sin configuración
+	// extra. Gateado a producción: en dev local no hay TLS, redirigir a
+	// https://localhost rompería todo (no hay certificado).
+	// Pre() en vez de Use(): corre ANTES que cualquier otro middleware —
+	// si la request no es HTTPS, no vale la pena ni loguearla.
+	if os.Getenv("ENVIRONMENT") == "production" {
+		e.Pre(middleware.HTTPSRedirect())
+	}
+
 	// Middleware
 	e.Use(middleware.Logger())
+	// HSTS + headers de seguridad estándar. HSTSMaxAge=1 año, le dice al
+	// browser "nunca más intentes HTTP con este dominio" — mitiga
+	// downgrade/SSL-stripping incluso si algún link viejo apunta a http://.
+	// El header sólo se manda cuando la request YA llegó por HTTPS (mismo
+	// chequeo de X-Forwarded-Proto que arriba) — no hace nada en dev local
+	// sobre HTTP, seguro dejarlo siempre activo.
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:      "1; mode=block",
+		ContentTypeNosniff: "nosniff",
+		XFrameOptions:      "SAMEORIGIN",
+		HSTSMaxAge:         31536000, // 1 año, valor estándar
+		// HSTSPreloadEnabled queda en false a propósito: sumarse a la
+		// preload list de los browsers es un compromiso mucho más difícil
+		// de revertir (aplica ANTES de la primera visita, a todos los
+		// subdominios) — decisión aparte, no algo para activar de taquito acá.
+	}))
 	if os.Getenv("SENTRY_DSN") != "" {
 		e.Use(sentryMiddleware())
 	}
