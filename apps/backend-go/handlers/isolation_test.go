@@ -315,6 +315,12 @@ func TestIsolationNoBareDBCalls(t *testing.T) {
 	//                          dentro de su propia tx ANTES de escribir en federated_sessions_log
 	//                          — la misma protección RLS que da TenantTx, aplicada a mano porque
 	//                          la cadena de middleware no corre pre-auth.
+	//   provider.go          — SionERP Provider API (I1), consumida por BonDev. Corre detrás
+	//                          de ProviderKeyAuth (X-Provider-Key), NUNCA TenantTx: no hay
+	//                          church_id de sesión, el tenant se recibe por :id en la URL —
+	//                          cada query cross-tenant es la operación pedida (listar/consultar
+	//                          CUALQUIER iglesia), no un bug de scoping. Mismo criterio que
+	//                          onboarding.go.
 	//
 	// PENDING MIGRATION (to be done in a future Phase 3d / 3e):
 	//   auth.go         — Login handler reads users by email (global query, pre-auth context)
@@ -333,6 +339,7 @@ func TestIsolationNoBareDBCalls(t *testing.T) {
 		"discipleship_reports.go": true,
 		"onboarding.go":           true,
 		"federated.go":            true,
+		"provider.go":             true,
 		// settings.go — GetRegistrationStatus is a PUBLIC unauthenticated endpoint
 		// (no TenantTx exists pre-auth); it reads one boolean for the default church.
 		"settings.go": true,
