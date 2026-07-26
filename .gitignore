@@ -57,6 +57,7 @@ tools/loadtest/results/
 
 # Datos sensibles de la iglesia (PII)
 data/
+repomix-output.xml
 .vercel
 
 # Supabase CLI local cache
