@@ -37,7 +37,20 @@ import MusicEventDetailPage from './pages/dashboard/music/MusicEventDetailPage';
 import { useMagicLinkCallback } from './hooks/useMagicLinkCallback';
 import { ROLE_LEVELS } from './lib/permissions';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // 4xx (403 "sin rol en el módulo", 404, etc.) nunca se arregla reintentando —
+      // el default de 3 reintentos con backoff dejaba el skeleton de carga varios
+      // segundos antes de asentarse en el estado vacío/error real.
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number } | undefined)?.status;
+        if (status && status >= 400 && status < 500) return false;
+        return failureCount < 2;
+      },
+    },
+  },
+});
 
 // Caché a nivel de módulo — persiste mientras la app está montada.
 // Evita re-verificar setup en cada navegación interna.
