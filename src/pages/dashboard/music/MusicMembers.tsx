@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MusicService } from '@/services/music.service';
+import { UserService } from '@/services/user.service';
 import { Funciones } from '@/types/music.types';
 import type {
   MusicMember,
@@ -30,6 +31,7 @@ import type {
 import type { User } from '@/types/user.types';
 import { FuncionChip, InstrumentChip, resolveCategory } from './instrument-visual';
 import { UserSearchPicker } from './UserSearchPicker';
+import { InviteUserModal } from '@/components/dashboard/InviteUserModal';
 
 const FUNCION_LABELS: Record<Funcion, string> = {
   corista: 'Corista',
@@ -68,6 +70,24 @@ function MemberForm({
     instrument: initial?.instrument ?? '',
     isDirector: initial?.isDirector ?? false,
   });
+  const [inviteOpen, setInviteOpen] = useState(false);
+
+  async function handleInvited(email?: string) {
+    setInviteOpen(false);
+    if (!email) return;
+    try {
+      const res = await UserService.getUsers({ search: email, limit: 1 });
+      const found = res.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (found) {
+        setForm(prev => ({ ...prev, pickedUser: found }));
+        toast.success('Usuario creado y seleccionado');
+        return;
+      }
+    } catch {
+      // non-blocking — fall through to the generic message below
+    }
+    toast.info('Usuario creado. Buscalo en el campo de arriba para seleccionarlo.');
+  }
 
   function toggleFuncion(f: Funcion) {
     setForm(prev => ({
@@ -118,8 +138,21 @@ function MemberForm({
             onPick={u => setForm(prev => ({ ...prev, pickedUser: u }))}
           />
           <p className="text-xs text-muted-foreground">
-            Buscá por nombre, email o documento. Solo aparecen usuarios que aún no son integrantes.
+            Buscá por nombre, email o documento. Solo aparecen usuarios que aún no son integrantes.{' '}
+            <button
+              type="button"
+              onClick={() => setInviteOpen(true)}
+              className="text-primary hover:underline"
+            >
+              ¿No está en el sistema? Invitala
+            </button>
           </p>
+          <InviteUserModal
+            user={null}
+            isOpen={inviteOpen}
+            onClose={() => setInviteOpen(false)}
+            onInviteSent={handleInvited}
+          />
         </div>
       ) : (
         <div className="rounded-md border border-border px-3 py-2 bg-muted/30">
