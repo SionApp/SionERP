@@ -95,7 +95,8 @@ func TestAdminRoles(t *testing.T) {
 
 func TestAllModules(t *testing.T) {
 	modules := AllModules()
-	want := 5
+	// base, discipleship, zones, events, reports, music
+	want := 6
 	if len(modules) != want {
 		t.Errorf("AllModules() = %d modules; want %d", len(modules), want)
 	}

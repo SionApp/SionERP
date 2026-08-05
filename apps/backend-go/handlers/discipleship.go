@@ -1069,9 +1069,9 @@ func (h *DiscipleshipHandler) GetHierarchy(c echo.Context) error {
 			// Self: h.user_id = callerID
 			// Auxiliaries (1-hop): h.user_id IN subtreeAuxIDsSubquery
 			// Leaders (2-hop): h.supervisor_id IN subtreeAuxIDsSubquery (their supervisor is one of the aux)
-			argCount++ // $N = callerID (self)
-			churchForAux := 1      // reuse $1 = churchID
-			supForAux := argCount  // $N = callerID
+			argCount++            // $N = callerID (self)
+			churchForAux := 1     // reuse $1 = churchID
+			supForAux := argCount // $N = callerID
 			query += fmt.Sprintf(
 				" AND (h.user_id = $%d OR h.user_id IN (%s) OR h.supervisor_id IN (%s))",
 				argCount,
@@ -1463,24 +1463,25 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 		c.Logger().Error("Error counting members in analytics:", err)
 	}
 
-	// Promedio de asistencia (últimas 4 semanas, scoped by church_id)
+	// Asistencia: la UI la muestra como porcentaje, así que se calcula sobre los
+	// registros reales de asistencia (presentes / total). Antes se promediaba la
+	// SUMA de cabezas declaradas en los reportes, que devolvía un conteo pintado
+	// con un "%" al lado — 25 alumnos se veían como "25%".
 	err = q.QueryRow(`
-		SELECT COALESCE(AVG(
-			COALESCE((report_data->>'attendance_nd')::int, 0) +
-			COALESCE((report_data->>'attendance_dm')::int, 0) +
-			COALESCE((report_data->>'attendance_friends')::int, 0) +
-			COALESCE((report_data->>'attendance_kids')::int, 0)
-		), 0)
-		FROM discipleship_reports
-		WHERE church_id = $2
-		AND report_level <= $1
-		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
-	`, userLevel, churchID).Scan(&analytics.AverageAttendance)
+		SELECT COALESCE(
+			100.0 * COUNT(*) FILTER (WHERE a.present) / NULLIF(COUNT(*), 0), 0
+		)
+		FROM discipleship_attendance a
+		WHERE a.church_id = $1
+		AND a.meeting_date >= CURRENT_DATE - INTERVAL '28 days'
+	`, churchID).Scan(&analytics.AverageAttendance)
 	if err != nil {
 		c.Logger().Error("Error calculating attendance in analytics:", err)
 	}
 
-	// Salud espiritual (promedio últimas 4 semanas, scoped by church_id)
+	// Índice de gestión 0-10. Se promedian 13 indicadores binarios del reporte,
+	// así que hay que reescalar: sin el 10/13 el índice llega a 13 y la UI, que
+	// lo rotula "/10", mostraba cosas como "11.5/10".
 	err = q.QueryRow(`
 		SELECT COALESCE(AVG(
 			CASE WHEN COALESCE((report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
@@ -1496,7 +1497,7 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
-		), 0)
+		) * 10.0 / 13.0, 0)
 		FROM discipleship_reports
 		WHERE church_id = $2
 		AND report_level <= $1
@@ -2057,18 +2058,22 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 	if l, err := strconv.Atoi(level); err == nil {
 		levelInt = l
 	}
+	// Asistencia: la UI la muestra como porcentaje, así que se calcula sobre los
+	// registros reales de asistencia (presentes / total). Antes se promediaba la
+	// SUMA de cabezas declaradas en los reportes, que devolvía un conteo pintado
+	// con un "%" al lado — 25 alumnos se veían como "25%".
 	q.QueryRow(`
-		SELECT COALESCE(AVG(
-			COALESCE((report_data->>'attendance_nd')::int, 0) +
-			COALESCE((report_data->>'attendance_dm')::int, 0) +
-			COALESCE((report_data->>'attendance_friends')::int, 0) +
-			COALESCE((report_data->>'attendance_kids')::int, 0)
-		), 0)
-		FROM discipleship_reports
-		WHERE church_id = $2 AND report_level <= $1
-		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
-	`, levelInt, churchID).Scan(&stats.AverageAttendance)
+		SELECT COALESCE(
+			100.0 * COUNT(*) FILTER (WHERE a.present) / NULLIF(COUNT(*), 0), 0
+		)
+		FROM discipleship_attendance a
+		WHERE a.church_id = $1
+		AND a.meeting_date >= CURRENT_DATE - INTERVAL '28 days'
+	`, churchID).Scan(&stats.AverageAttendance)
 
+	// Índice de gestión 0-10. Se promedian 13 indicadores binarios del reporte,
+	// así que hay que reescalar: sin el 10/13 el índice llega a 13 y la UI, que
+	// lo rotula "/10", mostraba cosas como "11.5/10".
 	q.QueryRow(`
 		SELECT COALESCE(AVG(
 			CASE WHEN COALESCE((report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
@@ -2084,7 +2089,7 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
-		), 0)
+		) * 10.0 / 13.0, 0)
 		FROM discipleship_reports
 		WHERE church_id = $2 AND report_level <= $1
 		AND period_end >= CURRENT_DATE - INTERVAL '28 days'

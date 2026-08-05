@@ -586,66 +586,38 @@ const DiscipleshipPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
-        {/* Mobile: Scroll horizontal, Desktop: Grid */}
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <TabsList
-            className="inline-flex w-full md:grid h-auto min-w-max md:min-w-0 gap-1 md:gap-0"
-            style={{
-              gridTemplateColumns: `repeat(${
-                2 +
-                (canManageGroups ? 1 : 0) +
-                (canManageHierarchy ? 1 : 0) +
-                (canViewZones ? 1 : 0) +
-                (canViewMap ? 1 : 0)
-              }, minmax(0, 1fr))`,
-            }}
-          >
-            <TabsTrigger
-              value="overview"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              Resumen
+        {/* Los tabs envuelven en vez de scrollear o comprimirse: con grid de N
+            columnas fijas el label más largo quedaba cortado entre 768 y 1280px.
+            `grow` los reparte en la fila y `flex-wrap` baja el sobrante — ya no
+            hace falta calcular gridTemplateColumns según los tabs visibles. */}
+        <TabsList className="flex h-auto w-full flex-wrap gap-2 p-1.5">
+          <TabsTrigger value="overview" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Resumen
+          </TabsTrigger>
+          <TabsTrigger value="dashboard" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Dashboard
+          </TabsTrigger>
+          {canManageGroups && (
+            <TabsTrigger value="manage" className="min-h-11 grow px-3 text-xs sm:text-sm">
+              Gestión
             </TabsTrigger>
-            <TabsTrigger
-              value="dashboard"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              Dashboard
+          )}
+          {canManageHierarchy && (
+            <TabsTrigger value="hierarchy" className="min-h-11 grow px-3 text-xs sm:text-sm">
+              Jerarquías
             </TabsTrigger>
-            {canManageGroups && (
-              <TabsTrigger
-                value="manage"
-                className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-              >
-                Gestión
-              </TabsTrigger>
-            )}
-            {canManageHierarchy && (
-              <TabsTrigger
-                value="hierarchy"
-                className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-              >
-                Jerarquías
-              </TabsTrigger>
-            )}
-            {canViewZones && (
-              <TabsTrigger
-                value="zones"
-                className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-              >
-                Zonas
-              </TabsTrigger>
-            )}
-            {canViewMap && (
-              <TabsTrigger
-                value="map"
-                className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-              >
-                Mapa
-              </TabsTrigger>
-            )}
-          </TabsList>
-        </div>
+          )}
+          {canViewZones && (
+            <TabsTrigger value="zones" className="min-h-11 grow px-3 text-xs sm:text-sm">
+              Zonas
+            </TabsTrigger>
+          )}
+          {canViewMap && (
+            <TabsTrigger value="map" className="min-h-11 grow px-3 text-xs sm:text-sm">
+              Mapa
+            </TabsTrigger>
+          )}
+        </TabsList>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4 md:space-y-6">

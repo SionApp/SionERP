@@ -483,9 +483,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
       {
         value: 'approvals',
         label:
-          pendingReports.length > 0
-            ? `Aprobaciones · ${pendingReports.length}`
-            : 'Aprobaciones',
+          pendingReports.length > 0 ? `Aprobaciones · ${pendingReports.length}` : 'Aprobaciones',
       },
       {
         value: 'alerts',
@@ -630,67 +628,41 @@ const PastoralDashboard: React.FC = React.memo(() => {
       {/* Acciones Rápidas */}
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        {/* Mobile: Scroll horizontal, Desktop: Grid */}
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <TabsList className="inline-flex w-full md:grid md:grid-cols-5 h-auto min-w-max md:min-w-0 gap-1 md:gap-0">
-            <TabsTrigger
-              value="overview"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              Vista General
-            </TabsTrigger>
-            <TabsTrigger
-              value="strategic"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              Estratégico
-            </TabsTrigger>
-            <TabsTrigger
-              value="approvals"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              <span className="hidden sm:inline">Aprobaciones</span>
-              <span className="sm:hidden">Aprob.</span>
-              {pendingReports.length > 0 && (
-                <Badge
-                  variant="destructive"
-                  className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5"
-                >
-                  {pendingReports.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="alerts"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              <span className="hidden sm:inline">Alertas</span>
-              <span className="sm:hidden">Alert.</span>
-              {stats.pending_alerts > 0 ? (
-                <Badge
-                  variant="destructive"
-                  className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5 animate-pulse"
-                >
-                  {stats.pending_alerts}
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="ml-1 md:ml-2 text-[10px] md:text-xs h-4 md:h-5 px-1 md:px-1.5 text-muted-foreground"
-                >
-                  0
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="health"
-              className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 px-2 md:px-3"
-            >
-              <span className="hidden md:inline">Salud del Sistema</span>
-              <span className="md:hidden">Salud</span>
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        {/* Los tabs envuelven en vez de scrollear o comprimirse: con grid de N
+            columnas fijas el label más largo quedaba cortado entre 768 y 1280px.
+            `grow` los reparte en la fila y `flex-wrap` baja el sobrante. */}
+        <TabsList className="flex h-auto w-full flex-wrap gap-2 p-1.5">
+          <TabsTrigger value="overview" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Vista General
+          </TabsTrigger>
+          <TabsTrigger value="strategic" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Estratégico
+          </TabsTrigger>
+          <TabsTrigger value="approvals" className="min-h-11 grow gap-1.5 px-3 text-xs sm:text-sm">
+            Aprobaciones
+            {pendingReports.length > 0 && (
+              <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                {pendingReports.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="min-h-11 grow gap-1.5 px-3 text-xs sm:text-sm">
+            Alertas
+            {stats.pending_alerts > 0 ? (
+              <Badge variant="destructive" className="h-5 animate-pulse px-1.5 text-[10px]">
+                {stats.pending_alerts}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
+                0
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="health" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            <span className="sm:hidden">Salud</span>
+            <span className="hidden sm:inline">Salud del Sistema</span>
+          </TabsTrigger>
+        </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           {/* Comprehensive Growth Analysis */}
