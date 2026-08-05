@@ -3,3 +3,6 @@ pnpm test:run || exit 1
 
 echo "→ go build ./..."
 cd apps/backend-go && go build ./... || exit 1
+
+echo "→ go test ./..."
+go test ./... || exit 1

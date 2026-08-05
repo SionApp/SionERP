@@ -156,46 +156,29 @@ const SettingsPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-6">
-        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-full lg:grid lg:grid-cols-6 h-auto min-w-max lg:min-w-0 gap-1 lg:gap-0">
-            <TabsTrigger
-              value="general"
-              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
-            >
-              General
-            </TabsTrigger>
-            <TabsTrigger
-              value="church"
-              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
-            >
-              Iglesia
-            </TabsTrigger>
-            <TabsTrigger
-              value="zones"
-              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
-            >
-              Zonas
-            </TabsTrigger>
-            <TabsTrigger
-              value="notifications"
-              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
-            >
-              Notificaciones
-            </TabsTrigger>
-            <TabsTrigger
-              value="security"
-              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
-            >
-              Seguridad
-            </TabsTrigger>
-            <TabsTrigger
-              value="backup"
-              className="text-xs lg:text-sm whitespace-nowrap flex-shrink-0 px-3"
-            >
-              Respaldos
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        {/* Los tabs envuelven en vez de scrollear o comprimirse: con grid de N
+            columnas fijas el label más largo quedaba cortado entre 768 y 1280px.
+            `grow` los reparte en la fila y `flex-wrap` baja el sobrante. */}
+        <TabsList className="flex h-auto w-full flex-wrap gap-2 p-1.5">
+          <TabsTrigger value="general" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            General
+          </TabsTrigger>
+          <TabsTrigger value="church" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Iglesia
+          </TabsTrigger>
+          <TabsTrigger value="zones" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Zonas
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Notificaciones
+          </TabsTrigger>
+          <TabsTrigger value="security" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Seguridad
+          </TabsTrigger>
+          <TabsTrigger value="backup" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Respaldos
+          </TabsTrigger>
+        </TabsList>
 
         {/* ===== TAB: GENERAL ===== */}
         <TabsContent value="general" className="space-y-3 sm:space-y-6">
@@ -223,7 +206,6 @@ const SettingsPage = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-
                     <div className="space-y-2">
                       <Label htmlFor="timezone">Zona Horaria</Label>
                       <Select
@@ -851,15 +833,14 @@ const SettingsPage = () => {
                             }
                           />
                         </div>
-
                       </div>
                     </div>
 
                     <Separator />
 
                     <p className="text-sm text-muted-foreground">
-                      Los correos del sistema se envían a través de un proveedor gestionado
-                      (Resend) — no requiere configuración SMTP.
+                      Los correos del sistema se envían a través de un proveedor gestionado (Resend)
+                      — no requiere configuración SMTP.
                     </p>
                   </div>
 

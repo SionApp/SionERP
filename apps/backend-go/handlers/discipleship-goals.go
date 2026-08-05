@@ -910,12 +910,12 @@ func (h *DiscipleshipGoalsHandler) CreateAssignments(c echo.Context) error {
 		var newID, createdAt string
 		var currentVal float64
 		err = q.QueryRow(`
-			INSERT INTO goal_assignments (goal_id, assigned_to, assigned_by, assigned_level, target_value, parent_assignment_id, notes)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO goal_assignments (goal_id, assigned_to, assigned_by, assigned_level, target_value, parent_assignment_id, notes, church_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			ON CONFLICT (goal_id, assigned_to, parent_assignment_id) DO UPDATE
 				SET target_value = EXCLUDED.target_value, updated_at = NOW()
 			RETURNING id, current_value, created_at
-		`, goalID, item.AssignedTo, userID, assigneeLevel, item.TargetValue, item.ParentAssignmentID, item.Notes).Scan(&newID, &currentVal, &createdAt)
+		`, goalID, item.AssignedTo, userID, assigneeLevel, item.TargetValue, item.ParentAssignmentID, item.Notes, churchID).Scan(&newID, &currentVal, &createdAt)
 		if err != nil {
 			c.Logger().Error("Error creating assignment:", err)
 			skipped = append(skipped, SkippedAssignment{AssignedTo: item.AssignedTo, Reason: "error al insertar"})
@@ -1018,12 +1018,12 @@ func (h *DiscipleshipGoalsHandler) BatchAssignToZones(c echo.Context) error {
 
 		var newID, createdAt string
 		err = q.QueryRow(`
-			INSERT INTO goal_assignments (goal_id, assigned_to, assigned_by, assigned_level, target_value)
-			VALUES ($1, $2, $3, 3, $4)
+			INSERT INTO goal_assignments (goal_id, assigned_to, assigned_by, assigned_level, target_value, church_id)
+			VALUES ($1, $2, $3, 3, $4, $5)
 			ON CONFLICT (goal_id, assigned_to, parent_assignment_id) DO UPDATE
 				SET target_value = EXCLUDED.target_value, updated_at = NOW()
 			RETURNING id, created_at
-		`, goalID, supervisorID, userID, defaultTarget).Scan(&newID, &createdAt)
+		`, goalID, supervisorID, userID, defaultTarget, churchID).Scan(&newID, &createdAt)
 		if err != nil {
 			skipped = append(skipped, SkippedAssignment{AssignedTo: supervisorID, Reason: "error al insertar"})
 			continue
@@ -1140,12 +1140,14 @@ func (h *DiscipleshipGoalsHandler) GetAssignmentTree(c echo.Context) error {
 		orderedIDs = append(orderedIDs, n.ID)
 	}
 
-	// Visibility filter for non-pastor: only show subtrees where assigned_to == me
+	// Visibility filter for non-pastor: show subtrees assigned TO me, or that I
+	// assigned/cascaded to someone else (the creator must see their own cascade
+	// even when they didn't self-assign a leaf).
 	var roots []*FlatNode
 	for _, id := range orderedIDs {
 		n := allNodes[id]
 		if n.ParentAssignmentID == nil {
-			if canSeeAll || n.AssignedTo == userID {
+			if canSeeAll || n.AssignedTo == userID || n.AssignedBy == userID {
 				roots = append(roots, n)
 			}
 		} else {

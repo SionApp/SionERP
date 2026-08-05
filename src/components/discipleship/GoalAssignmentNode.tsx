@@ -1,14 +1,9 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { AssignmentTreeNode } from '@/services/discipleship-analytics.service';
-import { GitBranch } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 import { useState } from 'react';
 import { CascadeAssignStep } from './CascadeAssignStep';
 
@@ -22,7 +17,10 @@ interface GoalAssignmentNodeProps {
   onProgressUpdate?: () => void;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+const statusConfig: Record<
+  string,
+  { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+> = {
   active: { label: 'Activo', variant: 'default' },
   completed: { label: 'Completado', variant: 'secondary' },
   overdue: { label: 'Vencido', variant: 'destructive' },
@@ -40,23 +38,46 @@ export function GoalAssignmentNode({
   onProgressUpdate,
 }: GoalAssignmentNodeProps) {
   const [showReassign, setShowReassign] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const isOwner = node.assigned_to === currentUserId;
-  const progressValue = node.target_value > 0
-    ? Math.min((node.current_value / node.target_value) * 100, 100)
-    : 0;
-  const statusInfo = statusConfig[node.status] ?? { label: node.status, variant: 'outline' as const };
+  const hasChildren = !!node.children && node.children.length > 0;
+  const progressValue =
+    node.target_value > 0 ? Math.min((node.current_value / node.target_value) * 100, 100) : 0;
+  const statusInfo = statusConfig[node.status] ?? {
+    label: node.status,
+    variant: 'outline' as const,
+  };
 
   return (
     <div className={`${depth > 0 ? 'ml-6 border-l-2 border-muted pl-4' : ''} space-y-2`}>
       <div className="p-3 border rounded-lg bg-card space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
+            {hasChildren && (
+              <button
+                type="button"
+                onClick={() => setIsExpanded(prev => !prev)}
+                className="flex-shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                aria-label={isExpanded ? 'Contraer sub-asignaciones' : 'Expandir sub-asignaciones'}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
             <span className="font-medium text-sm truncate">
               {node.assigned_to_name || node.assigned_to}
             </span>
             <Badge variant={statusInfo.variant} className="text-xs flex-shrink-0">
               {statusInfo.label}
             </Badge>
+            {hasChildren && (
+              <span className="text-[11px] text-muted-foreground flex-shrink-0">
+                ({node.children!.length})
+              </span>
+            )}
           </div>
           {isOwner && (
             <Button
@@ -82,9 +103,9 @@ export function GoalAssignmentNode({
         </div>
       </div>
 
-      {node.children && node.children.length > 0 && (
+      {hasChildren && isExpanded && (
         <div className="space-y-2">
-          {node.children.map((child) => (
+          {node.children!.map(child => (
             <GoalAssignmentNode
               key={child.id}
               node={child}
