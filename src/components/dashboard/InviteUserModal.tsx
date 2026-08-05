@@ -35,13 +35,15 @@ const inviteSchema = z.object({
   role: z.enum(['admin', 'pastor', 'staff', 'supervisor', 'server', 'member']),
 });
 
-const directCreateSchema = inviteSchema.extend({
-  password: z.string().min(6, 'Mínimo 6 caracteres'),
-  confirm_password: z.string().min(1, 'Confirmá la contraseña'),
-}).refine(data => data.password === data.confirm_password, {
-  message: 'Las contraseñas no coinciden',
-  path: ['confirm_password'],
-});
+const directCreateSchema = inviteSchema
+  .extend({
+    password: z.string().min(6, 'Mínimo 6 caracteres'),
+    confirm_password: z.string().min(1, 'Confirmá la contraseña'),
+  })
+  .refine(data => data.password === data.confirm_password, {
+    message: 'Las contraseñas no coinciden',
+    path: ['confirm_password'],
+  });
 
 type InviteFormData = z.infer<typeof inviteSchema>;
 type DirectCreateFormData = z.infer<typeof directCreateSchema>;
@@ -50,7 +52,8 @@ interface InviteUserModalProps {
   user: User | null;
   isOpen: boolean;
   onClose: () => void;
-  onInviteSent: () => void;
+  /** email is the address just invited/created — undefined callers can ignore it */
+  onInviteSent: (email?: string) => void;
 }
 
 export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteUserModalProps) => {
@@ -140,7 +143,7 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
 
       inviteForm.reset();
       onClose();
-      onInviteSent();
+      onInviteSent(data.email);
     } catch (error: unknown) {
       if (error instanceof Error) {
         toast.error(error.message);
@@ -183,7 +186,7 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
       setGeneratedPassword(null);
       setShowPassword(false);
       onClose();
-      onInviteSent();
+      onInviteSent(data.email);
     } catch (error: unknown) {
       if (error instanceof Error) {
         toast.error(error.message);
@@ -201,19 +204,21 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
   };
 
   return (
-    <Dialog open={isOpen} onClose={onClose}>
+    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
             Agregar Usuario
           </DialogTitle>
-          <DialogDescription>
-            Creá un nuevo usuario para el sistema
-          </DialogDescription>
+          <DialogDescription>Creá un nuevo usuario para el sistema</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={mode} onValueChange={(v) => setMode(v as 'invite' | 'direct')} className="space-y-4">
+        <Tabs
+          value={mode}
+          onValueChange={v => setMode(v as 'invite' | 'direct')}
+          className="space-y-4"
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="invite" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
@@ -227,10 +232,14 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
 
           {/* Modo Invitar */}
           <TabsContent value="invite">
-            <form onSubmit={inviteForm.handleSubmit(onInviteSubmit)} className="space-y-3 sm:space-y-4">
+            <form
+              onSubmit={inviteForm.handleSubmit(onInviteSubmit)}
+              className="space-y-3 sm:space-y-4"
+            >
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-sm text-muted-foreground">
-                  Se enviará un email con un Magic Link para que el usuario se registre (requiere SMTP configurado).
+                  Se enviará un email con un Magic Link para que el usuario se registre (requiere
+                  SMTP configurado).
                 </p>
               </div>
 
@@ -245,7 +254,9 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                     placeholder="usuario@ejemplo.com"
                   />
                   {inviteForm.formState.errors.email && (
-                    <p className="text-sm text-destructive">{inviteForm.formState.errors.email.message}</p>
+                    <p className="text-sm text-destructive">
+                      {inviteForm.formState.errors.email.message}
+                    </p>
                   )}
                 </div>
 
@@ -253,7 +264,9 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                   <Label htmlFor="invite-role">Rol *</Label>
                   <Select
                     value={inviteForm.watch('role')}
-                    onValueChange={(value: string) => inviteForm.setValue('role', value as UserRole)}
+                    onValueChange={(value: string) =>
+                      inviteForm.setValue('role', value as UserRole)
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un rol" />
@@ -268,42 +281,73 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                     </SelectContent>
                   </Select>
                   {inviteForm.formState.errors.role && (
-                    <p className="text-sm text-destructive">{inviteForm.formState.errors.role.message}</p>
+                    <p className="text-sm text-destructive">
+                      {inviteForm.formState.errors.role.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="invite-first_name">Nombres *</Label>
-                  <Input id="invite-first_name" {...inviteForm.register('first_name')} placeholder="Juan" />
+                  <Input
+                    id="invite-first_name"
+                    {...inviteForm.register('first_name')}
+                    placeholder="Juan"
+                  />
                   {inviteForm.formState.errors.first_name && (
-                    <p className="text-sm text-destructive">{inviteForm.formState.errors.first_name.message}</p>
+                    <p className="text-sm text-destructive">
+                      {inviteForm.formState.errors.first_name.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="invite-last_name">Apellidos *</Label>
-                  <Input id="invite-last_name" {...inviteForm.register('last_name')} placeholder="Pérez" />
+                  <Input
+                    id="invite-last_name"
+                    {...inviteForm.register('last_name')}
+                    placeholder="Pérez"
+                  />
                   {inviteForm.formState.errors.last_name && (
-                    <p className="text-sm text-destructive">{inviteForm.formState.errors.last_name.message}</p>
+                    <p className="text-sm text-destructive">
+                      {inviteForm.formState.errors.last_name.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="invite-phone">Teléfono</Label>
-                  <Input id="invite-phone" {...inviteForm.register('phone')} placeholder="809-555-1234" />
+                  <Input
+                    id="invite-phone"
+                    {...inviteForm.register('phone')}
+                    placeholder="809-555-1234"
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="invite-id_number">Cédula</Label>
-                  <Input id="invite-id_number" {...inviteForm.register('id_number')} placeholder="001-1234567-8" />
+                  <Input
+                    id="invite-id_number"
+                    {...inviteForm.register('id_number')}
+                    placeholder="001-1234567-8"
+                  />
                 </div>
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="w-full sm:w-auto"
+                >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={loading || inviteForm.formState.disabled} className="w-full sm:w-auto">
+                <Button
+                  type="submit"
+                  disabled={loading || inviteForm.formState.disabled}
+                  className="w-full sm:w-auto"
+                >
                   {loading ? 'Enviando...' : 'Enviar Invitación'}
                 </Button>
               </div>
@@ -312,10 +356,14 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
 
           {/* Modo Crear Directamente */}
           <TabsContent value="direct">
-            <form onSubmit={directForm.handleSubmit(onDirectSubmit)} className="space-y-3 sm:space-y-4">
+            <form
+              onSubmit={directForm.handleSubmit(onDirectSubmit)}
+              className="space-y-3 sm:space-y-4"
+            >
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-sm text-muted-foreground">
-                  El usuario se crea directamente con contraseña. El admin comparte las credenciales manualmente.
+                  El usuario se crea directamente con contraseña. El admin comparte las credenciales
+                  manualmente.
                 </p>
               </div>
 
@@ -330,7 +378,9 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                     placeholder="usuario@ejemplo.com"
                   />
                   {directForm.formState.errors.email && (
-                    <p className="text-sm text-destructive">{directForm.formState.errors.email.message}</p>
+                    <p className="text-sm text-destructive">
+                      {directForm.formState.errors.email.message}
+                    </p>
                   )}
                 </div>
 
@@ -338,7 +388,9 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                   <Label htmlFor="direct-role">Rol *</Label>
                   <Select
                     value={directForm.watch('role')}
-                    onValueChange={(value: string) => directForm.setValue('role', value as UserRole)}
+                    onValueChange={(value: string) =>
+                      directForm.setValue('role', value as UserRole)
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un rol" />
@@ -353,34 +405,56 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                     </SelectContent>
                   </Select>
                   {directForm.formState.errors.role && (
-                    <p className="text-sm text-destructive">{directForm.formState.errors.role.message}</p>
+                    <p className="text-sm text-destructive">
+                      {directForm.formState.errors.role.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="direct-first_name">Nombres *</Label>
-                  <Input id="direct-first_name" {...directForm.register('first_name')} placeholder="Juan" />
+                  <Input
+                    id="direct-first_name"
+                    {...directForm.register('first_name')}
+                    placeholder="Juan"
+                  />
                   {directForm.formState.errors.first_name && (
-                    <p className="text-sm text-destructive">{directForm.formState.errors.first_name.message}</p>
+                    <p className="text-sm text-destructive">
+                      {directForm.formState.errors.first_name.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="direct-last_name">Apellidos *</Label>
-                  <Input id="direct-last_name" {...directForm.register('last_name')} placeholder="Pérez" />
+                  <Input
+                    id="direct-last_name"
+                    {...directForm.register('last_name')}
+                    placeholder="Pérez"
+                  />
                   {directForm.formState.errors.last_name && (
-                    <p className="text-sm text-destructive">{directForm.formState.errors.last_name.message}</p>
+                    <p className="text-sm text-destructive">
+                      {directForm.formState.errors.last_name.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="direct-phone">Teléfono</Label>
-                  <Input id="direct-phone" {...directForm.register('phone')} placeholder="809-555-1234" />
+                  <Input
+                    id="direct-phone"
+                    {...directForm.register('phone')}
+                    placeholder="809-555-1234"
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="direct-id_number">Cédula</Label>
-                  <Input id="direct-id_number" {...directForm.register('id_number')} placeholder="001-1234567-8" />
+                  <Input
+                    id="direct-id_number"
+                    {...directForm.register('id_number')}
+                    placeholder="001-1234567-8"
+                  />
                 </div>
 
                 <Separator className="md:col-span-2" />
@@ -418,7 +492,9 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                     )}
                   </div>
                   {directForm.formState.errors.password && (
-                    <p className="text-sm text-destructive">{directForm.formState.errors.password.message}</p>
+                    <p className="text-sm text-destructive">
+                      {directForm.formState.errors.password.message}
+                    </p>
                   )}
                 </div>
 
@@ -431,7 +507,9 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                     placeholder="Repetí la contraseña"
                   />
                   {directForm.formState.errors.confirm_password && (
-                    <p className="text-sm text-destructive">{directForm.formState.errors.confirm_password.message}</p>
+                    <p className="text-sm text-destructive">
+                      {directForm.formState.errors.confirm_password.message}
+                    </p>
                   )}
                 </div>
 
@@ -440,7 +518,7 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
                     <input
                       type="checkbox"
                       checked={showPassword}
-                      onChange={(e) => setShowPassword(e.target.checked)}
+                      onChange={e => setShowPassword(e.target.checked)}
                       className="rounded border-border"
                     />
                     Mostrar contraseña
@@ -449,10 +527,19 @@ export const InviteUserModal = ({ user, isOpen, onClose, onInviteSent }: InviteU
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="w-full sm:w-auto"
+                >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={loading || directForm.formState.disabled} className="w-full sm:w-auto">
+                <Button
+                  type="submit"
+                  disabled={loading || directForm.formState.disabled}
+                  className="w-full sm:w-auto"
+                >
                   {loading ? 'Creando...' : 'Crear Usuario'}
                 </Button>
               </div>

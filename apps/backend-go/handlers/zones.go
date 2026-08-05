@@ -690,15 +690,12 @@ func (h *ZonesHandler) AssignGroupToZone(c echo.Context) error {
 	})
 }
 
-// AssignUserToZone asigna un usuario a una zona
+// AssignUserToZone asigna un usuario a una zona.
+// El nivel jerárquico de discipulado NO se toca acá — vive en discipleship_hierarchy
+// y se asigna desde la pestaña Jerarquías (ver AssignHierarchy / handlers/discipleship.go).
 func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 	zoneID := c.Param("id")
 	userID := c.Param("userId")
-
-	var req struct {
-		DiscipleshipLevel *int `json:"discipleship_level"`
-	}
-	c.Bind(&req)
 
 	db, err := validateTx(c)
 	if err != nil {
@@ -720,25 +717,10 @@ func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 		})
 	}
 
-	query := `UPDATE users SET zone_id = $1, updated_at = NOW()`
-	args := []interface{}{zoneID}
-	argCount := 1
-
-	if req.DiscipleshipLevel != nil {
-		argCount++
-		query += fmt.Sprintf(", discipleship_level = $%d", argCount)
-		args = append(args, *req.DiscipleshipLevel)
-	}
-
-	argCount++
-	query += fmt.Sprintf(" WHERE id = $%d", argCount)
-	args = append(args, userID)
-
-	argCount++
-	query += fmt.Sprintf(" AND church_id = $%d", argCount)
-	args = append(args, churchID)
-
-	_, err = db.Exec(query, args...)
+	_, err = db.Exec(
+		"UPDATE users SET zone_id = $1, updated_at = NOW() WHERE id = $2 AND church_id = $3",
+		zoneID, userID, churchID,
+	)
 
 	if err != nil {
 		c.Logger().Error("Error assigning user to zone:", err)
