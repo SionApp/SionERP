@@ -15,7 +15,7 @@
  *
  * Después: `node docs/screenshots/upload.mjs` para subirlas y obtener las URLs.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const BASE = process.env.MANUAL_BASE_URL ?? 'http://localhost:8080';
 const EMAIL = process.env.MANUAL_EMAIL;
@@ -38,15 +38,30 @@ const SCREENS: { slug: string; path: string }[] = [
   { slug: 'perfil', path: '/dashboard/profile' },
 ];
 
+// Navega de forma resistente a las redirecciones internas de la SPA
+// (la app a veces re-navega sola, lo que interrumpe un goto en curso).
+async function gotoSafe(page: Page, url: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      // networkidle puede no llegar nunca en apps con polling: no fallar por eso
+      await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
+      return;
+    } catch (err) {
+      if (attempt === 2) throw err;
+      await page.waitForTimeout(1000); // dejar que la SPA termine su redirección
+    }
+  }
+}
+
 test('captura todas las pantallas del manual', async ({ page }) => {
   test.skip(!EMAIL || !PASSWORD, 'Definí MANUAL_EMAIL y MANUAL_PASSWORD para capturar.');
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
 
   await page.setViewportSize({ width: 1440, height: 900 });
 
   // ── Pantalla de login (sin autenticar) ──
-  await page.goto(`${BASE}/login`);
-  await page.waitForLoadState('networkidle');
+  await gotoSafe(page, `${BASE}/login`);
   await page.screenshot({ path: `${OUT}/login.png` });
 
   // ── Login (credenciales desde env, nunca hardcodeadas) ──
@@ -54,13 +69,16 @@ test('captura todas las pantallas del manual', async ({ page }) => {
   await page.fill('input[type="password"], input[name="password"]', PASSWORD!);
   await page.click('button[type="submit"]');
   await page.waitForURL('**/dashboard**', { timeout: 30_000 });
-  await page.waitForLoadState('networkidle');
+
+  // Dejar que terminen TODAS las redirecciones post-login (rol → panel correcto)
+  // antes de empezar a navegar, así no chocan con el primer goto del loop.
+  await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(2500);
 
   // ── Recorrer cada pantalla autenticada ──
   for (const screen of SCREENS) {
-    await page.goto(`${BASE}${screen.path}`);
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1200); // dejar asentar gráficos/datos
+    await gotoSafe(page, `${BASE}${screen.path}`);
+    await page.waitForTimeout(1500); // dejar asentar gráficos/datos
     await page.screenshot({ path: `${OUT}/${screen.slug}.png` });
     console.log(`📸 ${screen.slug}  ←  ${screen.path}`);
   }
