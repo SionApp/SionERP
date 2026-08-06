@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"backend-sion/config"
 	"backend-sion/models"
 	"bytes"
 	"database/sql"
@@ -43,16 +44,26 @@ func validateZoneBoundaries(boundaries json.RawMessage) error {
 	return nil
 }
 
-// GetZones obtiene todas las zonas
-
+// GetZones obtiene las zonas visibles para el usuario que consulta.
+// Pastor/staff/admin (o nivel 4-5 de discipulado) ven todas las zonas de la
+// iglesia. Un supervisor/líder con jerarquía asignada (nivel 1-3) sólo ve SU
+// propia zona — antes cualquier usuario autenticado veía las 4 zonas
+// completas sin importar su rol o jerarquía.
 func (h *ZonesHandler) GetZones(c echo.Context) error {
 	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	_, _, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, config.GetDB())
+
 	churchID, _ := c.Get("church_id").(string)
 	isActiveParam := c.QueryParam("is_active")
+
+	// Sin acceso completo y sin zona asignada: no hay nada que mostrar.
+	if !canSeeAll && userZoneID == nil {
+		return c.JSON(http.StatusOK, []models.ZoneWithDetails{})
+	}
 
 	query := `
 	SELECT
@@ -83,6 +94,13 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 		argCount++
 		query += fmt.Sprintf(" AND z.is_active = $%d", argCount)
 		args = append(args, isActiveParam == "true")
+	}
+
+	// ── Scope a la propia zona si no tiene acceso completo ──
+	if !canSeeAll {
+		argCount++
+		query += fmt.Sprintf(" AND z.id = $%d", argCount)
+		args = append(args, *userZoneID)
 	}
 
 	query += " ORDER BY z.name"
@@ -517,9 +535,16 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 		return err
 	}
 
+	_, _, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, config.GetDB())
+
 	churchID, _ := c.Get("church_id").(string)
 	isActiveParam := c.QueryParam("is_active")
 	selectedZoneID := c.QueryParam("zone_id")
+
+	// Sin acceso completo y sin zona asignada: mapa vacío, no todo el territorio.
+	if !canSeeAll && userZoneID == nil {
+		return c.JSON(http.StatusOK, models.ZoneMapResponse{Zones: []models.ZoneMapData{}})
+	}
 
 	query := `
 	SELECT
@@ -585,6 +610,13 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 		argCount++
 		query += fmt.Sprintf(" AND z.id = $%d", argCount)
 		args = append(args, selectedZoneID)
+	}
+
+	// ── Scope a la propia zona si no tiene acceso completo ──
+	if !canSeeAll {
+		argCount++
+		query += fmt.Sprintf(" AND z.id = $%d", argCount)
+		args = append(args, *userZoneID)
 	}
 
 	query += " ORDER BY z.name, g.group_name"
