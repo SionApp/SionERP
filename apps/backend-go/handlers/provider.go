@@ -16,6 +16,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/google/uuid"
@@ -327,7 +328,12 @@ func (h *ProviderHandler) CreateTenant(c echo.Context) error {
 	// usuarios sin password. Si falla, el tenant YA quedó creado (no hay
 	// rollback acá — el admin puede pedir un link nuevo via "olvidé mi
 	// contraseña" con el mismo mecanismo); se informa igual en la response.
-	frontendURL := "http://localhost:5173"
+	// Mismo patrón que invite.go: FRONTEND_URL del entorno, con fallback a
+	// localhost sólo para dev local — nunca hardcodeado a un dominio fijo.
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173" // Puerto por defecto de Vite
+	}
 	actionLink := ""
 	magicLink, mlErr := supabase.GenerateMagicLink(req.AdminEmail, frontendURL, map[string]interface{}{
 		"first_name": firstName,
