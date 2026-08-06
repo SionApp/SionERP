@@ -16,6 +16,7 @@ import type {
 import { Calendar, Layers, MapPin, Search, User as UserIcon, Users } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MapContainer,
@@ -117,6 +118,19 @@ function createPersonIcon(size: number): L.DivIcon {
   });
 }
 
+// Etiqueta de zona: nombre + puntito de color, centrada en el área de la zona.
+// pointer-events:none para que nunca tape un click a un pin de abajo.
+function createZoneLabelIcon(name: string, color: string, isSelected: boolean): L.DivIcon {
+  return L.divIcon({
+    html: `<div style="pointer-events:none;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.92);box-shadow:0 1px 3px rgba(15,23,42,.18);font:700 10px/1 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:#1e293b;white-space:nowrap;opacity:${isSelected ? '1' : '0.85'};transform:scale(${isSelected ? '1.08' : '1'});transition:opacity .2s,transform .2s;">
+      <span style="width:6px;height:6px;border-radius:999px;background:${color};flex-shrink:0;"></span>${name}
+    </div>`,
+    className: '',
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
 function isPolygon(boundaries: unknown): boundaries is GeoJSONPolygon {
@@ -182,7 +196,7 @@ function getZonePolyPositions(
   const color = feature.properties.color;
 
   if (feature.geometry.type === 'Polygon') {
-    return feature.geometry.coordinates.map((ring) => ({
+    return feature.geometry.coordinates.map(ring => ({
       positions: ring.map(geojsonToLatLng),
       isMulti: false,
       isSelected,
@@ -191,8 +205,8 @@ function getZonePolyPositions(
   }
 
   // MultiPolygon: each polygon is its own array of rings
-  return feature.geometry.coordinates.flatMap((polygon) =>
-    polygon.map((ring) => ({
+  return feature.geometry.coordinates.flatMap(polygon =>
+    polygon.map(ring => ({
       positions: ring.map(geojsonToLatLng),
       isMulti: true,
       isSelected,
@@ -210,11 +224,9 @@ function getFeatureLatLngBounds(feature: ZoneFeature): L.LatLngBounds | null {
   };
 
   if (feature.geometry.type === 'Polygon') {
-    feature.geometry.coordinates.forEach((ring) => ring.forEach(extract));
+    feature.geometry.coordinates.forEach(ring => ring.forEach(extract));
   } else {
-    feature.geometry.coordinates.forEach((polygon) =>
-      polygon.forEach((ring) => ring.forEach(extract))
-    );
+    feature.geometry.coordinates.forEach(polygon => polygon.forEach(ring => ring.forEach(extract)));
   }
 
   if (allPoints.length === 0) return null;
@@ -235,7 +247,15 @@ function FitToBounds({ bounds, trigger }: { bounds: L.LatLngBounds | null; trigg
   return null;
 }
 
-function FlyTo({ position, zoom, trigger }: { position: [number, number]; zoom: number; trigger: unknown }) {
+function FlyTo({
+  position,
+  zoom,
+  trigger,
+}: {
+  position: [number, number];
+  zoom: number;
+  trigger: unknown;
+}) {
   const map = useMap();
 
   useEffect(() => {
@@ -252,6 +272,8 @@ export default function DiscipleshipMap({
   onZoneSelect,
   heightClassName = 'h-[620px]',
 }: DiscipleshipMapProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
   const mapRef = useRef<L.Map | null>(null);
   const [zoneData, setZoneData] = useState<ZoneMapData[]>([]);
   const [mapUsers, setMapUsers] = useState<MapUser[]>([]);
@@ -272,7 +294,11 @@ export default function DiscipleshipMap({
   const [fitToBounds, setFitToBounds] = useState<{ bounds: L.LatLngBounds; key: string } | null>(
     null
   );
-  const [flyTo, setFlyTo] = useState<{ position: [number, number]; zoom: number; key: string } | null>(null);
+  const [flyTo, setFlyTo] = useState<{
+    position: [number, number];
+    zoom: number;
+    key: string;
+  } | null>(null);
 
   useEffect(() => {
     setInternalSelectedZoneId(selectedZoneId ?? null);
@@ -299,7 +325,7 @@ export default function DiscipleshipMap({
         const usersData = await DiscipleshipService.getUsersForHierarchy();
         const rawUsers = usersData || [];
         const usersWithCoords: MapUser[] = rawUsers
-          .filter((u) => {
+          .filter(u => {
             const lat = Number(u.latitude);
             const lng = Number(u.longitude);
             return (
@@ -311,7 +337,7 @@ export default function DiscipleshipMap({
               lng !== 0
             );
           })
-          .map((u) => ({
+          .map(u => ({
             id: String(u.id),
             first_name: String(u.first_name || ''),
             last_name: String(u.last_name || ''),
@@ -333,7 +359,7 @@ export default function DiscipleshipMap({
   }, [zoneData]);
 
   const selectedZone = useMemo(
-    () => zoneData.find((item) => item.zone.id === internalSelectedZoneId) ?? null,
+    () => zoneData.find(item => item.zone.id === internalSelectedZoneId) ?? null,
     [zoneData, internalSelectedZoneId]
   );
 
@@ -356,11 +382,11 @@ export default function DiscipleshipMap({
       );
     };
     if (!internalSelectedZoneId) {
-      return zoneData.flatMap((item) => item.groups).filter(hasValidCoords);
+      return zoneData.flatMap(item => item.groups).filter(hasValidCoords);
     }
     return (
       zoneData
-        .find((item) => item.zone.id === internalSelectedZoneId)
+        .find(item => item.zone.id === internalSelectedZoneId)
         ?.groups.filter(hasValidCoords) || []
     );
   }, [zoneData, internalSelectedZoneId]);
@@ -368,16 +394,16 @@ export default function DiscipleshipMap({
   // Personas visibles (filtradas por zona si hay seleccion)
   const visiblePeople = useMemo<MapUser[]>(() => {
     if (!internalSelectedZoneId) return mapUsers;
-    const zoneName = zoneData.find((z) => z.zone.id === internalSelectedZoneId)?.zone.name;
+    const zoneName = zoneData.find(z => z.zone.id === internalSelectedZoneId)?.zone.name;
     if (!zoneName) return mapUsers;
-    return mapUsers.filter((u) => u.zone_name === zoneName);
+    return mapUsers.filter(u => u.zone_name === zoneName);
   }, [mapUsers, internalSelectedZoneId, zoneData]);
 
   // Obtener color de zona para un grupo
   const getGroupZoneColor = useCallback(
     (group: ZoneMapGroup): string => {
       for (const zd of zoneData) {
-        if (zd.groups.some((g) => g.id === group.id)) {
+        if (zd.groups.some(g => g.id === group.id)) {
           return zd.zone.color || '#3b82f6';
         }
       }
@@ -388,7 +414,7 @@ export default function DiscipleshipMap({
 
   const fitToZone = useCallback(
     (zoneId: string) => {
-      const feature = zoneFeatures.find((item) => item.properties.zoneId === zoneId);
+      const feature = zoneFeatures.find(item => item.properties.zoneId === zoneId);
       if (!feature) return;
       const bounds = getFeatureLatLngBounds(feature);
       if (!bounds) return;
@@ -415,9 +441,25 @@ export default function DiscipleshipMap({
 
   // Pre-compute all polygon data for rendering
   const allZonePolygons = useMemo(() => {
-    return zoneFeatures.flatMap((feature) =>
-      getZonePolyPositions(feature, internalSelectedZoneId)
-    );
+    return zoneFeatures.flatMap(feature => getZonePolyPositions(feature, internalSelectedZoneId));
+  }, [zoneFeatures, internalSelectedZoneId]);
+
+  // Etiqueta con el nombre de cada zona, centrada en su bounding box
+  const zoneLabels = useMemo(() => {
+    return zoneFeatures
+      .map(feature => {
+        const bounds = getFeatureLatLngBounds(feature);
+        if (!bounds) return null;
+        const center = bounds.getCenter();
+        return {
+          zoneId: feature.properties.zoneId,
+          name: feature.properties.zoneName,
+          color: feature.properties.color,
+          center: [center.lat, center.lng] as [number, number],
+          isSelected: feature.properties.zoneId === internalSelectedZoneId,
+        };
+      })
+      .filter((l): l is NonNullable<typeof l> => l !== null);
   }, [zoneFeatures, internalSelectedZoneId]);
 
   return (
@@ -431,24 +473,48 @@ export default function DiscipleshipMap({
               zoom={DEFAULT_ZOOM}
               className="w-full h-full"
               zoomControl={false}
-              ref={(map) => {
+              ref={map => {
                 mapRef.current = map;
               }}
             >
               <ZoomControl position="topright" />
               <TileLayer
+                key={isDark ? 'dark' : 'light'}
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                url={
+                  isDark
+                    ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png'
+                }
               />
 
               {/* Floating Toolbar Top Left */}
-              <div className="leaflet-top leaflet-left" style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000 }}>
+              <div
+                className="leaflet-top leaflet-left"
+                style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000 }}
+              >
                 <div className="bg-background/80 backdrop-blur-md rounded-xl border border-border/50 p-2.5 shadow-lg flex items-center gap-4 transition-all hover:bg-background/90">
                   <div className="flex items-center gap-2">
                     <div className="p-1 bg-blue-500/10 rounded-lg">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill="#3b82f6" fillOpacity="0.85" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path
+                          d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
+                          fill="#3b82f6"
+                          fillOpacity="0.85"
+                          stroke="#3b82f6"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M9 21V13H15V21"
+                          fill="white"
+                          fillOpacity="0.9"
+                          stroke="#3b82f6"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -459,8 +525,22 @@ export default function DiscipleshipMap({
                   <div className="flex items-center gap-2">
                     <div className="p-1 bg-indigo-500/10 rounded-lg">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
-                        <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
+                        <circle
+                          cx="12"
+                          cy="7"
+                          r="4"
+                          fill="#6366f1"
+                          stroke="#4f46e5"
+                          strokeWidth="1.5"
+                        />
+                        <path
+                          d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21"
+                          fill="#6366f1"
+                          fillOpacity="0.6"
+                          stroke="#4f46e5"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
                       </svg>
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -476,25 +556,34 @@ export default function DiscipleshipMap({
                   key={`zone-poly-${idx}`}
                   positions={poly.positions}
                   pathOptions={{
-                    color: poly.isSelected ? poly.color : poly.color,
+                    color: poly.color,
                     fillColor: poly.color,
-                    fillOpacity: 0.22,
-                    weight: poly.isSelected ? 4 : 2,
+                    fillOpacity: poly.isSelected ? 0.3 : 0.14,
+                    weight: poly.isSelected ? 3 : 1.5,
+                    dashArray: poly.isSelected ? undefined : '5 5',
+                    lineCap: 'round',
                   }}
                 />
               ))}
 
+              {/* Etiquetas de nombre de zona, centradas en su área */}
+              {zoneLabels.map(label => (
+                <Marker
+                  key={`zone-label-${label.zoneId}`}
+                  position={label.center}
+                  icon={createZoneLabelIcon(label.name, label.color, label.isSelected)}
+                  interactive={false}
+                  zIndexOffset={-1000}
+                />
+              ))}
+
               {/* FitToBounds helper */}
-              {fitToBounds && (
-                <FitToBounds bounds={fitToBounds.bounds} trigger={fitToBounds.key} />
-              )}
-              {flyTo && (
-                <FlyTo position={flyTo.position} zoom={flyTo.zoom} trigger={flyTo.key} />
-              )}
+              {fitToBounds && <FitToBounds bounds={fitToBounds.bounds} trigger={fitToBounds.key} />}
+              {flyTo && <FlyTo position={flyTo.position} zoom={flyTo.zoom} trigger={flyTo.key} />}
 
               {/* Marcadores de Grupos (casitas) */}
               {showGroups &&
-                visibleGroups.map((group) => {
+                visibleGroups.map(group => {
                   const lat = Number(group.latitude);
                   const lng = Number(group.longitude);
                   if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return null;
@@ -518,7 +607,7 @@ export default function DiscipleshipMap({
 
               {/* Marcadores de Personas */}
               {showPeople &&
-                visiblePeople.map((person) => (
+                visiblePeople.map(person => (
                   <Marker
                     key={`person-${person.id}`}
                     position={[person.latitude, person.longitude]}
@@ -545,8 +634,24 @@ export default function DiscipleshipMap({
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
                       <div className="p-1.5 bg-blue-500/10 rounded-lg">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                          <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill="#3b82f6" fillOpacity="0.85" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path
+                            d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
+                            fill="#3b82f6"
+                            fillOpacity="0.85"
+                            stroke="#3b82f6"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M9 21V13H15V21"
+                            fill="white"
+                            fillOpacity="0.9"
+                            stroke="#3b82f6"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
                         </svg>
                       </div>
                       <p className="font-bold text-sm tracking-tight truncate">
@@ -604,8 +709,22 @@ export default function DiscipleshipMap({
                     <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
                       <div className="p-1.5 bg-indigo-500/10 rounded-lg">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
-                          <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
+                          <circle
+                            cx="12"
+                            cy="7"
+                            r="4"
+                            fill="#6366f1"
+                            stroke="#4f46e5"
+                            strokeWidth="1.5"
+                          />
+                          <path
+                            d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21"
+                            fill="#6366f1"
+                            fillOpacity="0.6"
+                            stroke="#4f46e5"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                          />
                         </svg>
                       </div>
                       <p className="font-bold text-sm tracking-tight truncate">
@@ -666,8 +785,24 @@ export default function DiscipleshipMap({
             >
               <Label htmlFor="show-groups" className="cursor-pointer flex items-center gap-2">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={showGroups ? '#3b82f6' : '#94a3b8'} fillOpacity="0.85" stroke={showGroups ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={showGroups ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path
+                    d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
+                    fill={showGroups ? '#3b82f6' : '#94a3b8'}
+                    fillOpacity="0.85"
+                    stroke={showGroups ? '#3b82f6' : '#94a3b8'}
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M9 21V13H15V21"
+                    fill="white"
+                    fillOpacity="0.9"
+                    stroke={showGroups ? '#3b82f6' : '#94a3b8'}
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
                 <span className="text-xs font-medium">Grupos</span>
               </Label>
@@ -688,8 +823,15 @@ export default function DiscipleshipMap({
             >
               <Label htmlFor="show-people" className="cursor-pointer flex items-center gap-2">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
-                  <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
+                  <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5" />
+                  <path
+                    d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21"
+                    fill="#6366f1"
+                    fillOpacity="0.6"
+                    stroke="#4f46e5"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
                 </svg>
                 <span className="text-xs font-medium">Personas</span>
               </Label>
@@ -751,7 +893,7 @@ export default function DiscipleshipMap({
               )}
 
               {/* Lista de zonas */}
-              {zoneData.map((item) => {
+              {zoneData.map(item => {
                 const isSelected = item.zone.id === internalSelectedZoneId;
                 return (
                   <div
@@ -776,8 +918,24 @@ export default function DiscipleshipMap({
                           <div className="flex items-center gap-3 mt-1.5">
                             <div className="flex items-center gap-1">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={isSelected ? '#3b82f6' : '#94a3b8'} fillOpacity="0.85" stroke={isSelected ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={isSelected ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path
+                                  d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
+                                  fill={isSelected ? '#3b82f6' : '#94a3b8'}
+                                  fillOpacity="0.85"
+                                  stroke={isSelected ? '#3b82f6' : '#94a3b8'}
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M9 21V13H15V21"
+                                  fill="white"
+                                  fillOpacity="0.9"
+                                  stroke={isSelected ? '#3b82f6' : '#94a3b8'}
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
                               </svg>
                               <span className="text-[10px] font-bold text-muted-foreground">
                                 {item.groups.length}
@@ -807,7 +965,7 @@ export default function DiscipleshipMap({
                             Células en zona
                           </span>
                         </div>
-                        {item.groups.map((group) => (
+                        {item.groups.map(group => (
                           <button
                             type="button"
                             key={group.id}
@@ -822,8 +980,24 @@ export default function DiscipleshipMap({
                             <div className="flex items-center gap-3">
                               <div className="p-1.5 bg-background rounded-lg shadow-sm border border-border/50 group-hover/cell:border-blue-500/30 transition-colors">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                  <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={item.zone.color} fillOpacity="0.85" stroke={item.zone.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                  <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={item.zone.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  <path
+                                    d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
+                                    fill={item.zone.color}
+                                    fillOpacity="0.85"
+                                    stroke={item.zone.color}
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M9 21V13H15V21"
+                                    fill="white"
+                                    fillOpacity="0.9"
+                                    stroke={item.zone.color}
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
                                 </svg>
                               </div>
                               <div className="min-w-0">
