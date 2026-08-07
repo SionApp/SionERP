@@ -56,7 +56,7 @@ type tenantHealthWire struct {
 	Meta              map[string]any  `json:"meta"`
 }
 
-const providerContractVersion = "1.0"
+const providerContractVersion = "v1"
 
 // ListTenants handles GET /provider/tenants.
 func (h *ProviderHandler) ListTenants(c echo.Context) error {
