@@ -25,6 +25,7 @@ import {
   Popup,
   Polygon,
   useMap,
+  useMapEvent,
   ZoomControl,
 } from 'react-leaflet';
 
@@ -187,7 +188,7 @@ function getZonePolyPositions(
   feature: ZoneFeature,
   selectedZoneId: string | null
 ): {
-  positions: [number, number][][];
+  positions: [number, number][];
   isMulti: boolean;
   isSelected: boolean;
   color: string;
@@ -262,6 +263,11 @@ function FlyTo({
     map.flyTo(position, zoom, { duration: 1 });
   }, [map, position, zoom, trigger]);
 
+  return null;
+}
+
+function PopupCloseHandler({ onClose }: { onClose: () => void }) {
+  useMapEvent('popupclose', onClose);
   return null;
 }
 
@@ -580,6 +586,12 @@ export default function DiscipleshipMap({
               {/* FitToBounds helper */}
               {fitToBounds && <FitToBounds bounds={fitToBounds.bounds} trigger={fitToBounds.key} />}
               {flyTo && <FlyTo position={flyTo.position} zoom={flyTo.zoom} trigger={flyTo.key} />}
+              <PopupCloseHandler
+                onClose={() => {
+                  setSelectedGroup(null);
+                  setSelectedPerson(null);
+                }}
+              />
 
               {/* Marcadores de Grupos (casitas) */}
               {showGroups &&
@@ -625,7 +637,6 @@ export default function DiscipleshipMap({
               {selectedGroup && selectedGroup.latitude && selectedGroup.longitude && (
                 <Popup
                   position={[Number(selectedGroup.latitude), Number(selectedGroup.longitude)]}
-                  onClose={() => setSelectedGroup(null)}
                   closeOnClick={false}
                   autoClose={false}
                   maxWidth={300}
@@ -700,7 +711,6 @@ export default function DiscipleshipMap({
               {selectedPerson && (
                 <Popup
                   position={[selectedPerson.latitude, selectedPerson.longitude]}
-                  onClose={() => setSelectedPerson(null)}
                   closeOnClick={false}
                   autoClose={false}
                   maxWidth={260}

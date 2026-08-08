@@ -68,7 +68,7 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
 
 // ── Map fit helper ──
 function FitToPosition({ position, zoom }: { position: [number, number]; zoom: number }) {
-  const map = useMapEvent('ready', () => {
+  const map = useMapEvent('load', () => {
     map.setView(position, zoom, { animate: true });
   });
   return null;

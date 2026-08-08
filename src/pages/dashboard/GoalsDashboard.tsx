@@ -10,6 +10,7 @@ import { useMobileMode } from '@/hooks/useMobileMode';
 import { usePermissions } from '@/hooks/usePermissions';
 import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
 import type { AssignmentTreeNode } from '@/services/discipleship-analytics.service';
+import { DiscipleshipService } from '@/services/discipleship.service';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -48,7 +49,13 @@ export function GoalsDashboard() {
 
   const canSeeAll = (permissions?.role_level ?? 0) >= 400;
   const canCreate = (permissions?.role_level ?? 0) >= 200;
-  const userLevel = permissions?.hierarchy_level ?? undefined;
+  const [userLevel, setUserLevel] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    DiscipleshipService.getHierarchy(user?.id)
+      .then(rows => setUserLevel(rows[0]?.hierarchy_level ?? undefined))
+      .catch(() => setUserLevel(undefined));
+  }, [user?.id]);
 
   const loadGoals = async (status?: string) => {
     try {

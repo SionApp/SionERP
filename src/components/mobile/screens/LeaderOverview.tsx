@@ -107,7 +107,7 @@ export function MobileLeaderOverview({ onGoToDashboard }: MobileLeaderOverviewPr
                 <BarChart3 className="w-4 h-4" />
               </div>
             }
-            title={group?.name || 'Mi célula'}
+            title={group?.group_name || 'Mi célula'}
             subtitle="Estadísticas detalladas"
             trailing={<ChevronRight className="w-4 h-4 text-muted-foreground/50" />}
             onClick={onGoToDashboard}

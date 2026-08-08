@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Mail, Lock, User, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { SettingsService } from '@/services/settings.service';
-import { User as UserType } from '@/types/user.types';
 const registerSchema = z
   .object({
     full_name: z.string().min(1, 'El nombre es requerido').max(100, 'El nombre es muy largo'),
@@ -67,15 +66,18 @@ const Register = () => {
 
     try {
       const { error } = await signUp(data.email, data.password, {
-        full_name: data.full_name,
+        id: crypto.randomUUID(),
         email: data.email,
-        password: data.password,
+        first_name: data.full_name,
+        last_name: '',
+        id_number: '',
+        phone: '',
+        address: '',
         role: 'admin',
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        id: crypto.randomUUID(),
-      } as UserType);
+      });
 
       if (!error) {
         // Show success message and redirect to login
@@ -100,7 +102,8 @@ const Register = () => {
           error.message?.includes('Database error saving new user')
         ) {
           setError('root', {
-            message: 'El registro de nuevos usuarios está deshabilitado. Contactá a tu administrador.',
+            message:
+              'El registro de nuevos usuarios está deshabilitado. Contactá a tu administrador.',
           });
         } else {
           setError('root', {
@@ -146,8 +149,8 @@ const Register = () => {
           {!registrationsAllowed && (
             <Alert className="mb-4">
               <AlertDescription>
-                El registro de nuevos usuarios está deshabilitado por el administrador. Si
-                necesitás una cuenta, pedí una invitación.
+                El registro de nuevos usuarios está deshabilitado por el administrador. Si necesitás
+                una cuenta, pedí una invitación.
               </AlertDescription>
             </Alert>
           )}
