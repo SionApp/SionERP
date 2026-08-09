@@ -59,16 +59,6 @@ interface User {
   phone: string;
 }
 
-const normalizeNullString = (value: unknown): string | null => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object' && value !== null && 'String' in value && 'Valid' in value) {
-    const nullString = value as { String: string; Valid: boolean };
-    return nullString.Valid ? nullString.String : null;
-  }
-  return String(value);
-};
-
 export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
   const [members, setMembers] = useState<GroupMemberWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,8 +103,7 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
         .filter(u => u.id)
         .map(u => ({
           id: String(normalizeNullString(u.id) || ''),
-          full_name:
-            `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Sin nombre',
+          full_name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Sin nombre',
           email: normalizeNullString(u.email) || '',
           phone: normalizeNullString(u.phone) || '',
         }));

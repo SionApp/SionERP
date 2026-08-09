@@ -12,6 +12,13 @@ export interface DiscipleshipLevelConfig {
 }
 
 export const DISCILEDSHIP_LEVELS: Record<DiscipleshipLevel, DiscipleshipLevelConfig> = {
+  0: {
+    level: 0,
+    label: 'Sin nivel',
+    icon: User,
+    variant: 'secondary',
+    description: 'Sin nivel de discipulado',
+  },
   1: {
     level: 1,
     label: 'Líder',
@@ -50,16 +57,8 @@ export const DISCILEDSHIP_LEVELS: Record<DiscipleshipLevel, DiscipleshipLevelCon
 };
 
 export const getDiscipleshipLevelConfig = (level?: number): DiscipleshipLevelConfig => {
-  if (!level || level < 1 || level > 5 || level === null) {
-    return {
-      level: 0,
-      label: 'Sin nivel',
-      icon: User,
-      variant: 'secondary',
-      description: 'Sin nivel de discipulado',
-    };
-  }
-  return DISCILEDSHIP_LEVELS[level as DiscipleshipLevel] || DISCILEDSHIP_LEVELS[5];
+  const safeLevel = !level || level < 1 || level > 5 ? 0 : (level as DiscipleshipLevel);
+  return DISCILEDSHIP_LEVELS[safeLevel];
 };
 
 export const getDiscipleshipLevelLabel = (level?: number): string => {

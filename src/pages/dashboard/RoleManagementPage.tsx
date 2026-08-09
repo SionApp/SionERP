@@ -76,11 +76,43 @@ const ROLE_DEFS: RoleDef[] = [
     border: 'border-slate-500/20',
     description: 'Acceso total al sistema. Gestiona módulos, roles, configuración y usuarios.',
     permissions: [
-      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: true }, { label: 'Ver', allowed: true }, { label: 'Editar', allowed: true }, { label: 'Eliminar', allowed: true }] },
-      { category: 'Roles', actions: [{ label: 'Asignar', allowed: true }, { label: 'Ver', allowed: true }] },
-      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: true }, { label: 'Ver', allowed: true }] },
-      { category: 'Reportes', actions: [{ label: 'Generar', allowed: true }, { label: 'Ver', allowed: true }] },
-      { category: 'Configuración', actions: [{ label: 'Editar', allowed: true }, { label: 'Ver', allowed: true }] },
+      {
+        category: 'Usuarios',
+        actions: [
+          { label: 'Crear', allowed: true },
+          { label: 'Ver', allowed: true },
+          { label: 'Editar', allowed: true },
+          { label: 'Eliminar', allowed: true },
+        ],
+      },
+      {
+        category: 'Roles',
+        actions: [
+          { label: 'Asignar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Módulos',
+        actions: [
+          { label: 'Gestionar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Reportes',
+        actions: [
+          { label: 'Generar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Configuración',
+        actions: [
+          { label: 'Editar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
     ],
   },
   {
@@ -90,13 +122,46 @@ const ROLE_DEFS: RoleDef[] = [
     bg: 'bg-red-500/10',
     text: 'text-red-600 dark:text-red-400',
     border: 'border-red-500/20',
-    description: 'Líder espiritual. Acceso administrativo completo excepto gestión de módulos del sistema.',
+    description:
+      'Líder espiritual. Acceso administrativo completo excepto gestión de módulos del sistema.',
     permissions: [
-      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: true }, { label: 'Ver', allowed: true }, { label: 'Editar', allowed: true }, { label: 'Eliminar', allowed: true }] },
-      { category: 'Roles', actions: [{ label: 'Asignar', allowed: true }, { label: 'Ver', allowed: true }] },
-      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: true }, { label: 'Ver', allowed: true }] },
-      { category: 'Reportes', actions: [{ label: 'Generar', allowed: true }, { label: 'Ver', allowed: true }] },
-      { category: 'Configuración', actions: [{ label: 'Editar', allowed: true }, { label: 'Ver', allowed: true }] },
+      {
+        category: 'Usuarios',
+        actions: [
+          { label: 'Crear', allowed: true },
+          { label: 'Ver', allowed: true },
+          { label: 'Editar', allowed: true },
+          { label: 'Eliminar', allowed: true },
+        ],
+      },
+      {
+        category: 'Roles',
+        actions: [
+          { label: 'Asignar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Módulos',
+        actions: [
+          { label: 'Gestionar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Reportes',
+        actions: [
+          { label: 'Generar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Configuración',
+        actions: [
+          { label: 'Editar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
     ],
   },
   {
@@ -106,13 +171,46 @@ const ROLE_DEFS: RoleDef[] = [
     bg: 'bg-blue-500/10',
     text: 'text-blue-600 dark:text-blue-400',
     border: 'border-blue-500/20',
-    description: 'Equipo pastoral. Gestión de usuarios y acceso a reportes. Sin acceso a configuración.',
+    description:
+      'Equipo pastoral. Gestión de usuarios y acceso a reportes. Sin acceso a configuración.',
     permissions: [
-      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: true }, { label: 'Ver', allowed: true }, { label: 'Editar', allowed: true }, { label: 'Eliminar', allowed: false }] },
-      { category: 'Roles', actions: [{ label: 'Asignar', allowed: false }, { label: 'Ver', allowed: true }] },
-      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: false }, { label: 'Ver', allowed: true }] },
-      { category: 'Reportes', actions: [{ label: 'Generar', allowed: true }, { label: 'Ver', allowed: true }] },
-      { category: 'Configuración', actions: [{ label: 'Editar', allowed: false }, { label: 'Ver', allowed: true }] },
+      {
+        category: 'Usuarios',
+        actions: [
+          { label: 'Crear', allowed: true },
+          { label: 'Ver', allowed: true },
+          { label: 'Editar', allowed: true },
+          { label: 'Eliminar', allowed: false },
+        ],
+      },
+      {
+        category: 'Roles',
+        actions: [
+          { label: 'Asignar', allowed: false },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Módulos',
+        actions: [
+          { label: 'Gestionar', allowed: false },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Reportes',
+        actions: [
+          { label: 'Generar', allowed: true },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Configuración',
+        actions: [
+          { label: 'Editar', allowed: false },
+          { label: 'Ver', allowed: true },
+        ],
+      },
     ],
   },
   {
@@ -124,11 +222,43 @@ const ROLE_DEFS: RoleDef[] = [
     border: 'border-purple-500/20',
     description: 'Supervisión de grupos celulares. Acceso a reportes de sus subordinados.',
     permissions: [
-      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: false }, { label: 'Ver', allowed: true }, { label: 'Editar', allowed: true }, { label: 'Eliminar', allowed: false }] },
-      { category: 'Roles', actions: [{ label: 'Asignar', allowed: false }, { label: 'Ver', allowed: true }] },
-      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: false }, { label: 'Ver', allowed: false }] },
-      { category: 'Reportes', actions: [{ label: 'Generar', allowed: false }, { label: 'Ver', allowed: true }] },
-      { category: 'Configuración', actions: [{ label: 'Editar', allowed: false }, { label: 'Ver', allowed: false }] },
+      {
+        category: 'Usuarios',
+        actions: [
+          { label: 'Crear', allowed: false },
+          { label: 'Ver', allowed: true },
+          { label: 'Editar', allowed: true },
+          { label: 'Eliminar', allowed: false },
+        ],
+      },
+      {
+        category: 'Roles',
+        actions: [
+          { label: 'Asignar', allowed: false },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Módulos',
+        actions: [
+          { label: 'Gestionar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
+      {
+        category: 'Reportes',
+        actions: [
+          { label: 'Generar', allowed: false },
+          { label: 'Ver', allowed: true },
+        ],
+      },
+      {
+        category: 'Configuración',
+        actions: [
+          { label: 'Editar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
     ],
   },
   {
@@ -140,11 +270,43 @@ const ROLE_DEFS: RoleDef[] = [
     border: 'border-emerald-500/20',
     description: 'Miembro servidor. Acceso básico: perfil propio, módulos asignados.',
     permissions: [
-      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: false }, { label: 'Ver', allowed: false }, { label: 'Editar', allowed: false }, { label: 'Eliminar', allowed: false }] },
-      { category: 'Roles', actions: [{ label: 'Asignar', allowed: false }, { label: 'Ver', allowed: false }] },
-      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: false }, { label: 'Ver', allowed: false }] },
-      { category: 'Reportes', actions: [{ label: 'Generar', allowed: false }, { label: 'Ver', allowed: false }] },
-      { category: 'Configuración', actions: [{ label: 'Editar', allowed: false }, { label: 'Ver', allowed: false }] },
+      {
+        category: 'Usuarios',
+        actions: [
+          { label: 'Crear', allowed: false },
+          { label: 'Ver', allowed: false },
+          { label: 'Editar', allowed: false },
+          { label: 'Eliminar', allowed: false },
+        ],
+      },
+      {
+        category: 'Roles',
+        actions: [
+          { label: 'Asignar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
+      {
+        category: 'Módulos',
+        actions: [
+          { label: 'Gestionar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
+      {
+        category: 'Reportes',
+        actions: [
+          { label: 'Generar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
+      {
+        category: 'Configuración',
+        actions: [
+          { label: 'Editar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
     ],
   },
   {
@@ -156,11 +318,43 @@ const ROLE_DEFS: RoleDef[] = [
     border: 'border-orange-400/20',
     description: 'Miembro general. Solo puede ver y editar su propio perfil.',
     permissions: [
-      { category: 'Usuarios', actions: [{ label: 'Crear', allowed: false }, { label: 'Ver', allowed: false }, { label: 'Editar', allowed: false }, { label: 'Eliminar', allowed: false }] },
-      { category: 'Roles', actions: [{ label: 'Asignar', allowed: false }, { label: 'Ver', allowed: false }] },
-      { category: 'Módulos', actions: [{ label: 'Gestionar', allowed: false }, { label: 'Ver', allowed: false }] },
-      { category: 'Reportes', actions: [{ label: 'Generar', allowed: false }, { label: 'Ver', allowed: false }] },
-      { category: 'Configuración', actions: [{ label: 'Editar', allowed: false }, { label: 'Ver', allowed: false }] },
+      {
+        category: 'Usuarios',
+        actions: [
+          { label: 'Crear', allowed: false },
+          { label: 'Ver', allowed: false },
+          { label: 'Editar', allowed: false },
+          { label: 'Eliminar', allowed: false },
+        ],
+      },
+      {
+        category: 'Roles',
+        actions: [
+          { label: 'Asignar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
+      {
+        category: 'Módulos',
+        actions: [
+          { label: 'Gestionar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
+      {
+        category: 'Reportes',
+        actions: [
+          { label: 'Generar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
+      {
+        category: 'Configuración',
+        actions: [
+          { label: 'Editar', allowed: false },
+          { label: 'Ver', allowed: false },
+        ],
+      },
     ],
   },
 ];
@@ -185,7 +379,9 @@ export default function RoleManagementPage() {
   const [assignRole, setAssignRole] = useState<UserRole | ''>('');
   const [assignSearch, setAssignSearch] = useState('');
   const [saving, setSaving] = useState(false);
-  const [confirmChange, setConfirmChange] = useState<{ user: User; newRole: UserRole } | null>(null);
+  const [confirmChange, setConfirmChange] = useState<{ user: User; newRole: UserRole } | null>(
+    null
+  );
 
   useEffect(() => {
     loadUsers();
@@ -195,7 +391,7 @@ export default function RoleManagementPage() {
     setLoading(true);
     try {
       const data = await UserService.getUsers();
-      setUsers(data);
+      setUsers(data.users);
     } catch {
       toast.error('Error al cargar usuarios');
     } finally {
@@ -216,11 +412,12 @@ export default function RoleManagementPage() {
   // Users available to assign (filtered by search)
   const filteredForAssign = useMemo(() => {
     const q = assignSearch.toLowerCase();
-    return users.filter(u =>
-      !q ||
-      u.first_name?.toLowerCase().includes(q) ||
-      u.last_name?.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q)
+    return users.filter(
+      u =>
+        !q ||
+        u.first_name?.toLowerCase().includes(q) ||
+        u.last_name?.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q)
     );
   }, [users, assignSearch]);
 
@@ -266,7 +463,6 @@ export default function RoleManagementPage() {
   return (
     <>
       <div className="space-y-6 p-3 sm:p-4 md:p-6 max-w-5xl">
-
         {/* ── Header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -324,7 +520,9 @@ export default function RoleManagementPage() {
                   {/* Role header */}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl ${def.bg} flex items-center justify-center flex-shrink-0`}>
+                      <div
+                        className={`w-10 h-10 rounded-xl ${def.bg} flex items-center justify-center flex-shrink-0`}
+                      >
                         <Icon className={`w-5 h-5 ${def.text}`} />
                       </div>
                       <div>
@@ -332,7 +530,9 @@ export default function RoleManagementPage() {
                           <h3 className="font-semibold text-sm leading-tight">
                             {ROLE_DISPLAY_NAMES[def.id]}
                           </h3>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${def.bg} ${def.text} ${def.border}`}>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${def.bg} ${def.text} ${def.border}`}
+                          >
                             Nivel {level}
                           </span>
                         </div>
@@ -392,9 +592,12 @@ export default function RoleManagementPage() {
                         ? 'Sin usuarios asignados'
                         : `Ver ${roleUsers.length} usuario${roleUsers.length !== 1 ? 's' : ''}`}
                     </span>
-                    {roleUsers.length > 0 && (
-                      isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
-                    )}
+                    {roleUsers.length > 0 &&
+                      (isExpanded ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      ))}
                   </button>
                 </div>
 
@@ -428,7 +631,9 @@ export default function RoleManagementPage() {
                           </button>
                         )}
                         {u.id === currentUser?.id && (
-                          <span className="text-[10px] text-muted-foreground/50 flex-shrink-0 px-2">Vos</span>
+                          <span className="text-[10px] text-muted-foreground/50 flex-shrink-0 px-2">
+                            Vos
+                          </span>
                         )}
                       </div>
                     ))}
@@ -499,7 +704,9 @@ export default function RoleManagementPage() {
                         } ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}`}
                       >
                         <Avatar className="w-7 h-7 flex-shrink-0">
-                          <AvatarFallback className={`text-[10px] font-bold ${def?.bg ?? ''} ${def?.text ?? ''}`}>
+                          <AvatarFallback
+                            className={`text-[10px] font-bold ${def?.bg ?? ''} ${def?.text ?? ''}`}
+                          >
                             {initials(u)}
                           </AvatarFallback>
                         </Avatar>
@@ -510,7 +717,9 @@ export default function RoleManagementPage() {
                           </p>
                           <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
                         </div>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${def?.bg ?? 'bg-muted'} ${def?.text ?? 'text-muted-foreground'} flex-shrink-0`}>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${def?.bg ?? 'bg-muted'} ${def?.text ?? 'text-muted-foreground'} flex-shrink-0`}
+                        >
                           {ROLE_DISPLAY_NAMES[u.role]}
                         </span>
                       </button>
@@ -537,11 +746,7 @@ export default function RoleManagementPage() {
                   {ROLE_DEFS.map(def => {
                     const currentUserRole = users.find(u => u.id === assignUserId)?.role;
                     return (
-                      <SelectItem
-                        key={def.id}
-                        value={def.id}
-                        disabled={def.id === currentUserRole}
-                      >
+                      <SelectItem key={def.id} value={def.id} disabled={def.id === currentUserRole}>
                         <div className="flex items-center gap-2">
                           <def.icon className={`w-3.5 h-3.5 ${def.text}`} />
                           <span>{ROLE_DISPLAY_NAMES[def.id]}</span>
@@ -558,11 +763,7 @@ export default function RoleManagementPage() {
 
             {/* Footer buttons */}
             <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setAssignOpen(false)}
-              >
+              <Button variant="outline" className="flex-1" onClick={() => setAssignOpen(false)}>
                 Cancelar
               </Button>
               <Button
@@ -589,14 +790,12 @@ export default function RoleManagementPage() {
                 {confirmChange?.user.first_name} {confirmChange?.user.last_name}
               </strong>{' '}
               de <strong>{ROLE_DISPLAY_NAMES[confirmChange?.user.role ?? 'member']}</strong> a{' '}
-              <strong>{ROLE_DISPLAY_NAMES[confirmChange?.newRole ?? 'member']}</strong>. El
-              cambio aplica de inmediato y afecta su acceso al sistema.
+              <strong>{ROLE_DISPLAY_NAMES[confirmChange?.newRole ?? 'member']}</strong>. El cambio
+              aplica de inmediato y afecta su acceso al sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmChange(null)}>
-              Cancelar
-            </AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setConfirmChange(null)}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (confirmChange) doRoleChange(confirmChange.user.id, confirmChange.newRole);

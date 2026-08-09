@@ -128,7 +128,11 @@ export function useRecentDiscipleshipActivity(limit = 10, leaderId?: string) {
       setError(null);
 
       const [reports, alerts, groupsResponse] = await Promise.allSettled([
-        DiscipleshipService.getReports({ limit, offset: 0, ...(leaderId ? { reporter_id: leaderId } : {}) }),
+        DiscipleshipService.getReports({
+          limit,
+          offset: 0,
+          ...(leaderId ? { reporter_id: leaderId } : {}),
+        }),
         // Para líderes no mostramos alertas del sistema, solo las propias
         leaderId ? Promise.resolve([]) : DiscipleshipService.getAlerts({ limit, resolved: false }),
         DiscipleshipService.getGroups({ limit: 5, ...(leaderId ? { leader_id: leaderId } : {}) }),
@@ -138,8 +142,8 @@ export function useRecentDiscipleshipActivity(limit = 10, leaderId?: string) {
 
       // Procesar reportes
       if (reports.status === 'fulfilled') {
-        const reportList = reports.value == null ? [] : Array.isArray(reports.value) ? reports.value : reports.value.data ?? [];
-        const reportActivities = (reportList as any[]).slice(0, limit).map((r) => {
+        const reportList = reports.value ?? [];
+        const reportActivities = reportList.slice(0, limit).map(r => {
           const zoneName = extractStringValue(r.zone_name);
           return {
             id: `report-${r.id}`,
@@ -166,8 +170,8 @@ export function useRecentDiscipleshipActivity(limit = 10, leaderId?: string) {
 
       // Procesar alertas
       if (alerts.status === 'fulfilled') {
-        const alertList = alerts.value == null ? [] : Array.isArray(alerts.value) ? alerts.value : alerts.value.data ?? [];
-        const alertActivities = (alertList as any[]).slice(0, limit).map((a) => ({
+        const alertList = alerts.value ?? [];
+        const alertActivities = alertList.slice(0, limit).map(a => ({
           id: `alert-${a.id}`,
           type: 'alert' as const,
           title: a.title || ALERT_TYPE_LABELS[a.alert_type] || a.alert_type,
@@ -175,15 +179,24 @@ export function useRecentDiscipleshipActivity(limit = 10, leaderId?: string) {
           timestamp: extractTimestampString(a.created_at),
           color: ALERT_TYPE_COLORS[a.alert_type] || 'bg-yellow-500',
           icon: ALERT_TYPE_ICONS[a.alert_type] || '⚠️',
-          details: { alert_type: a.alert_type, priority: a.priority, group_name: extractStringValue(a.group_name) },
+          details: {
+            alert_type: a.alert_type,
+            priority: a.priority,
+            group_name: extractStringValue(a.group_name),
+          },
         }));
         allActivities.push(...alertActivities);
       }
 
       // Procesar grupos nuevos
       if (groupsResponse.status === 'fulfilled') {
-        const groupList = groupsResponse.value == null ? [] : Array.isArray(groupsResponse.value) ? groupsResponse.value : groupsResponse.value.data ?? [];
-        const groupActivities = (groupList as any[]).slice(0, 5).map((g) => {
+        const groupList =
+          groupsResponse.value == null
+            ? []
+            : Array.isArray(groupsResponse.value)
+              ? groupsResponse.value
+              : (groupsResponse.value.data ?? []);
+        const groupActivities = groupList.slice(0, 5).map(g => {
           const leaderName = extractStringValue(g.leader_name);
           const zoneName = extractStringValue(g.zone_name);
           return {
