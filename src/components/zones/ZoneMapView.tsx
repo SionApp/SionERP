@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { useTheme } from 'next-themes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -150,8 +149,6 @@ function ZoneListItem({
 // ── Main component ──
 export default function ZoneMapView() {
   const { zones, loading, error } = useZones({ onlyActive: true });
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
   const isMobileApp = useMobileMode();
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   // On mobile the 288px sidebar would squash the map, so start it collapsed
@@ -256,13 +253,8 @@ export default function ZoneMapView() {
             zoomControl={true}
           >
             <TileLayer
-              key={isDark ? 'dark' : 'light'}
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-              url={
-                isDark
-                  ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
-                  : 'https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png'
-              }
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <FitBounds zones={validZones} />
             {validZones.map(zone => (
