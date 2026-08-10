@@ -33,6 +33,7 @@ export function MobileSectionHeader({
       {action ??
         (to && (
           <button
+            type="button"
             onClick={() => navigate(to)}
             className="flex items-center gap-0.5 text-xs font-semibold text-primary cursor-pointer"
           >
