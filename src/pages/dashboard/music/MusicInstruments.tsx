@@ -204,7 +204,7 @@ export default function MusicInstruments({ isDirector }: { isDirector: boolean }
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="music-shell">
                   {CATEGORY_ORDER.map(c => (
                     <SelectItem key={c} value={c}>
                       {CATEGORY_META[c].label}

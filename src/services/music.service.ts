@@ -353,11 +353,12 @@ export class MusicService {
   ): Promise<{ assignment: MusicAssignment; unavailabilityWarning: boolean }> {
     const raw = await ApiService.post<
       RawCreateAssignmentResponse,
-      { member_id?: string; user_id?: string; funcion: string }
+      { member_id?: string; user_id?: string; funcion: string; instrument?: string }
     >(`${this.base}/events/${eventId}/assignments`, {
       member_id: data.memberId,
       user_id: data.userId,
       funcion: data.funcion,
+      instrument: data.instrument,
     });
     return {
       assignment: mapAssignment(raw.assignment),

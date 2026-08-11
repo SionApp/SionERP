@@ -186,7 +186,7 @@ function MemberForm({
           <SelectTrigger>
             <SelectValue placeholder="Sin instrumento" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="music-shell">
             <SelectItem value="none">Sin instrumento</SelectItem>
             {form.instrument && !activeInstruments.some(i => i.name === form.instrument) && (
               <SelectItem value={form.instrument}>{form.instrument}</SelectItem>
@@ -415,7 +415,7 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="music-shell">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar integrante' : 'Nuevo integrante'}</DialogTitle>
           </DialogHeader>

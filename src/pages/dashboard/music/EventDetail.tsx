@@ -83,6 +83,7 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [funcion, setFuncion] = useState<Funcion | ''>('');
+  const [instrument, setInstrument] = useState('');
   const [suggestionsFor, setSuggestionsFor] = useState<string | null>(null);
 
   const { data: assignments = [], isLoading } = useQuery({
@@ -110,12 +111,18 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { memberId?: string; userId?: string; funcion: Funcion }) =>
-      MusicService.createAssignment(event.id, data),
+    mutationFn: (data: {
+      memberId?: string;
+      userId?: string;
+      funcion: Funcion;
+      instrument?: string;
+    }) => MusicService.createAssignment(event.id, data),
     onSuccess: result => {
       qc.invalidateQueries({ queryKey: ['music-assignments', event.id] });
       qc.invalidateQueries({ queryKey: ['music-members'] });
+      qc.invalidateQueries({ queryKey: ['music-instruments'] });
       setSuggestionsFor(null);
+      setInstrument('');
       if (result.unavailabilityWarning) {
         toast.warning('Asignado, pero la persona declaró indisponibilidad para esa fecha');
       } else {
@@ -155,7 +162,11 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
       toast.error('Elegí primero la función');
       return;
     }
-    createMutation.mutate({ userId: u.id, funcion });
+    createMutation.mutate({
+      userId: u.id,
+      funcion,
+      instrument: funcion === 'musico' && instrument ? instrument : undefined,
+    });
   }
 
   function handleSuggestionPick(s: MusicMember, originalFuncion: Funcion) {
@@ -186,11 +197,17 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
         <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/30">
           <div className="space-y-1">
             <Label className="text-xs">Función</Label>
-            <Select value={funcion} onValueChange={v => setFuncion(v as Funcion)}>
+            <Select
+              value={funcion}
+              onValueChange={v => {
+                setFuncion(v as Funcion);
+                setInstrument('');
+              }}
+            >
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="Elegí la función" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="music-shell">
                 {(Object.keys(Funciones) as Funcion[]).map(f => (
                   <SelectItem key={f} value={f}>
                     {FUNCION_SINGULAR[f]}
@@ -199,6 +216,25 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
               </SelectContent>
             </Select>
           </div>
+          {funcion === 'musico' && (
+            <div className="space-y-1">
+              <Label className="text-xs">Instrumento</Label>
+              <Select value={instrument} onValueChange={setInstrument}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Elegí el instrumento (opcional)" />
+                </SelectTrigger>
+                <SelectContent className="music-shell">
+                  {instruments
+                    .filter(i => i.isActive)
+                    .map(ins => (
+                      <SelectItem key={ins.id} value={ins.name}>
+                        {ins.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-xs">Persona</Label>
             <UserSearchPicker
@@ -344,6 +380,7 @@ export function SetlistSection({ event, isDirector }: { event: MusicEvent; isDir
       qc.invalidateQueries({ queryKey: ['music-song-stats'] });
       setForm({ name: '', tono: '', link: '', notes: '' });
       setSearch('');
+      setAddOpen(false);
       toast.success('Canción agregada al repertorio');
     },
     onError: () => toast.error('No se pudo agregar la canción'),

@@ -166,6 +166,7 @@ export interface CreateAssignmentRequest {
   memberId?: string;
   userId?: string;
   funcion: Funcion;
+  instrument?: string;
 }
 
 export interface UpdateAssignmentRequest {

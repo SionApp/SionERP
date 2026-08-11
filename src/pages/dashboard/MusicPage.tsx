@@ -454,7 +454,7 @@ function CreateEventDialog({
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="music-shell">
                 {(Object.keys(MusicEventTypes) as MusicEventType[]).map(t => (
                   <SelectItem key={t} value={t}>
                     {EVENT_TYPE_LABEL[t]}
@@ -625,7 +625,7 @@ function CultosTab({
       <CreateEventDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
-        <DialogContent>
+        <DialogContent className="music-shell">
           <DialogHeader>
             <DialogTitle>Generar trimestre</DialogTitle>
           </DialogHeader>
@@ -653,7 +653,7 @@ function CultosTab({
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="music-shell">
                   <SelectItem value="1">Q1 — Ene / Mar</SelectItem>
                   <SelectItem value="2">Q2 — Abr / Jun</SelectItem>
                   <SelectItem value="3">Q3 — Jul / Sep</SelectItem>
@@ -970,7 +970,7 @@ function ServidorView({ embedExtras = true }: { embedExtras?: boolean }) {
       </Card>
 
       <Dialog open={unavailOpen} onOpenChange={setUnavailOpen}>
-        <DialogContent>
+        <DialogContent className="music-shell">
           <DialogHeader>
             <DialogTitle>Registrar indisponibilidad</DialogTitle>
           </DialogHeader>
