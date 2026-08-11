@@ -2,7 +2,8 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { getAvatarColor } from '@/lib/utils';
 import {
   MapPin,
   Users,
@@ -49,6 +50,13 @@ interface PersonalDashboardProps {
   subtitle?: string;
 }
 
+// El user de useAuth() no tipa estos campos extendidos que sí vienen del backend.
+interface ExtendedUserFields {
+  zone_name?: string;
+  cell_group?: string;
+  full_name?: string;
+}
+
 const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
   title = 'Mi Dashboard Personal',
   subtitle = 'Información sobre tu participación en el discipulado',
@@ -57,8 +65,8 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
 
   // Mock user data with discipleship information
   const userInfo = {
-    zone: (user as any)?.zone_name || 'Zona Norte',
-    group: (user as any)?.cell_group || 'Célula Esperanza',
+    zone: (user as ExtendedUserFields | null)?.zone_name || 'Zona Norte',
+    group: (user as ExtendedUserFields | null)?.cell_group || 'Célula Esperanza',
     role: user?.role || 'member',
     supervisor: 'María González',
     leader: 'Roberto Silva',
@@ -70,7 +78,8 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
     nextMeeting: '2024-09-25',
   };
 
-  const [notifications, setNotifications] = React.useState<DashboardNotification[]>(initialNotifications);
+  const [notifications, setNotifications] =
+    React.useState<DashboardNotification[]>(initialNotifications);
 
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
@@ -106,9 +115,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            {title}
-          </h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{title}</h1>
           <p className="text-sm sm:text-base text-muted-foreground mt-1">{subtitle}</p>
         </div>
       </div>
@@ -127,11 +134,12 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
               {/* Profile Section */}
               <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3 sm:gap-4">
                 <Avatar className="w-16 h-16 shrink-0">
-                  <AvatarImage
-                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${(user as any)?.full_name || user?.email}`}
-                  />
-                  <AvatarFallback>
-                    {((user as any)?.full_name || user?.email || 'U')
+                  <AvatarFallback
+                    className={getAvatarColor(
+                      (user as ExtendedUserFields | null)?.full_name || user?.email || 'U'
+                    )}
+                  >
+                    {((user as ExtendedUserFields | null)?.full_name || user?.email || 'U')
                       ?.split(' ')
                       .map((n: string) => n[0])
                       .join('')}
@@ -139,7 +147,7 @@ const PersonalDashboard: React.FC<PersonalDashboardProps> = ({
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg sm:text-xl font-semibold truncate">
-                    {(user as any)?.full_name || user?.email}
+                    {(user as ExtendedUserFields | null)?.full_name || user?.email}
                   </h3>
                   <div className="flex flex-wrap justify-center sm:justify-start items-center gap-2 mt-1">
                     <Badge className={`${roleInfo.color} text-white`}>

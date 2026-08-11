@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { MobileListItem } from '@/components/mobile/MobileListItem';
 import { useMobileMode } from '@/hooks/useMobileMode';
@@ -28,7 +28,7 @@ import { toast } from 'sonner';
 import { useZones } from '@/hooks/useZones';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { ZonesService } from '@/services/zones.service';
-import { normalizeNullString } from '@/lib/utils';
+import { normalizeNullString, getAvatarColor } from '@/lib/utils';
 import { getDiscipleshipLevelConfig } from '@/lib/discipleship';
 
 interface AssignmentUser {
@@ -203,8 +203,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
       render: user => (
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.full_name}`} />
-            <AvatarFallback>
+            <AvatarFallback className={getAvatarColor(user.full_name)}>
               {user.full_name
                 .split(' ')
                 .map(n => n[0])
@@ -259,8 +258,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <Avatar>
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.full_name}`} />
-            <AvatarFallback>
+            <AvatarFallback className={getAvatarColor(user.full_name)}>
               {user.full_name
                 .split(' ')
                 .map(n => n[0])

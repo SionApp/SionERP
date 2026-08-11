@@ -13,6 +13,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Can } from '@/components/Can';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { Shield, Users, Settings, Loader2, Lock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -43,6 +45,7 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const RolesPage = () => {
+  const isMobileApp = useMobileMode();
   const [roles, setRoles] = useState<RoleData[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -193,23 +196,8 @@ const RolesPage = () => {
     );
   }
 
-  return (
-    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Gestión de Roles
-          </h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Administra los roles y permisos del sistema
-          </p>
-        </div>
-        <Button onClick={loadRoleStats} className="w-full sm:w-auto">
-          <Shield className="h-4 w-4 mr-2" />
-          Actualizar
-        </Button>
-      </div>
-
+  const bodyContent = (
+    <>
       {/* Stats */}
       <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card>
@@ -367,7 +355,11 @@ const RolesPage = () => {
           )}
         </CardContent>
       </Card>
+    </>
+  );
 
+  const sheets = (
+    <>
       {/* Sheet: gestionar módulos de un rol */}
       <Sheet open={permsOpen} onOpenChange={setPermsOpen}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
@@ -487,6 +479,50 @@ const RolesPage = () => {
           )}
         </SheetContent>
       </Sheet>
+    </>
+  );
+
+  if (isMobileApp) {
+    return (
+      <>
+        <MobileScreen
+          title="Gestión de Roles"
+          subtitle="Roles y permisos del sistema"
+          action={
+            <button
+              type="button"
+              onClick={loadRoleStats}
+              className="p-2 -mr-1 rounded-xl hover:bg-accent/60 active:bg-accent transition-colors cursor-pointer"
+              aria-label="Actualizar"
+            >
+              <Shield className="h-4 w-4" />
+            </button>
+          }
+        >
+          <div className="px-4 pt-3 space-y-4">{bodyContent}</div>
+        </MobileScreen>
+        {sheets}
+      </>
+    );
+  }
+
+  return (
+    <div className="space-y-3 sm:space-y-6 p-3 sm:p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Gestión de Roles</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Administra los roles y permisos del sistema
+          </p>
+        </div>
+        <Button onClick={loadRoleStats} className="w-full sm:w-auto">
+          <Shield className="h-4 w-4 mr-2" />
+          Actualizar
+        </Button>
+      </div>
+
+      {bodyContent}
+      {sheets}
     </div>
   );
 };

@@ -33,6 +33,7 @@ export function MobileSegment({
         {options.map(opt => (
           <button
             key={opt.value}
+            type="button"
             onClick={() => onChange(opt.value)}
             className={cn(
               'snap-start shrink-0 py-1.5 px-3.5 rounded-full text-xs font-medium transition-all cursor-pointer border',

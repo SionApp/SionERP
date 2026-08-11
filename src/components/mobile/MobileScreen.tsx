@@ -62,6 +62,7 @@ export function MobileScreen({
           <div className="flex items-center gap-2 h-14 px-3">
             {isDetail && (
               <button
+                type="button"
                 onClick={handleBack}
                 aria-label="Volver"
                 className={cn(

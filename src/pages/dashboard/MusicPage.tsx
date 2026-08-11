@@ -7,6 +7,7 @@ import {
   Calendar as CalendarIcon,
   CalendarDays,
   CalendarOff,
+  Guitar,
   Home,
   List,
   ListMusic,
@@ -1069,18 +1070,21 @@ function ServidorMobile() {
 // DIRECTOR mobile — app-like nav (sticky scrollable pills + dedicated screens)
 // ─────────────────────────────────────────────
 function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void }) {
-  const [screen, setScreen] = useState<'inicio' | 'cronograma' | 'cultos' | 'equipo' | 'canciones'>(
-    'inicio'
-  );
+  const [screen, setScreen] = useState<
+    'inicio' | 'cronograma' | 'cultos' | 'integrantes' | 'instrumentos' | 'canciones'
+  >('inicio');
   const [createOpen, setCreateOpen] = useState(false);
 
   const tabs = [
     { key: 'inicio' as const, label: 'Inicio', Icon: Home },
     { key: 'cronograma' as const, label: 'Cronograma', Icon: CalendarDays },
     { key: 'cultos' as const, label: 'Cultos', Icon: CalendarIcon },
-    { key: 'equipo' as const, label: 'Equipo', Icon: Users },
+    { key: 'integrantes' as const, label: 'Integrantes', Icon: Users },
+    { key: 'instrumentos' as const, label: 'Instrumentos', Icon: Guitar },
     { key: 'canciones' as const, label: 'Canciones', Icon: ListMusic },
   ];
+
+  const showCreateFab = screen === 'inicio' || screen === 'cronograma' || screen === 'cultos';
 
   return (
     <div className="space-y-4">
@@ -1108,15 +1112,13 @@ function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void 
       {screen === 'inicio' && <DirectorMusicHero onOpenEvent={onOpenEvent} />}
       {screen === 'cronograma' && <CronogramaTab isDirector onOpenEvent={onOpenEvent} />}
       {screen === 'cultos' && <CultosTab isDirector onOpenEvent={onOpenEvent} />}
-      {screen === 'equipo' && (
-        <div className="space-y-4">
-          <MusicMembers isDirector />
-          <MusicInstruments isDirector />
-        </div>
-      )}
+      {screen === 'integrantes' && <MusicMembers isDirector />}
+      {screen === 'instrumentos' && <MusicInstruments isDirector />}
       {screen === 'canciones' && <CancionesTab />}
 
-      <MusicFab icon={Plus} label="Nuevo culto" onClick={() => setCreateOpen(true)} />
+      {showCreateFab && (
+        <MusicFab icon={Plus} label="Nuevo culto" onClick={() => setCreateOpen(true)} />
+      )}
       <CreateEventDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
