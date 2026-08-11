@@ -190,7 +190,7 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="Elegí la función" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="music-shell">
                 {(Object.keys(Funciones) as Funcion[]).map(f => (
                   <SelectItem key={f} value={f}>
                     {FUNCION_SINGULAR[f]}
