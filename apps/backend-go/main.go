@@ -179,6 +179,9 @@ func main() {
 	// Start background scheduler (weekly report check every Tuesday 8am)
 	handlers.StartWeeklyReportScheduler()
 
+	// Borrado automático de datos de tenants cancelados (30 días de gracia)
+	handlers.StartTenantPurgeScheduler()
+
 	// Start Telegram channel ingestion for the Music module (no-op if unconfigured)
 	handlers.StartTelegramIngestion()
 

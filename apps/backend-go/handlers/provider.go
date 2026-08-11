@@ -399,6 +399,9 @@ func (h *ProviderHandler) SetModule(c echo.Context) error {
 }
 
 // setTenantStatus is the shared implementation for Suspend/Reactivate.
+// Reactivate también limpia cancelled_at: si el tenant vuelve a 'active'
+// dentro del período de gracia, StartTenantPurgeScheduler ya lo excluye por
+// status, pero limpiar el timestamp evita un rastro confuso en la tabla.
 func (h *ProviderHandler) setTenantStatus(c echo.Context, status string) error {
 	tenantID := c.Param("id")
 	db := config.GetDB()
@@ -406,7 +409,11 @@ func (h *ProviderHandler) setTenantStatus(c echo.Context, status string) error {
 		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "database connection not available"})
 	}
 
-	res, err := db.DB.Exec(`UPDATE public.churches SET status = $1, updated_at = NOW() WHERE id = $2`, status, tenantID)
+	query := `UPDATE public.churches SET status = $1, updated_at = NOW() WHERE id = $2`
+	if status == "active" {
+		query = `UPDATE public.churches SET status = $1, cancelled_at = NULL, updated_at = NOW() WHERE id = $2`
+	}
+	res, err := db.DB.Exec(query, status, tenantID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to update tenant status"})
 	}
@@ -429,4 +436,34 @@ func (h *ProviderHandler) Suspend(c echo.Context) error {
 // Reactivate handles POST /provider/tenants/:id/reactivate.
 func (h *ProviderHandler) Reactivate(c echo.Context) error {
 	return h.setTenantStatus(c, "active")
+}
+
+// Cancel handles POST /provider/tenants/:id/cancel. Marca el tenant como
+// cancelado y arranca el período de gracia (TenantPurgeGraceDays, ver
+// scheduler.go) antes del borrado automático de sus datos. Reactivate
+// dentro del período de gracia cancela el borrado.
+func (h *ProviderHandler) Cancel(c echo.Context) error {
+	tenantID := c.Param("id")
+	db := config.GetDB()
+	if db == nil || db.DB == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "database connection not available"})
+	}
+
+	res, err := db.DB.Exec(`
+		UPDATE public.churches
+		SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+		WHERE id = $1
+	`, tenantID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to cancel tenant"})
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to confirm update"})
+	}
+	if rows == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "tenant not found"})
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }
