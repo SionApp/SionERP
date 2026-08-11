@@ -761,9 +761,10 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 	callerID, _ := c.Get("user_id").(string)
 
 	var req struct {
-		MemberID string `json:"member_id"`
-		UserID   string `json:"user_id"`
-		Funcion  string `json:"funcion"`
+		MemberID   string `json:"member_id"`
+		UserID     string `json:"user_id"`
+		Funcion    string `json:"funcion"`
+		Instrument string `json:"instrument"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
@@ -789,6 +790,13 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 	} else {
 		// Existing member chosen directly — make sure they hold this funcion too.
 		ensureMemberFuncion(globalDB, memberID, req.Funcion)
+	}
+
+	// El instrumento vive en music_members (no en la asignación): al asignar a
+	// alguien como músico, el instrumento elegido queda como el suyo por defecto.
+	if req.Instrument != "" {
+		_, _ = globalDB.Exec(`UPDATE music_members SET instrument = $1 WHERE id = $2 AND church_id = $3`,
+			req.Instrument, memberID, churchID)
 	}
 
 	// Resolve culto date for unavailability check
