@@ -22,6 +22,7 @@ vi.mock('@/services/music.service', () => ({
     getSongStats: vi.fn().mockResolvedValue([]),
     getMyAssignments: vi.fn().mockResolvedValue([]),
     getMyUnavailability: vi.fn().mockResolvedValue([]),
+    getMyModuleRole: vi.fn().mockResolvedValue({ roleLevel: 1, isDirector: false, hasRole: true }),
   },
 }));
 
@@ -85,6 +86,11 @@ beforeEach(() => {
   vi.mocked(MusicService.getSongStats).mockResolvedValue([]);
   vi.mocked(MusicService.getMyAssignments).mockResolvedValue([]);
   vi.mocked(MusicService.getMyUnavailability).mockResolvedValue([]);
+  vi.mocked(MusicService.getMyModuleRole).mockResolvedValue({
+    roleLevel: 1,
+    isDirector: false,
+    hasRole: true,
+  });
 });
 
 describe('MusicPage — director role', () => {
@@ -106,10 +112,10 @@ describe('MusicPage — director role', () => {
 });
 
 describe('MusicPage — servidor role', () => {
-  test('shows Mis cultos and Mis indisponibilidades for servidor', () => {
+  test('shows Mis cultos and Mis indisponibilidades for servidor', async () => {
     renderWithServidor();
 
-    expect(screen.getByText('Mis cultos')).toBeInTheDocument();
+    expect(await screen.findByText('Mis cultos')).toBeInTheDocument();
     expect(screen.getByText('Mis indisponibilidades')).toBeInTheDocument();
   });
 
