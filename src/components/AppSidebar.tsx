@@ -16,6 +16,7 @@ import { useSystem } from '@/contexts/SystemContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PLATFORM_NAME } from '@/lib/branding';
 import { menuItems, superAdminItems, filterNavItems } from '@/lib/nav-items';
+import { useMusicAccess } from '@/pages/dashboard/music/use-music-access';
 
 interface AppSidebarProps {
   churchName?: string;
@@ -27,11 +28,18 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
   const location = useLocation();
   const { isModuleInstalled } = useSystem();
   const { permissions, hasAccess } = usePermissions();
+  const { hasAccess: hasMusicAccess } = useMusicAccess();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath === path;
 
-  const filteredItems = filterNavItems(menuItems, { permissions, hasAccess, isModuleInstalled });
+  const hasModuleAccess = (key: string) => (key === 'music' ? hasMusicAccess : true);
+  const filteredItems = filterNavItems(menuItems, {
+    permissions,
+    hasAccess,
+    isModuleInstalled,
+    hasModuleAccess,
+  });
 
   // Show "Gestión de Módulos" ONLY for the admin role (500).
   // Pastors and staff have admin-level access but shouldn't manage modules

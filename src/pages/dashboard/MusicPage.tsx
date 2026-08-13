@@ -1127,19 +1127,43 @@ function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void 
 // ─────────────────────────────────────────────
 // MusicPage root
 // ─────────────────────────────────────────────
+function NoMusicAccess() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border p-10 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+        <Music2 className="h-7 w-7 text-muted-foreground" />
+      </div>
+      <div>
+        <p className="font-semibold">No sos parte del equipo de música</p>
+        <p className="mx-auto max-w-xs text-sm text-muted-foreground">
+          Pedile al director que te agregue como integrante para ver tus cultos y asignaciones.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function MusicPage() {
   const isMobileApp = useMobileMode();
   const navigate = useNavigate();
-  const { isDirector } = useMusicAccess();
+  const { isDirector, hasAccess, loadingAccess } = useMusicAccess();
   const [createEventOpen, setCreateEventOpen] = useState(false);
 
   const openEvent = (e: MusicEvent) => navigate(`/dashboard/music/eventos/${e.id}`);
 
-  const body = !isDirector ? (
+  const servidorBody = loadingAccess ? (
+    <Skeleton className="h-44 w-full rounded-2xl" />
+  ) : !hasAccess ? (
+    <NoMusicAccess />
+  ) : (
     <>
       <ServidorMusicHero />
       <ServidorView />
     </>
+  );
+
+  const body = !isDirector ? (
+    servidorBody
   ) : (
     <>
       <DirectorMusicHero onOpenEvent={openEvent} />
@@ -1181,7 +1205,15 @@ export default function MusicPage() {
       <>
         <MobileScreen title="Música" subtitle={isDirector ? 'Equipo de alabanza' : 'Mis cultos'}>
           <div className="music-shell music-aurora min-h-screen px-4 py-4 space-y-5">
-            {isDirector ? <DirectorMobile onOpenEvent={openEvent} /> : <ServidorMobile />}
+            {isDirector ? (
+              <DirectorMobile onOpenEvent={openEvent} />
+            ) : loadingAccess ? (
+              <Skeleton className="h-44 w-full rounded-2xl" />
+            ) : !hasAccess ? (
+              <NoMusicAccess />
+            ) : (
+              <ServidorMobile />
+            )}
           </div>
         </MobileScreen>
       </>

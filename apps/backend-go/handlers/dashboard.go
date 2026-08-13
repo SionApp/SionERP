@@ -193,7 +193,11 @@ func (h *DashboardHandler) GetRoleDistribution(c echo.Context) ([]models.RoleDis
 }
 
 func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentActivity, error) {
+	churchID, _ := c.Get("church_id").(string)
+
 	// Usar LEFT JOIN para capturar registros donde changed_by es NULL (ej: seed data)
+	// church_id scoping: audit_logs es multi-tenant (ver phase2b_tenant_schema_group_b) —
+	// sin este WHERE, cada dashboard mostraba actividad de TODAS las iglesias.
 	query := `
 		SELECT
 			a.id,
@@ -204,11 +208,12 @@ func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentAct
 			a.changed_at
 		FROM audit_logs a
 		LEFT JOIN users u ON a.changed_by = u.id
+		WHERE a.church_id = $1
 		ORDER BY a.changed_at DESC
 		LIMIT 10
 	`
 
-	rows, err := config.GetDB().DB.Query(query)
+	rows, err := config.GetDB().DB.Query(query, churchID)
 	if err != nil {
 		return nil, err
 	}
