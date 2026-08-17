@@ -106,11 +106,16 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
       }
 
       if (level >= 2) {
-        promises.pendingReports = DiscipleshipService.getReports({ status: 'submitted' }).then(data => data.slice(0, 10));
+        // El backend devuelve null (no []) cuando la cola queda vacía — un slice
+        // nil de Go serializa así. Sin el (data || []), un "0 pendientes" real
+        // tira "Cannot read properties of null (reading 'slice')", que el catch
+        // genérico de abajo traga en silencio y deja pendingReports pegado en su
+        // valor anterior (el reporte recién aprobado "sigue" en la cola).
+        promises.pendingReports = DiscipleshipService.getReports({ status: 'submitted' }).then(data => (data || []).slice(0, 10));
       }
 
       if (level >= 5) {
-        promises.alerts = DiscipleshipService.getAlerts({ resolved: false }).then(data => data.slice(0, 10));
+        promises.alerts = DiscipleshipService.getAlerts({ resolved: false }).then(data => (data || []).slice(0, 10));
       }
 
       if (level === 2) {
@@ -134,7 +139,11 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
         Object.entries(promises).map(async ([key, promise]) => {
           try {
             return [key, await promise] as [string, any];
-          } catch {
+          } catch (err) {
+            // No tragar el error en silencio: si esto falla, `key` se queda
+            // pegado en su valor anterior (ver pendingReports arriba) — sin este
+            // log, esa clase de bug es invisible hasta que alguien lo pisa.
+            console.error(`Error loading discipleship data field "${key}":`, err);
             return [key, null] as [string, any];
           }
         })

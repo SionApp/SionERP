@@ -237,7 +237,10 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 		ReporterName string `json:"reporter_name"`
 	}
 
-	var reports []ReportWithDetails
+	// []ReportWithDetails{}, no var-declared nil: un slice nil serializa como
+	// JSON null, y el frontend hace data.slice(...) sobre la respuesta — "cola
+	// vacía" real (0 filas) tiraba null.slice() del lado del cliente.
+	reports := []ReportWithDetails{}
 	for rows.Next() {
 		var r ReportWithDetails
 		var reportDataJSON []byte
@@ -546,8 +549,13 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 		return err
 	}
 
-	// Verificar que el usuario es supervisor del reporte (scoped to church)
-	var supervisorID, reporterID string
+	// Verificar que el usuario es supervisor del reporte (scoped to church).
+	// supervisor_id es NULL para el reporte de un Coordinador (tope de la
+	// jerarquía, sin fila de supervisor) — escanear a sql.NullString, no a
+	// string: un Scan NULL→string falla y ese error caía en el mismo 404
+	// "Reporte no encontrado" que "la fila no existe", escondiendo el bug real.
+	var supervisorID sql.NullString
+	var reporterID string
 	err = q.QueryRow(`
 		SELECT supervisor_id, reporter_id FROM discipleship_reports WHERE id = $1 AND church_id = $2
 	`, reportID, churchID).Scan(&supervisorID, &reporterID)
@@ -562,7 +570,7 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 	var userRole string
 	q.QueryRow("SELECT role FROM users WHERE id = $1 AND church_id = $2", userID, churchID).Scan(&userRole)
 
-	if supervisorID != userID && !utils.IsAdminRole(userRole) {
+	if supervisorID.String != userID && !utils.IsAdminRole(userRole) {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes permisos para aprobar este reporte",
 		})
