@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"backend-sion/config"
+	"backend-sion/models"
 	"backend-sion/utils"
 	"database/sql"
 	"fmt"
@@ -866,10 +867,11 @@ func (h *DiscipleshipGoalsHandler) CreateAssignments(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Se requiere al menos una asignación"})
 	}
 
-	// Verify the goal exists and belongs to this church
-	var goalExists bool
-	err = q.QueryRow("SELECT EXISTS(SELECT 1 FROM discipleship_goals WHERE id = $1 AND church_id = $2)", goalID, churchID).Scan(&goalExists)
-	if err != nil || !goalExists {
+	// Verify the goal exists and belongs to this church (also need its title
+	// for the assignment notifications below)
+	var goalTitle string
+	err = q.QueryRow("SELECT title FROM discipleship_goals WHERE id = $1 AND church_id = $2", goalID, churchID).Scan(&goalTitle)
+	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Objetivo no encontrado"})
 	}
 
@@ -936,12 +938,28 @@ func (h *DiscipleshipGoalsHandler) CreateAssignments(c echo.Context) error {
 		})
 	}
 
-	// Audit log para cada asignación creada
+	// Audit log + notificación para cada asignación creada. El asignado necesita
+	// enterarse de que le tocó una porción del objetivo — sin esto, el primer
+	// aviso que tiene es descubrirlo por su cuenta en el dashboard.
 	for _, ca := range created {
 		caCopy := ca
 		go logGoalAudit(config.GetDB(), goalID, userID, "INSERT", "goal_assignments",
 			fmt.Sprintf(`{"assigned_to":%q,"target_value":%g,"goal_id":%q}`,
 				caCopy.AssignedTo, caCopy.TargetValue, goalID))
+
+		gID := goalID
+		cID := churchID
+		go utils.CreateNotification(db, models.NotificationInput{
+			ChurchID:          cID,
+			UserID:            caCopy.AssignedTo,
+			Type:              "info",
+			Title:             "Se te asignó un objetivo",
+			Message:           fmt.Sprintf("%q — meta: %g", goalTitle, caCopy.TargetValue),
+			ActionURL:         utils.Ptr("/dashboard/discipleship?tab=goals"),
+			ActionText:        utils.Ptr("Ver objetivo"),
+			RelatedEntityType: utils.Ptr("goal"),
+			RelatedEntityID:   &gID,
+		})
 	}
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
@@ -983,6 +1001,9 @@ func (h *DiscipleshipGoalsHandler) BatchAssignToZones(c echo.Context) error {
 	if req.DefaultTargetValue != nil {
 		defaultTarget = *req.DefaultTargetValue
 	}
+
+	var goalTitle string
+	q.QueryRow("SELECT title FROM discipleship_goals WHERE id = $1 AND church_id = $2", goalID, churchID).Scan(&goalTitle)
 
 	// Fetch all level-3 users (Supervisor General) scoped to this church
 	rows, err := q.Query(`
@@ -1031,6 +1052,21 @@ func (h *DiscipleshipGoalsHandler) BatchAssignToZones(c echo.Context) error {
 		created = append(created, CreatedAssignment{
 			ID: newID, GoalID: goalID, AssignedTo: supervisorID,
 			AssignedBy: userID, AssignedLevel: 3, TargetValue: defaultTarget, CreatedAt: createdAt,
+		})
+
+		supID := supervisorID
+		gID := goalID
+		cID := churchID
+		go utils.CreateNotification(db, models.NotificationInput{
+			ChurchID:          cID,
+			UserID:            supID,
+			Type:              "info",
+			Title:             "Se te asignó un objetivo",
+			Message:           fmt.Sprintf("%q — meta: %g", goalTitle, defaultTarget),
+			ActionURL:         utils.Ptr("/dashboard/discipleship?tab=goals"),
+			ActionText:        utils.Ptr("Ver objetivo"),
+			RelatedEntityType: utils.Ptr("goal"),
+			RelatedEntityID:   &gID,
 		})
 	}
 

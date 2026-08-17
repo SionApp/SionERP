@@ -589,6 +589,30 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 		})
 	}()
 
+	// Notify the approver's OWN supervisor too — one level up from whoever
+	// approved (e.g. the líder's report gets approved by the aux, the aux's
+	// supervisor — the general — gets an FYI that a report moved through
+	// their downline, even though they didn't touch it themselves).
+	go func() {
+		var grandSupervisorID sql.NullString
+		db.DB.QueryRow(`
+			SELECT supervisor_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2
+		`, userID, cID).Scan(&grandSupervisorID)
+		if grandSupervisorID.Valid && grandSupervisorID.String != "" {
+			utils.CreateNotification(db, models.NotificationInput{
+				ChurchID:          cID,
+				UserID:            grandSupervisorID.String,
+				Type:              "info",
+				Title:             "Se recibió un reporte en tu equipo",
+				Message:           "Un reporte fue revisado y aprobado en tu línea de supervisión.",
+				ActionURL:         utils.Ptr("/dashboard/discipleship?tab=reports"),
+				ActionText:        utils.Ptr("Ver reportes"),
+				RelatedEntityType: utils.Ptr("report"),
+				RelatedEntityID:   &repID,
+			})
+		}
+	}()
+
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Reporte aprobado exitosamente",
 	})
