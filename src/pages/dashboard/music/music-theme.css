@@ -1,58 +1,502 @@
 /*
- * Autonomous theme for the Music module. Scoped under `.music-shell` so it
- * re-skins every shadcn component inside (they read these HSL vars) without
- * touching a single component. Always dark — independent of the app's theme.
- * ponytail: one file re-themes the whole module; per-component styling if a
- * specific surface ever needs to break out of this palette.
+ * ─────────────────────────────────────────────────────────────
+ *  MÚSICA — tema propio del módulo ("Dirección B")
+ * ─────────────────────────────────────────────────────────────
+ * Scoped bajo `.music-shell`, así re-skinea cada componente shadcn que viva
+ * adentro (todos leen estas vars HSL) sin tocar un solo componente.
  *
- * Paleta: "escenario oscuro" atado a la marca — azul JETRO (220) de base y
- * dorado de la iglesia (45) como accent. Mantiene el efecto stage-lighting
- * inmersivo pero se siente cálido y propio, no un theme neón genérico.
+ * Dirección de diseño: LIENZO CÁLIDO + ÁMBAR.
+ *   · El lienzo (background/foreground/card/border/muted/...) NO se redefine
+ *     acá: hereda los tokens reales del sistema (:root / .dark en index.css),
+ *     así Música sigue el toggle claro/oscuro del resto del ERP en vez de
+ *     tener su propia paleta fija. Lo único propio del módulo es el color de
+ *     acción — el mismo dorado de la iglesia (--sion-gold) — y los tonos de
+ *     tipo de culto, ambos con contraste ajustado por modo más abajo.
+ *   · Una sola voz tipográfica: la grotesca del sistema, en dos pesos
+ *     (heading semibold para títulos, texto normal para cuerpo) + mono
+ *     tabular para datos (tonos, conteos, porcentajes, horas).
+ *
+ * ponytail: un solo archivo re-tematiza todo el módulo; styling por componente
+ * solo si alguna superficie necesita salirse de esta paleta.
+ *
+ * OJO: Radix portalea SelectContent / DialogContent a document.body, fuera del
+ * scope. Todo Select/Dialog nuevo necesita className="music-shell" explícito o
+ * sale con el theme de la app.
  */
 
 .music-shell {
-  --background: 220 45% 8%;
-  --foreground: 220 20% 96%;
+  /* ── Ámbar: el color de acción del módulo ───────────────────────────
+   * Mismo dorado que --sion-gold / --accent del sistema (45 93% 50%) —
+   * ese token no cambia entre :root y .dark, así que el texto sobre dorado
+   * también se queda fijo en tinta oscura en los dos modos. */
+  --primary: 45 93% 50%;
+  --primary-foreground: 222 45% 12%;
 
-  --card: 220 40% 12%;
-  --card-foreground: 220 20% 96%;
+  /* ── Tokens propios del módulo ──────────────────────────── */
+  --music-brass: 45 93% 50%; /* = primary, para usarlo con alpha */
+  --music-brass-ink: 222 45% 12%; /* texto sobre superficies doradas, fijo en los 2 modos */
+  --music-spot: 222 60% 50%; /* azul frío: acento secundario (viernes, info) */
+  --music-ok: 152 55% 42%; /* confirmado */
+  --music-ink: 222 45% 14%; /* texto fuerte / sombras */
 
-  --popover: 220 42% 10%;
-  --popover-foreground: 220 20% 96%;
+  /* Tono de tipo de culto, con contraste calibrado para lienzo claro.
+   * Overrides más abajo en .dark .music-shell para lienzo oscuro. */
+  --music-tone-viernes: 222 60% 48%;
+  --music-tone-domingo: 42 78% 44%;
+  --music-tone-especial: 345 70% 46%;
 
-  --primary: 220 85% 60%;
-  --primary-foreground: 0 0% 100%;
+  --music-mono: ui-monospace, SFMono-Regular, 'SF Mono', 'JetBrains Mono', Menlo, Consolas,
+    monospace;
 
-  --secondary: 220 30% 18%;
-  --secondary-foreground: 220 20% 96%;
+  /* Las curvas nativas de CSS son flojas: no tienen el punch que hace que una
+   * animación se sienta intencional. */
+  --music-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --music-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 
-  --muted: 220 28% 16%;
-  --muted-foreground: 220 14% 70%;
+  --music-hairline: inset 0 1px 0 hsl(0 0% 100% / 0.7);
+  --music-lift: 0 1px 2px hsl(30 20% 60% / 0.12), 0 20px 45px -25px hsl(30 30% 30% / 0.35);
 
-  --accent: 45 93% 55%;
-  --accent-foreground: 220 45% 8%;
-
-  --destructive: 0 75% 58%;
-  --destructive-foreground: 0 0% 100%;
-
-  --border: 220 28% 24%;
-  --input: 220 28% 24%;
-  --ring: 220 85% 60%;
-
-  --radius: 1rem;
+  --music-glyph-ink: 35 70% 38%;
+  --music-surface-sunken: hsl(var(--muted) / 0.5);
 
   color: hsl(var(--foreground));
-  background-color: hsl(220 48% 6%);
+  background-color: hsl(var(--background));
 }
 
-/* Stage-lighting aurora behind the page content. Only on the page canvas, not
- * on the dialog (which reuses the vars but stays flat for readability).
- * Azul de marca + dos toques dorado/ámbar para el calor. */
+/* Lienzo oscuro: solo lo que de verdad necesita más luminosidad para leerse
+ * sobre tinta oscura. El dorado, el ink-sobre-dorado y el lienzo base ya
+ * vienen bien de :root/.dark — no se tocan acá. */
+.dark .music-shell {
+  --music-spot: 222 75% 68%;
+  --music-ok: 152 55% 55%;
+  --music-glyph-ink: 42 90% 68%;
+
+  --music-tone-viernes: 222 75% 70%;
+  --music-tone-domingo: 42 88% 62%;
+  --music-tone-especial: 345 80% 68%;
+
+  --music-hairline: inset 0 1px 0 hsl(0 0% 100% / 0.06);
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Lienzo: papel cálido, plano — sin grano ni luz de escenario.
+ * ───────────────────────────────────────────────────────────── */
 .music-aurora {
-  background-image:
-    radial-gradient(circle at 12% -5%, hsl(220 90% 45% / 0.28), transparent 42%),
-    radial-gradient(circle at 96% 6%, hsl(45 93% 52% / 0.16), transparent 38%),
-    radial-gradient(circle at 50% 118%, hsl(35 90% 50% / 0.14), transparent 46%);
-  background-attachment: local;
+  background-color: hsl(var(--background));
   min-height: 100%;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Tipografía
+ * ───────────────────────────────────────────────────────────── */
+/* Título — masthead, hero, panel o diálogo, todos con el mismo peso. */
+.music-shell .music-heading {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+/* Micro-label en versalitas espaciadas: el registro "hoja de sala". */
+.music-shell .music-eyebrow {
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.music-shell .music-eyebrow-xs {
+  font-size: 0.5rem;
+  letter-spacing: 0.18em;
+}
+
+/* Todo dato numérico va en mono tabular: las columnas no bailan al refrescar. */
+.music-shell .music-num {
+  font-family: var(--music-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+/* Regla de luz: hairline con degradé, separa bloques sin meter una caja más. */
+.music-shell .music-rule {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--music-brass) / 0.5),
+    hsl(var(--music-spot) / 0.25) 32%,
+    hsl(var(--border)) 70%,
+    transparent
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Superficies
+ * ───────────────────────────────────────────────────────────── */
+.music-shell .music-panel {
+  border-radius: 1.1rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: var(--music-hairline), 0 1px 2px hsl(30 20% 60% / 0.08);
+}
+
+/* Panel hundido: para listas dentro de un panel (no card-dentro-de-card). */
+.music-shell .music-well {
+  border-radius: 0.85rem;
+  border: 1px solid hsl(var(--border));
+  background: var(--music-surface-sunken);
+}
+
+/* Casillero de icono (los cuadraditos de 32px al lado de cada título). */
+.music-shell .music-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.6rem;
+  color: hsl(var(--music-glyph-ink));
+  background: hsl(var(--music-brass) / 0.15);
+  box-shadow: inset 0 0 0 1px hsl(var(--music-brass) / 0.25);
+}
+
+.music-shell .music-glyph-spot {
+  color: hsl(var(--music-spot));
+  background: hsl(var(--music-spot) / 0.12);
+  box-shadow: inset 0 0 0 1px hsl(var(--music-spot) / 0.22);
+}
+
+.music-shell .music-glyph-lg {
+  height: 3rem;
+  width: 3rem;
+  border-radius: 0.9rem;
+}
+
+/* Etiqueta en versalitas. Reemplaza al <Badge> de shadcn dentro del módulo:
+ * el badge redondeado gris es el tell más obvio de "dashboard genérico". */
+.music-shell .music-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.music-shell .music-tag-tone {
+  background: hsl(var(--music-tone, var(--music-brass)) / 0.16);
+  color: hsl(var(--music-tone, var(--music-brass)));
+}
+
+.music-shell .music-tag-ok {
+  background: hsl(var(--music-ok) / 0.14);
+  color: hsl(var(--music-ok));
+}
+
+/* Tono musical. NO puede ir con el uppercase del .music-tag: "Am" (la menor) y
+ * "AM" no son lo mismo, y el tracking ancho lo parte en dos letras sueltas. */
+.music-shell .music-key {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.45rem;
+  font-family: var(--music-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-transform: none;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.music-shell .music-tag-warn {
+  background: hsl(var(--destructive) / 0.12);
+  color: hsl(var(--destructive));
+}
+
+/* Fila de lista. Hover solo con mouse real: en touch el :hover se dispara al
+ * tocar y queda pegado. */
+.music-shell .music-row {
+  border-radius: 0.8rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  transition:
+    background-color 170ms var(--music-ease-out),
+    border-color 170ms var(--music-ease-out),
+    transform 170ms var(--music-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .music-shell .music-row:hover {
+    background: var(--music-surface-sunken);
+    border-color: hsl(var(--music-brass) / 0.4);
+  }
+}
+
+.music-shell .music-row:active {
+  transform: scale(0.99);
+}
+
+.music-shell .music-row-pill {
+  border-radius: 999px;
+}
+
+/* Feedback de presión para <button> crudos (el Button de shadcn ya lo trae). */
+.music-shell .music-press {
+  transition: transform 140ms var(--music-ease-out);
+}
+
+.music-shell .music-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Lomo de color: identifica el tipo de culto sin teñir toda la tarjeta. */
+.music-shell .music-spine {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--music-tone, var(--music-brass))),
+    hsl(var(--music-tone, var(--music-brass)) / 0.2)
+  );
+}
+
+/* Halo del tipo de culto sobre el hero: ahora un lienzo blanco con un cenital
+ * suave del color del culto, no una sala oscura. */
+.music-shell .music-stage {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 1.25rem;
+  border: 1px solid hsl(var(--music-tone, var(--music-brass)) / 0.35);
+  background:
+    radial-gradient(
+      120% 100% at 88% -30%,
+      hsl(var(--music-tone, var(--music-brass)) / 0.14),
+      transparent 60%
+    ),
+    hsl(var(--card));
+  box-shadow: var(--music-hairline), var(--music-lift);
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Navegación
+ * ───────────────────────────────────────────────────────────── */
+
+/* Web: píldora ámbar sobre la pestaña activa (no el riel subrayado). */
+.music-shell .music-tabs {
+  display: flex;
+  height: auto;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  border-radius: 0;
+  border-bottom: 1px solid hsl(var(--border));
+  background: transparent;
+  padding: 0 0 0.5rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.music-shell .music-tab {
+  position: relative;
+  border-radius: 0.7rem;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: hsl(var(--muted-foreground));
+  transition:
+    color 180ms var(--music-ease-out),
+    background-color 180ms var(--music-ease-out);
+}
+
+.music-shell .music-tab[data-state='active'] {
+  background: hsl(var(--music-brass) / 0.16);
+  box-shadow: none;
+  color: hsl(var(--foreground));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .music-shell .music-tab:hover {
+    color: hsl(var(--foreground));
+  }
+}
+
+/* Mobile director: píldoras scrolleables. */
+.music-shell .music-pill {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  padding: 0.5rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: hsl(var(--muted-foreground));
+  transition:
+    background-color 180ms var(--music-ease-out),
+    border-color 180ms var(--music-ease-out),
+    color 180ms var(--music-ease-out),
+    transform 140ms var(--music-ease-out);
+}
+
+.music-shell .music-pill:active {
+  transform: scale(0.96);
+}
+
+/* Variante liviana: toggles chicos dentro de un panel (Lista / Calendario). */
+.music-shell .music-pill-ghost {
+  border-color: transparent;
+  background: transparent;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.7rem;
+}
+
+.music-shell .music-pill[data-active='true'] {
+  background: hsl(var(--music-brass));
+  border-color: hsl(var(--music-brass));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 6px 18px -10px hsl(var(--music-brass) / 0.9);
+}
+
+/* Mobile servidor: segmented control de 3 con indicador que se desliza.
+ * El indicador se mueve con transform (GPU) en vez de repintar fondos. */
+.music-shell .music-seg {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--border));
+  background: var(--music-surface-sunken);
+  padding: 0.25rem;
+}
+
+.music-shell .music-seg-thumb {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0.25rem;
+  width: calc((100% - 0.5rem) / 3);
+  border-radius: 0.8rem;
+  background: hsl(var(--music-brass));
+  box-shadow: 0 6px 18px -10px hsl(var(--music-brass) / 0.9);
+  transform: translateX(calc(var(--music-seg-index, 0) * 100%));
+  transition: transform 320ms var(--music-ease-in-out);
+}
+
+.music-shell .music-seg-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.8rem;
+  padding: 0.5rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  transition:
+    color 200ms var(--music-ease-out),
+    transform 140ms var(--music-ease-out);
+}
+
+.music-shell .music-seg-item:active {
+  transform: scale(0.96);
+}
+
+.music-shell .music-seg-item[data-active='true'] {
+  color: hsl(var(--primary-foreground));
+}
+
+/* Barra sticky de navegación mobile. */
+.music-shell .music-navbar {
+  background: linear-gradient(180deg, hsl(var(--background) / 0.94), hsl(var(--background) / 0.75));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Movimiento
+ * ───────────────────────────────────────────────────────────── */
+@keyframes music-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.music-shell .music-rise {
+  animation: music-rise 260ms var(--music-ease-out) both;
+}
+
+/* Entrada escalonada: 40ms entre filas. Más lento se siente perezoso; la
+ * cascada nunca bloquea el click porque `both` deja el estado final. */
+.music-shell .music-stagger > * {
+  animation: music-rise 300ms var(--music-ease-out) both;
+}
+.music-shell .music-stagger > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.music-shell .music-stagger > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.music-shell .music-stagger > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+.music-shell .music-stagger > *:nth-child(5) {
+  animation-delay: 160ms;
+}
+.music-shell .music-stagger > *:nth-child(6) {
+  animation-delay: 200ms;
+}
+.music-shell .music-stagger > *:nth-child(n + 7) {
+  animation-delay: 240ms;
+}
+
+/* Barra de progreso de confirmaciones: crece desde la izquierda. */
+.music-shell .music-meter-fill {
+  transition: width 520ms var(--music-ease-out);
+}
+
+/* El movimiento puede marear. Reducido = menos y más suave, no cero: se
+ * mantienen opacidad y color porque ayudan a comprender; se saca el
+ * desplazamiento. */
+@media (prefers-reduced-motion: reduce) {
+  .music-shell .music-rise,
+  .music-shell .music-stagger > * {
+    animation: none;
+  }
+
+  .music-shell .music-seg-thumb,
+  .music-shell .music-tab::after,
+  .music-shell .music-meter-fill {
+    transition-duration: 1ms;
+  }
+
+  .music-shell .music-row:active,
+  .music-shell .music-press:active,
+  .music-shell .music-pill:active,
+  .music-shell .music-seg-item:active {
+    transform: none;
+  }
 }

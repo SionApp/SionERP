@@ -6,9 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
@@ -318,19 +316,22 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
   });
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base">Integrantes</CardTitle>
+    <section className="music-panel p-4 sm:p-5">
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="music-eyebrow">Quiénes sirven</p>
+          <h2 className="music-heading mt-1.5 text-xl leading-none sm:text-2xl">Integrantes</h2>
+        </div>
         {isDirector && (
-          <Button size="sm" onClick={openCreate} className="gap-1">
+          <Button size="sm" onClick={openCreate} className="gap-1 shrink-0">
             <Plus className="h-4 w-4" />
             Agregar
           </Button>
         )}
-      </CardHeader>
-      <CardContent className="space-y-3">
+      </header>
+      <div className="space-y-3">
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             value={filter}
             onChange={e => setFilter(e.target.value)}
@@ -341,33 +342,27 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map(i => (
-              <Skeleton key={i} className="h-12 w-full" />
+              <Skeleton key={i} className="h-14 w-full rounded-xl" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
+          <p className="py-8 text-center text-sm text-muted-foreground">
             {members.length === 0 ? 'No hay integrantes registrados.' : 'Sin coincidencias.'}
           </p>
         ) : (
-          <div className="divide-y divide-border rounded-md border border-border">
+          <div className="music-stagger space-y-1.5">
             {filtered.map(m => (
-              <div key={m.id} className="flex items-center justify-between px-3 py-3">
+              <div key={m.id} className="music-row flex items-center justify-between px-3 py-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-sm truncate">{m.name ?? m.userId}</p>
+                    <p className="truncate text-sm font-semibold">{m.name ?? m.userId}</p>
                     {m.isDirector && (
-                      <Badge className="text-xs bg-primary/15 text-primary border-0 shrink-0">
-                        Director
-                      </Badge>
+                      <span className="music-tag music-tag-tone shrink-0">Director</span>
                     )}
-                    {!m.active && (
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        Inactivo
-                      </Badge>
-                    )}
+                    {!m.active && <span className="music-tag shrink-0">Inactivo</span>}
                   </div>
-                  {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {m.email && <p className="truncate text-xs text-muted-foreground">{m.email}</p>}
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {m.funciones.map(f => (
                       <FuncionChip key={f} funcion={f} />
                     ))}
@@ -380,7 +375,7 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
                   </div>
                 </div>
                 {isDirector && (
-                  <div className="flex gap-1 shrink-0 ml-2">
+                  <div className="ml-2 flex shrink-0 gap-1">
                     <Button
                       size="icon"
                       variant="ghost"
@@ -412,12 +407,14 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
             ))}
           </div>
         )}
-      </CardContent>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="music-shell">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Editar integrante' : 'Nuevo integrante'}</DialogTitle>
+            <DialogTitle className="music-heading text-2xl">
+              {editing ? 'Editar integrante' : 'Nuevo integrante'}
+            </DialogTitle>
           </DialogHeader>
           <MemberForm
             initial={editing ?? undefined}
@@ -432,6 +429,6 @@ export default function MusicMembers({ isDirector }: MusicMembersProps) {
           />
         </DialogContent>
       </Dialog>
-    </Card>
+    </section>
   );
 }

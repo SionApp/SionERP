@@ -48,14 +48,14 @@ export function ChannelAudios() {
   if (!configured) return null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15 text-accent">
+    <div className="music-panel p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="music-glyph music-glyph-spot">
           <Radio className="h-4 w-4" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold leading-tight">Audios del canal</p>
-          <p className="text-xs text-muted-foreground">Descargá las pistas de Telegram</p>
+        </span>
+        <div className="min-w-0">
+          <p className="music-eyebrow">Descargá las pistas de Telegram</p>
+          <p className="music-heading mt-1 text-lg leading-none">Audios del canal</p>
         </div>
       </div>
 
@@ -80,12 +80,9 @@ export function ChannelAudios() {
           {search ? 'Sin resultados.' : 'Todavía no hay audios en el canal.'}
         </p>
       ) : (
-        <div className="space-y-1.5">
+        <div className="music-stagger space-y-1.5">
           {files.map(f => (
-            <div
-              key={f.id}
-              className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2"
-            >
+            <div key={f.id} className="music-row flex items-center gap-3 px-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{f.title || f.fileName || 'Audio'}</p>
                 <p className="truncate text-xs text-muted-foreground">

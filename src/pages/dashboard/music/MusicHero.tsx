@@ -10,13 +10,12 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { MusicService } from '@/services/music.service';
 import type { MusicAssignment, MusicEvent } from '@/types/music.types';
-import { EVENT_TYPE_GRADIENT, EVENT_TYPE_LABEL } from './event-visual';
+import { EVENT_TYPE_LABEL, EVENT_TYPE_TONE, toneStyle } from './event-visual';
 
 function daysUntil(iso: string): number {
   const target = new Date(`${iso}T00:00:00`);
@@ -46,7 +45,7 @@ function todayISO(): string {
 }
 
 // ─────────────────────────────────────────────
-// Confirmation progress bar
+// Confirmation progress — leyenda + medidor
 // ─────────────────────────────────────────────
 export function ConfirmationProgress({
   assignments,
@@ -64,34 +63,42 @@ export function ConfirmationProgress({
 
   if (total === 0) {
     return (
-      <p className={cn('text-xs text-muted-foreground', className)}>Sin equipo asignado todavía.</p>
+      <p className={cn('music-eyebrow', className)}>Sin equipo asignado todavía</p>
     );
   }
 
   return (
     <div className={className}>
-      <div className="flex items-center justify-between text-xs mb-1.5">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+      <div className="mb-2 flex items-end justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            <strong className="text-foreground">{confirmed}</strong> confirmados
+            <strong className="music-num text-sm font-semibold text-foreground">{confirmed}</strong>
+            <span className="music-eyebrow">confirmados</span>
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
-            <strong className="text-foreground">{pending}</strong> pendientes
+            <strong className="music-num text-sm font-semibold text-foreground">{pending}</strong>
+            <span className="music-eyebrow">pendientes</span>
           </span>
           {declined > 0 && (
-            <span className="flex items-center gap-1 text-destructive">
+            <span className="flex items-center gap-1.5 text-destructive">
               <XCircle className="h-3.5 w-3.5" />
-              <strong>{declined}</strong>
+              <strong className="music-num text-sm font-semibold">{declined}</strong>
             </span>
           )}
         </div>
-        <span className="font-semibold tabular-nums">{confirmedPct}%</span>
+        <span className="music-num text-lg font-semibold leading-none">{confirmedPct}%</span>
       </div>
-      <div className="h-2 w-full rounded-full bg-muted overflow-hidden flex">
-        <div className="h-full bg-emerald-500" style={{ width: `${confirmedPct}%` }} />
-        <div className="h-full bg-destructive" style={{ width: `${declinedPct}%` }} />
+      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07] shadow-[inset_0_1px_1px_rgba(0,0,0,0.5)]">
+        <div
+          className="music-meter-fill h-full rounded-full bg-emerald-400"
+          style={{ width: `${confirmedPct}%` }}
+        />
+        <div
+          className="music-meter-fill h-full bg-destructive/80"
+          style={{ width: `${declinedPct}%` }}
+        />
       </div>
     </div>
   );
@@ -109,10 +116,10 @@ function TeamAvatars({ assignments, max = 5 }: { assignments: MusicAssignment[];
         <div
           key={a.id}
           className={cn(
-            'w-8 h-8 rounded-full ring-2 ring-background flex items-center justify-center text-[10px] font-semibold',
-            a.state === 'confirmado' && 'bg-emerald-500 text-white',
-            a.state === 'asignado' && 'bg-muted text-foreground',
-            a.state === 'no_puedo' && 'bg-destructive text-white opacity-70'
+            'music-num flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-[hsl(236_32%_9%)]',
+            a.state === 'confirmado' && 'bg-emerald-400 text-emerald-950',
+            a.state === 'asignado' && 'bg-white/10 text-foreground',
+            a.state === 'no_puedo' && 'bg-destructive/80 text-white opacity-70'
           )}
           title={`${a.memberName ?? ''} — ${a.funcion} (${a.state})`}
         >
@@ -120,7 +127,7 @@ function TeamAvatars({ assignments, max = 5 }: { assignments: MusicAssignment[];
         </div>
       ))}
       {overflow > 0 && (
-        <div className="w-8 h-8 rounded-full ring-2 ring-background bg-muted-foreground/20 flex items-center justify-center text-[10px] font-semibold">
+        <div className="music-num flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-semibold ring-2 ring-[hsl(236_32%_9%)]">
           +{overflow}
         </div>
       )}
@@ -129,9 +136,9 @@ function TeamAvatars({ assignments, max = 5 }: { assignments: MusicAssignment[];
 }
 
 // ─────────────────────────────────────────────
-// Stat tile
+// Stat tile — lectura de consola, no tarjetita
 // ─────────────────────────────────────────────
-function StatTile({
+export function StatTile({
   label,
   value,
   icon,
@@ -142,25 +149,32 @@ function StatTile({
   icon: React.ReactNode;
   tone?: 'default' | 'primary' | 'warning' | 'success';
 }) {
-  const tones = {
-    default: 'bg-card',
-    primary: 'bg-primary/10 border-primary/30',
-    warning: 'bg-amber-500/10 border-amber-500/30',
-    success: 'bg-emerald-500/10 border-emerald-500/30',
+  const accents = {
+    default: 'text-muted-foreground',
+    primary: 'text-amber-700 dark:text-amber-300',
+    warning: 'text-orange-700 dark:text-orange-300',
+    success: 'text-emerald-700 dark:text-emerald-300',
+  };
+  const rules = {
+    default: 'bg-border',
+    primary: 'bg-amber-400/70',
+    warning: 'bg-orange-400/70',
+    success: 'bg-emerald-400/70',
   };
   return (
-    <div className={cn('rounded-xl border border-border p-3 sm:p-4', tones[tone])}>
-      <div className="flex items-center gap-2 mb-1 text-muted-foreground">
-        {icon}
-        <span className="text-xs font-medium">{label}</span>
+    <div className="music-panel relative overflow-hidden p-3 sm:p-4">
+      <span className={cn('absolute inset-x-0 top-0 h-px', rules[tone])} />
+      <div className="mb-2 flex items-center gap-1.5">
+        <span className={accents[tone]}>{icon}</span>
+        <span className="music-eyebrow">{label}</span>
       </div>
-      <p className="text-xl sm:text-2xl font-bold tabular-nums">{value}</p>
+      <p className="music-num text-2xl font-semibold leading-none sm:text-3xl">{value}</p>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────
-// Next culto hero — uses real data for the director
+// Próximo culto — "marquesina"
 // ─────────────────────────────────────────────
 function NextCultoHeroCard({
   event,
@@ -179,82 +193,93 @@ function NextCultoHeroCard({
   });
 
   const dCount = daysUntil(event.eventDate);
-  const dLabel =
-    dCount === 0
-      ? 'Hoy'
-      : dCount === 1
-        ? 'Mañana'
-        : dCount > 1
-          ? `En ${dCount} días`
-          : `Hace ${Math.abs(dCount)} días`;
+  const dLabel = dCount === 1 ? 'día' : dCount > 1 ? 'días' : 'pasado';
+  const tone = EVENT_TYPE_TONE[event.eventType];
 
   return (
-    <div
-      className={cn(
-        'relative overflow-hidden rounded-2xl text-white shadow-lg',
-        'bg-gradient-to-br',
-        EVENT_TYPE_GRADIENT[event.eventType]
-      )}
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.18),transparent_60%)]" />
-      <div className="relative p-5 sm:p-6 space-y-4">
-        <div className="flex items-start justify-between gap-3">
+    <div className="music-stage music-rise" style={toneStyle(tone)}>
+      <span className="music-spine" />
+      <div className="relative space-y-5 p-5 pl-6 sm:p-7 sm:pl-8">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-wider opacity-80">Próximo culto</p>
-            <h2 className="text-2xl sm:text-3xl font-bold capitalize leading-tight mt-1">
+            <p className="music-eyebrow">Próximo culto</p>
+            <h2 className="music-heading mt-2 text-[1.85rem] leading-[1.05] first-letter:uppercase sm:text-[2.6rem]">
               {formatLongDate(event.eventDate)}
             </h2>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <Badge className="bg-white/20 hover:bg-white/30 text-white border-0 backdrop-blur">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="music-tag music-tag-tone">
                 {EVENT_TYPE_LABEL[event.eventType]}
-              </Badge>
-              {event.title && <span className="text-sm opacity-90 truncate">{event.title}</span>}
-              {event.published && (
-                <Badge className="bg-emerald-400/30 text-white border-0 backdrop-blur">
-                  Publicado
-                </Badge>
+              </span>
+              {event.published && <span className="music-tag music-tag-ok">Publicado</span>}
+              {event.title && (
+                <span className="truncate text-sm text-muted-foreground">{event.title}</span>
               )}
             </div>
           </div>
-          <div className="text-right shrink-0">
-            <div className="text-3xl sm:text-4xl font-extrabold tabular-nums leading-none">
-              {dCount >= 0 ? dCount : '—'}
-            </div>
-            <p className="text-xs opacity-80 mt-1">{dLabel}</p>
+          <div className="shrink-0 text-right">
+            {dCount === 0 ? (
+              <span className="music-heading text-3xl leading-none text-[hsl(var(--music-tone))] sm:text-4xl">
+                Hoy
+              </span>
+            ) : (
+              <span className="music-num block text-[2.75rem] font-semibold leading-none text-[hsl(var(--music-tone))] sm:text-[3.5rem]">
+                {dCount > 0 ? dCount : Math.abs(dCount)}
+              </span>
+            )}
+            {dCount !== 0 && <p className="music-eyebrow mt-2">{dLabel}</p>}
           </div>
         </div>
 
-        <div className="bg-white/15 backdrop-blur rounded-xl p-3 sm:p-4 space-y-3">
-          <ConfirmationProgress
-            assignments={assignments}
-            className="text-white [&_*]:!text-white"
-          />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <TeamAvatars assignments={assignments} />
-              <div className="text-xs">
-                <p className="opacity-80">Equipo</p>
-                <p className="font-semibold">
-                  {assignments.length} servidor{assignments.length === 1 ? '' : 'es'}
-                </p>
-              </div>
+        <hr className="music-rule" />
+
+        <ConfirmationProgress assignments={assignments} />
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <TeamAvatars assignments={assignments} />
+            <div>
+              <p className="music-eyebrow">Equipo</p>
+              <p className="music-num mt-1 text-sm font-semibold">
+                {assignments.length} servidor{assignments.length === 1 ? '' : 'es'}
+              </p>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Music2 className="h-4 w-4 opacity-80" />
-              <span className="font-semibold tabular-nums">{songs.length}</span>
-              <span className="opacity-80">canciones</span>
-            </div>
+          </div>
+          <div className="text-right">
+            <p className="music-eyebrow">Repertorio</p>
+            <p className="music-num mt-1 flex items-center justify-end gap-1.5 text-sm font-semibold">
+              <Music2 className="h-3.5 w-3.5 text-muted-foreground" />
+              {songs.length}
+            </p>
           </div>
         </div>
 
-        <Button
-          variant="secondary"
-          className="w-full bg-white text-slate-900 hover:bg-white/90 gap-2"
-          onClick={() => onOpen(event)}
-        >
+        <Button className="w-full gap-2" onClick={() => onOpen(event)}>
           Abrir detalle del culto
           <ArrowRight className="h-4 w-4" />
         </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Empty state compartido
+// ─────────────────────────────────────────────
+export function MusicEmpty({
+  icon,
+  title,
+  hint,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  hint?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border p-8 text-center">
+      <div className="music-glyph music-glyph-lg">{icon}</div>
+      <div className="space-y-1">
+        <p className="music-heading text-lg">{title}</p>
+        {hint && <p className="mx-auto max-w-xs text-sm text-muted-foreground">{hint}</p>}
       </div>
     </div>
   );
@@ -296,10 +321,10 @@ export function DirectorMusicHero({ onOpenEvent }: { onOpenEvent: (e: MusicEvent
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-48 w-full rounded-2xl" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Skeleton className="h-56 w-full rounded-3xl" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
+            <Skeleton key={i} className="h-20 rounded-2xl" />
           ))}
         </div>
       </div>
@@ -311,27 +336,21 @@ export function DirectorMusicHero({ onOpenEvent }: { onOpenEvent: (e: MusicEvent
       {nextEvent ? (
         <NextCultoHeroCard event={nextEvent} onOpen={onOpenEvent} />
       ) : (
-        <div className="rounded-2xl border-2 border-dashed border-border p-8 text-center space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-full bg-muted flex items-center justify-center">
-            <CalendarDays className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <div>
-            <p className="font-semibold">No hay cultos próximos</p>
-            <p className="text-sm text-muted-foreground">
-              Generá el trimestre desde la pestaña Cultos para empezar.
-            </p>
-          </div>
-        </div>
+        <MusicEmpty
+          icon={<CalendarDays className="h-6 w-6" />}
+          title="No hay cultos próximos"
+          hint="Generá el trimestre desde la pestaña Cultos para empezar."
+        />
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="music-stagger grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile
-          label="Integrantes activos"
+          label="Integrantes"
           value={activeMembers}
           icon={<Users className="h-3.5 w-3.5" />}
           tone="primary"
         />
         <StatTile
-          label="Cultos este mes"
+          label="Cultos del mes"
           value={cultosThisMonth}
           icon={<CalendarDays className="h-3.5 w-3.5" />}
         />
@@ -341,7 +360,7 @@ export function DirectorMusicHero({ onOpenEvent }: { onOpenEvent: (e: MusicEvent
           icon={<Music2 className="h-3.5 w-3.5" />}
         />
         <StatTile
-          label="Próximos cultos"
+          label="Próximos"
           value={upcoming.length}
           icon={<TrendingUp className="h-3.5 w-3.5" />}
           tone={upcoming.length === 0 ? 'warning' : 'success'}

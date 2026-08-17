@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { ListMusic } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { MusicService } from '@/services/music.service';
 import { RepertoireList } from './RepertoireList';
 
@@ -16,18 +15,18 @@ export function ServidorRepertoire() {
   });
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
+    <div className="music-panel p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="music-glyph">
           <ListMusic className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="music-eyebrow">Las canciones que más tocamos</p>
+          <p className="music-heading mt-1 text-lg leading-none">Repertorio de la banda</p>
         </div>
-        <div>
-          <p className="text-sm font-semibold leading-tight">Repertorio de la banda</p>
-          <p className="text-xs text-muted-foreground">Las canciones que más tocamos</p>
-        </div>
-        <Badge variant="secondary" className="ml-auto tabular-nums">
+        <span className="music-num ml-auto text-2xl font-semibold leading-none">
           {stats.length}
-        </Badge>
+        </span>
       </div>
 
       <RepertoireList stats={stats} isLoading={isLoading} />

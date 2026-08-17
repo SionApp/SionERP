@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -93,22 +92,20 @@ export default function MusicInstruments({ isDirector }: { isDirector: boolean }
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <div>
-          <CardTitle className="text-base">Instrumentos</CardTitle>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            El set de tu iglesia — voces, instrumentos y roles técnicos.
-          </p>
+    <section className="music-panel p-4 sm:p-5">
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="music-eyebrow">Voces, instrumentos y roles técnicos</p>
+          <h2 className="music-heading mt-1.5 text-xl leading-none sm:text-2xl">Instrumentos</h2>
         </div>
         {isDirector && (
-          <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1">
+          <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1 shrink-0">
             <Plus className="h-4 w-4" />
             Agregar
           </Button>
         )}
-      </CardHeader>
-      <CardContent className="space-y-4">
+      </header>
+      <div className="space-y-5">
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map(i => (
@@ -125,18 +122,19 @@ export default function MusicInstruments({ isDirector }: { isDirector: boolean }
             const { Icon } = meta;
             return (
               <div key={cat}>
-                <div
-                  className={cn('mb-2 flex items-center gap-1.5 text-xs font-semibold', meta.text)}
-                >
+                <div className={cn('mb-2.5 flex items-center gap-2', meta.text)}>
                   <Icon className="h-3.5 w-3.5" />
-                  {meta.label}
+                  <span className="text-[0.625rem] font-bold uppercase leading-none tracking-[0.2em]">
+                    {meta.label}
+                  </span>
+                  <span className="h-px flex-1 bg-border" />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {grouped.get(cat)!.map(ins => (
                     <div
                       key={ins.id}
                       className={cn(
-                        'flex items-center gap-2 rounded-full border border-border px-3 py-1.5',
+                        'music-row music-row-pill flex items-center gap-2 px-3 py-1.5',
                         !ins.isActive && 'opacity-50'
                       )}
                     >
@@ -178,12 +176,12 @@ export default function MusicInstruments({ isDirector }: { isDirector: boolean }
             );
           })
         )}
-      </CardContent>
+      </div>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="music-shell">
           <DialogHeader>
-            <DialogTitle>Nuevo instrumento</DialogTitle>
+            <DialogTitle className="music-heading text-2xl">Nuevo instrumento</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAdd} className="space-y-4">
             <div className="space-y-1">
@@ -224,6 +222,6 @@ export default function MusicInstruments({ isDirector }: { isDirector: boolean }
           </form>
         </DialogContent>
       </Dialog>
-    </Card>
+    </section>
   );
 }

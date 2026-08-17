@@ -13,13 +13,10 @@ import './music-theme.css';
 function DetailSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="space-y-3">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-16 w-full rounded-xl" />
-      </div>
+      <Skeleton className="h-52 w-full rounded-3xl" />
       <div className="grid gap-6 lg:grid-cols-2">
-        <Skeleton className="h-64 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     </div>
   );
@@ -84,13 +81,13 @@ export default function MusicEventDetailPage() {
   }
 
   return (
-    <div className="music-shell music-aurora space-y-6 animate-fade-in p-3 sm:p-4 md:p-6 rounded-2xl">
+    <div className="music-shell music-aurora space-y-6 rounded-2xl p-3 sm:p-5 md:p-8">
       <button
         type="button"
         onClick={() => navigate('/dashboard/music')}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="music-press music-eyebrow inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
       >
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft className="h-3.5 w-3.5" />
         Volver a Música
       </button>
       {body}
