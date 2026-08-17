@@ -1141,19 +1141,78 @@ func (h *DiscipleshipGoalsHandler) GetAssignmentTree(c echo.Context) error {
 	}
 
 	// Visibility filter for non-pastor: show subtrees assigned TO me, or that I
-	// assigned/cascaded to someone else (the creator must see their own cascade
-	// even when they didn't self-assign a leaf).
+	// assigned/cascaded to someone else — but "root" here means the TRUE root
+	// of the cascade (parent_assignment_id IS NULL), not "the node closest to
+	// me". A batch cascade is typically created in one call by whoever owns the
+	// top level (e.g. a Coordinador assigning down to General→Auxiliar→Líder in
+	// one request), so assigned_by is the SAME person on every row — checking
+	// only the true root's assigned_to/assigned_by would mean nobody but that
+	// one creator ever sees the tree, even the líder holding the leaf. Instead:
+	// include each of MY OWN nodes, their full ancestor chain (so I see the
+	// goal's overall context up to the top) and their full descendant subtree
+	// (what I supervise) — but never an unrelated sibling branch.
+	included := map[string]bool{}
+	myNodes := map[string]bool{}
+	if canSeeAll {
+		for _, id := range orderedIDs {
+			included[id] = true
+		}
+	} else {
+		for _, id := range orderedIDs {
+			n := allNodes[id]
+			if n.AssignedTo == userID || n.AssignedBy == userID {
+				myNodes[id] = true
+			}
+		}
+		for id := range myNodes {
+			cur := allNodes[id]
+			for {
+				included[cur.ID] = true
+				if cur.ParentAssignmentID == nil {
+					break
+				}
+				parent, ok := allNodes[*cur.ParentAssignmentID]
+				if !ok {
+					break
+				}
+				cur = parent
+			}
+		}
+		frontier := map[string]bool{}
+		for id := range myNodes {
+			frontier[id] = true
+		}
+		for len(frontier) > 0 {
+			next := map[string]bool{}
+			for _, id := range orderedIDs {
+				if included[id] {
+					continue
+				}
+				n := allNodes[id]
+				if n.ParentAssignmentID != nil && frontier[*n.ParentAssignmentID] {
+					included[id] = true
+					next[id] = true
+				}
+			}
+			frontier = next
+		}
+	}
+
 	var roots []*FlatNode
 	for _, id := range orderedIDs {
+		if !included[id] {
+			continue
+		}
 		n := allNodes[id]
 		if n.ParentAssignmentID == nil {
-			if canSeeAll || n.AssignedTo == userID || n.AssignedBy == userID {
-				roots = append(roots, n)
-			}
+			roots = append(roots, n)
+		} else if parent, ok := allNodes[*n.ParentAssignmentID]; ok && included[parent.ID] {
+			parent.Children = append(parent.Children, n)
 		} else {
-			if parent, ok := allNodes[*n.ParentAssignmentID]; ok {
-				parent.Children = append(parent.Children, n)
-			}
+			// Parent exists but is out of scope (shouldn't happen — the
+			// ancestor walk above always includes the full chain to root —
+			// kept as a safety net so a node is never silently dropped).
+			roots = append(roots, n)
 		}
 	}
 

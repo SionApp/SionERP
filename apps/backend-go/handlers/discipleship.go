@@ -2014,22 +2014,26 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		`, userID, churchID).Scan(&stats.TotalMembers)
 		stats.GrowthRate = memberGrowthRate(q, stats.TotalMembers, "leader_id = $1 AND church_id = $2 AND status = 'active'", userID, churchID)
 
-	case "2": // Supervisor Auxiliar - grupos que supervisa
-		q.QueryRow(`
-			SELECT COUNT(*) FROM discipleship_groups
-			WHERE supervisor_id = $1 AND church_id = $2 AND status = 'active'
-		`, userID, churchID).Scan(&stats.GroupsUnderSupervision)
+	case "2": // Supervisor Auxiliar - grupos de sus líderes directos
+		// `discipleship_groups.supervisor_id` es un campo manual y opcional del
+		// formulario de grupo (casi nunca se completa en la práctica) — NO es la
+		// fuente de verdad de a quién supervisa este auxiliar. Esa relación vive
+		// en discipleship_hierarchy, igual que para el General (case 3). Se
+		// resuelve vía directLeaderIDsSubquery (1 hop), como ya hace reports.go.
+		leaderScope := fmt.Sprintf("leader_id IN (%s) AND church_id = $2 AND status = 'active'", directLeaderIDsSubquery(3, 1))
 
-		q.QueryRow(`
-			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups
-			WHERE supervisor_id = $1 AND church_id = $2 AND status = 'active'
-		`, userID, churchID).Scan(&stats.TotalMembers)
-		stats.GrowthRate = memberGrowthRate(q, stats.TotalMembers, "supervisor_id = $1 AND church_id = $2 AND status = 'active'", userID, churchID)
+		q.QueryRow(fmt.Sprintf(`
+			SELECT COUNT(*) FROM discipleship_groups WHERE %s
+		`, leaderScope), userID, churchID, churchID).Scan(&stats.GroupsUnderSupervision)
 
-		q.QueryRow(`
-			SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups
-			WHERE supervisor_id = $1 AND church_id = $2 AND status = 'active'
-		`, userID, churchID).Scan(&stats.ActiveLeaders)
+		q.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE %s
+		`, leaderScope), userID, churchID, churchID).Scan(&stats.TotalMembers)
+		stats.GrowthRate = memberGrowthRate(q, stats.TotalMembers, leaderScope, userID, churchID, churchID)
+
+		q.QueryRow(fmt.Sprintf(`
+			SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups WHERE %s
+		`, leaderScope), userID, churchID, churchID).Scan(&stats.ActiveLeaders)
 
 	case "3": // General Supervisor (L3) — su subtree de líderes (2-hop)
 		// Group/member counts scoped to the General's 2-hop leader subtree (not zone_id).

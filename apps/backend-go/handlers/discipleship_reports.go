@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -337,17 +338,19 @@ func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID 
 
 		tx, err := db.DB.Begin()
 		if err != nil {
+			log.Printf("[autoUpdateGoalProgressFromReport] begin tx failed for assignment %s: %v", a.id, err)
 			continue
 		}
 
 		// Insert / update progress (idempotent per assignment + report)
 		_, err = tx.Exec(`
-			INSERT INTO goal_manual_progress (assignment_id, reporter_id, report_id, value_reported)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO goal_manual_progress (assignment_id, reporter_id, report_id, value_reported, church_id)
+			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (assignment_id, report_id) DO UPDATE
 				SET value_reported = EXCLUDED.value_reported
-		`, a.id, reporterID, reportID, value)
+		`, a.id, reporterID, reportID, value, churchID)
 		if err != nil {
+			log.Printf("[autoUpdateGoalProgressFromReport] insert progress failed for assignment %s: %v", a.id, err)
 			tx.Rollback()
 			continue
 		}
@@ -361,29 +364,44 @@ func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID 
 			WHERE id = $1
 		`, a.id)
 
-		// Step B: walk up the ancestor chain and recompute each as SUM of its children
-		tx.Exec(`
-			WITH RECURSIVE ancestors AS (
-				SELECT parent_assignment_id AS id
-				FROM goal_assignments WHERE id = $1 AND parent_assignment_id IS NOT NULL
-				UNION ALL
-				SELECT ga.parent_assignment_id
-				FROM goal_assignments ga
-				JOIN ancestors anc ON ga.id = anc.id
-				WHERE ga.parent_assignment_id IS NOT NULL
-			)
-			UPDATE goal_assignments ga
-			SET current_value = COALESCE(
-				(SELECT SUM(c.current_value) FROM goal_assignments c WHERE c.parent_assignment_id = ga.id), 0),
-				updated_at = NOW()
-			FROM ancestors anc WHERE ga.id = anc.id
-		`, a.id)
+		// Step B: walk up the ancestor chain ONE LEVEL AT A TIME. A single
+		// recursive-CTE UPDATE across every ancestor at once looks correct but
+		// isn't: every row's SET subquery reads the table's snapshot from the
+		// START of that statement, so a grandparent's SUM sees its child's OLD
+		// value, not the value this same statement is also writing to that
+		// child — only the immediate parent ever ends up correct, everything
+		// above it silently stays 0. Sequential single-level UPDATEs each see
+		// the prior UPDATE's committed write within the same tx, so the sum
+		// actually climbs the tree instead of stalling one hop up.
+		var parentID sql.NullString
+		tx.QueryRow(`SELECT parent_assignment_id FROM goal_assignments WHERE id = $1`, a.id).Scan(&parentID)
+		for parentID.Valid {
+			current := parentID.String
+			tx.Exec(`
+				UPDATE goal_assignments
+				SET current_value = COALESCE(
+					(SELECT SUM(current_value) FROM goal_assignments WHERE parent_assignment_id = $1), 0),
+					updated_at = NOW()
+				WHERE id = $1
+			`, current)
+			parentID = sql.NullString{}
+			tx.QueryRow(`SELECT parent_assignment_id FROM goal_assignments WHERE id = $1`, current).Scan(&parentID)
+		}
 
-		// Step C: sync root total into discipleship_goals.current_value
+		// Step C: sync root total into discipleship_goals.current_value.
+		// Unlike goal_assignments.progress_percentage (a GENERATED column that
+		// recomputes itself), discipleship_goals.progress_percentage is a plain
+		// column — GoalCard.tsx renders it directly, so it has to be set here too,
+		// not just current_value.
 		tx.Exec(`
 			UPDATE discipleship_goals g
 			SET current_value = COALESCE(
-				(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0)
+				(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0),
+				progress_percentage = CASE WHEN g.target_value > 0 THEN
+					ROUND(COALESCE(
+						(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0
+					)::numeric / g.target_value * 100, 2)
+				ELSE 0 END
 			WHERE g.id = $1 AND g.church_id = $2
 		`, a.goalID, churchID)
 
