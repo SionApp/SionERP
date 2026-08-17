@@ -18,6 +18,8 @@ type Zone struct {
 	TotalGroups   int              `json:"total_groups"`
 	TotalMembers  int              `json:"total_members"`
 	AvgAttendance float64          `json:"avg_attendance"`
+	GrowthRate    float64          `json:"growth_rate"`
+	HealthIndex   float64          `json:"health_index"`
 	CreatedAt     time.Time        `json:"created_at"`
 	UpdatedAt     time.Time        `json:"updated_at"`
 }

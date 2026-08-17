@@ -22,7 +22,9 @@ import {
   Clock,
   Crown,
   Loader2,
+  Network,
   PartyPopper,
+  TrendingDown,
   TrendingUp,
   Users,
   Zap,
@@ -49,6 +51,8 @@ interface DashboardStats {
   multiplications: number;
   average_attendance: number;
   spiritual_health: number;
+  growth_rate: number;
+  auxiliary_supervisors: number;
   pending_alerts: number;
   pending_reports: number;
 }
@@ -206,7 +210,7 @@ const PastoralDashboard: React.FC = React.memo(() => {
             />
             <Area
               type="monotone"
-              dataKey="miembros"
+              dataKey="asistencia"
               stroke="#3b82f6"
               strokeWidth={2}
               fill="url(#pgradAttendance)"
@@ -216,13 +220,13 @@ const PastoralDashboard: React.FC = React.memo(() => {
             />
             <Area
               type="monotone"
-              dataKey="grupos"
+              dataKey="reportando"
               stroke={CHART_COLORS.success}
               strokeWidth={2}
               fill="url(#pgradGroups)"
               dot={false}
               activeDot={{ r: 4, fill: CHART_COLORS.success, strokeWidth: 0 }}
-              name="Grupos Activos"
+              name="Reportaron esa semana"
             />
             <Area
               type="monotone"
@@ -500,6 +504,11 @@ const PastoralDashboard: React.FC = React.memo(() => {
           <MobileStatTile label="Miembros" value={stats.total_members || 0} />
           <MobileStatTile label="Multiplicaciones" value={stats.multiplications || 0} />
           <MobileStatTile label="Salud" value={`${(stats.spiritual_health || 0).toFixed(1)}/10`} />
+          <MobileStatTile
+            label="Crecimiento"
+            value={`${(stats.growth_rate || 0) > 0 ? '+' : ''}${(stats.growth_rate || 0).toFixed(1)}%`}
+          />
+          <MobileStatTile label="Sup. Aux" value={stats.auxiliary_supervisors || 0} />
         </div>
 
         {/* ── Sub-tabs ── */}
@@ -621,6 +630,41 @@ const PastoralDashboard: React.FC = React.memo(() => {
               {(stats.spiritual_health || 0).toFixed(1)}/10
             </div>
             <p className="text-xs text-muted-foreground truncate">Promedio general</p>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={
+            (stats.growth_rate || 0) >= 0
+              ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20'
+              : 'border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/20'
+          }
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Crecimiento</CardTitle>
+            {(stats.growth_rate || 0) >= 0 ? (
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+            ) : (
+              <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+            )}
+          </CardHeader>
+          <CardContent className="px-3 pb-3 sm:px-4 sm:pb-4 md:px-6 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">
+              {(stats.growth_rate || 0) > 0 ? '+' : ''}
+              {(stats.growth_rate || 0).toFixed(1)}%
+            </div>
+            <p className="text-xs text-muted-foreground truncate">Miembros vs. hace 30 días</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-cyan-200 bg-cyan-50/60 dark:border-cyan-900 dark:bg-cyan-950/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Sup. Auxiliares</CardTitle>
+            <Network className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+          </CardHeader>
+          <CardContent className="px-3 pb-3 sm:px-4 sm:pb-4 md:px-6 md:pb-6">
+            <div className="text-xl sm:text-2xl font-bold">{stats.auxiliary_supervisors || 0}</div>
+            <p className="text-xs text-muted-foreground truncate">En todo el ministerio</p>
           </CardContent>
         </Card>
       </div>

@@ -10,10 +10,12 @@ interface DashboardStats {
   multiplications?: number;
   average_attendance?: number;
   spiritual_health?: number;
+  growth_rate?: number;
   pending_alerts?: number;
   pending_reports?: number;
   groups_under_supervision?: number;
   subordinates_count?: number;
+  auxiliary_supervisors?: number;
   zone_name?: string;
 }
 
@@ -79,11 +81,14 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
         promises.weeklyTrends = DiscipleshipAnalyticsService.getWeeklyTrends(weeks).then(trends =>
           trends.map((t: any) => ({
             name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
-            miembros: t.total_attendance,
+            // "asistencia" es el nombre correcto — el dato es la suma de presentes
+            // declarados en los reportes de la semana, no un conteo de miembros.
             asistencia: t.total_attendance,
             visitantes: t.total_visitors,
             conversiones: t.total_conversions,
-            grupos: t.groups_reporting,
+            // Grupos que reportaron esa semana, NO el total de grupos activos
+            // (ese dato no lo calcula este endpoint).
+            reportando: t.groups_reporting,
           }))
         );
       }
