@@ -126,12 +126,14 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 	db := config.GetDB()
 	go autoUpdateGoalProgressFromReport(db, userID, reportID, req.ReportData, churchID)
 
-	// Notify supervisor of new report (fire-and-forget)
+	// Notify supervisor of new report (fire-and-forget). Un Coordinador (tope
+	// de discipleship_hierarchy) no tiene supervisor_id — su reporte igual
+	// necesita avisarle a alguien: a todo admin/pastor de la iglesia.
+	db2 := db
+	repID := reportID
+	cID := churchID
 	if supervisorID.Valid && supervisorID.String != "" {
-		db2 := db
-		repID := reportID
 		supID := supervisorID.String
-		cID := churchID
 		go func() {
 			utils.CreateNotification(db2, models.NotificationInput{
 				ChurchID:          cID,
@@ -144,6 +146,37 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 				RelatedEntityType: utils.Ptr("report"),
 				RelatedEntityID:   &repID,
 			})
+		}()
+	} else {
+		go func() {
+			rows, err := db2.DB.Query(`
+				SELECT id FROM users WHERE church_id = $1 AND role IN ('admin', 'pastor') AND is_active = true
+			`, cID)
+			if err != nil {
+				log.Printf("[CreateReport] notify admins query failed: %v", err)
+				return
+			}
+			defer rows.Close()
+			var adminIDs []string
+			for rows.Next() {
+				var id string
+				if rows.Scan(&id) == nil {
+					adminIDs = append(adminIDs, id)
+				}
+			}
+			for _, adminID := range adminIDs {
+				utils.CreateNotification(db2, models.NotificationInput{
+					ChurchID:          cID,
+					UserID:            adminID,
+					Type:              "info",
+					Title:             "Nuevo reporte para revisar",
+					Message:           "El coordinador envió su reporte semanal.",
+					ActionURL:         utils.Ptr("/dashboard/discipleship?tab=reports"),
+					ActionText:        utils.Ptr("Ver reportes"),
+					RelatedEntityType: utils.Ptr("report"),
+					RelatedEntityID:   &repID,
+				})
+			}
 		}()
 	}
 
