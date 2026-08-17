@@ -1,7 +1,52 @@
 import { DiscipleshipAnalyticsService } from '@/services/discipleship-analytics.service';
+import type { WeeklyTrend, ZoneStats } from '@/services/discipleship-analytics.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
+import type {
+  DiscipleshipAlert,
+  DiscipleshipGoal,
+  DiscipleshipGroup,
+  DiscipleshipReport,
+} from '@/types/discipleship.types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+
+/** getWeeklyTrends también devuelve groups_reporting, no declarado en WeeklyTrend (ver discipleship-analytics.service.ts). */
+interface WeeklyTrendRaw extends WeeklyTrend {
+  groups_reporting: number;
+}
+
+/** Punto de datos ya formateado para el gráfico de tendencias semanales. */
+interface WeeklyTrendChartPoint {
+  name: string;
+  miembros: number;
+  asistencia: number;
+  visitantes: number;
+  conversiones: number;
+  grupos: number;
+}
+
+/** Respuesta de getSupervisorSubordinates (mismo shape que GeneralSupervisorDashboard). */
+interface SupervisorSubordinate {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  hierarchy_level: number;
+  groups_assigned: number;
+  total_members: number;
+  avg_attendance: number;
+  performance_score: number;
+}
+
+/** Resumen de grupo derivado de DiscipleshipGroup para el listado del supervisor auxiliar. */
+interface GroupSummary {
+  id: string;
+  group_name: string;
+  leader_name: string;
+  member_count: number;
+  avg_attendance: number;
+  status: DiscipleshipGroup['status'];
+}
 
 interface DashboardStats {
   total_groups?: number;
@@ -35,13 +80,13 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
   interface DataState {
     loading: boolean;
     stats: DashboardStats;
-    zoneStats: any[];
-    weeklyTrends: any[];
-    goals: any[];
-    alerts: any[];
-    pendingReports: any[];
-    subordinates: any[];
-    groups: any[];
+    zoneStats: ZoneStats[];
+    weeklyTrends: WeeklyTrendChartPoint[];
+    goals: DiscipleshipGoal[];
+    alerts: DiscipleshipAlert[];
+    pendingReports: DiscipleshipReport[];
+    subordinates: SupervisorSubordinate[];
+    groups: GroupSummary[];
   }
 
   const initialState: DataState = {
@@ -72,17 +117,17 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
       // Ejecutar todas las promesas en paralelo y acumular resultados
       const statsPromise = DiscipleshipAnalyticsService.getDashboardStatsByLevel(level);
 
-      const promises: Record<string, Promise<any>> = { stats: statsPromise };
+      const promises: Record<string, Promise<unknown>> = { stats: statsPromise };
 
       if (level >= 2) {
         const weeks = level >= 5 ? 24 : 12;
         promises.weeklyTrends = DiscipleshipAnalyticsService.getWeeklyTrends(weeks).then(trends =>
-          trends.map((t: any) => ({
-            name: new Date(t.week_start).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
-            miembros: t.total_attendance,
-            asistencia: t.total_attendance,
-            visitantes: t.total_visitors,
-            conversiones: t.total_conversions,
+          trends.map((t: WeeklyTrendRaw) => ({
+            name: new Date(t.week).toLocaleDateString('es', { month: 'short', day: 'numeric' }),
+            miembros: t.attendance,
+            asistencia: t.attendance,
+            visitantes: t.visitors,
+            conversiones: t.conversions,
             grupos: t.groups_reporting,
           }))
         );
@@ -113,7 +158,7 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
           supervisor_id: userId,
           status: 'active',
         }).then(response =>
-          response.data?.map((g: any) => ({
+          response.data?.map((g: DiscipleshipGroup) => ({
             id: g.id,
             group_name: g.group_name,
             leader_name: g.leader_name || 'Sin asignar',
@@ -128,9 +173,9 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
       const results = await Promise.all(
         Object.entries(promises).map(async ([key, promise]) => {
           try {
-            return [key, await promise] as [string, any];
+            return [key, await promise] as [string, unknown];
           } catch {
-            return [key, null] as [string, any];
+            return [key, null] as [string, unknown];
           }
         })
       );
@@ -138,7 +183,7 @@ export function useDiscipleshipData(options: UseDiscipleshipDataOptions) {
       const updates: Partial<DataState> = { loading: false };
       for (const [key, value] of results) {
         if (value !== null) {
-          (updates as Record<string, any>)[key] = value;
+          (updates as Record<string, unknown>)[key] = value;
         }
       }
 

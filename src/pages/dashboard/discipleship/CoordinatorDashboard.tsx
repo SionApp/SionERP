@@ -360,7 +360,7 @@ const CoordinatorDashboard: React.FC = React.memo(() => {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Crecimiento: </span>
-                    <span className="font-medium">{zone.growth_rate || 0}%</span>
+                    <span className="font-medium">{zone.growthRate || 0}%</span>
                   </div>
                 </div>
               </div>
