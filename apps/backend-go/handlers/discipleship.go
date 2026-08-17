@@ -2035,6 +2035,19 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups WHERE %s
 		`, leaderScope), userID, churchID, churchID).Scan(&stats.ActiveLeaders)
 
+		// Zone name for display — igual que el General (case 3): se lee de la
+		// propia fila de jerarquía del auxiliar, no de discipleship_groups
+		// (el scope de grupos es por líderes directos, no por zona).
+		var auxZoneID sql.NullString
+		q.QueryRow(`
+			SELECT zone_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2
+		`, userID, churchID).Scan(&auxZoneID)
+		if auxZoneID.Valid && auxZoneID.String != "" {
+			q.QueryRow(`
+				SELECT COALESCE(name, '') FROM zones WHERE id = $1 AND church_id = $2
+			`, auxZoneID.String, churchID).Scan(&stats.ZoneName)
+		}
+
 	case "3": // General Supervisor (L3) — su subtree de líderes (2-hop)
 		// Group/member counts scoped to the General's 2-hop leader subtree (not zone_id).
 		// ZoneName is kept for display; SubordinatesCount counts direct auxiliaries (1-hop).

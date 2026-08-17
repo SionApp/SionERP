@@ -336,6 +336,19 @@ func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID 
 			continue
 		}
 
+		// Solo las HOJAS de la cascada toman su valor de un reporte directo. Un
+		// nodo intermedio (ej. un supervisor auxiliar) es una suma de sus hijos,
+		// NO su propio reporte — si un supervisor que además es asignado manda su
+		// reporte de supervisión, su valor extraído (a menudo 0, porque el
+		// reporte de supervisión no trae los campos de asistencia que agrega un
+		// objetivo de tipo attendance) pisaría la suma cascadeada de sus líderes.
+		// Los intermedios se recalculan solos por el Step B de las hojas.
+		var childCount int
+		db.DB.QueryRow(`SELECT COUNT(*) FROM goal_assignments WHERE parent_assignment_id = $1`, a.id).Scan(&childCount)
+		if childCount > 0 {
+			continue
+		}
+
 		tx, err := db.DB.Begin()
 		if err != nil {
 			log.Printf("[autoUpdateGoalProgressFromReport] begin tx failed for assignment %s: %v", a.id, err)

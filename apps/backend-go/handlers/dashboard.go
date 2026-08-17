@@ -67,13 +67,6 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		})
 	}
 
-	recentActivity, err := h.GetRecentActivity(c)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Failed to fetch recent activity",
-		})
-	}
-
 	currentUserRole := ""
 	if email := c.Get("email"); email != nil {
 		userEmail := email.(string)
@@ -86,6 +79,23 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		} else {
 			fmt.Printf("User role found: %s\n", currentUserRole)
 		}
+	}
+
+	// "Actividad reciente" son altas/bajas/ediciones de USUARIOS de toda la
+	// iglesia — un supervisor o servidor no tiene por qué ver quién dio de baja
+	// a quién. Se filtra acá, no solo en la UI: la respuesta cruda del endpoint
+	// no debe traer el feed si el rol no es admin/pastor/staff, o alcanza con
+	// abrir Network tab para verlo igual.
+	var recentActivity []models.RecentActivity
+	if utils.IsAdminRole(currentUserRole) {
+		recentActivity, err = h.GetRecentActivity(c)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "Failed to fetch recent activity",
+			})
+		}
+	} else {
+		recentActivity = []models.RecentActivity{}
 	}
 
 	systemActivity := 0.0

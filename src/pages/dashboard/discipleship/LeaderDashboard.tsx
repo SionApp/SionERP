@@ -12,7 +12,7 @@ import { useLeaderDiscipleshipData } from '@/hooks/useLeaderDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { AttendanceWithDetails, GroupMemberWithDetails } from '@/types/discipleship.types';
 import { addDays, format, startOfISOWeek } from 'date-fns';
-import { getIsoWeek, justEndedWeek } from '@/lib/iso-week';
+import { getIsoWeek, justEndedWeek, parseDateOnly } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
@@ -136,7 +136,7 @@ export default function LeaderDashboard() {
 
   // Check if report for this week already exists
   const hasCurrentWeekReport = myReports.some((report: { period_start: string }) => {
-    const reportStart = new Date(report.period_start);
+    const reportStart = parseDateOnly(report.period_start);
     return reportStart >= lastWeekStart && reportStart <= currentWeekEnd;
   });
 
@@ -186,7 +186,7 @@ export default function LeaderDashboard() {
 
   // Semanas que ya tienen reporte (para el aviso de duplicado en el picker)
   const existingWeeks = myReports.map((r: { period_start: string }) =>
-    getIsoWeek(new Date(r.period_start))
+    getIsoWeek(parseDateOnly(r.period_start))
   );
   const selectedWeekReported = existingWeeks.includes(selectedWeek.isoWeek);
 
@@ -390,8 +390,8 @@ export default function LeaderDashboard() {
             >
               <div>
                 <p className="font-medium">
-                  Semana {format(new Date(report.period_start), 'dd MMM', { locale: es })} -{' '}
-                  {format(new Date(report.period_end), 'dd MMM', { locale: es })}
+                  Semana {format(parseDateOnly(report.period_start), 'dd MMM', { locale: es })} -{' '}
+                  {format(parseDateOnly(report.period_end), 'dd MMM', { locale: es })}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Asistencia: {reportData?.attendance || 0} • Conversiones:{' '}
