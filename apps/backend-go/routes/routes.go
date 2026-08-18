@@ -224,6 +224,7 @@ func SetupRoutes(e *echo.Echo) {
 
 		// Analytics
 		discipleship.GET("/analytics", discipleshipHandler.GetAnalytics)
+		discipleship.GET("/analytics/timeline", discipleshipHandler.GetActivityTimeline)
 		// Las siguientes rutas se integraron en /analytics
 		// discipleship.GET("/analytics/zones", discipleshipHandler.GetZoneStats)
 		// discipleship.GET("/analytics/performance", discipleshipHandler.GetGroupPerformance)

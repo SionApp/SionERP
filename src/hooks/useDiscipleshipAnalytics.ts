@@ -18,6 +18,7 @@ export const useDiscipleshipAnalytics = (zoneName?: string) => {
     activeLeaders: 0,
     multiplications: 0,
     spiritualHealth: 0,
+    auxiliarySupervisors: 0,
     dateRange: { from: '', to: '' },
   });
 

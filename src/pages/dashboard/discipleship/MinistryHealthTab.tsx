@@ -132,17 +132,19 @@ function getAttendanceConfig(pct: number): HealthConfig {
   };
 }
 
+// Umbrales alineados con getHealthConfig (misma escala /10 en ambos casos desde
+// que el backend unificó el reescalado de "salud espiritual" por grupo).
 function getGroupTempDot(temp: number): string {
-  if (temp >= 10) return 'bg-emerald-500';
-  if (temp >= 7) return 'bg-green-500';
-  if (temp >= 4) return 'bg-amber-500';
+  if (temp >= 7.5) return 'bg-emerald-500';
+  if (temp >= 5) return 'bg-green-500';
+  if (temp >= 2.5) return 'bg-amber-500';
   return 'bg-red-500';
 }
 
 function getGroupTempLabel(temp: number): string {
-  if (temp >= 10) return 'Excelente';
-  if (temp >= 7) return 'Bueno';
-  if (temp >= 4) return 'Regular';
+  if (temp >= 7.5) return 'Excelente';
+  if (temp >= 5) return 'Bueno';
+  if (temp >= 2.5) return 'Regular';
   return 'Bajo';
 }
 
@@ -225,7 +227,7 @@ function GroupRow({ group }: { group: GroupPerformance }) {
   const temp = group.spiritualTemp || 0;
   const dot = getGroupTempDot(temp);
   const label = getGroupTempLabel(temp);
-  const tempPct = Math.min(100, (temp / 13) * 100);
+  const tempPct = Math.min(100, (temp / 10) * 100);
 
   const daysSinceReport = group.lastReportDate
     ? Math.floor((Date.now() - new Date(group.lastReportDate).getTime()) / 86_400_000)
@@ -258,7 +260,7 @@ function GroupRow({ group }: { group: GroupPerformance }) {
             />
           </div>
           <span className="text-xs text-muted-foreground">
-            {temp.toFixed(1)}/13 · {label}
+            {temp.toFixed(1)}/10 · {label}
           </span>
         </div>
       </div>

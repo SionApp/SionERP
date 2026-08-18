@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 import type { MusicEventType } from '@/types/music.types';
 
 // Single source of truth for how a culto type looks across the whole module.
@@ -9,16 +11,30 @@ export const EVENT_TYPE_LABEL: Record<MusicEventType, string> = {
   especial: 'Especial',
 };
 
-// Dot / solid fill (listas, calendario).
+// Dot / solid fill (listas, calendario). Alineado a la paleta "latón sobre
+// tinta": el domingo (el culto central) se lleva el dorado de la marca, el
+// viernes el periwinkle frío y el especial el rosa de función especial.
 export const EVENT_TYPE_COLOR: Record<MusicEventType, string> = {
-  viernes: 'bg-blue-500',
-  domingo: 'bg-emerald-500',
-  especial: 'bg-amber-500',
+  viernes: 'bg-indigo-400',
+  domingo: 'bg-amber-400',
+  especial: 'bg-rose-400',
 };
 
-// Hero background gradient por tipo de culto.
-export const EVENT_TYPE_GRADIENT: Record<MusicEventType, string> = {
-  viernes: 'from-blue-500 to-indigo-600',
-  domingo: 'from-emerald-500 to-teal-600',
-  especial: 'from-amber-500 to-orange-600',
+// Referencia a la variable de tono definida en music-theme.css (`.music-shell`
+// para lienzo claro, `.dark .music-shell` para oscuro), no un triplete HSL
+// fijo: así el color del culto sigue el toggle claro/oscuro del sistema en
+// vez de quedar calibrado para un solo modo.
+export const EVENT_TYPE_TONE: Record<MusicEventType, string> = {
+  viernes: 'var(--music-tone-viernes)',
+  domingo: 'var(--music-tone-domingo)',
+  especial: 'var(--music-tone-especial)',
 };
+
+/**
+ * Inyecta el tono del culto como CSS var. Lo leen `.music-stage`, `.music-spine`
+ * y `.music-tag-tone` en music-theme.css, así el color viaja por herencia y no
+ * hay que pasarlo por props a cada hijo.
+ */
+export function toneStyle(tone: string): CSSProperties {
+  return { '--music-tone': tone } as CSSProperties;
+}

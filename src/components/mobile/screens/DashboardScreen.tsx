@@ -35,6 +35,8 @@ interface MobileDashboardScreenProps {
   actions: QuickActionItem[];
   modules: ModuleLink[];
   activity: RecentActivity[];
+  /** Admin/pastor/staff únicamente — el feed es de toda la iglesia, no de "lo mío". */
+  canSeeActivity?: boolean;
   loading: boolean;
   onNavigate: (to: string) => void;
   onActivityClick: (activity: RecentActivity) => void;
@@ -118,6 +120,7 @@ export function MobileDashboardScreen({
   actions,
   modules,
   activity,
+  canSeeActivity = true,
   loading,
   onNavigate,
   onActivityClick,
@@ -207,7 +210,9 @@ export function MobileDashboardScreen({
         </div>
       )}
 
-      {/* ── Actividad reciente (4 items) ── */}
+      {/* ── Actividad reciente (4 items) — admin/pastor/staff únicamente ── */}
+      {canSeeActivity && (
+        <>
       <MobileSectionHeader title="Actividad reciente" />
       {loading ? (
         <div className="space-y-2 px-4">
@@ -233,6 +238,8 @@ export function MobileDashboardScreen({
             />
           ))}
         </div>
+      )}
+        </>
       )}
 
       {/* ── Módulos ── */}

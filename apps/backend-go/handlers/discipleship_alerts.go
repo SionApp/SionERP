@@ -146,7 +146,9 @@ func (h *DiscipleshipAlertsHandler) GetAlerts(c echo.Context) error {
 		UserName  string `json:"user_name,omitempty"`
 	}
 
-	var alerts []AlertWithDetails
+	// []AlertWithDetails{}, no nil: mismo motivo que GetReports — un slice nil
+	// serializa como JSON null y el frontend hace data.slice(...) sobre esto.
+	alerts := []AlertWithDetails{}
 	for rows.Next() {
 		var a AlertWithDetails
 		err = rows.Scan(

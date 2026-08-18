@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AuditLogModal } from '@/components/AuditLogModal';
 import { MobileDashboardScreen } from '@/components/mobile/screens/DashboardScreen';
+
+// Mapa: pesado (Leaflet). El Inicio es la primera pantalla que carga, así que
+// lo bajamos por demanda para no meter Leaflet en el bundle crítico del dashboard.
+const DiscipleshipMap = lazy(() => import('@/components/discipleship/DiscipleshipMap'));
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useMobileMode } from '@/hooks/useMobileMode';
@@ -13,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AuditLog } from '@/types/audit.types';
 import { RecentActivity } from '@/services/dashboard.service';
 import { cn } from '@/lib/utils';
+import { ROLE_LEVELS } from '@/lib/permissions';
 import {
   Activity,
   AlertTriangle,
@@ -156,6 +161,12 @@ const DashboardHome = () => {
       })
     : '—';
 
+  // Actividad reciente son altas/bajas/ediciones de usuarios de TODA la iglesia
+  // — un supervisor o servidor no tiene por qué verla. El backend ya no manda
+  // el feed para esos roles (devuelve []), esto además evita mostrar la tarjeta
+  // vacía "Sin actividad reciente" a alguien que nunca debería verla.
+  const canSeeSystemActivity = ROLE_LEVELS[currentUserRole ?? ''] >= ROLE_LEVELS.staff;
+
   const visibleActions = QUICK_ACTIONS.filter(a => {
     if (!currentUserRole || !a.roles.includes(currentUserRole)) return false;
     if (a.module && !installedModules.includes(a.module)) return false;
@@ -225,6 +236,7 @@ const DashboardHome = () => {
           actions={visibleActions}
           modules={moduleLinks}
           activity={recentActivity}
+          canSeeActivity={canSeeSystemActivity}
           loading={loading}
           onNavigate={navigate}
           onActivityClick={handleActivityClick}
@@ -327,60 +339,71 @@ const DashboardHome = () => {
           </div>
         )}
 
+        {/* ── Mapa de zonas y células (staff+/pastor, con módulo de zonas) ──────
+            Vista global de la iglesia sobre el mapa: reemplaza en protagonismo
+            al feed de actividad, que baja debajo. */}
+        {canSeeSystemActivity && installedModules.includes('zones') && (
+          <Suspense fallback={<Skeleton className="w-full h-[580px] rounded-2xl" />}>
+            <DiscipleshipMap title="Mapa de zonas y células" />
+          </Suspense>
+        )}
+
         {/* ── Two column grid ───────────────────────────────────────────────── */}
         <div className="grid gap-4 lg:grid-cols-3">
-          {/* Activity feed — takes 2/3 */}
-          <Card className="lg:col-span-2 border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" />
-                Actividad reciente
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <Skeleton key={i} className="h-12 w-full rounded-xl" />
-                  ))}
-                </div>
-              ) : recentActivity.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
-                  <Activity className="h-8 w-8 opacity-20" />
-                  <p className="text-sm">Sin actividad reciente</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {recentActivity.slice(0, 8).map((activity, i) => (
-                    <div
-                      key={activity.id ?? i}
-                      onClick={() => handleActivityClick(activity)}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-accent/40 to-transparent border border-border/50 hover:from-accent/60 transition-colors cursor-pointer"
-                    >
+          {/* Activity feed — takes 2/3. Admin/pastor/staff only (ver canSeeSystemActivity). */}
+          {canSeeSystemActivity && (
+            <Card className="lg:col-span-2 border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  Actividad reciente
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-2">
+                {loading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <Skeleton key={i} className="h-12 w-full rounded-xl" />
+                    ))}
+                  </div>
+                ) : recentActivity.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+                    <Activity className="h-8 w-8 opacity-20" />
+                    <p className="text-sm">Sin actividad reciente</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {recentActivity.slice(0, 8).map((activity, i) => (
                       <div
-                        className={cn(
-                          'w-2.5 h-2.5 rounded-full shrink-0',
-                          activityDot(activity.type)
-                        )}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{activity.action}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          por {activity.user}
-                        </p>
+                        key={activity.id ?? i}
+                        onClick={() => handleActivityClick(activity)}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-accent/40 to-transparent border border-border/50 hover:from-accent/60 transition-colors cursor-pointer"
+                      >
+                        <div
+                          className={cn(
+                            'w-2.5 h-2.5 rounded-full shrink-0',
+                            activityDot(activity.type)
+                          )}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{activity.action}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            por {activity.user}
+                          </p>
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                          {activity.time}
+                        </span>
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                        {activity.time}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Module summary — takes 1/3 */}
-          <div className="space-y-3">
+          {/* Module summary — takes 1/3, o el ancho completo si no hay feed de actividad */}
+          <div className={cn('space-y-3', !canSeeSystemActivity && 'lg:col-span-3')}>
             {/* Discipleship */}
             {installedModules.includes('discipleship') && (
               <Card

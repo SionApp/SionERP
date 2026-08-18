@@ -1,0 +1,165 @@
+name: Deploy to production
+
+# Corre automáticamente, al llegar código a la rama de producción, lo que antes
+# hacíamos a mano:
+#   1. verify  — typecheck + build del frontend y build + vet del backend Go
+#                (si algo no compila, NO se despliega nada)
+#   2. backup  — pg_dump de la DB de prod → Backblaze B2 (pre-migrate/). Si el
+#                backup falla, las migraciones NO corren (no hay migración sin
+#                un respaldo fresco).
+#   3. migrate — aplica las migraciones de Supabase pendientes a la DB de prod
+#   4. deploy  — dispara los deploys de backend (Render) y frontend (Vercel)
+#
+# ── Secrets requeridos (Settings → Secrets and variables → Actions) ──
+#   SUPABASE_DB_URL     (ya existe) — connection string de la DB de producción,
+#                        percent-encoded (si la contraseña tiene @ : / # etc.,
+#                        deben ir escapados, ej. @ → %40). Usar la del "Session
+#                        pooler" (5432). `supabase db push` aplica SOLO las
+#                        migraciones no aplicadas (idempotente).
+#   B2_BUCKET, B2_KEY_ID, B2_APP_KEY  (ya existen, los usa db-backup.yml) —
+#                        destino del backup previo a migrar.
+#   RENDER_DEPLOY_HOOK  (opcional)  — deploy hook de Render. Dejalo SIN setear si
+#                        Render ya auto-deploya desde GitHub → el paso se salta.
+#   VERCEL_DEPLOY_HOOK  (opcional)  — deploy hook de Vercel. Mismo criterio.
+#
+# ── Trigger ──
+# Configurado en `main` (rama de producción por convención / default del repo).
+# Si tu producción sale de otra rama, cambiá `branches:` de abajo.
+# `workflow_dispatch` permite además correrlo a mano desde la pestaña Actions.
+#
+# ── Gate manual (recomendado) ──
+# El job `migrate` usa el environment `production`. En Settings → Environments →
+# production podés exigir "Required reviewers" para que las migraciones a prod
+# esperen una aprobación humana antes de correr.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # nunca cortar una migración a mitad de camino
+
+jobs:
+  verify:
+    name: Verify (build + typecheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck + build frontend
+        run: |
+          pnpm typecheck
+          pnpm build
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: apps/backend-go/go.sum
+      - name: Build + vet backend
+        working-directory: apps/backend-go
+        run: |
+          go build ./...
+          go vet ./...
+
+  backup:
+    name: Backup DB (pre-migración)
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar pg_dump 17 + rclone
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17 || {
+            sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+            curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client-17
+          }
+          command -v rclone >/dev/null || sudo apt-get install -y rclone
+
+      - name: Dump + subir a B2 (pre-migrate/)
+        env:
+          # Usar la connection string del "Session pooler" (5432); el pooler
+          # transaccional (6543) NO sirve para pg_dump.
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          RCLONE_CONFIG_B2_TYPE: b2
+          RCLONE_CONFIG_B2_ACCOUNT: ${{ secrets.B2_KEY_ID }}
+          RCLONE_CONFIG_B2_KEY: ${{ secrets.B2_APP_KEY }}
+        run: |
+          set -euo pipefail
+          for v in SUPABASE_DB_URL B2_BUCKET RCLONE_CONFIG_B2_ACCOUNT RCLONE_CONFIG_B2_KEY; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::Falta el secret $v (requerido para el backup previo a migrar)"; exit 1
+            fi
+          done
+          FILE="sionerp-premigrate-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}.dump"
+          # -Fc comprimido (restaura con pg_restore); sin owner/privilegios para
+          # restaurar limpio en un proyecto nuevo.
+          pg_dump "$SUPABASE_DB_URL" -Fc --no-owner --no-privileges -f "$FILE"
+          SIZE=$(stat -c%s "$FILE")
+          echo "Dump: $FILE ($SIZE bytes)"
+          # Un dump vacío que "anduvo" es peor que no tener backup: aborta antes
+          # de migrar, así no se aplica nada sobre un respaldo inservible.
+          if [ "$SIZE" -lt 51200 ]; then
+            echo "::error::Dump sospechosamente chico (<50KB) - aborto sin subir ni migrar." >&2
+            exit 1
+          fi
+          rclone copy "$FILE" "b2:${B2_BUCKET}/pre-migrate/" --progress
+          echo "Backup pre-migración subido: pre-migrate/$FILE"
+
+  migrate:
+    name: Migraciones Supabase (prod)
+    needs: backup
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: supabase db push
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Falta el secret SUPABASE_DB_URL"; exit 1
+          fi
+          supabase db push --db-url "$SUPABASE_DB_URL"
+
+  deploy-backend:
+    name: Deploy backend (Render)
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK sin setear — se asume auto-deploy de Render desde GitHub. Saltando."
+            exit 0
+          fi
+          curl -fsSL -X POST "$HOOK"
+
+  deploy-frontend:
+    name: Deploy frontend (Vercel)
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel deploy hook
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "VERCEL_DEPLOY_HOOK sin setear — se asume auto-deploy de Vercel desde GitHub. Saltando."
+            exit 0
+          fi
+          curl -fsSL -X POST "$HOOK"

@@ -195,15 +195,16 @@ type CreateMultiplicationRequest struct {
 // =====================================================
 
 type DiscipleshipAnalytics struct {
-	TotalGroups       int                  `json:"total_groups"`
-	TotalMembers      int                  `json:"total_members"`
-	AverageAttendance float64              `json:"average_attendance"`
-	GrowthRate        float64              `json:"growth_rate"`
-	ActiveLeaders     int                  `json:"active_leaders"`
-	Multiplications   int                  `json:"multiplications"`
-	SpiritualHealth   float64              `json:"spiritual_health"`
-	PendingAlerts     int                  `json:"pending_alerts"`
-	GroupPerformance  []GroupPerformance   `json:"group_performance,omitempty"`
+	TotalGroups            int                `json:"total_groups"`
+	TotalMembers           int                `json:"total_members"`
+	AverageAttendance      float64            `json:"average_attendance"`
+	GrowthRate             float64            `json:"growth_rate"`
+	ActiveLeaders          int                `json:"active_leaders"`
+	Multiplications        int                `json:"multiplications"`
+	SpiritualHealth        float64            `json:"spiritual_health"`
+	PendingAlerts          int                `json:"pending_alerts"`
+	AuxiliarySupervisors   int                `json:"auxiliary_supervisors"`
+	GroupPerformance       []GroupPerformance `json:"group_performance,omitempty"`
 }
 
 type GroupPerformance struct {

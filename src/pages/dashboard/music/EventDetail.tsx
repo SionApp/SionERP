@@ -38,7 +38,7 @@ import type { User } from '@/types/user.types';
 import { ConfirmationProgress } from './MusicHero';
 import { UserSearchPicker } from './UserSearchPicker';
 import { InstrumentChip, resolveCategory } from './instrument-visual';
-import { EVENT_TYPE_LABEL } from './event-visual';
+import { EVENT_TYPE_LABEL, EVENT_TYPE_TONE, toneStyle } from './event-visual';
 
 const FUNCION_LABELS: Record<Funcion, string> = {
   corista: 'Coristas',
@@ -54,10 +54,10 @@ const FUNCION_SINGULAR: Record<Funcion, string> = {
   danzarina: 'Danzarina',
 };
 
-const STATE_VARIANT: Record<AssignmentState, 'default' | 'secondary' | 'destructive'> = {
-  asignado: 'secondary',
-  confirmado: 'default',
-  no_puedo: 'destructive',
+const STATE_TAG: Record<AssignmentState, string> = {
+  asignado: 'music-tag',
+  confirmado: 'music-tag music-tag-ok',
+  no_puedo: 'music-tag music-tag-warn',
 };
 
 const STATE_LABEL: Record<AssignmentState, string> = {
@@ -174,12 +174,17 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold flex items-center gap-1.5">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          Equipo
-        </h3>
+    <div className="music-panel space-y-3 p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="music-glyph">
+            <Users className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="music-eyebrow">Quién sirve</p>
+            <h3 className="music-heading mt-1 text-xl leading-none">Equipo</h3>
+          </div>
+        </div>
         {isDirector && (
           <Button
             size="sm"
@@ -266,10 +271,13 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
           .filter(f => byFuncion[f]?.length)
           .map(f => (
             <div key={f}>
-              <p className="text-xs font-medium text-muted-foreground mb-1">{FUNCION_LABELS[f]}</p>
-              <div className="rounded-lg border border-border divide-y divide-border">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="music-eyebrow">{FUNCION_LABELS[f]}</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <div className="music-stagger space-y-1.5">
                 {byFuncion[f].map(a => (
-                  <div key={a.id} className="px-3 py-2">
+                  <div key={a.id} className="music-row px-3 py-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm truncate">{a.memberName || a.memberId}</p>
@@ -283,9 +291,7 @@ export function TeamSection({ event, isDirector }: { event: MusicEvent; isDirect
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge variant={STATE_VARIANT[a.state]} className="text-xs">
-                          {STATE_LABEL[a.state]}
-                        </Badge>
+                        <span className={STATE_TAG[a.state]}>{STATE_LABEL[a.state]}</span>
                         {isDirector && a.state === 'no_puedo' && (
                           <Button
                             size="sm"
@@ -408,12 +414,17 @@ export function SetlistSection({ event, isDirector }: { event: MusicEvent; isDir
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold flex items-center gap-1.5">
-          <Music2 className="h-4 w-4 text-muted-foreground" />
-          Repertorio
-        </h3>
+    <div className="music-panel space-y-3 p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="music-glyph">
+            <Music2 className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="music-eyebrow">Qué vamos a tocar</p>
+            <h3 className="music-heading mt-1 text-xl leading-none">Repertorio</h3>
+          </div>
+        </div>
         {isDirector && (
           <Button
             size="sm"
@@ -505,18 +516,16 @@ export function SetlistSection({ event, isDirector }: { event: MusicEvent; isDir
           Sin canciones en el repertorio.
         </p>
       ) : (
-        <div className="rounded-lg border border-border divide-y divide-border">
+        <div className="music-stagger space-y-1.5">
           {songs.map((s, i) => (
-            <div key={s.id} className="px-3 py-2 flex items-start justify-between gap-2">
+            <div key={s.id} className="music-row flex items-start justify-between gap-2 px-3 py-2.5">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground w-4 shrink-0">{i + 1}.</span>
+                  <span className="music-num w-5 shrink-0 text-xs text-muted-foreground">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
                   <p className="text-sm font-medium truncate">{s.songName}</p>
-                  {s.tono && (
-                    <Badge variant="outline" className="text-xs shrink-0">
-                      {s.tono}
-                    </Badge>
-                  )}
+                  {s.tono && <span className="music-key shrink-0">{s.tono}</span>}
                   {s.link && (
                     <a
                       href={s.link}
@@ -529,7 +538,7 @@ export function SetlistSection({ event, isDirector }: { event: MusicEvent; isDir
                     </a>
                   )}
                 </div>
-                {s.notes && <p className="text-xs text-muted-foreground ml-6 mt-0.5">{s.notes}</p>}
+                {s.notes && <p className="text-xs text-muted-foreground ml-7 mt-0.5">{s.notes}</p>}
               </div>
               {isDirector && (
                 <ConfirmDialog
@@ -623,6 +632,8 @@ export function EventDetailHeader({
     queryFn: () => MusicService.getEventSongs(event.id),
   });
 
+  const tone = EVENT_TYPE_TONE[event.eventType] ?? EVENT_TYPE_TONE.domingo;
+
   async function handleShareSetlist() {
     const lines: string[] = [];
     lines.push(`🎵 *Culto ${formatDateForShare(event.eventDate)}*`);
@@ -669,20 +680,18 @@ export function EventDetailHeader({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="music-stage space-y-4 p-5 pl-6 sm:p-7 sm:pl-8" style={toneStyle(tone)}>
+      <span className="music-spine" />
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold capitalize leading-tight tracking-tight">
+        <p className="music-eyebrow">Detalle del culto</p>
+        <h1 className="music-heading mt-2 text-[1.85rem] leading-[1.05] first-letter:uppercase sm:text-[2.6rem]">
           {formatEventDate(event.eventDate)}
         </h1>
-        <div className="flex items-center gap-2 pt-2 flex-wrap">
-          <Badge variant="outline" className="text-xs">
+        <div className="flex flex-wrap items-center gap-2 pt-3">
+          <span className="music-tag music-tag-tone">
             {EVENT_TYPE_LABEL[event.eventType] ?? event.eventType}
-          </Badge>
-          {event.published && (
-            <Badge variant="secondary" className="text-xs">
-              Publicado
-            </Badge>
-          )}
+          </span>
+          {event.published && <span className="music-tag music-tag-ok">Publicado</span>}
         </div>
       </div>
 
@@ -726,9 +735,9 @@ export function EventDetailHeader({
         )}
       </div>
 
-      <div className="rounded-xl border border-border bg-muted/30 p-4">
-        <ConfirmationProgress assignments={assignments} />
-      </div>
+      <hr className="music-rule" />
+
+      <ConfirmationProgress assignments={assignments} />
 
       {isDirector && (
         <div className="flex flex-wrap gap-2">

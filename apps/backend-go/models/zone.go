@@ -18,6 +18,8 @@ type Zone struct {
 	TotalGroups   int              `json:"total_groups"`
 	TotalMembers  int              `json:"total_members"`
 	AvgAttendance float64          `json:"avg_attendance"`
+	GrowthRate    float64          `json:"growth_rate"`
+	HealthIndex   float64          `json:"health_index"`
 	CreatedAt     time.Time        `json:"created_at"`
 	UpdatedAt     time.Time        `json:"updated_at"`
 }
@@ -78,6 +80,10 @@ type ZoneMapGroup struct {
 	Status          string  `json:"status"`
 	LeaderName      string  `json:"leader_name"`
 	SupervisorName  string  `json:"supervisor_name.omitempty"`
+	LastReportDate  string  `json:"last_report_date"`
+	// HasPendingReport: el grupo tiene un reporte enviado (status='submitted')
+	// todavía sin aprobar. En el mapa, su marcador titila hasta que lo aprueban.
+	HasPendingReport bool `json:"has_pending_report"`
 }
 
 type ZoneMapData struct {

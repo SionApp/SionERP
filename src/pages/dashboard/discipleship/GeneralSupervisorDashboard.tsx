@@ -19,7 +19,7 @@ import { useGeneralSupervisorData } from '@/hooks/useGeneralSupervisorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipReport } from '@/types/discipleship.types';
 import { format } from 'date-fns';
-import { justEndedWeek } from '@/lib/iso-week';
+import { justEndedWeek, parseDateOnly } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import {
   Building,
@@ -125,7 +125,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
 
   // Validar si ya existe reporte para este período
   const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
-    const reportStart = new Date(report.period_start);
+    const reportStart = parseDateOnly(report.period_start);
     return reportStart >= periodStart && reportStart <= periodEnd;
   });
 
@@ -358,7 +358,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                   >
                     <div>
                       <p className="font-medium">
-                        Semana del {format(new Date(report.period_start), 'dd MMM', { locale: es })}
+                        Semana del {format(parseDateOnly(report.period_start), 'dd MMM', { locale: es })}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Atención Nvos: {reportData?.new_disciples_care || 0} • VD:{' '}

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -125,12 +126,14 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 	db := config.GetDB()
 	go autoUpdateGoalProgressFromReport(db, userID, reportID, req.ReportData, churchID)
 
-	// Notify supervisor of new report (fire-and-forget)
+	// Notify supervisor of new report (fire-and-forget). Un Coordinador (tope
+	// de discipleship_hierarchy) no tiene supervisor_id — su reporte igual
+	// necesita avisarle a alguien: a todo admin/pastor de la iglesia.
+	db2 := db
+	repID := reportID
+	cID := churchID
 	if supervisorID.Valid && supervisorID.String != "" {
-		db2 := db
-		repID := reportID
 		supID := supervisorID.String
-		cID := churchID
 		go func() {
 			utils.CreateNotification(db2, models.NotificationInput{
 				ChurchID:          cID,
@@ -143,6 +146,37 @@ func (h *DiscipleshipReportsHandler) CreateReport(c echo.Context) error {
 				RelatedEntityType: utils.Ptr("report"),
 				RelatedEntityID:   &repID,
 			})
+		}()
+	} else {
+		go func() {
+			rows, err := db2.DB.Query(`
+				SELECT id FROM users WHERE church_id = $1 AND role IN ('admin', 'pastor') AND is_active = true
+			`, cID)
+			if err != nil {
+				log.Printf("[CreateReport] notify admins query failed: %v", err)
+				return
+			}
+			defer rows.Close()
+			var adminIDs []string
+			for rows.Next() {
+				var id string
+				if rows.Scan(&id) == nil {
+					adminIDs = append(adminIDs, id)
+				}
+			}
+			for _, adminID := range adminIDs {
+				utils.CreateNotification(db2, models.NotificationInput{
+					ChurchID:          cID,
+					UserID:            adminID,
+					Type:              "info",
+					Title:             "Nuevo reporte para revisar",
+					Message:           "El coordinador envió su reporte semanal.",
+					ActionURL:         utils.Ptr("/dashboard/discipleship?tab=reports"),
+					ActionText:        utils.Ptr("Ver reportes"),
+					RelatedEntityType: utils.Ptr("report"),
+					RelatedEntityID:   &repID,
+				})
+			}
 		}()
 	}
 
@@ -236,7 +270,10 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 		ReporterName string `json:"reporter_name"`
 	}
 
-	var reports []ReportWithDetails
+	// []ReportWithDetails{}, no var-declared nil: un slice nil serializa como
+	// JSON null, y el frontend hace data.slice(...) sobre la respuesta — "cola
+	// vacía" real (0 filas) tiraba null.slice() del lado del cliente.
+	reports := []ReportWithDetails{}
 	for rows.Next() {
 		var r ReportWithDetails
 		var reportDataJSON []byte
@@ -335,19 +372,34 @@ func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID 
 			continue
 		}
 
+		// Solo las HOJAS de la cascada toman su valor de un reporte directo. Un
+		// nodo intermedio (ej. un supervisor auxiliar) es una suma de sus hijos,
+		// NO su propio reporte — si un supervisor que además es asignado manda su
+		// reporte de supervisión, su valor extraído (a menudo 0, porque el
+		// reporte de supervisión no trae los campos de asistencia que agrega un
+		// objetivo de tipo attendance) pisaría la suma cascadeada de sus líderes.
+		// Los intermedios se recalculan solos por el Step B de las hojas.
+		var childCount int
+		db.DB.QueryRow(`SELECT COUNT(*) FROM goal_assignments WHERE parent_assignment_id = $1`, a.id).Scan(&childCount)
+		if childCount > 0 {
+			continue
+		}
+
 		tx, err := db.DB.Begin()
 		if err != nil {
+			log.Printf("[autoUpdateGoalProgressFromReport] begin tx failed for assignment %s: %v", a.id, err)
 			continue
 		}
 
 		// Insert / update progress (idempotent per assignment + report)
 		_, err = tx.Exec(`
-			INSERT INTO goal_manual_progress (assignment_id, reporter_id, report_id, value_reported)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO goal_manual_progress (assignment_id, reporter_id, report_id, value_reported, church_id)
+			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (assignment_id, report_id) DO UPDATE
 				SET value_reported = EXCLUDED.value_reported
-		`, a.id, reporterID, reportID, value)
+		`, a.id, reporterID, reportID, value, churchID)
 		if err != nil {
+			log.Printf("[autoUpdateGoalProgressFromReport] insert progress failed for assignment %s: %v", a.id, err)
 			tx.Rollback()
 			continue
 		}
@@ -361,29 +413,44 @@ func autoUpdateGoalProgressFromReport(db *config.Database, reporterID, reportID 
 			WHERE id = $1
 		`, a.id)
 
-		// Step B: walk up the ancestor chain and recompute each as SUM of its children
-		tx.Exec(`
-			WITH RECURSIVE ancestors AS (
-				SELECT parent_assignment_id AS id
-				FROM goal_assignments WHERE id = $1 AND parent_assignment_id IS NOT NULL
-				UNION ALL
-				SELECT ga.parent_assignment_id
-				FROM goal_assignments ga
-				JOIN ancestors anc ON ga.id = anc.id
-				WHERE ga.parent_assignment_id IS NOT NULL
-			)
-			UPDATE goal_assignments ga
-			SET current_value = COALESCE(
-				(SELECT SUM(c.current_value) FROM goal_assignments c WHERE c.parent_assignment_id = ga.id), 0),
-				updated_at = NOW()
-			FROM ancestors anc WHERE ga.id = anc.id
-		`, a.id)
+		// Step B: walk up the ancestor chain ONE LEVEL AT A TIME. A single
+		// recursive-CTE UPDATE across every ancestor at once looks correct but
+		// isn't: every row's SET subquery reads the table's snapshot from the
+		// START of that statement, so a grandparent's SUM sees its child's OLD
+		// value, not the value this same statement is also writing to that
+		// child — only the immediate parent ever ends up correct, everything
+		// above it silently stays 0. Sequential single-level UPDATEs each see
+		// the prior UPDATE's committed write within the same tx, so the sum
+		// actually climbs the tree instead of stalling one hop up.
+		var parentID sql.NullString
+		tx.QueryRow(`SELECT parent_assignment_id FROM goal_assignments WHERE id = $1`, a.id).Scan(&parentID)
+		for parentID.Valid {
+			current := parentID.String
+			tx.Exec(`
+				UPDATE goal_assignments
+				SET current_value = COALESCE(
+					(SELECT SUM(current_value) FROM goal_assignments WHERE parent_assignment_id = $1), 0),
+					updated_at = NOW()
+				WHERE id = $1
+			`, current)
+			parentID = sql.NullString{}
+			tx.QueryRow(`SELECT parent_assignment_id FROM goal_assignments WHERE id = $1`, current).Scan(&parentID)
+		}
 
-		// Step C: sync root total into discipleship_goals.current_value
+		// Step C: sync root total into discipleship_goals.current_value.
+		// Unlike goal_assignments.progress_percentage (a GENERATED column that
+		// recomputes itself), discipleship_goals.progress_percentage is a plain
+		// column — GoalCard.tsx renders it directly, so it has to be set here too,
+		// not just current_value.
 		tx.Exec(`
 			UPDATE discipleship_goals g
 			SET current_value = COALESCE(
-				(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0)
+				(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0),
+				progress_percentage = CASE WHEN g.target_value > 0 THEN
+					ROUND(COALESCE(
+						(SELECT SUM(current_value) FROM goal_assignments WHERE goal_id = g.id AND parent_assignment_id IS NULL), 0
+					)::numeric / g.target_value * 100, 2)
+				ELSE 0 END
 			WHERE g.id = $1 AND g.church_id = $2
 		`, a.goalID, churchID)
 
@@ -515,8 +582,13 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 		return err
 	}
 
-	// Verificar que el usuario es supervisor del reporte (scoped to church)
-	var supervisorID, reporterID string
+	// Verificar que el usuario es supervisor del reporte (scoped to church).
+	// supervisor_id es NULL para el reporte de un Coordinador (tope de la
+	// jerarquía, sin fila de supervisor) — escanear a sql.NullString, no a
+	// string: un Scan NULL→string falla y ese error caía en el mismo 404
+	// "Reporte no encontrado" que "la fila no existe", escondiendo el bug real.
+	var supervisorID sql.NullString
+	var reporterID string
 	err = q.QueryRow(`
 		SELECT supervisor_id, reporter_id FROM discipleship_reports WHERE id = $1 AND church_id = $2
 	`, reportID, churchID).Scan(&supervisorID, &reporterID)
@@ -531,7 +603,7 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 	var userRole string
 	q.QueryRow("SELECT role FROM users WHERE id = $1 AND church_id = $2", userID, churchID).Scan(&userRole)
 
-	if supervisorID != userID && !utils.IsAdminRole(userRole) {
+	if supervisorID.String != userID && !utils.IsAdminRole(userRole) {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes permisos para aprobar este reporte",
 		})
@@ -569,6 +641,30 @@ func (h *DiscipleshipReportsHandler) ApproveReport(c echo.Context) error {
 			RelatedEntityType: utils.Ptr("report"),
 			RelatedEntityID:   &repID,
 		})
+	}()
+
+	// Notify the approver's OWN supervisor too — one level up from whoever
+	// approved (e.g. the líder's report gets approved by the aux, the aux's
+	// supervisor — the general — gets an FYI that a report moved through
+	// their downline, even though they didn't touch it themselves).
+	go func() {
+		var grandSupervisorID sql.NullString
+		db.DB.QueryRow(`
+			SELECT supervisor_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2
+		`, userID, cID).Scan(&grandSupervisorID)
+		if grandSupervisorID.Valid && grandSupervisorID.String != "" {
+			utils.CreateNotification(db, models.NotificationInput{
+				ChurchID:          cID,
+				UserID:            grandSupervisorID.String,
+				Type:              "info",
+				Title:             "Se recibió un reporte en tu equipo",
+				Message:           "Un reporte fue revisado y aprobado en tu línea de supervisión.",
+				ActionURL:         utils.Ptr("/dashboard/discipleship?tab=reports"),
+				ActionText:        utils.Ptr("Ver reportes"),
+				RelatedEntityType: utils.Ptr("report"),
+				RelatedEntityID:   &repID,
+			})
+		}
 	}()
 
 	return c.JSON(http.StatusOK, map[string]string{

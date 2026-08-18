@@ -9,55 +9,68 @@ export const CATEGORY_META: Record<
   InstrumentCategory,
   { label: string; Icon: LucideIcon; chip: string; text: string }
 > = {
-  voz: { label: 'Voz', Icon: Mic, chip: 'bg-pink-500/15 text-pink-300', text: 'text-pink-300' },
+  voz: {
+    label: 'Voz',
+    Icon: Mic,
+    chip: 'bg-pink-500/15 text-pink-700 dark:text-pink-300',
+    text: 'text-pink-700 dark:text-pink-300',
+  },
   cuerdas: {
     label: 'Cuerdas',
     Icon: Guitar,
-    chip: 'bg-amber-500/15 text-amber-300',
-    text: 'text-amber-300',
+    chip: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    text: 'text-amber-700 dark:text-amber-300',
   },
   teclas: {
     label: 'Teclas',
     Icon: Piano,
-    chip: 'bg-violet-500/15 text-violet-300',
-    text: 'text-violet-300',
+    chip: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+    text: 'text-violet-700 dark:text-violet-300',
   },
   percusion: {
     label: 'Percusión',
     Icon: Drum,
-    chip: 'bg-orange-500/15 text-orange-300',
-    text: 'text-orange-300',
+    chip: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
+    text: 'text-orange-700 dark:text-orange-300',
   },
   viento: {
     label: 'Viento',
     Icon: Wind,
-    chip: 'bg-cyan-500/15 text-cyan-300',
-    text: 'text-cyan-300',
+    chip: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
+    text: 'text-cyan-700 dark:text-cyan-300',
   },
   tecnico: {
     label: 'Técnico',
     Icon: SlidersHorizontal,
-    chip: 'bg-emerald-500/15 text-emerald-300',
-    text: 'text-emerald-300',
+    chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    text: 'text-emerald-700 dark:text-emerald-300',
   },
   otro: {
     label: 'Otro',
     Icon: Music2,
-    chip: 'bg-slate-500/15 text-slate-300',
-    text: 'text-slate-300',
+    chip: 'bg-slate-500/15 text-slate-700 dark:text-slate-300',
+    text: 'text-slate-700 dark:text-slate-300',
   },
 };
 
 // Broad role identity (independent of the specific instrument).
 export const FUNCION_META: Record<Funcion, { label: string; Icon: LucideIcon; chip: string }> = {
-  corista: { label: 'Corista', Icon: Mic, chip: 'bg-pink-500/15 text-pink-300' },
-  musico: { label: 'Músico', Icon: Guitar, chip: 'bg-amber-500/15 text-amber-300' },
+  corista: { label: 'Corista', Icon: Mic, chip: 'bg-pink-500/15 text-pink-700 dark:text-pink-300' },
+  musico: {
+    label: 'Músico',
+    Icon: Guitar,
+    chip: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  },
   tecnico: {
     label: 'Técnico',
     Icon: SlidersHorizontal,
-    chip: 'bg-emerald-500/15 text-emerald-300',
+    chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   },
-  danzarina: { label: 'Danzarina', Icon: Sparkles, chip: 'bg-fuchsia-500/15 text-fuchsia-300' },
+  danzarina: {
+    label: 'Danzarina',
+    Icon: Sparkles,
+    chip: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300',
+  },
 };
 
 /** Resolve a free-text instrument name to its catalog category (case-insensitive). */
