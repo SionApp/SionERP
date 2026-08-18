@@ -54,14 +54,8 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-      # El lockfile referencia xlsx desde un CDN (cdn.sheetjs.com) sin campo
-      # integrity, y pnpm 10 aborta el install aun sin --frozen. Regeneramos el
-      # lockfile en el runner (efímero, NO se commitea) para que pnpm baje el
-      # tarball y compute la integrity al vuelo. Este job es un chequeo de build.
       - name: Install deps
-        run: |
-          rm -f pnpm-lock.yaml
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Typecheck + build frontend
         run: |
           pnpm typecheck
