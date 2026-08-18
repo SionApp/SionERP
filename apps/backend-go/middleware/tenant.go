@@ -36,6 +36,11 @@ func TenantTx() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			churchID, _ := c.Get("church_id").(string)
 
+			// Fase 0 observability: count every request through TenantTx by
+			// tenant, regardless of the pass-through guard below — see
+			// metrics.go RecordTenantRequest (empty churchID buckets as "none").
+			RecordTenantRequest(churchID)
+
 			// ponytail: Phase 0 pass-through — remove this block in Phase 2
 			// once all JWTs carry app_metadata.church_id.
 			if churchID == "" {

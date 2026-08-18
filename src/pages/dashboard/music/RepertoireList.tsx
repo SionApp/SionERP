@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -20,8 +19,8 @@ function relativeLastPlayed(date: string | null): string {
 /**
  * Ranked repertoire list (search + rows), shared by the director's Canciones
  * tab and the servidor's read-only repertoire. One implementation = one set of
- * medal colors, no drift. The module renders on the dark music-shell, so the
- * medals use the lighter shades that read well on it.
+ * medal colors, no drift. Each medal color has a light/dark pair so it reads
+ * well against the music-shell's theme-aware canvas either way.
  */
 export function RepertoireList({
   stats,
@@ -76,30 +75,30 @@ export function RepertoireList({
             : 'Sin coincidencias.'}
         </p>
       ) : (
-        <div className="space-y-1.5">
+        <div className="music-stagger space-y-1.5">
           {filtered.map((s, i) => {
             const pct = maxPlays > 0 ? Math.round((s.timesPlayed / maxPlays) * 100) : 0;
             return (
-              <div
-                key={s.id}
-                className="relative overflow-hidden rounded-xl border border-border/60 bg-background/40"
-              >
+              <div key={s.id} className="music-row relative overflow-hidden">
+                {/* Medidor de frecuencia al pie de la fila: el ranking se lee sin
+                    mirar el número. Va abajo y no como fondo completo — un lavado
+                    a todo lo alto se confunde con el estado hover de la fila. */}
                 <div
-                  className="absolute inset-y-0 left-0 bg-primary/10"
+                  className="music-meter-fill absolute bottom-0 left-0 h-[2px] rounded-full bg-primary/70"
                   style={{ width: `${pct}%` }}
                 />
                 <div className="relative flex items-center justify-between gap-2 px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-3">
                     <span
                       className={cn(
-                        'w-5 shrink-0 text-center text-xs font-bold tabular-nums',
-                        i === 0 && 'text-amber-400',
-                        i === 1 && 'text-zinc-300',
-                        i === 2 && 'text-orange-400',
+                        'music-num w-6 shrink-0 text-center text-xs font-semibold',
+                        i === 0 && 'text-amber-700 dark:text-amber-300',
+                        i === 1 && 'text-zinc-500 dark:text-zinc-400',
+                        i === 2 && 'text-orange-700 dark:text-orange-300',
                         i > 2 && 'text-muted-foreground'
                       )}
                     >
-                      {i + 1}
+                      {String(i + 1).padStart(2, '0')}
                     </span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{s.name}</p>
@@ -109,17 +108,15 @@ export function RepertoireList({
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    {s.historicalKey && (
-                      <Badge variant="outline" className="text-xs">
-                        {s.historicalKey}
-                      </Badge>
-                    )}
-                    <Badge
-                      variant={s.timesPlayed === 0 ? 'outline' : 'secondary'}
-                      className="text-xs tabular-nums"
+                    {s.historicalKey && <span className="music-key">{s.historicalKey}</span>}
+                    <span
+                      className={cn(
+                        'music-num text-sm font-semibold',
+                        s.timesPlayed === 0 ? 'text-muted-foreground' : 'text-foreground'
+                      )}
                     >
                       {s.timesPlayed}×
-                    </Badge>
+                    </span>
                   </div>
                 </div>
               </div>

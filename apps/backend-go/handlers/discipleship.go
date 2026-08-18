@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -1069,9 +1070,9 @@ func (h *DiscipleshipHandler) GetHierarchy(c echo.Context) error {
 			// Self: h.user_id = callerID
 			// Auxiliaries (1-hop): h.user_id IN subtreeAuxIDsSubquery
 			// Leaders (2-hop): h.supervisor_id IN subtreeAuxIDsSubquery (their supervisor is one of the aux)
-			argCount++ // $N = callerID (self)
-			churchForAux := 1      // reuse $1 = churchID
-			supForAux := argCount  // $N = callerID
+			argCount++            // $N = callerID (self)
+			churchForAux := 1     // reuse $1 = churchID
+			supForAux := argCount // $N = callerID
 			query += fmt.Sprintf(
 				" AND (h.user_id = $%d OR h.user_id IN (%s) OR h.supervisor_id IN (%s))",
 				argCount,
@@ -1463,24 +1464,25 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 		c.Logger().Error("Error counting members in analytics:", err)
 	}
 
-	// Promedio de asistencia (últimas 4 semanas, scoped by church_id)
+	// Asistencia: la UI la muestra como porcentaje, así que se calcula sobre los
+	// registros reales de asistencia (presentes / total). Antes se promediaba la
+	// SUMA de cabezas declaradas en los reportes, que devolvía un conteo pintado
+	// con un "%" al lado — 25 alumnos se veían como "25%".
 	err = q.QueryRow(`
-		SELECT COALESCE(AVG(
-			COALESCE((report_data->>'attendance_nd')::int, 0) +
-			COALESCE((report_data->>'attendance_dm')::int, 0) +
-			COALESCE((report_data->>'attendance_friends')::int, 0) +
-			COALESCE((report_data->>'attendance_kids')::int, 0)
-		), 0)
-		FROM discipleship_reports
-		WHERE church_id = $2
-		AND report_level <= $1
-		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
-	`, userLevel, churchID).Scan(&analytics.AverageAttendance)
+		SELECT COALESCE(
+			100.0 * COUNT(*) FILTER (WHERE a.present) / NULLIF(COUNT(*), 0), 0
+		)
+		FROM discipleship_attendance a
+		WHERE a.church_id = $1
+		AND a.meeting_date >= CURRENT_DATE - INTERVAL '28 days'
+	`, churchID).Scan(&analytics.AverageAttendance)
 	if err != nil {
 		c.Logger().Error("Error calculating attendance in analytics:", err)
 	}
 
-	// Salud espiritual (promedio últimas 4 semanas, scoped by church_id)
+	// Índice de gestión 0-10. Se promedian 13 indicadores binarios del reporte,
+	// así que hay que reescalar: sin el 10/13 el índice llega a 13 y la UI, que
+	// lo rotula "/10", mostraba cosas como "11.5/10".
 	err = q.QueryRow(`
 		SELECT COALESCE(AVG(
 			CASE WHEN COALESCE((report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
@@ -1496,7 +1498,7 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
-		), 0)
+		) * 10.0 / 13.0, 0)
 		FROM discipleship_reports
 		WHERE church_id = $2
 		AND report_level <= $1
@@ -1537,7 +1539,7 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 					CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
-				)
+				) * 10.0 / 13.0
 				FROM discipleship_reports r
 				WHERE (r.report_data->>'group_id')::uuid = g.id
 				AND r.church_id = $2
@@ -1583,8 +1585,25 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 		c.Logger().Error("Error counting active leaders:", err)
 	}
 
-	// Multiplications (groups with status 'multiplying', scoped by church_id via filterClause)
-	multiplicationsQuery := "SELECT COUNT(*) FROM discipleship_groups WHERE status = 'multiplying'" + filterClause
+	// Multiplications: misma definición unificada que dashboard.go y GetDashboardStatsByLevel
+	// (cell_multiplication_tracking, success_status='successful', año calendario) — antes
+	// esto contaba grupos con status='multiplying', una cosa distinta (estado actual del
+	// grupo, no eventos históricos de multiplicación). Se hace JOIN con discipleship_groups
+	// para poder reusar el mismo filtro jerárquico (leader/supervisor/subtree) que ya
+	// aplica al resto del endpoint, con columnas calificadas por alias para no chocar con
+	// cell_multiplication_tracking.church_id.
+	groupFilterClause := strings.NewReplacer(
+		"church_id", "g.church_id",
+		"leader_id", "g.leader_id",
+		"supervisor_id", "g.supervisor_id",
+		"zone_id", "g.zone_id",
+	).Replace(filterClause)
+	multiplicationsQuery := `
+		SELECT COUNT(*) FROM cell_multiplication_tracking cmt
+		JOIN discipleship_groups g ON g.id = cmt.parent_group_id
+		WHERE cmt.success_status = 'successful'
+		AND cmt.multiplication_date >= DATE_TRUNC('year', CURRENT_DATE)
+	` + groupFilterClause
 	err = q.QueryRow(multiplicationsQuery, filterArgs...).Scan(&analytics.Multiplications)
 	if err != nil {
 		c.Logger().Error("Error counting multiplications:", err)
@@ -1594,6 +1613,31 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 	err = q.QueryRow("SELECT COUNT(*) FROM discipleship_alerts WHERE church_id = $1 AND resolved = false AND (expires_at IS NULL OR expires_at > NOW())", churchID).Scan(&analytics.PendingAlerts)
 	if err != nil {
 		c.Logger().Error("Error counting pending alerts:", err)
+	}
+
+	// Growth rate: mismo criterio que dashboard.go (MonthlyGrowth) y zones.go
+	// (growth_rate de zona) — compara miembros activos hoy contra miembros de
+	// grupos que ya existían hace 30 días, dentro del mismo scope jerárquico
+	// que el resto del endpoint (filterClause). Antes este campo nunca se
+	// asignaba, siempre quedaba en 0.
+	var prevMembers int
+	prevQuery := "SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE status = 'active' AND created_at <= NOW() - INTERVAL '30 days'" + filterClause
+	q.QueryRow(prevQuery, filterArgs...).Scan(&prevMembers)
+	if prevMembers > 0 {
+		analytics.GrowthRate = float64(analytics.TotalMembers-prevMembers) / float64(prevMembers) * 100
+	}
+
+	// Auxiliary supervisors (nivel 2) bajo el scope de quien consulta. Solo tiene
+	// sentido para General/Coordinador/Pastoral (nivel 3+) — un líder o supervisor
+	// auxiliar no tiene auxiliares propios, queda en 0. Antes esto se estimaba en
+	// el frontend como activeLeaders/4, un número inventado sin relación con datos
+	// reales de jerarquía.
+	if canSeeAll || (hierarchyLevel != nil && *hierarchyLevel >= 4) {
+		q.QueryRow(`SELECT COUNT(*) FROM discipleship_hierarchy WHERE church_id = $1 AND hierarchy_level = 2`, churchID).
+			Scan(&analytics.AuxiliarySupervisors)
+	} else if hierarchyLevel != nil && *hierarchyLevel == 3 {
+		auxQuery := fmt.Sprintf(`SELECT COUNT(*) FROM (%s) sub`, subtreeAuxIDsSubquery(1, 2))
+		q.QueryRow(auxQuery, churchID, userID).Scan(&analytics.AuxiliarySupervisors)
 	}
 
 	return c.JSON(http.StatusOK, analytics)
@@ -1673,6 +1717,64 @@ func nullIfEmpty(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// GetActivityTimeline devuelve 24 buckets horarios (más viejo → más reciente)
+// con la cantidad de reportes REALES enviados en cada hora de las últimas 24h.
+// Respalda la línea de tiempo del mapa en vivo — nada de datos inventados, es
+// un COUNT sobre discipleship_reports.submitted_at.
+//
+// ponytail: buckets en horas de reloj del servidor (UTC), no alineados al
+// huso horario de la iglesia. Suficiente para el "vistazo en vivo" que pide
+// el diseño; si hace falta alinear a horas locales, sumar el offset acá.
+func (h *DiscipleshipHandler) GetActivityTimeline(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	dbGlobal := config.GetDB()
+	churchID, _ := c.Get("church_id").(string)
+	_, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+
+	userLevel := 5
+	if !canSeeAll && hierarchyLevel != nil {
+		userLevel = *hierarchyLevel
+	}
+
+	rows, err := q.Query(`
+		SELECT date_trunc('hour', submitted_at) as hour, COUNT(*)
+		FROM discipleship_reports
+		WHERE church_id = $1
+		AND report_level <= $2
+		AND submitted_at >= NOW() - INTERVAL '24 hours'
+		GROUP BY 1
+	`, churchID, userLevel)
+	if err != nil {
+		c.Logger().Error("Error fetching activity timeline:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al obtener la línea de tiempo de actividad",
+		})
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var hour time.Time
+		var count int
+		if err := rows.Scan(&hour, &count); err != nil {
+			continue
+		}
+		counts[hour.UTC().Format("2006-01-02T15")] = count
+	}
+
+	now := time.Now().UTC()
+	buckets := make([]int, 24)
+	for i := 0; i < 24; i++ {
+		hourKey := now.Add(time.Duration(i-23) * time.Hour).Format("2006-01-02T15")
+		buckets[i] = counts[hourKey]
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{"buckets": buckets})
 }
 
 // GetMultiplications obtiene el historial de multiplicaciones
@@ -1844,6 +1946,10 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 				COALESCE((report_data->>'attendance_kids')::int, 0)
 			) as total_attendance,
 			SUM(COALESCE((report_data->>'attendance_friends')::int, 0)) as total_visitors,
+			SUM(
+				COALESCE((report_data->>'group_evangelism')::int, 0) +
+				COALESCE((report_data->>'leader_evangelism')::int, 0)
+			) as total_conversions,
 			COUNT(DISTINCT reporter_id) as groups_reporting
 		FROM discipleship_reports r
 		WHERE r.church_id = $1 AND report_level >= 1
@@ -1888,10 +1994,11 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 	defer rows.Close()
 
 	type WeeklyTrend struct {
-		WeekStart       string `json:"week_start"`
-		TotalAttendance int    `json:"total_attendance"`
-		TotalVisitors   int    `json:"total_visitors"`
-		GroupsReporting int    `json:"groups_reporting"`
+		WeekStart        string `json:"week_start"`
+		TotalAttendance  int    `json:"total_attendance"`
+		TotalVisitors    int    `json:"total_visitors"`
+		TotalConversions int    `json:"total_conversions"`
+		GroupsReporting  int    `json:"groups_reporting"`
 	}
 
 	var trends []WeeklyTrend
@@ -1899,7 +2006,7 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 		var t WeeklyTrend
 		err := rows.Scan(
 			&t.WeekStart, &t.TotalAttendance, &t.TotalVisitors,
-			&t.GroupsReporting,
+			&t.TotalConversions, &t.GroupsReporting,
 		)
 		if err != nil {
 			continue
@@ -1911,6 +2018,22 @@ func (h *DiscipleshipHandler) GetWeeklyTrends(c echo.Context) error {
 }
 
 // GetDashboardStatsByLevel obtiene estadísticas según el nivel del usuario
+// memberGrowthRate calcula el % de crecimiento de miembros comparando el total
+// actual contra el total de hace 30 días (mismo criterio que dashboard.go
+// MonthlyGrowth y zones.go growth_rate), reusando el mismo WHERE que cada caso de
+// GetDashboardStatsByLevel ya usa para TotalMembers — así el crecimiento respeta
+// el mismo scope jerárquico (líder/supervisor/general/coordinador/pastor) que el
+// resto de las stats de ese nivel.
+func memberGrowthRate(q config.Querier, currentMembers int, whereClause string, args ...interface{}) float64 {
+	var prevMembers int
+	query := "SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE " + whereClause + " AND created_at <= NOW() - INTERVAL '30 days'"
+	q.QueryRow(query, args...).Scan(&prevMembers)
+	if prevMembers <= 0 {
+		return 0
+	}
+	return float64(currentMembers-prevMembers) / float64(prevMembers) * 100
+}
+
 func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -1931,6 +2054,7 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		PendingAlerts          int     `json:"pending_alerts"`
 		GroupsUnderSupervision int     `json:"groups_under_supervision"`
 		SubordinatesCount      int     `json:"subordinates_count"`
+		AuxiliarySupervisors   int     `json:"auxiliary_supervisors"`
 		PendingReports         int     `json:"pending_reports"`
 		ZoneName               string  `json:"zone_name"`
 	}
@@ -1946,22 +2070,41 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups
 			WHERE leader_id = $1 AND church_id = $2 AND status = 'active'
 		`, userID, churchID).Scan(&stats.TotalMembers)
+		stats.GrowthRate = memberGrowthRate(q, stats.TotalMembers, "leader_id = $1 AND church_id = $2 AND status = 'active'", userID, churchID)
 
-	case "2": // Supervisor Auxiliar - grupos que supervisa
-		q.QueryRow(`
-			SELECT COUNT(*) FROM discipleship_groups
-			WHERE supervisor_id = $1 AND church_id = $2 AND status = 'active'
-		`, userID, churchID).Scan(&stats.GroupsUnderSupervision)
+	case "2": // Supervisor Auxiliar - grupos de sus líderes directos
+		// `discipleship_groups.supervisor_id` es un campo manual y opcional del
+		// formulario de grupo (casi nunca se completa en la práctica) — NO es la
+		// fuente de verdad de a quién supervisa este auxiliar. Esa relación vive
+		// en discipleship_hierarchy, igual que para el General (case 3). Se
+		// resuelve vía directLeaderIDsSubquery (1 hop), como ya hace reports.go.
+		leaderScope := fmt.Sprintf("leader_id IN (%s) AND church_id = $2 AND status = 'active'", directLeaderIDsSubquery(3, 1))
 
-		q.QueryRow(`
-			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups
-			WHERE supervisor_id = $1 AND church_id = $2 AND status = 'active'
-		`, userID, churchID).Scan(&stats.TotalMembers)
+		q.QueryRow(fmt.Sprintf(`
+			SELECT COUNT(*) FROM discipleship_groups WHERE %s
+		`, leaderScope), userID, churchID, churchID).Scan(&stats.GroupsUnderSupervision)
 
+		q.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE %s
+		`, leaderScope), userID, churchID, churchID).Scan(&stats.TotalMembers)
+		stats.GrowthRate = memberGrowthRate(q, stats.TotalMembers, leaderScope, userID, churchID, churchID)
+
+		q.QueryRow(fmt.Sprintf(`
+			SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups WHERE %s
+		`, leaderScope), userID, churchID, churchID).Scan(&stats.ActiveLeaders)
+
+		// Zone name for display — igual que el General (case 3): se lee de la
+		// propia fila de jerarquía del auxiliar, no de discipleship_groups
+		// (el scope de grupos es por líderes directos, no por zona).
+		var auxZoneID sql.NullString
 		q.QueryRow(`
-			SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups
-			WHERE supervisor_id = $1 AND church_id = $2 AND status = 'active'
-		`, userID, churchID).Scan(&stats.ActiveLeaders)
+			SELECT zone_id FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2
+		`, userID, churchID).Scan(&auxZoneID)
+		if auxZoneID.Valid && auxZoneID.String != "" {
+			q.QueryRow(`
+				SELECT COALESCE(name, '') FROM zones WHERE id = $1 AND church_id = $2
+			`, auxZoneID.String, churchID).Scan(&stats.ZoneName)
+		}
 
 	case "3": // General Supervisor (L3) — su subtree de líderes (2-hop)
 		// Group/member counts scoped to the General's 2-hop leader subtree (not zone_id).
@@ -1975,6 +2118,9 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups
 			WHERE leader_id IN (%s) AND church_id = $1 AND status = 'active'
 		`, subtreeLeaderIDsSubquery(1, 2)), churchID, userID).Scan(&stats.TotalMembers)
+		stats.GrowthRate = memberGrowthRate(q, stats.TotalMembers,
+			fmt.Sprintf("leader_id IN (%s) AND church_id = $1 AND status = 'active'", subtreeLeaderIDsSubquery(1, 2)),
+			churchID, userID)
 
 		// Zone name for display — still useful; read from the General's own hierarchy row.
 		var zoneID sql.NullString
@@ -1991,6 +2137,9 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			SELECT COUNT(*) FROM discipleship_hierarchy
 			WHERE supervisor_id = $1 AND church_id = $2
 		`, userID, churchID).Scan(&stats.SubordinatesCount)
+		// Los reportes directos de un General son, precisamente, sus supervisores
+		// auxiliares (nivel 2) — mismo número, sin necesidad de otra query.
+		stats.AuxiliarySupervisors = stats.SubordinatesCount
 
 	case "4": // Coordinador - su zona
 		var coordZoneID sql.NullString
@@ -2008,6 +2157,7 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 				SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups
 				WHERE zone_id = $1 AND church_id = $2 AND status = 'active'
 			`, coordZoneID.String, churchID).Scan(&stats.TotalMembers)
+			stats.GrowthRate = memberGrowthRate(q, stats.TotalMembers, "zone_id = $1 AND church_id = $2 AND status = 'active'", coordZoneID.String, churchID)
 
 			q.QueryRow(`
 				SELECT COALESCE(name, '') FROM zones WHERE id = $1 AND church_id = $2
@@ -2024,11 +2174,10 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		`, userID, churchID).Scan(&stats.SubordinatesCount)
 
 		q.QueryRow(`
-			SELECT COUNT(*) FROM cell_multiplication_tracking
-			WHERE church_id = $1
-			AND multiplication_date >= DATE_TRUNC('year', CURRENT_DATE)
-			AND success_status = 'successful'
-		`, churchID).Scan(&stats.Multiplications)
+			SELECT COUNT(*) FROM discipleship_hierarchy WHERE church_id = $1 AND hierarchy_level = 2
+		`, churchID).Scan(&stats.AuxiliarySupervisors)
+
+		stats.Multiplications = countSuccessfulMultiplications(q, churchID)
 
 	case "5": // Pastor - todo el sistema (scoped by church_id)
 		q.QueryRow(`
@@ -2038,17 +2187,17 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 		q.QueryRow(`
 			SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE church_id = $1 AND status = 'active'
 		`, churchID).Scan(&stats.TotalMembers)
+		stats.GrowthRate = memberGrowthRate(q, stats.TotalMembers, "church_id = $1 AND status = 'active'", churchID)
 
 		q.QueryRow(`
 			SELECT COUNT(DISTINCT leader_id) FROM discipleship_groups WHERE church_id = $1 AND status = 'active'
 		`, churchID).Scan(&stats.ActiveLeaders)
 
 		q.QueryRow(`
-			SELECT COUNT(*) FROM cell_multiplication_tracking
-			WHERE church_id = $1
-			AND multiplication_date >= DATE_TRUNC('year', CURRENT_DATE)
-			AND success_status = 'successful'
-		`, churchID).Scan(&stats.Multiplications)
+			SELECT COUNT(*) FROM discipleship_hierarchy WHERE church_id = $1 AND hierarchy_level = 2
+		`, churchID).Scan(&stats.AuxiliarySupervisors)
+
+		stats.Multiplications = countSuccessfulMultiplications(q, churchID)
 	}
 
 	// Estadísticas comunes — leer de discipleship_reports
@@ -2057,18 +2206,22 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 	if l, err := strconv.Atoi(level); err == nil {
 		levelInt = l
 	}
+	// Asistencia: la UI la muestra como porcentaje, así que se calcula sobre los
+	// registros reales de asistencia (presentes / total). Antes se promediaba la
+	// SUMA de cabezas declaradas en los reportes, que devolvía un conteo pintado
+	// con un "%" al lado — 25 alumnos se veían como "25%".
 	q.QueryRow(`
-		SELECT COALESCE(AVG(
-			COALESCE((report_data->>'attendance_nd')::int, 0) +
-			COALESCE((report_data->>'attendance_dm')::int, 0) +
-			COALESCE((report_data->>'attendance_friends')::int, 0) +
-			COALESCE((report_data->>'attendance_kids')::int, 0)
-		), 0)
-		FROM discipleship_reports
-		WHERE church_id = $2 AND report_level <= $1
-		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
-	`, levelInt, churchID).Scan(&stats.AverageAttendance)
+		SELECT COALESCE(
+			100.0 * COUNT(*) FILTER (WHERE a.present) / NULLIF(COUNT(*), 0), 0
+		)
+		FROM discipleship_attendance a
+		WHERE a.church_id = $1
+		AND a.meeting_date >= CURRENT_DATE - INTERVAL '28 days'
+	`, churchID).Scan(&stats.AverageAttendance)
 
+	// Índice de gestión 0-10. Se promedian 13 indicadores binarios del reporte,
+	// así que hay que reescalar: sin el 10/13 el índice llega a 13 y la UI, que
+	// lo rotula "/10", mostraba cosas como "11.5/10".
 	q.QueryRow(`
 		SELECT COALESCE(AVG(
 			CASE WHEN COALESCE((report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
@@ -2084,7 +2237,7 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
-		), 0)
+		) * 10.0 / 13.0, 0)
 		FROM discipleship_reports
 		WHERE church_id = $2 AND report_level <= $1
 		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
@@ -2199,7 +2352,7 @@ func (h *DiscipleshipHandler) GetLeaderGroupStats(c echo.Context) error {
 					CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
-				)
+				) * 10.0 / 13.0
 				FROM discipleship_reports r
 				WHERE (r.report_data->>'group_id')::uuid = g.id
 				AND r.church_id = $2

@@ -113,12 +113,14 @@ export const DiscipleshipAnalyticsSection = ({
     return 'text-muted-foreground';
   };
 
-  // Datos para el radar chart de salud espiritual por zona
+  // Datos para el radar chart de salud espiritual por zona — el eje va 0-10
+  // (PolarRadiusAxis domain={[0, 10]}), así que healthIndex y avgAttendance
+  // (ambos 0-100) se normalizan /10. Antes "asistencia" usaba /20*10 (=/2),
+  // que para cualquier asistencia > 20% ya se salía del eje y quedaba recortada.
   const spiritualHealthRadarData = zoneStats.map(zone => ({
     zone: zone.zoneName.replace('Zona ', ''),
-    salud: zone.healthIndex || 0,
-    asistencia: (zone.avgAttendance / 20) * 10,
-    crecimiento: Math.max(0, zone.growthRate / 2),
+    salud: (zone.healthIndex || 0) / 10,
+    asistencia: (zone.avgAttendance || 0) / 10,
   }));
 
   // Formatear tendencias semanales con fechas legibles

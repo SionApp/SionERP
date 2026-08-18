@@ -20,6 +20,7 @@ export interface DiscipleshipAnalytics {
   activeLeaders: number;
   multiplications: number;
   spiritualHealth: number;
+  auxiliarySupervisors: number;
   dateRange: { from: string; to: string };
 }
 
@@ -192,6 +193,7 @@ export class DiscipleshipAnalyticsService {
       activeLeaders: data.active_leaders || 0,
       multiplications: data.multiplications || 0,
       spiritualHealth: data.spiritual_health || 0,
+      auxiliarySupervisors: data.auxiliary_supervisors || 0,
       dateRange: { from: '', to: '' },
     };
   }
@@ -218,8 +220,8 @@ export class DiscipleshipAnalyticsService {
       avgAttendance: zone.avg_attendance || 0,
       avg_attendance: zone.avg_attendance || 0,
       isActive: zone.is_active || false,
-      growthRate: 0,
-      healthIndex: 0,
+      growthRate: zone.growth_rate || 0,
+      healthIndex: zone.health_index || 0,
     }));
   }
 
@@ -310,8 +312,11 @@ export class DiscipleshipAnalyticsService {
       averageAttendance: analytics.averageAttendance,
       growthRate: analytics.growthRate,
       healthIndex: analytics.spiritualHealth,
-      groupsUnderSupervision: level === 2 ? Math.ceil(analytics.totalGroups / 3) : undefined,
-      auxiliarySupervisors: level >= 3 ? Math.ceil(analytics.activeLeaders / 4) : undefined,
+      // Ambos ya vienen scoped desde el backend según el nivel jerárquico de quien
+      // consulta — antes se estimaban con divisores arbitrarios (÷3, ÷4) sin
+      // relación con la data real.
+      groupsUnderSupervision: level === 2 ? analytics.totalGroups : undefined,
+      auxiliarySupervisors: level >= 3 ? analytics.auxiliarySupervisors : undefined,
       leadersSupportNeeded: alerts.filter(a => a.actionRequired && !a.resolved).length,
       territoryHealthIndex: analytics.spiritualHealth,
       totalSupervisors: analytics.activeLeaders,
@@ -386,6 +391,7 @@ export class DiscipleshipAnalyticsService {
       activeLeaders: rawAnalytics?.active_leaders || 0,
       multiplications: rawAnalytics?.multiplications || 0,
       spiritualHealth: rawAnalytics?.spiritual_health || 0,
+      auxiliarySupervisors: rawAnalytics?.auxiliary_supervisors || 0,
       dateRange: { from: '', to: '' },
     };
 

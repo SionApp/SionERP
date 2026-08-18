@@ -5,6 +5,29 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const AVATAR_COLORS = [
+  'bg-red-500/15 text-red-600',
+  'bg-orange-500/15 text-orange-600',
+  'bg-amber-500/15 text-amber-600',
+  'bg-emerald-500/15 text-emerald-600',
+  'bg-teal-500/15 text-teal-600',
+  'bg-cyan-500/15 text-cyan-600',
+  'bg-blue-500/15 text-blue-600',
+  'bg-indigo-500/15 text-indigo-600',
+  'bg-violet-500/15 text-violet-600',
+  'bg-pink-500/15 text-pink-600',
+];
+
+/** Color determinístico por seed (nombre/id) — mismo usuario, mismo color en toda la app. */
+export function getAvatarColor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 export const normalizeNullString = (value: unknown): string | null => {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string') return value;

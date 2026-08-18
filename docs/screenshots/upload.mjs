@@ -46,7 +46,7 @@ for (const file of pngs) {
   const body = readFileSync(join(dir, file));
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(file, body, { contentType: 'image/png', upsert: true });
+    .upload(file, body, { contentType: 'image/png', upsert: true, cacheControl: '60' });
   if (error) {
     console.error(`✗ ${file}: ${error.message}`);
     continue;

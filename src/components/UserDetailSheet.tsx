@@ -127,18 +127,18 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader className="space-y-4">
           {/* Header con Avatar y Info Básica */}
-          <div className="flex items-start gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarFallback className="text-lg font-semibold bg-primary text-primary-foreground">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <Avatar className="h-12 w-12 sm:h-16 sm:w-16 shrink-0">
+              <AvatarFallback className="text-base sm:text-lg font-semibold bg-primary text-primary-foreground">
                 {getInitials(user.first_name || '', user.last_name || '')}
               </AvatarFallback>
             </Avatar>
 
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <SheetTitle className="text-2xl">
-                  {user.first_name} {user.last_name}
-                </SheetTitle>
+            <div className="flex-1 min-w-0">
+              <SheetTitle className="text-lg sm:text-2xl truncate">
+                {user.first_name} {user.last_name}
+              </SheetTitle>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5 mb-2">
                 <Badge variant={getRoleBadgeVariant(user.role)}>
                   {getRoleDisplayName(user.role)}
                 </Badge>
@@ -153,14 +153,14 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 )}
               </div>
 
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Mail className="h-3 w-3" />
-                  <span>{user.email}</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1 min-w-0">
+                  <Mail className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{user.email}</span>
                 </div>
                 {user.phone && (
                   <div className="flex items-center gap-1">
-                    <Phone className="h-3 w-3" />
+                    <Phone className="h-3 w-3 shrink-0" />
                     <span>{user.phone}</span>
                   </div>
                 )}
@@ -173,7 +173,7 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 
         {/* Tabs con toda la información */}
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="flex w-full overflow-x-auto justify-start sm:grid sm:grid-cols-4">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="discipleship">Discipulado</TabsTrigger>
             <TabsTrigger value="metrics">Métricas</TabsTrigger>

@@ -7,6 +7,7 @@ import {
   Calendar as CalendarIcon,
   CalendarDays,
   CalendarOff,
+  Guitar,
   Home,
   List,
   ListMusic,
@@ -17,8 +18,6 @@ import {
   Users,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,22 +46,27 @@ import type {
 } from '@/types/music.types';
 import MusicMembers from './music/MusicMembers';
 import MusicInstruments from './music/MusicInstruments';
-import { DirectorMusicHero } from './music/MusicHero';
+import { DirectorMusicHero, MusicEmpty, StatTile } from './music/MusicHero';
 import { ServidorMusicHero } from './music/ServidorHero';
 import { ChannelAudios } from './music/ChannelAudios';
 import { ServidorRepertoire } from './music/ServidorRepertoire';
 import { RepertoireList } from './music/RepertoireList';
 import { MusicFab } from './music/MusicFab';
 import { InstrumentChip, resolveCategory } from './music/instrument-visual';
-import { EVENT_TYPE_COLOR, EVENT_TYPE_LABEL } from './music/event-visual';
+import {
+  EVENT_TYPE_COLOR,
+  EVENT_TYPE_LABEL,
+  EVENT_TYPE_TONE,
+  toneStyle,
+} from './music/event-visual';
 import { useMusicAccess } from './music/use-music-access';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import './music/music-theme.css';
 
-const STATE_VARIANT: Record<AssignmentState, 'default' | 'secondary' | 'destructive'> = {
-  asignado: 'secondary',
-  confirmado: 'default',
-  no_puedo: 'destructive',
+const STATE_TAG: Record<AssignmentState, string> = {
+  asignado: 'music-tag',
+  confirmado: 'music-tag music-tag-ok',
+  no_puedo: 'music-tag music-tag-warn',
 };
 
 const STATE_LABEL: Record<AssignmentState, string> = {
@@ -79,10 +83,10 @@ const FUNCION_LABEL: Record<string, string> = {
 };
 
 const FUNCION_DOT: Record<string, string> = {
-  corista: 'bg-pink-500',
-  musico: 'bg-violet-500',
-  tecnico: 'bg-cyan-500',
-  danzarina: 'bg-amber-500',
+  corista: 'bg-pink-400',
+  musico: 'bg-amber-400',
+  tecnico: 'bg-emerald-400',
+  danzarina: 'bg-fuchsia-400',
 };
 
 function daysUntil(iso: string): number {
@@ -106,6 +110,38 @@ function today(): string {
 }
 
 // ─────────────────────────────────────────────
+// Chrome compartido de sección: eyebrow + título serif + acción.
+// Reemplaza al <Card> de shadcn dentro del módulo — la card gris con título
+// bold es exactamente el patrón que hace que todos los módulos se vean igual.
+// ─────────────────────────────────────────────
+function Panel({
+  title,
+  eyebrow,
+  action,
+  children,
+  className,
+}: {
+  title: string;
+  eyebrow?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn('music-panel p-4 sm:p-5', className)}>
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {eyebrow && <p className="music-eyebrow">{eyebrow}</p>}
+          <h2 className="music-heading mt-1.5 text-xl leading-none sm:text-2xl">{title}</h2>
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────
 // CRONOGRAMA — vista lista + vista calendario
 // ─────────────────────────────────────────────
 function CronogramaTab({
@@ -121,45 +157,44 @@ function CronogramaTab({
     queryFn: () => MusicService.getEvents(),
   });
 
+  const views = [
+    { key: 'list' as const, label: 'Lista', Icon: List },
+    { key: 'calendar' as const, label: 'Calendario', Icon: CalendarDays },
+  ];
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base">Cronograma</CardTitle>
-        <div className="flex gap-1 rounded-md border border-border p-0.5">
-          <Button
-            size="sm"
-            variant={view === 'list' ? 'default' : 'ghost'}
-            className="h-7 gap-1"
-            onClick={() => setView('list')}
-          >
-            <List className="h-3.5 w-3.5" />
-            Lista
-          </Button>
-          <Button
-            size="sm"
-            variant={view === 'calendar' ? 'default' : 'ghost'}
-            className="h-7 gap-1"
-            onClick={() => setView('calendar')}
-          >
-            <CalendarDays className="h-3.5 w-3.5" />
-            Calendario
-          </Button>
+    <Panel
+      eyebrow="Agenda del equipo"
+      title="Cronograma"
+      action={
+        <div className="flex gap-1 rounded-full border border-border bg-black/25 p-1">
+          {views.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              data-active={view === key}
+              className="music-pill music-pill-ghost"
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
-          </div>
-        ) : view === 'list' ? (
-          <CronogramaList events={events} isDirector={isDirector} onOpenEvent={onOpenEvent} />
-        ) : (
-          <CronogramaCalendar events={events} onOpenEvent={onOpenEvent} />
-        )}
-      </CardContent>
-    </Card>
+      }
+    >
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : view === 'list' ? (
+        <CronogramaList events={events} isDirector={isDirector} onOpenEvent={onOpenEvent} />
+      ) : (
+        <CronogramaCalendar events={events} onOpenEvent={onOpenEvent} />
+      )}
+    </Panel>
   );
 }
 
@@ -175,13 +210,13 @@ function CronogramaList({
   const upcoming = events.filter(e => e.eventDate >= today()).slice(0, 30);
   if (upcoming.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
+      <p className="py-8 text-center text-sm text-muted-foreground">
         No hay cultos próximos. {isDirector && 'Generá el trimestre desde la pestaña Cultos.'}
       </p>
     );
   }
   return (
-    <div className="space-y-2">
+    <div className="music-stagger space-y-2">
       {upcoming.map(ev => (
         <EventListRow key={ev.id} event={ev} onOpenEvent={onOpenEvent} />
       ))}
@@ -207,45 +242,53 @@ function EventListRow({
 
   const confirmed = assignments.filter(a => a.state === 'confirmado').length;
   const declined = assignments.filter(a => a.state === 'no_puedo').length;
+  const dCount = daysUntil(event.eventDate);
 
   return (
     <button
       type="button"
       onClick={() => onOpenEvent(event)}
-      className="w-full text-left rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors group"
+      style={toneStyle(EVENT_TYPE_TONE[event.eventType])}
+      className="music-row relative block w-full overflow-hidden p-3 pl-5 text-left"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={cn('h-2 w-2 rounded-full shrink-0', EVENT_TYPE_COLOR[event.eventType])}
-            />
-            <span className="text-sm font-semibold capitalize">
-              {formatEventDate(event.eventDate)}
+      <span className="music-spine" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="w-11 shrink-0 text-center">
+            <span className="music-num block text-lg font-semibold leading-none text-[hsl(var(--music-tone))]">
+              {dCount >= 0 ? dCount : '—'}
             </span>
-            <Badge variant="outline" className="text-xs">
-              {EVENT_TYPE_LABEL[event.eventType]}
-            </Badge>
-            {event.published && (
-              <Badge variant="secondary" className="text-xs">
-                Publicado
-              </Badge>
-            )}
+            <span className="music-eyebrow music-eyebrow-xs mt-1 block">
+              {dCount === 0 ? 'hoy' : 'días'}
+            </span>
           </div>
-          {event.title && (
-            <p className="text-sm text-muted-foreground mt-1 truncate">{event.title}</p>
-          )}
+          <div className="min-w-0">
+            <p className="text-sm font-semibold capitalize">{formatEventDate(event.eventDate)}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <span className="music-tag music-tag-tone">
+                {EVENT_TYPE_LABEL[event.eventType]}
+              </span>
+              {event.published && <span className="music-tag music-tag-ok">Publicado</span>}
+              {event.title && (
+                <span className="truncate text-xs text-muted-foreground">{event.title}</span>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+        <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <Users className="h-3.5 w-3.5" />
-            {assignments.length}
-            {confirmed > 0 && <span className="text-green-600">·{confirmed}✓</span>}
-            {declined > 0 && <span className="text-destructive">·{declined}✗</span>}
+            <span className="music-num">{assignments.length}</span>
+            {confirmed > 0 && (
+              <span className="music-num text-emerald-700 dark:text-emerald-300">
+                ·{confirmed}✓
+              </span>
+            )}
+            {declined > 0 && <span className="music-num text-destructive">·{declined}✗</span>}
           </span>
           <span className="flex items-center gap-1">
             <Music2 className="h-3.5 w-3.5" />
-            {songs.length}
+            <span className="music-num">{songs.length}</span>
           </span>
         </div>
       </div>
@@ -305,7 +348,7 @@ function CronogramaCalendar({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold capitalize">{monthLabel}</p>
+        <p className="music-heading text-lg capitalize leading-none">{monthLabel}</p>
         <div className="flex gap-1">
           <Button size="icon" variant="outline" className="h-7 w-7" onClick={prevMonth}>
             <ChevronLeft className="h-4 w-4" />
@@ -318,9 +361,11 @@ function CronogramaCalendar({
           </Button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
+      <div className="grid grid-cols-7 gap-1 text-center">
         {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
-          <div key={d}>{d}</div>
+          <div key={d} className="music-eyebrow music-eyebrow-xs py-1">
+            {d}
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
@@ -329,7 +374,7 @@ function CronogramaCalendar({
           const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
           if (!inMonth)
             return (
-              <div key={i} className="min-h-[3.5rem] rounded-md bg-muted/20 sm:aspect-square" />
+              <div key={i} className="min-h-[3.5rem] rounded-lg bg-white/[0.015] sm:aspect-square" />
             );
           const iso = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
           const dayEvents = eventsByDate.get(iso) ?? [];
@@ -338,15 +383,15 @@ function CronogramaCalendar({
             <div
               key={i}
               className={cn(
-                'min-h-[3.5rem] rounded-md border border-border p-1 flex flex-col gap-0.5 overflow-hidden sm:aspect-square',
-                isToday && 'ring-2 ring-primary',
-                dayEvents.length === 0 && 'bg-card',
-                dayEvents.length > 0 && 'bg-muted/30'
+                'flex min-h-[3.5rem] flex-col gap-0.5 overflow-hidden rounded-lg border p-1 transition-colors sm:aspect-square',
+                isToday
+                  ? 'border-primary/60 bg-primary/[0.07]'
+                  : 'border-border/60 bg-black/20 hover:border-border'
               )}
             >
               <span
                 className={cn(
-                  'text-[10px] font-semibold',
+                  'music-num text-[10px] font-semibold',
                   isToday ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
@@ -358,17 +403,16 @@ function CronogramaCalendar({
                     key={ev.id}
                     type="button"
                     onClick={() => onOpenEvent(ev)}
-                    className={cn(
-                      'text-[10px] leading-tight rounded px-1 py-0.5 text-white text-left truncate hover:opacity-80',
-                      EVENT_TYPE_COLOR[ev.eventType]
-                    )}
+                    style={toneStyle(EVENT_TYPE_TONE[ev.eventType])}
+                    className="music-press truncate rounded px-1 py-0.5 text-left text-[10px] font-medium leading-tight text-[hsl(var(--music-tone))]"
                     title={`${EVENT_TYPE_LABEL[ev.eventType]}${ev.title ? ` — ${ev.title}` : ''}`}
                   >
+                    <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-[hsl(var(--music-tone))] align-middle" />
                     {ev.title || EVENT_TYPE_LABEL[ev.eventType]}
                   </button>
                 ))}
                 {dayEvents.length > 2 && (
-                  <span className="text-[9px] text-muted-foreground px-1">
+                  <span className="music-num px-1 text-[9px] text-muted-foreground">
                     +{dayEvents.length - 2}
                   </span>
                 )}
@@ -377,10 +421,10 @@ function CronogramaCalendar({
           );
         })}
       </div>
-      <div className="flex gap-3 text-xs text-muted-foreground pt-1">
+      <div className="flex gap-4 pt-1">
         {(Object.keys(EVENT_TYPE_COLOR) as MusicEventType[]).map(t => (
-          <span key={t} className="flex items-center gap-1">
-            <span className={cn('h-2 w-2 rounded-full', EVENT_TYPE_COLOR[t])} />
+          <span key={t} className="music-eyebrow flex items-center gap-1.5">
+            <span className={cn('h-1.5 w-1.5 rounded-full', EVENT_TYPE_COLOR[t])} />
             {EVENT_TYPE_LABEL[t]}
           </span>
         ))}
@@ -432,7 +476,7 @@ function CreateEventDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="music-shell">
         <DialogHeader>
-          <DialogTitle>Nuevo culto</DialogTitle>
+          <DialogTitle className="music-heading text-2xl">Nuevo culto</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="space-y-1">
@@ -453,7 +497,7 @@ function CreateEventDialog({
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="music-shell">
                 {(Object.keys(MusicEventTypes) as MusicEventType[]).map(t => (
                   <SelectItem key={t} value={t}>
                     {EVENT_TYPE_LABEL[t]}
@@ -540,17 +584,13 @@ function CultosTab({
   const sorted = [...events].sort((a, b) => b.eventDate.localeCompare(a.eventDate));
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base">Cultos</CardTitle>
-        {isDirector && (
+    <Panel
+      eyebrow="Calendario litúrgico"
+      title="Cultos"
+      action={
+        isDirector && (
           <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setBatchOpen(true)}
-              className="gap-1"
-            >
+            <Button size="sm" variant="outline" onClick={() => setBatchOpen(true)} className="gap-1">
               <CalendarIcon className="h-4 w-4" />
               Trimestre
             </Button>
@@ -559,74 +599,75 @@ function CultosTab({
               Nuevo
             </Button>
           </div>
-        )}
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map(i => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : sorted.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            No hay cultos registrados.
-          </p>
-        ) : (
-          <div className="divide-y divide-border rounded-md border border-border">
-            {sorted.map(ev => (
-              <div key={ev.id} className="flex items-center justify-between px-3 py-2">
-                <button
-                  type="button"
-                  onClick={() => onOpenEvent(ev)}
-                  className="text-left flex-1 min-w-0 hover:opacity-70"
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={cn('h-2 w-2 rounded-full', EVENT_TYPE_COLOR[ev.eventType])} />
-                    <span className="font-medium text-sm">{ev.eventDate}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {EVENT_TYPE_LABEL[ev.eventType]}
-                    </span>
-                    {ev.title && <span className="text-sm truncate">— {ev.title}</span>}
-                  </div>
-                </button>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  {ev.published && (
-                    <Badge variant="secondary" className="text-xs">
-                      Publicado
-                    </Badge>
-                  )}
-                  {isDirector && (
-                    <ConfirmDialog
-                      trigger={
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs text-destructive"
-                          disabled={deleteMutation.isPending}
-                        >
-                          Eliminar
-                        </Button>
-                      }
-                      title="¿Eliminar culto?"
-                      description={`Se elimina el culto del ${ev.eventDate}${ev.title ? ` — "${ev.title}"` : ''} junto con su equipo asignado y su repertorio. No se puede deshacer.`}
-                      confirmLabel="Eliminar culto"
-                      onConfirm={() => deleteMutation.mutate(ev.id)}
-                    />
+        )
+      }
+    >
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-11 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : sorted.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">No hay cultos registrados.</p>
+      ) : (
+        <div className="music-stagger space-y-1.5">
+          {sorted.map(ev => (
+            <div
+              key={ev.id}
+              style={toneStyle(EVENT_TYPE_TONE[ev.eventType])}
+              className="music-row relative flex items-center justify-between overflow-hidden px-3 py-2.5 pl-5"
+            >
+              <span className="music-spine" />
+              <button
+                type="button"
+                onClick={() => onOpenEvent(ev)}
+                className="music-press min-w-0 flex-1 text-left"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="music-num text-sm font-semibold">{ev.eventDate}</span>
+                  <span className="music-tag music-tag-tone">
+                    {EVENT_TYPE_LABEL[ev.eventType]}
+                  </span>
+                  {ev.title && (
+                    <span className="truncate text-sm text-muted-foreground">{ev.title}</span>
                   )}
                 </div>
+              </button>
+              <div className="ml-2 flex shrink-0 items-center gap-2">
+                {ev.published && <span className="music-tag music-tag-ok">Publicado</span>}
+                {isDirector && (
+                  <ConfirmDialog
+                    trigger={
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive"
+                        disabled={deleteMutation.isPending}
+                      >
+                        Eliminar
+                      </Button>
+                    }
+                    title="¿Eliminar culto?"
+                    description={`Se elimina el culto del ${ev.eventDate}${ev.title ? ` — "${ev.title}"` : ''} junto con su equipo asignado y su repertorio. No se puede deshacer.`}
+                    confirmLabel="Eliminar culto"
+                    onConfirm={() => deleteMutation.mutate(ev.id)}
+                  />
+                )}
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
+            </div>
+          ))}
+        </div>
+      )}
 
       <CreateEventDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
-        <DialogContent>
+        <DialogContent className="music-shell">
           <DialogHeader>
-            <DialogTitle>Generar trimestre</DialogTitle>
+            <DialogTitle className="music-heading text-2xl">
+              Generar trimestre
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleBatch} className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -652,7 +693,7 @@ function CultosTab({
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="music-shell">
                   <SelectItem value="1">Q1 — Ene / Mar</SelectItem>
                   <SelectItem value="2">Q2 — Abr / Jun</SelectItem>
                   <SelectItem value="3">Q3 — Jul / Sep</SelectItem>
@@ -671,7 +712,7 @@ function CultosTab({
           </form>
         </DialogContent>
       </Dialog>
-    </Card>
+    </Panel>
   );
 }
 
@@ -689,47 +730,33 @@ function CancionesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl border border-border p-3 sm:p-4">
-          <div className="flex items-center gap-2 mb-1 text-muted-foreground">
-            <Music2 className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">En catálogo</span>
-          </div>
-          <p className="text-xl sm:text-2xl font-bold tabular-nums">{stats.length}</p>
-        </div>
-        <div className="rounded-xl border border-border p-3 sm:p-4">
-          <div className="flex items-center gap-2 mb-1 text-muted-foreground">
-            <TrendingUp className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">Veces tocadas</span>
-          </div>
-          <p className="text-xl sm:text-2xl font-bold tabular-nums">{totalPlays}</p>
-        </div>
-        <div
-          className={cn(
-            'rounded-xl border p-3 sm:p-4',
-            neverPlayed > 0 ? 'border-amber-500/30 bg-amber-500/10' : 'border-border'
-          )}
-        >
-          <div className="flex items-center gap-2 mb-1 text-muted-foreground">
-            <CalendarIcon className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">Sin uso</span>
-          </div>
-          <p className="text-xl sm:text-2xl font-bold tabular-nums">{neverPlayed}</p>
-        </div>
+      <div className="music-stagger grid grid-cols-3 gap-3">
+        <StatTile
+          label="En catálogo"
+          value={stats.length}
+          icon={<Music2 className="h-3.5 w-3.5" />}
+          tone="primary"
+        />
+        <StatTile
+          label="Veces tocadas"
+          value={totalPlays}
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
+        />
+        <StatTile
+          label="Sin uso"
+          value={neverPlayed}
+          icon={<CalendarIcon className="h-3.5 w-3.5" />}
+          tone={neverPlayed > 0 ? 'warning' : 'default'}
+        />
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Ranking del repertorio</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RepertoireList
-            stats={stats}
-            isLoading={isLoading}
-            emptyHint="No hay canciones en el repertorio. Agregalas desde el detalle de cada culto."
-          />
-        </CardContent>
-      </Card>
+      <Panel eyebrow="Lo que más tocamos" title="Ranking del repertorio">
+        <RepertoireList
+          stats={stats}
+          isLoading={isLoading}
+          emptyHint="No hay canciones en el repertorio. Agregalas desde el detalle de cada culto."
+        />
+      </Panel>
     </div>
   );
 }
@@ -819,101 +846,100 @@ function ServidorView({ embedExtras = true }: { embedExtras?: boolean }) {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Mis cultos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingAssignments ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map(i => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : upcomingAssignments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
-              No tenés cultos próximos asignados.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {upcomingAssignments.map(a => {
-                const d = a.eventDate ? daysUntil(a.eventDate) : null;
-                return (
-                  <div key={a.id} className="rounded-xl border border-border bg-card p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/15 text-primary">
-                          <span className="text-base font-bold leading-none tabular-nums">
-                            {d != null && d >= 0 ? d : '—'}
-                          </span>
-                          <span className="text-[9px] uppercase tracking-wide opacity-80">
-                            {d === 0 ? 'hoy' : 'días'}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={cn(
-                                'h-2 w-2 rounded-full shrink-0',
-                                FUNCION_DOT[a.funcion] ?? 'bg-muted-foreground'
-                              )}
-                            />
-                            <p className="text-sm font-semibold truncate">
-                              {FUNCION_LABEL[a.funcion] ?? a.funcion}
-                            </p>
-                          </div>
-                          <p className="text-xs text-muted-foreground capitalize truncate">
-                            {a.eventDate ? formatEventDate(a.eventDate) : a.eventId}
-                            {a.eventType ? ` · ${EVENT_TYPE_LABEL[a.eventType]}` : ''}
-                          </p>
-                          {a.instrument && (
-                            <div className="mt-1.5">
-                              <InstrumentChip
-                                name={a.instrument}
-                                category={resolveCategory(a.instrument, instruments)}
-                              />
-                            </div>
-                          )}
-                        </div>
+      <Panel eyebrow="Tu agenda" title="Mis cultos">
+        {loadingAssignments ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : upcomingAssignments.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No tenés cultos próximos asignados.
+          </p>
+        ) : (
+          <div className="music-stagger space-y-2">
+            {upcomingAssignments.map(a => {
+              const d = a.eventDate ? daysUntil(a.eventDate) : null;
+              const tone = EVENT_TYPE_TONE[a.eventType ?? 'domingo'] ?? EVENT_TYPE_TONE.domingo;
+              return (
+                <div
+                  key={a.id}
+                  style={toneStyle(tone)}
+                  className="music-row relative overflow-hidden p-3 pl-5"
+                >
+                  <span className="music-spine" />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="w-11 shrink-0 text-center">
+                        <span className="music-num block text-lg font-semibold leading-none text-[hsl(var(--music-tone))]">
+                          {d != null && d >= 0 ? d : '—'}
+                        </span>
+                        <span className="music-eyebrow music-eyebrow-xs mt-1 block">
+                          {d === 0 ? 'hoy' : 'días'}
+                        </span>
                       </div>
-                      <Badge variant={STATE_VARIANT[a.state]} className="text-xs shrink-0">
-                        {STATE_LABEL[a.state]}
-                      </Badge>
-                    </div>
-                    {a.state !== AssignmentStates.no_puedo && (
-                      <div className="mt-3 flex gap-2">
-                        {a.state === AssignmentStates.asignado && (
-                          <Button
-                            size="sm"
-                            className="h-8 flex-1"
-                            onClick={() =>
-                              updateMutation.mutate({ id: a.id, data: { state: 'confirmado' } })
-                            }
-                            disabled={updateMutation.isPending}
-                          >
-                            Confirmar
-                          </Button>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              'h-1.5 w-1.5 shrink-0 rounded-full',
+                              FUNCION_DOT[a.funcion] ?? 'bg-muted-foreground'
+                            )}
+                          />
+                          <p className="text-sm font-semibold">
+                            {FUNCION_LABEL[a.funcion] ?? a.funcion}
+                          </p>
+                        </div>
+                        <p className="truncate text-xs capitalize text-muted-foreground">
+                          {a.eventDate ? formatEventDate(a.eventDate) : a.eventId}
+                          {a.eventType ? ` · ${EVENT_TYPE_LABEL[a.eventType]}` : ''}
+                        </p>
+                        {a.instrument && (
+                          <div className="mt-1.5">
+                            <InstrumentChip
+                              name={a.instrument}
+                              category={resolveCategory(a.instrument, instruments)}
+                            />
+                          </div>
                         )}
+                      </div>
+                    </div>
+                    <span className={cn('shrink-0', STATE_TAG[a.state])}>{STATE_LABEL[a.state]}</span>
+                  </div>
+                  {a.state !== AssignmentStates.no_puedo && (
+                    <div className="mt-3 flex gap-2">
+                      {a.state === AssignmentStates.asignado && (
                         <Button
                           size="sm"
-                          variant="outline"
                           className="h-8 flex-1"
                           onClick={() =>
-                            updateMutation.mutate({ id: a.id, data: { state: 'no_puedo' } })
+                            updateMutation.mutate({ id: a.id, data: { state: 'confirmado' } })
                           }
                           disabled={updateMutation.isPending}
                         >
-                          No puedo
+                          Confirmar
                         </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 flex-1 border-white/15 bg-transparent hover:bg-white/5"
+                        onClick={() =>
+                          updateMutation.mutate({ id: a.id, data: { state: 'no_puedo' } })
+                        }
+                        disabled={updateMutation.isPending}
+                      >
+                        No puedo
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Panel>
 
       {embedExtras && (
         <>
@@ -922,56 +948,58 @@ function ServidorView({ embedExtras = true }: { embedExtras?: boolean }) {
         </>
       )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <CardTitle className="text-base">Mis indisponibilidades</CardTitle>
+      <Panel
+        eyebrow="Cuándo no estás"
+        title="Mis indisponibilidades"
+        action={
           <Button size="sm" onClick={() => setUnavailOpen(true)} className="gap-1">
             <Plus className="h-4 w-4" />
             Agregar
           </Button>
-        </CardHeader>
-        <CardContent>
-          {loadingUnavail ? (
-            <div className="space-y-2">
-              {[1, 2].map(i => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : myUnavailability.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
-              No tenés indisponibilidades registradas.
-            </p>
-          ) : (
-            <div className="divide-y divide-border rounded-md border border-border">
-              {myUnavailability.map(u => (
-                <div key={u.id} className="flex items-center justify-between px-3 py-3">
-                  <div>
-                    <p className="text-sm">
-                      {u.startDate}
-                      {u.endDate ? ` → ${u.endDate}` : ' (indefinida)'}
-                    </p>
-                    {u.reason && <p className="text-xs text-muted-foreground">{u.reason}</p>}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-xs text-destructive"
-                    onClick={() => deleteUnavailMutation.mutate(u.id)}
-                    disabled={deleteUnavailMutation.isPending}
-                  >
-                    Eliminar
-                  </Button>
+        }
+      >
+        {loadingUnavail ? (
+          <div className="space-y-2">
+            {[1, 2].map(i => (
+              <Skeleton key={i} className="h-11 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : myUnavailability.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No tenés indisponibilidades registradas.
+          </p>
+        ) : (
+          <div className="music-stagger space-y-1.5">
+            {myUnavailability.map(u => (
+              <div key={u.id} className="music-row flex items-center justify-between px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="music-num text-sm">
+                    {u.startDate}
+                    {u.endDate ? ` → ${u.endDate}` : ' (indefinida)'}
+                  </p>
+                  {u.reason && <p className="text-xs text-muted-foreground">{u.reason}</p>}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-destructive"
+                  onClick={() => deleteUnavailMutation.mutate(u.id)}
+                  disabled={deleteUnavailMutation.isPending}
+                >
+                  Eliminar
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
 
       <Dialog open={unavailOpen} onOpenChange={setUnavailOpen}>
-        <DialogContent>
+        <DialogContent className="music-shell">
           <DialogHeader>
-            <DialogTitle>Registrar indisponibilidad</DialogTitle>
+            <DialogTitle className="music-heading text-2xl">
+              Registrar indisponibilidad
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleUnavailSubmit} className="space-y-4">
             <div className="space-y-1">
@@ -1021,30 +1049,33 @@ function ServidorView({ embedExtras = true }: { embedExtras?: boolean }) {
 }
 
 // ─────────────────────────────────────────────
-// SERVIDOR mobile — app-like internal navigation (sticky segmented control)
+// SERVIDOR mobile — segmented control con indicador que se desliza
 // ─────────────────────────────────────────────
+const SERVIDOR_TABS = [
+  { key: 'inicio' as const, label: 'Inicio', Icon: Home },
+  { key: 'cultos' as const, label: 'Mis cultos', Icon: CalendarDays },
+  { key: 'repertorio' as const, label: 'Repertorio', Icon: ListMusic },
+];
+
 function ServidorMobile() {
   const [screen, setScreen] = useState<'inicio' | 'cultos' | 'repertorio'>('inicio');
-  const tabs = [
-    { key: 'inicio' as const, label: 'Inicio', Icon: Home },
-    { key: 'cultos' as const, label: 'Mis cultos', Icon: CalendarDays },
-    { key: 'repertorio' as const, label: 'Repertorio', Icon: ListMusic },
-  ];
+  const activeIndex = SERVIDOR_TABS.findIndex(t => t.key === screen);
+
   return (
     <div className="space-y-4">
-      <div className="sticky top-14 z-30 -mx-4 bg-background/80 px-4 py-2 backdrop-blur">
-        <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted/40 p-1">
-          {tabs.map(({ key, label, Icon }) => (
+      <div className="music-navbar sticky top-14 z-30 -mx-4 px-4 py-2">
+        <div
+          className="music-seg"
+          style={{ '--music-seg-index': String(activeIndex) } as React.CSSProperties}
+        >
+          <span className="music-seg-thumb" aria-hidden />
+          {SERVIDOR_TABS.map(({ key, label, Icon }) => (
             <button
               key={key}
               type="button"
               onClick={() => setScreen(key)}
-              className={cn(
-                'flex flex-col items-center gap-1 rounded-xl py-2 text-xs font-medium transition-colors',
-                screen === key
-                  ? 'bg-primary text-primary-foreground shadow'
-                  : 'text-muted-foreground active:bg-muted'
-              )}
+              data-active={screen === key}
+              className="music-seg-item"
             >
               <Icon className="h-4 w-4" />
               {label}
@@ -1066,37 +1097,36 @@ function ServidorMobile() {
 }
 
 // ─────────────────────────────────────────────
-// DIRECTOR mobile — app-like nav (sticky scrollable pills + dedicated screens)
+// DIRECTOR mobile — píldoras scrolleables + pantallas dedicadas
 // ─────────────────────────────────────────────
 function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void }) {
-  const [screen, setScreen] = useState<'inicio' | 'cronograma' | 'cultos' | 'equipo' | 'canciones'>(
-    'inicio'
-  );
+  const [screen, setScreen] = useState<
+    'inicio' | 'cronograma' | 'cultos' | 'integrantes' | 'instrumentos' | 'canciones'
+  >('inicio');
   const [createOpen, setCreateOpen] = useState(false);
 
   const tabs = [
     { key: 'inicio' as const, label: 'Inicio', Icon: Home },
     { key: 'cronograma' as const, label: 'Cronograma', Icon: CalendarDays },
     { key: 'cultos' as const, label: 'Cultos', Icon: CalendarIcon },
-    { key: 'equipo' as const, label: 'Equipo', Icon: Users },
+    { key: 'integrantes' as const, label: 'Integrantes', Icon: Users },
+    { key: 'instrumentos' as const, label: 'Instrumentos', Icon: Guitar },
     { key: 'canciones' as const, label: 'Canciones', Icon: ListMusic },
   ];
 
+  const showCreateFab = screen === 'inicio' || screen === 'cronograma' || screen === 'cultos';
+
   return (
     <div className="space-y-4">
-      <div className="sticky top-14 z-30 -mx-4 bg-background/80 px-4 py-2 backdrop-blur">
+      <div className="music-navbar sticky top-14 z-30 -mx-4 px-4 py-2">
         <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(({ key, label, Icon }) => (
             <button
               key={key}
               type="button"
               onClick={() => setScreen(key)}
-              className={cn(
-                'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors',
-                screen === key
-                  ? 'bg-primary text-primary-foreground shadow'
-                  : 'bg-muted/40 text-muted-foreground active:bg-muted'
-              )}
+              data-active={screen === key}
+              className="music-pill"
             >
               <Icon className="h-4 w-4" />
               {label}
@@ -1108,15 +1138,13 @@ function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void 
       {screen === 'inicio' && <DirectorMusicHero onOpenEvent={onOpenEvent} />}
       {screen === 'cronograma' && <CronogramaTab isDirector onOpenEvent={onOpenEvent} />}
       {screen === 'cultos' && <CultosTab isDirector onOpenEvent={onOpenEvent} />}
-      {screen === 'equipo' && (
-        <div className="space-y-4">
-          <MusicMembers isDirector />
-          <MusicInstruments isDirector />
-        </div>
-      )}
+      {screen === 'integrantes' && <MusicMembers isDirector />}
+      {screen === 'instrumentos' && <MusicInstruments isDirector />}
       {screen === 'canciones' && <CancionesTab />}
 
-      <MusicFab icon={Plus} label="Nuevo culto" onClick={() => setCreateOpen(true)} />
+      {showCreateFab && (
+        <MusicFab icon={Plus} label="Nuevo culto" onClick={() => setCreateOpen(true)} />
+      )}
       <CreateEventDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
@@ -1125,43 +1153,69 @@ function DirectorMobile({ onOpenEvent }: { onOpenEvent: (e: MusicEvent) => void 
 // ─────────────────────────────────────────────
 // MusicPage root
 // ─────────────────────────────────────────────
+function NoMusicAccess() {
+  return (
+    <MusicEmpty
+      icon={<Music2 className="h-6 w-6" />}
+      title="No sos parte del equipo de música"
+      hint="Pedile al director que te agregue como integrante para ver tus cultos y asignaciones."
+    />
+  );
+}
+
+const DIRECTOR_TABS = [
+  { value: 'cronograma', label: 'Cronograma' },
+  { value: 'cultos', label: 'Cultos' },
+  { value: 'integrantes', label: 'Integrantes' },
+  { value: 'instrumentos', label: 'Instrumentos' },
+  { value: 'canciones', label: 'Canciones' },
+];
+
 export default function MusicPage() {
   const isMobileApp = useMobileMode();
   const navigate = useNavigate();
-  const { isDirector } = useMusicAccess();
+  const { isDirector, hasAccess, loadingAccess } = useMusicAccess();
   const [createEventOpen, setCreateEventOpen] = useState(false);
 
   const openEvent = (e: MusicEvent) => navigate(`/dashboard/music/eventos/${e.id}`);
 
-  const body = !isDirector ? (
+  const servidorBody = loadingAccess ? (
+    <Skeleton className="h-48 w-full rounded-3xl" />
+  ) : !hasAccess ? (
+    <NoMusicAccess />
+  ) : (
     <>
       <ServidorMusicHero />
       <ServidorView />
     </>
+  );
+
+  const body = !isDirector ? (
+    servidorBody
   ) : (
     <>
       <DirectorMusicHero onOpenEvent={openEvent} />
       <Tabs defaultValue="cronograma">
-        <TabsList className="w-full sm:w-auto flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
-          <TabsTrigger value="cultos">Cultos</TabsTrigger>
-          <TabsTrigger value="integrantes">Integrantes</TabsTrigger>
-          <TabsTrigger value="instrumentos">Instrumentos</TabsTrigger>
-          <TabsTrigger value="canciones">Canciones</TabsTrigger>
+        <TabsList className="music-tabs w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {DIRECTOR_TABS.map(t => (
+            <TabsTrigger key={t.value} value={t.value} className="music-tab">
+              {t.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
-        <TabsContent value="cronograma" className="mt-4">
+        <TabsContent value="cronograma" className="music-rise mt-5">
           <CronogramaTab isDirector={isDirector} onOpenEvent={openEvent} />
         </TabsContent>
-        <TabsContent value="cultos" className="mt-4">
+        <TabsContent value="cultos" className="music-rise mt-5">
           <CultosTab isDirector={isDirector} onOpenEvent={openEvent} />
         </TabsContent>
-        <TabsContent value="integrantes" className="mt-4">
+        <TabsContent value="integrantes" className="music-rise mt-5">
           <MusicMembers isDirector={isDirector} />
         </TabsContent>
-        <TabsContent value="instrumentos" className="mt-4">
+        <TabsContent value="instrumentos" className="music-rise mt-5">
           <MusicInstruments isDirector={isDirector} />
         </TabsContent>
-        <TabsContent value="canciones" className="mt-4">
+        <TabsContent value="canciones" className="music-rise mt-5">
           <CancionesTab />
         </TabsContent>
       </Tabs>
@@ -1178,8 +1232,16 @@ export default function MusicPage() {
     return (
       <>
         <MobileScreen title="Música" subtitle={isDirector ? 'Equipo de alabanza' : 'Mis cultos'}>
-          <div className="music-shell music-aurora min-h-screen px-4 py-4 space-y-5">
-            {isDirector ? <DirectorMobile onOpenEvent={openEvent} /> : <ServidorMobile />}
+          <div className="music-shell music-aurora min-h-screen space-y-5 px-4 py-4">
+            {isDirector ? (
+              <DirectorMobile onOpenEvent={openEvent} />
+            ) : loadingAccess ? (
+              <Skeleton className="h-48 w-full rounded-3xl" />
+            ) : !hasAccess ? (
+              <NoMusicAccess />
+            ) : (
+              <ServidorMobile />
+            )}
           </div>
         </MobileScreen>
       </>
@@ -1187,13 +1249,17 @@ export default function MusicPage() {
   }
 
   return (
-    <div className="music-shell music-aurora space-y-5 animate-fade-in p-3 sm:p-4 md:p-6 rounded-2xl">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Música</h1>
-        <p className="text-sm text-muted-foreground">
-          {isDirector ? 'Gestión del equipo de alabanza' : 'Equipo de alabanza'}
-        </p>
-      </div>
+    <div className="music-shell music-aurora space-y-6 rounded-2xl p-3 sm:p-5 md:p-8">
+      <header className="music-rise">
+        <p className="music-eyebrow">Ministerio de alabanza</p>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <h1 className="music-heading text-[2.5rem] leading-none sm:text-[3.25rem]">Música</h1>
+          <p className="text-sm text-muted-foreground">
+            {isDirector ? 'Gestión del equipo de alabanza' : 'Equipo de alabanza'}
+          </p>
+        </div>
+        <hr className="music-rule mt-4" />
+      </header>
       {body}
     </div>
   );

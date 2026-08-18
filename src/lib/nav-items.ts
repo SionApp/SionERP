@@ -22,6 +22,8 @@ export interface MenuItemConfig {
   minRole: number;
   /** pastor + staff con has_admin_access */
   requireAdminAccess?: boolean;
+  /** Además de rol+módulo instalado, requiere pertenecer al equipo del módulo (ver NavGate.hasModuleAccess) */
+  requiresMembership?: boolean;
 }
 
 // Single source of truth for navigation. Consumed by the sidebar (desktop),
@@ -58,6 +60,7 @@ export const menuItems: MenuItemConfig[] = [
     icon: Music2,
     requiredModule: 'music',
     minRole: ROLE_LEVELS.member,
+    requiresMembership: true,
   },
   {
     title: 'Reportes',
@@ -84,9 +87,11 @@ interface NavGate {
   permissions: { has_admin_access?: boolean } | null | undefined;
   hasAccess: (minRole: number) => boolean;
   isModuleInstalled: (key: string) => boolean;
+  /** For items with requiresMembership: true — is the user actually part of that module's team? */
+  hasModuleAccess?: (key: string) => boolean;
 }
 
-/** Shared gating: role/admin access + module installed. */
+/** Shared gating: role/admin access + module installed (+ team membership when requiresMembership). */
 export function filterNavItems(items: MenuItemConfig[], gate: NavGate): MenuItemConfig[] {
   return items.filter(item => {
     if (item.requireAdminAccess) {
@@ -95,6 +100,10 @@ export function filterNavItems(items: MenuItemConfig[], gate: NavGate): MenuItem
       return false;
     }
     if (!item.requiredModule || item.requiredModule === 'base') return true;
-    return gate.isModuleInstalled(item.requiredModule);
+    if (!gate.isModuleInstalled(item.requiredModule)) return false;
+    if (item.requiresMembership && gate.permissions && !gate.permissions.has_admin_access) {
+      return gate.hasModuleAccess?.(item.requiredModule) ?? true;
+    }
+    return true;
   });
 }

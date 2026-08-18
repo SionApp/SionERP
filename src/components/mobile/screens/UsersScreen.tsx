@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { getAvatarColor } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { User } from '@/types/user.types';
 import { Loader2, Plus, Search, Upload } from 'lucide-react';
@@ -124,7 +125,9 @@ export function MobileUsersScreen({
                 key={user.id}
                 leading={
                   <Avatar className="w-9 h-9">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                    <AvatarFallback
+                      className={`${getAvatarColor(`${user.first_name ?? ''} ${user.last_name ?? ''}`)} text-xs font-semibold`}
+                    >
                       {(user.first_name?.[0] ?? '') + (user.last_name?.[0] ?? '')}
                     </AvatarFallback>
                   </Avatar>

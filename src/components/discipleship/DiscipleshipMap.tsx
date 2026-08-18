@@ -1,9 +1,16 @@
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Switch } from '@/components/ui/switch';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+} from '@/components/ui/drawer';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { ZonesService } from '@/services/zones.service';
 import type {
@@ -13,7 +20,7 @@ import type {
   ZoneMapData,
   ZoneMapGroup,
 } from '@/types/discipleship.types';
-import { Calendar, Layers, MapPin, Search, User as UserIcon, Users } from 'lucide-react';
+import { Layers, MapPin, Search, User as UserIcon, Users } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -24,6 +31,7 @@ import {
   Popup,
   Polygon,
   useMap,
+  useMapEvent,
   ZoomControl,
 } from 'react-leaflet';
 
@@ -56,6 +64,8 @@ interface DiscipleshipMapProps {
   selectedZoneId?: string | null;
   onZoneSelect?: (zoneId: string | null, groups: DiscipleshipGroup[]) => void;
   heightClassName?: string;
+  /** Título de la vista (breadcrumb queda a cargo de la página, no del widget). Sin título: solo controles. */
+  title?: string;
 }
 
 // ── Constantes ──────────────────────────────────────────────
@@ -63,26 +73,121 @@ interface DiscipleshipMapProps {
 const DEFAULT_CENTER: [number, number] = [11.4045, -69.6734];
 const DEFAULT_ZOOM = 13;
 
+// Tiles estándar de OpenStreetMap: calles, etiquetas y manzanas/edificios
+// visibles — el look "mapa real" (tipo Google Maps), no el estilo minimalista
+// de CARTO que se usaba antes. Sin API key, gratis, mismo para ambos temas
+// (igual que Google Maps, que no tiene un modo oscuro propio del mapa base).
+const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+// Poll de RESPALDO del mapa. Realtime (suscripción a discipleship_reports) es
+// el camino rápido; este intervalo solo cubre el caso de que Realtime no
+// conecte, y además se pausa cuando la pestaña está oculta.
+const LIVE_POLL_MS = 60_000;
+
+// ── Actividad de reporte (estado real, no inventado) ─────────
+// El diseño original pedía un semáforo de "creció / sin cambios / sin
+// reportar" basado en delta de miembros — dato que hoy no existe (no hay
+// snapshots históricos de member_count). Se reutiliza el mismo semáforo de
+// 3 colores pero con un significado que SÍ es 100% real: recencia del
+// último reporte (`last_report_date`, MAX(submitted_at) real del backend).
+// Es, además, la señal más útil para un pastor haciendo seguimiento.
+type ActivityStatus = 'recent' | 'aging' | 'silent';
+
+const ACTIVITY_COLORS: Record<ActivityStatus, string> = {
+  recent: '#22c55e',
+  aging: '#f59e0b',
+  silent: '#ef4444',
+};
+
+const ACTIVITY_LABELS: Record<ActivityStatus, string> = {
+  recent: 'REPORTÓ ESTA SEMANA',
+  aging: 'REPORTÓ ESTE MES',
+  silent: 'SIN REPORTAR',
+};
+
+/**
+ * Postgres devuelve el timestamptz como "YYYY-MM-DD HH:MM:SS.ffffff+00", que
+ * new Date() NO parsea: el offset viene en 2 dígitos (`+00`, no `+00:00`) y la
+ * fracción trae microsegundos. Ambos dan Invalid Date. Normalizamos:
+ *  - espacio → 'T'
+ *  - microsegundos → milisegundos (.755019 → .755)
+ *  - offset de 2 dígitos → ±HH:MM (+00 → +00:00)
+ */
+function parseBackendTimestamp(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const s = raw
+    .replace(' ', 'T')
+    .replace(/(\.\d{3})\d+/, '$1')
+    .replace(/([+-]\d{2})$/, '$1:00');
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function getActivityStatus(lastReportDate: string | undefined): ActivityStatus {
+  const d = parseBackendTimestamp(lastReportDate);
+  if (!d) return 'silent';
+  const daysAgo = (Date.now() - d.getTime()) / 86_400_000;
+  if (daysAgo <= 7) return 'recent';
+  if (daysAgo <= 30) return 'aging';
+  return 'silent';
+}
+
+function formatRelativeTime(date: Date | null): string {
+  if (!date) return 'Sin reportes aún';
+  const minutes = Math.floor((Date.now() - date.getTime()) / 60_000);
+  if (minutes < 1) return 'ahora mismo';
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `hace ${days} d`;
+}
+
+/** Diámetro del marcador de grupo: escala con miembros, con piso y techo. */
+function groupMarkerSize(members: number): number {
+  return Math.min(30, Math.max(14, 12 + members * 0.9));
+}
+
 // ── SVG Markers (as HTML strings for divIcon) ──────────────
 
-// Pin en forma de gota (teardrop) con una casita blanca adentro. El ancla es la
-// PUNTA inferior, así que marca el punto exacto en el mapa. `w` = ancho en px;
-// el alto se deriva a ~1.3x. La sombra va en el wrapper para no colisionar ids de SVG.
-function houseIconHtml(color: string, w: number, highlight = false): string {
-  const h = Math.round(w * 1.32);
-  const ring = highlight
-    ? `<circle cx="15" cy="14" r="12.5" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.9"/>`
+// Marcador de grupo: círculo de color = estado de reporte, diámetro = miembros.
+// Reemplaza el pin-casita anterior — así lo pide el rediseño "mapa en vivo".
+function groupCircleHtml(
+  color: string,
+  size: number,
+  isSelected: boolean,
+  pulsing: boolean
+): string {
+  const ring = isSelected
+    ? `<div style="position:absolute;inset:-5px;border-radius:999px;border:2px solid #fff;opacity:.9;"></div>`
     : '';
-  return `<div style="width:${w}px;height:${h}px;filter:drop-shadow(0 2px 2px rgba(15,23,42,.35));${
-    highlight ? 'animation:jetro-pin-pop .25s ease-out;' : ''
-  }">
-    <svg width="${w}" height="${h}" viewBox="0 0 30 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M15 1.5C7.8 1.5 2 7.2 2 14.2c0 8.1 13 24.3 13 24.3s13-16.2 13-24.3C28 7.2 22.2 1.5 15 1.5Z" fill="${color}" stroke="#ffffff" stroke-width="2.4"/>
-      ${ring}
-      <path d="M15 7.6 22 13v6.1a.8.8 0 0 1-.8.8H8.8a.8.8 0 0 1-.8-.8V13l7-5.4Z" fill="#ffffff"/>
-      <rect x="12.7" y="14.6" width="4.6" height="5.3" rx="0.7" fill="${color}"/>
-    </svg>
+  const ripple = pulsing
+    ? `<div class="jetro-group-pulse" style="border-color:${color}"></div>
+       <div class="jetro-group-pulse jetro-group-pulse-delay" style="border-color:${color}"></div>`
+    : '';
+  return `<div class="jetro-group-marker" style="position:relative;width:${size}px;height:${size}px;">
+    ${ripple}
+    ${ring}
+    <div style="width:100%;height:100%;border-radius:999px;background:${color};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(15,23,42,.4);"></div>
   </div>`;
+}
+
+function createGroupIcon(
+  color: string,
+  size: number,
+  isSelected: boolean,
+  pulsing: boolean
+): L.DivIcon {
+  const boxSize = size + 10; // margen para el ring/ripple sin recortar
+  return L.divIcon({
+    html: groupCircleHtml(color, size, isSelected, pulsing),
+    className: '',
+    iconSize: [boxSize, boxSize],
+    iconAnchor: [boxSize / 2, boxSize / 2],
+    popupAnchor: [0, -boxSize / 2],
+  });
 }
 
 // Badge circular para personas (más chico, sin punta — marca aproximada).
@@ -96,17 +201,6 @@ function personIconHtml(size: number): string {
   </div>`;
 }
 
-function createHouseIcon(color: string, w: number, highlight = false): L.DivIcon {
-  const h = Math.round(w * 1.32);
-  return L.divIcon({
-    html: houseIconHtml(color, w, highlight),
-    className: '',
-    iconSize: [w, h],
-    iconAnchor: [w / 2, h], // punta inferior
-    popupAnchor: [0, -h + 4],
-  });
-}
-
 function createPersonIcon(size: number): L.DivIcon {
   return L.divIcon({
     html: personIconHtml(size),
@@ -114,6 +208,19 @@ function createPersonIcon(size: number): L.DivIcon {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2], // centro
     popupAnchor: [0, -size / 2],
+  });
+}
+
+// Etiqueta de zona: nombre + puntito de color, centrada en el área de la zona.
+// pointer-events:none para que nunca tape un click a un pin de abajo.
+function createZoneLabelIcon(name: string, color: string, isSelected: boolean): L.DivIcon {
+  return L.divIcon({
+    html: `<div style="pointer-events:none;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.92);box-shadow:0 1px 3px rgba(15,23,42,.18);font:700 10px/1 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:#1e293b;white-space:nowrap;opacity:${isSelected ? '1' : '0.85'};transform:scale(${isSelected ? '1.08' : '1'});transition:opacity .2s,transform .2s;">
+      <span style="width:6px;height:6px;border-radius:999px;background:${color};flex-shrink:0;"></span>${name}
+    </div>`,
+    className: '',
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
   });
 }
 
@@ -173,7 +280,7 @@ function getZonePolyPositions(
   feature: ZoneFeature,
   selectedZoneId: string | null
 ): {
-  positions: [number, number][][];
+  positions: [number, number][];
   isMulti: boolean;
   isSelected: boolean;
   color: string;
@@ -182,7 +289,7 @@ function getZonePolyPositions(
   const color = feature.properties.color;
 
   if (feature.geometry.type === 'Polygon') {
-    return feature.geometry.coordinates.map((ring) => ({
+    return feature.geometry.coordinates.map(ring => ({
       positions: ring.map(geojsonToLatLng),
       isMulti: false,
       isSelected,
@@ -191,8 +298,8 @@ function getZonePolyPositions(
   }
 
   // MultiPolygon: each polygon is its own array of rings
-  return feature.geometry.coordinates.flatMap((polygon) =>
-    polygon.map((ring) => ({
+  return feature.geometry.coordinates.flatMap(polygon =>
+    polygon.map(ring => ({
       positions: ring.map(geojsonToLatLng),
       isMulti: true,
       isSelected,
@@ -210,11 +317,9 @@ function getFeatureLatLngBounds(feature: ZoneFeature): L.LatLngBounds | null {
   };
 
   if (feature.geometry.type === 'Polygon') {
-    feature.geometry.coordinates.forEach((ring) => ring.forEach(extract));
+    feature.geometry.coordinates.forEach(ring => ring.forEach(extract));
   } else {
-    feature.geometry.coordinates.forEach((polygon) =>
-      polygon.forEach((ring) => ring.forEach(extract))
-    );
+    feature.geometry.coordinates.forEach(polygon => polygon.forEach(ring => ring.forEach(extract)));
   }
 
   if (allPoints.length === 0) return null;
@@ -235,7 +340,15 @@ function FitToBounds({ bounds, trigger }: { bounds: L.LatLngBounds | null; trigg
   return null;
 }
 
-function FlyTo({ position, zoom, trigger }: { position: [number, number]; zoom: number; trigger: unknown }) {
+function FlyTo({
+  position,
+  zoom,
+  trigger,
+}: {
+  position: [number, number];
+  zoom: number;
+  trigger: unknown;
+}) {
   const map = useMap();
 
   useEffect(() => {
@@ -245,13 +358,20 @@ function FlyTo({ position, zoom, trigger }: { position: [number, number]; zoom: 
   return null;
 }
 
+function PopupCloseHandler({ onClose }: { onClose: () => void }) {
+  useMapEvent('popupclose', onClose);
+  return null;
+}
+
 // ── Componente principal ────────────────────────────────────
 
 export default function DiscipleshipMap({
   selectedZoneId,
   onZoneSelect,
-  heightClassName = 'h-[620px]',
+  heightClassName = 'h-[440px] lg:h-[580px]',
+  title,
 }: DiscipleshipMapProps) {
+  const isMobileApp = useMobileMode();
   const mapRef = useRef<L.Map | null>(null);
   const [zoneData, setZoneData] = useState<ZoneMapData[]>([]);
   const [mapUsers, setMapUsers] = useState<MapUser[]>([]);
@@ -264,32 +384,132 @@ export default function DiscipleshipMap({
   const [showGroups, setShowGroups] = useState(true);
   const [showPeople, setShowPeople] = useState(false);
 
+  // Mobile: hoja inferior con la lista de zonas (reemplaza al sidebar de escritorio)
+  const [mobileListOpen, setMobileListOpen] = useState(false);
+
   // Popups
   const [selectedGroup, setSelectedGroup] = useState<ZoneMapGroup | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<MapUser | null>(null);
+
+  // Tiempo real (polling, ver comentario en LIVE_POLL_MS)
+  const [activityBuckets, setActivityBuckets] = useState<number[]>(new Array(24).fill(0));
+  // Firma de la última tanda de zonas renderizada — para saltar el re-render
+  // cuando el poll trae exactamente lo mismo (evita el pestañeo de marcadores).
+  const lastZonesSig = useRef<string>('');
 
   // Map navigation state
   const [fitToBounds, setFitToBounds] = useState<{ bounds: L.LatLngBounds; key: string } | null>(
     null
   );
-  const [flyTo, setFlyTo] = useState<{ position: [number, number]; zoom: number; key: string } | null>(null);
+  const [flyTo, setFlyTo] = useState<{
+    position: [number, number];
+    zoom: number;
+    key: string;
+  } | null>(null);
 
   useEffect(() => {
     setInternalSelectedZoneId(selectedZoneId ?? null);
   }, [selectedZoneId]);
 
-  // Cargar zonas + grupos
+  // Datos del mapa en vivo: carga inicial + Realtime (refresco instantáneo al
+  // cambiar un reporte) + polling de respaldo pausado cuando la pestaña está
+  // oculta. El titileo lo decide has_pending_report del backend, así que no
+  // hace falta maquinaria de timeouts en el cliente.
   useEffect(() => {
-    const load = async () => {
+    let cancelled = false;
+
+    const loadZones = async (isFirstLoad: boolean) => {
       try {
-        setLoading(true);
+        if (isFirstLoad) setLoading(true);
         const response = await ZonesService.getMapData({ is_active: true });
-        setZoneData(response.zones || []);
+        if (cancelled) return;
+        const zones = response.zones || [];
+        // Solo re-renderizar si la data realmente cambió. Sin este guard, cada
+        // refresco reemplaza el array completo y remonta todos los marcadores
+        // (nuevos L.divIcon → setIcon → reinicia animaciones) = pestañeo.
+        const sig = JSON.stringify(zones);
+        if (sig !== lastZonesSig.current) {
+          lastZonesSig.current = sig;
+          setZoneData(zones);
+        }
       } finally {
-        setLoading(false);
+        if (isFirstLoad) setLoading(false);
       }
     };
-    void load();
+
+    const loadTimeline = async () => {
+      try {
+        const buckets = await DiscipleshipService.getActivityTimeline();
+        if (cancelled) return;
+        // Mantener la misma referencia si los 24 buckets son idénticos → sin re-render.
+        setActivityBuckets(prev =>
+          prev.length === buckets.length && prev.every((v, i) => v === buckets[i]) ? prev : buckets
+        );
+      } catch (err) {
+        console.error('Error loading activity timeline:', err);
+      }
+    };
+
+    const refresh = () => {
+      void loadZones(false);
+      void loadTimeline();
+    };
+
+    // Carga inicial
+    void loadZones(true);
+    void loadTimeline();
+
+    // Realtime: un cambio en discipleship_reports (nuevo reporte, aprobación o
+    // rechazo) refresca al instante — sin esperar el próximo poll. Scopeado por
+    // iglesia vía el JWT (la policy reports_realtime_church_staff filtra por
+    // church_id). Debounce para agrupar ráfagas en un solo refresh.
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const setupRealtime = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const churchId = (user.app_metadata as { church_id?: string } | undefined)?.church_id;
+      channel = supabase
+        .channel('map-reports')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'discipleship_reports',
+            ...(churchId ? { filter: `church_id=eq.${churchId}` } : {}),
+          },
+          () => {
+            if (cancelled) return;
+            if (debounce) clearTimeout(debounce);
+            debounce = setTimeout(refresh, 400);
+          }
+        )
+        .subscribe();
+    };
+    void setupRealtime();
+
+    // Polling de respaldo (por si Realtime no conecta, ej. dev sin websockets):
+    // solo cuando la pestaña está visible, para no generar "recargas" en background.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, LIVE_POLL_MS);
+
+    // Al volver a la pestaña, refrescar una vez (pudo cambiar mientras no mirabas).
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      if (debounce) clearTimeout(debounce);
+      document.removeEventListener('visibilitychange', onVisible);
+      if (channel) void supabase.removeChannel(channel);
+    };
   }, []);
 
   // Cargar usuarios con coordenadas (usa endpoint de discipulado, no requiere staff+)
@@ -299,7 +519,7 @@ export default function DiscipleshipMap({
         const usersData = await DiscipleshipService.getUsersForHierarchy();
         const rawUsers = usersData || [];
         const usersWithCoords: MapUser[] = rawUsers
-          .filter((u) => {
+          .filter(u => {
             const lat = Number(u.latitude);
             const lng = Number(u.longitude);
             return (
@@ -311,7 +531,7 @@ export default function DiscipleshipMap({
               lng !== 0
             );
           })
-          .map((u) => ({
+          .map(u => ({
             id: String(u.id),
             first_name: String(u.first_name || ''),
             last_name: String(u.last_name || ''),
@@ -333,7 +553,7 @@ export default function DiscipleshipMap({
   }, [zoneData]);
 
   const selectedZone = useMemo(
-    () => zoneData.find((item) => item.zone.id === internalSelectedZoneId) ?? null,
+    () => zoneData.find(item => item.zone.id === internalSelectedZoneId) ?? null,
     [zoneData, internalSelectedZoneId]
   );
 
@@ -356,11 +576,11 @@ export default function DiscipleshipMap({
       );
     };
     if (!internalSelectedZoneId) {
-      return zoneData.flatMap((item) => item.groups).filter(hasValidCoords);
+      return zoneData.flatMap(item => item.groups).filter(hasValidCoords);
     }
     return (
       zoneData
-        .find((item) => item.zone.id === internalSelectedZoneId)
+        .find(item => item.zone.id === internalSelectedZoneId)
         ?.groups.filter(hasValidCoords) || []
     );
   }, [zoneData, internalSelectedZoneId]);
@@ -368,27 +588,33 @@ export default function DiscipleshipMap({
   // Personas visibles (filtradas por zona si hay seleccion)
   const visiblePeople = useMemo<MapUser[]>(() => {
     if (!internalSelectedZoneId) return mapUsers;
-    const zoneName = zoneData.find((z) => z.zone.id === internalSelectedZoneId)?.zone.name;
+    const zoneName = zoneData.find(z => z.zone.id === internalSelectedZoneId)?.zone.name;
     if (!zoneName) return mapUsers;
-    return mapUsers.filter((u) => u.zone_name === zoneName);
+    return mapUsers.filter(u => u.zone_name === zoneName);
   }, [mapUsers, internalSelectedZoneId, zoneData]);
 
-  // Obtener color de zona para un grupo
-  const getGroupZoneColor = useCallback(
-    (group: ZoneMapGroup): string => {
-      for (const zd of zoneData) {
-        if (zd.groups.some((g) => g.id === group.id)) {
-          return zd.zone.color || '#3b82f6';
-        }
-      }
-      return '#3b82f6';
-    },
+  const totalGroups = useMemo(
+    () => zoneData.reduce((acc, item) => acc + item.groups.length, 0),
+    [zoneData]
+  );
+  const totalMembers = useMemo(
+    () => zoneData.reduce((acc, item) => acc + (item.zone.total_members || 0), 0),
+    [zoneData]
+  );
+  // "activos" del pill EN VIVO: miembros activos reales, sumados de todos los
+  // grupos cargados (no solo los visibles) — así el contador no salta al filtrar por zona.
+  const liveActiveCount = useMemo(
+    () =>
+      zoneData.reduce(
+        (acc, item) => acc + item.groups.reduce((a, g) => a + (g.active_members || 0), 0),
+        0
+      ),
     [zoneData]
   );
 
   const fitToZone = useCallback(
     (zoneId: string) => {
-      const feature = zoneFeatures.find((item) => item.properties.zoneId === zoneId);
+      const feature = zoneFeatures.find(item => item.properties.zoneId === zoneId);
       if (!feature) return;
       const bounds = getFeatureLatLngBounds(feature);
       if (!bounds) return;
@@ -409,443 +635,693 @@ export default function DiscipleshipMap({
       setSelectedPerson(null);
       onZoneSelect?.(nextZoneId, zone?.groups ?? []);
       if (nextZoneId) fitToZone(nextZoneId);
+      if (isMobileApp) setMobileListOpen(false);
     },
-    [onZoneSelect, fitToZone]
+    [onZoneSelect, fitToZone, isMobileApp]
   );
 
   // Pre-compute all polygon data for rendering
   const allZonePolygons = useMemo(() => {
-    return zoneFeatures.flatMap((feature) =>
-      getZonePolyPositions(feature, internalSelectedZoneId)
-    );
+    return zoneFeatures.flatMap(feature => getZonePolyPositions(feature, internalSelectedZoneId));
   }, [zoneFeatures, internalSelectedZoneId]);
 
-  return (
-    <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
-      {/* ── Mapa ── */}
-      <Card className="overflow-hidden border-border bg-card shadow-xl rounded-2xl relative group border-none lg:border-solid">
-        <CardContent className="p-0 relative">
-          <div className={cn('w-full transition-all duration-500', heightClassName)}>
-            <MapContainer
-              center={DEFAULT_CENTER}
-              zoom={DEFAULT_ZOOM}
-              className="w-full h-full"
-              zoomControl={false}
-              ref={(map) => {
-                mapRef.current = map;
-              }}
-            >
-              <ZoomControl position="topright" />
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              />
+  // Etiqueta con el nombre de cada zona, centrada en su bounding box
+  const zoneLabels = useMemo(() => {
+    return zoneFeatures
+      .map(feature => {
+        const bounds = getFeatureLatLngBounds(feature);
+        if (!bounds) return null;
+        const center = bounds.getCenter();
+        return {
+          zoneId: feature.properties.zoneId,
+          name: feature.properties.zoneName,
+          color: feature.properties.color,
+          center: [center.lat, center.lng] as [number, number],
+          isSelected: feature.properties.zoneId === internalSelectedZoneId,
+        };
+      })
+      .filter((l): l is NonNullable<typeof l> => l !== null);
+  }, [zoneFeatures, internalSelectedZoneId]);
 
-              {/* Floating Toolbar Top Left */}
-              <div className="leaflet-top leaflet-left" style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000 }}>
-                <div className="bg-background/80 backdrop-blur-md rounded-xl border border-border/50 p-2.5 shadow-lg flex items-center gap-4 transition-all hover:bg-background/90">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 bg-blue-500/10 rounded-lg">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill="#3b82f6" fillOpacity="0.85" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Grupos
+  // ── Capas del mapa (compartidas entre el layout de escritorio y el mobile) ──
+  const mapLayers = (
+    <>
+      <ZoomControl position="topright" />
+      <TileLayer attribution={TILE_ATTRIBUTION} url={TILE_URL} />
+
+      {/* Zona polygons (fill + border) */}
+      {allZonePolygons.map((poly, idx) => (
+        <Polygon
+          key={`zone-poly-${idx}`}
+          positions={poly.positions}
+          pathOptions={{
+            color: poly.color,
+            fillColor: poly.color,
+            fillOpacity: poly.isSelected ? 0.3 : 0.14,
+            weight: poly.isSelected ? 3 : 1.5,
+            dashArray: poly.isSelected ? undefined : '5 5',
+            lineCap: 'round',
+          }}
+        />
+      ))}
+
+      {/* Etiquetas de nombre de zona, centradas en su área */}
+      {zoneLabels.map(label => (
+        <Marker
+          key={`zone-label-${label.zoneId}`}
+          position={label.center}
+          icon={createZoneLabelIcon(label.name, label.color, label.isSelected)}
+          interactive={false}
+          zIndexOffset={-1000}
+        />
+      ))}
+
+      {/* FitToBounds helper */}
+      {fitToBounds && <FitToBounds bounds={fitToBounds.bounds} trigger={fitToBounds.key} />}
+      {flyTo && <FlyTo position={flyTo.position} zoom={flyTo.zoom} trigger={flyTo.key} />}
+      <PopupCloseHandler
+        onClose={() => {
+          setSelectedGroup(null);
+          setSelectedPerson(null);
+        }}
+      />
+
+      {/* Marcadores de Grupos (círculos: color = estado de reporte, tamaño = miembros) */}
+      {showGroups &&
+        visibleGroups.map(group => {
+          const lat = Number(group.latitude);
+          const lng = Number(group.longitude);
+          if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return null;
+          const status = getActivityStatus(group.last_report_date);
+          const isSelected = selectedGroup?.id === group.id;
+          // Titila mientras el reporte del grupo esté pendiente de aprobación.
+          const isPulsing = !!group.has_pending_report;
+          return (
+            <Marker
+              key={`group-${group.id}`}
+              position={[lat, lng]}
+              icon={createGroupIcon(
+                ACTIVITY_COLORS[status],
+                groupMarkerSize(group.active_members || group.member_count || 0),
+                isSelected,
+                isPulsing
+              )}
+              zIndexOffset={isSelected ? 1000 : 0}
+              eventHandlers={{
+                click: () => {
+                  setSelectedPerson(null);
+                  setSelectedGroup(group);
+                },
+              }}
+            />
+          );
+        })}
+
+      {/* Marcadores de Personas */}
+      {showPeople &&
+        visiblePeople.map(person => (
+          <Marker
+            key={`person-${person.id}`}
+            position={[person.latitude, person.longitude]}
+            icon={createPersonIcon(15)}
+            eventHandlers={{
+              click: () => {
+                setSelectedGroup(null);
+                setSelectedPerson(person);
+              },
+            }}
+          />
+        ))}
+
+      {/* Popup de Grupo */}
+      {selectedGroup && selectedGroup.latitude && selectedGroup.longitude && (
+        <Popup
+          position={[Number(selectedGroup.latitude), Number(selectedGroup.longitude)]}
+          closeOnClick={false}
+          autoClose={false}
+          maxWidth={240}
+        >
+          {(() => {
+            const status = getActivityStatus(selectedGroup.last_report_date);
+            const reportDate = parseBackendTimestamp(selectedGroup.last_report_date);
+            return (
+              <div className="w-[220px] bg-background rounded-2xl shadow-2xl border border-border overflow-hidden">
+                <div className="flex items-center gap-2 px-3.5 py-3 border-b border-border/50">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: ACTIVITY_COLORS[status] }}
+                  />
+                  <p className="font-bold text-xs tracking-tight truncate">
+                    {selectedGroup.group_name}
+                  </p>
+                </div>
+                <div className="px-3.5 py-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                      <UserIcon className="w-3 h-3" /> Líder
+                    </span>
+                    <span className="font-semibold text-foreground truncate max-w-[130px]">
+                      {selectedGroup.leader_name || 'Sin asignar'}
                     </span>
                   </div>
-                  <div className="h-4 w-[1px] bg-border" />
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 bg-indigo-500/10 rounded-lg">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
-                        <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Personas
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Users className="w-3 h-3" /> Miembros
                     </span>
+                    <span className="font-semibold text-foreground">
+                      {selectedGroup.active_members || 0}/{selectedGroup.member_count || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-medium">Último reporte</span>
+                    <span className="font-semibold text-foreground">
+                      {formatRelativeTime(reportDate)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Badge
+                      className="w-fit text-[9.5px] font-bold tracking-wide border-0"
+                      style={{
+                        backgroundColor: `${ACTIVITY_COLORS[status]}1f`,
+                        color: ACTIVITY_COLORS[status],
+                      }}
+                    >
+                      {ACTIVITY_LABELS[status]}
+                    </Badge>
+                    {selectedGroup.has_pending_report && (
+                      <Badge className="w-fit text-[9.5px] font-bold tracking-wide border-0 bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-amber-500"
+                          style={{ animation: 'jetro-live-dot 1.4s ease-in-out infinite' }}
+                        />
+                        REPORTE PENDIENTE
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
+            );
+          })()}
+        </Popup>
+      )}
 
-              {/* Zona polygons (fill + border) */}
-              {allZonePolygons.map((poly, idx) => (
-                <Polygon
-                  key={`zone-poly-${idx}`}
-                  positions={poly.positions}
-                  pathOptions={{
-                    color: poly.isSelected ? poly.color : poly.color,
-                    fillColor: poly.color,
-                    fillOpacity: 0.22,
-                    weight: poly.isSelected ? 4 : 2,
-                  }}
-                />
-              ))}
-
-              {/* FitToBounds helper */}
-              {fitToBounds && (
-                <FitToBounds bounds={fitToBounds.bounds} trigger={fitToBounds.key} />
-              )}
-              {flyTo && (
-                <FlyTo position={flyTo.position} zoom={flyTo.zoom} trigger={flyTo.key} />
-              )}
-
-              {/* Marcadores de Grupos (casitas) */}
-              {showGroups &&
-                visibleGroups.map((group) => {
-                  const lat = Number(group.latitude);
-                  const lng = Number(group.longitude);
-                  if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return null;
-                  const zoneColor = getGroupZoneColor(group);
-                  const isSelected = selectedGroup?.id === group.id;
-                  return (
-                    <Marker
-                      key={`group-${group.id}`}
-                      position={[lat, lng]}
-                      icon={createHouseIcon(zoneColor, isSelected ? 30 : 22, isSelected)}
-                      zIndexOffset={isSelected ? 1000 : 0}
-                      eventHandlers={{
-                        click: () => {
-                          setSelectedPerson(null);
-                          setSelectedGroup(group);
-                        },
-                      }}
-                    />
-                  );
-                })}
-
-              {/* Marcadores de Personas */}
-              {showPeople &&
-                visiblePeople.map((person) => (
-                  <Marker
-                    key={`person-${person.id}`}
-                    position={[person.latitude, person.longitude]}
-                    icon={createPersonIcon(15)}
-                    eventHandlers={{
-                      click: () => {
-                        setSelectedGroup(null);
-                        setSelectedPerson(person);
-                      },
-                    }}
+      {/* Popup de Persona */}
+      {selectedPerson && (
+        <Popup
+          position={[selectedPerson.latitude, selectedPerson.longitude]}
+          closeOnClick={false}
+          autoClose={false}
+          maxWidth={260}
+        >
+          <div className="p-3 min-w-[180px] bg-background rounded-xl shadow-2xl border border-border">
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
+              <div className="p-1.5 bg-indigo-500/10 rounded-lg">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5" />
+                  <path
+                    d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21"
+                    fill="#6366f1"
+                    fillOpacity="0.6"
+                    stroke="#4f46e5"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
                   />
-                ))}
-
-              {/* Popup de Grupo */}
-              {selectedGroup && selectedGroup.latitude && selectedGroup.longitude && (
-                <Popup
-                  position={[Number(selectedGroup.latitude), Number(selectedGroup.longitude)]}
-                  onClose={() => setSelectedGroup(null)}
-                  closeOnClick={false}
-                  autoClose={false}
-                  maxWidth={300}
-                >
-                  <div className="p-3 min-w-[220px] bg-background rounded-xl shadow-2xl border border-border overflow-hidden">
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
-                      <div className="p-1.5 bg-blue-500/10 rounded-lg">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                          <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill="#3b82f6" fillOpacity="0.85" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
-                      <p className="font-bold text-sm tracking-tight truncate">
-                        {selectedGroup.group_name}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <UserIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                        <p className="text-xs text-muted-foreground">
-                          <span className="font-semibold text-foreground">Líder:</span>{' '}
-                          {selectedGroup.leader_name || 'Sin asignar'}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                        <p className="text-xs text-muted-foreground">
-                          <span className="font-semibold text-foreground">Miembros:</span>{' '}
-                          {selectedGroup.active_members || 0}/{selectedGroup.member_count || 0}
-                        </p>
-                      </div>
-                      {selectedGroup.meeting_location && (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                          <p className="text-xs text-muted-foreground line-clamp-1">
-                            <span className="font-semibold text-foreground">Ubicación:</span>{' '}
-                            {selectedGroup.meeting_location}
-                          </p>
-                        </div>
-                      )}
-                      {selectedGroup.meeting_day && (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                          <p className="text-xs text-muted-foreground">
-                            <span className="font-semibold text-foreground">Reunión:</span>{' '}
-                            {selectedGroup.meeting_day}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Popup>
-              )}
-
-              {/* Popup de Persona */}
-              {selectedPerson && (
-                <Popup
-                  position={[selectedPerson.latitude, selectedPerson.longitude]}
-                  onClose={() => setSelectedPerson(null)}
-                  closeOnClick={false}
-                  autoClose={false}
-                  maxWidth={260}
-                >
-                  <div className="p-3 min-w-[180px] bg-background rounded-xl shadow-2xl border border-border">
-                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
-                      <div className="p-1.5 bg-indigo-500/10 rounded-lg">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
-                          <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
-                        </svg>
-                      </div>
-                      <p className="font-bold text-sm tracking-tight truncate">
-                        {selectedPerson.first_name} {selectedPerson.last_name}
-                      </p>
-                    </div>
-                    <div className="space-y-1.5">
-                      {selectedPerson.email && (
-                        <p className="text-xs text-muted-foreground truncate">
-                          {selectedPerson.email}
-                        </p>
-                      )}
-                      {selectedPerson.zone_name && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <MapPin className="w-3 h-3 text-muted-foreground" />
-                          <p className="text-[10px] font-medium text-muted-foreground">
-                            {selectedPerson.zone_name}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Popup>
-              )}
-            </MapContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Sidebar ── */}
-      <Card className="border-border bg-card shadow-xl rounded-2xl flex flex-col overflow-hidden border-none lg:border-solid">
-        <CardHeader className="space-y-4 pb-4 bg-muted/30 border-b border-border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-blue-500" />
-              <CardTitle className="text-xl font-bold tracking-tight">Capas</CardTitle>
+                </svg>
+              </div>
+              <p className="font-bold text-sm tracking-tight truncate">
+                {selectedPerson.first_name} {selectedPerson.last_name}
+              </p>
             </div>
-            {internalSelectedZoneId ? (
-              <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800 hover:bg-blue-500/20 transition-colors">
-                {selectedZone?.zone.name}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-muted-foreground">
-                Global
-              </Badge>
+            <div className="space-y-1.5">
+              {selectedPerson.email && (
+                <p className="text-xs text-muted-foreground truncate">{selectedPerson.email}</p>
+              )}
+              {selectedPerson.zone_name && (
+                <div className="flex items-center gap-2 mt-1">
+                  <MapPin className="w-3 h-3 text-muted-foreground" />
+                  <p className="text-[10px] font-medium text-muted-foreground">
+                    {selectedPerson.zone_name}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </Popup>
+      )}
+    </>
+  );
+
+  // ── Lista de zonas (compartida: Drawer de mobile / chips de escritorio) ──
+  const zoneListBody = (
+    <div className="space-y-3">
+      {/* Botón "Todas las zonas" */}
+      <button
+        type="button"
+        onClick={() => handleSelectZone(null)}
+        className={cn(
+          'w-full rounded-2xl border p-4 text-left transition-all duration-300 relative overflow-hidden group/all',
+          !internalSelectedZoneId
+            ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
+            : 'bg-card border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+        )}
+      >
+        {!internalSelectedZoneId && (
+          <div className="absolute -right-4 -top-4 w-16 h-16 bg-white/10 rounded-full blur-2xl" />
+        )}
+        <div className="flex items-center justify-between relative z-10">
+          <div>
+            <p className="font-bold text-sm tracking-tight">Todas las zonas</p>
+            <p
+              className={cn(
+                'text-xs mt-0.5 font-medium',
+                !internalSelectedZoneId ? 'text-blue-100' : 'text-muted-foreground'
+              )}
+            >
+              {totalGroups} grupos totales
+            </p>
+          </div>
+          <div
+            className={cn(
+              'p-2 rounded-xl transition-colors',
+              !internalSelectedZoneId ? 'bg-white/20' : 'bg-muted'
+            )}
+          >
+            <Search className="w-4 h-4" />
+          </div>
+        </div>
+      </button>
+
+      {loading && (
+        <div className="space-y-2 p-4">
+          <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+          <div className="h-3 w-1/2 bg-muted animate-pulse rounded" />
+        </div>
+      )}
+
+      {/* Lista de zonas */}
+      {zoneData.map(item => {
+        const isSelected = item.zone.id === internalSelectedZoneId;
+        return (
+          <div
+            key={item.zone.id}
+            className={cn(
+              'rounded-2xl border transition-all duration-300 group/item overflow-hidden',
+              isSelected
+                ? 'bg-blue-500/5 border-blue-200 dark:border-blue-900 shadow-md ring-1 ring-blue-500/20'
+                : 'border-border/50 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-muted/30 hover:shadow-sm'
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => handleSelectZone(item)}
+              className="w-full text-left p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-sm tracking-tight group-hover/item:text-blue-600 transition-colors">
+                    {item.zone.name}
+                  </p>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        {item.groups.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        {item.zone.total_members || 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="h-4 w-4 rounded-full border-2 border-white dark:border-gray-800 shadow-sm flex-shrink-0 mt-0.5"
+                  style={{ backgroundColor: item.zone.color }}
+                />
+              </div>
+            </button>
+
+            {/* Grupos expandidos cuando la zona está seleccionada */}
+            {isSelected && item.groups.length > 0 && (
+              <div className="px-3 pb-3 space-y-2">
+                <div className="border-t border-blue-200/50 dark:border-blue-800/50 pt-3 flex items-center gap-2 mb-1 px-1">
+                  <div className="h-1 w-1 rounded-full bg-blue-500" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600/70">
+                    Células en zona
+                  </span>
+                </div>
+                {item.groups.map(group => (
+                  <button
+                    type="button"
+                    key={group.id}
+                    className="w-full text-left rounded-xl border border-blue-200/30 dark:border-blue-800/30 p-2.5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all group/cell"
+                    onClick={() => {
+                      if (group.latitude && group.longitude) {
+                        setSelectedGroup(group);
+                        flyToGroup(Number(group.latitude), Number(group.longitude));
+                        if (isMobileApp) setMobileListOpen(false);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{
+                          backgroundColor:
+                            ACTIVITY_COLORS[getActivityStatus(group.last_report_date)],
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold truncate group-hover/cell:text-blue-600 transition-colors">
+                          {group.group_name}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate font-medium">
+                          {group.leader_name || 'Sin líder'}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
+        );
+      })}
+    </div>
+  );
 
-          {/* Toggles de capas - Rediseñados */}
-          <div className="grid grid-cols-2 gap-2">
-            <div
+  // ── Layout mobile: mapa a pantalla completa + toggles flotantes + hoja inferior ──
+  // (rediseño "mapa en vivo" aplica a escritorio; mobile queda como hoy, entrega aparte)
+  if (isMobileApp) {
+    return (
+      <div className="relative w-full h-[calc(100dvh-172px)] rounded-2xl overflow-hidden border border-border">
+        <MapContainer
+          center={DEFAULT_CENTER}
+          zoom={DEFAULT_ZOOM}
+          className="w-full h-full"
+          zoomControl={false}
+          ref={map => {
+            mapRef.current = map;
+          }}
+        >
+          {mapLayers}
+        </MapContainer>
+
+        {/* Toggles flotantes, interactivos (reemplazan la leyenda estática) */}
+        <div className="absolute top-3 left-3 right-3 z-[1000] flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowGroups(v => !v)}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur-md border transition-colors',
+              showGroups
+                ? 'bg-blue-600 text-white border-blue-500'
+                : 'bg-background/90 text-muted-foreground border-border/50'
+            )}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            Grupos
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPeople(v => !v)}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur-md border transition-colors',
+              showPeople
+                ? 'bg-indigo-600 text-white border-indigo-500'
+                : 'bg-background/90 text-muted-foreground border-border/50'
+            )}
+          >
+            <Users className="w-3.5 h-3.5" />
+            Personas
+          </button>
+        </div>
+
+        {/* Botón flotante: abre la hoja inferior con la lista/filtro de zonas */}
+        <button
+          type="button"
+          onClick={() => setMobileListOpen(true)}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 rounded-full bg-background/95 backdrop-blur-md border border-border shadow-xl px-4 py-2.5 text-xs font-bold"
+        >
+          <Layers className="w-4 h-4 text-blue-500" />
+          {selectedZone ? selectedZone.zone.name : `Zonas · ${totalGroups} grupos`}
+        </button>
+
+        <Drawer open={mobileListOpen} onOpenChange={setMobileListOpen}>
+          <DrawerContent className="max-h-[75vh]">
+            <DrawerHeader>
+              <DrawerTitle>Zonas</DrawerTitle>
+              <DrawerDescription>Filtrá el mapa por zona o entrá a un grupo</DrawerDescription>
+            </DrawerHeader>
+            <div className="overflow-y-auto px-4 pb-4">{zoneListBody}</div>
+          </DrawerContent>
+        </Drawer>
+      </div>
+    );
+  }
+
+  // ── Layout de escritorio: "mapa en tiempo real" — un solo Card a ancho completo ──
+  return (
+    <Card className="jetro-live-map overflow-hidden border-border bg-card shadow-xl rounded-2xl">
+      {/* Header: título + controles */}
+      <div className="flex items-center justify-between gap-3 flex-wrap px-4 sm:px-5 pt-4 pb-3">
+        {title ? (
+          <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground">{title}</h2>
+        ) : (
+          <div />
+        )}
+        <div className="flex items-center gap-2">
+          {/* Segmented Grupos / Personas — multi-toggle, no exclusivo */}
+          <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1">
+            <button
+              type="button"
+              onClick={() => setShowGroups(v => !v)}
               className={cn(
-                'flex items-center justify-between p-2 rounded-xl border transition-all',
+                'rounded-full px-3 py-1 text-[11px] font-bold transition-colors',
                 showGroups
-                  ? 'bg-blue-500/5 border-blue-200 dark:border-blue-800 shadow-sm'
-                  : 'bg-muted/50 border-transparent'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-muted-foreground hover:bg-blue-600/[.06]'
               )}
             >
-              <Label htmlFor="show-groups" className="cursor-pointer flex items-center gap-2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={showGroups ? '#3b82f6' : '#94a3b8'} fillOpacity="0.85" stroke={showGroups ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={showGroups ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span className="text-xs font-medium">Grupos</span>
-              </Label>
-              <Switch
-                id="show-groups"
-                checked={showGroups}
-                onCheckedChange={setShowGroups}
-                className="scale-75"
-              />
-            </div>
-            <div
+              Grupos
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPeople(v => !v)}
               className={cn(
-                'flex items-center justify-between p-2 rounded-xl border transition-all',
+                'rounded-full px-3 py-1 text-[11px] font-bold transition-colors',
                 showPeople
-                  ? 'bg-indigo-500/5 border-indigo-200 dark:border-indigo-800 shadow-sm'
-                  : 'bg-muted/50 border-transparent'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-muted-foreground hover:bg-blue-600/[.06]'
               )}
             >
-              <Label htmlFor="show-people" className="cursor-pointer flex items-center gap-2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5"/>
-                  <path d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21" fill="#6366f1" fillOpacity="0.6" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-                <span className="text-xs font-medium">Personas</span>
-              </Label>
-              <Switch
-                id="show-people"
-                checked={showPeople}
-                onCheckedChange={setShowPeople}
-                className="scale-75"
-              />
+              Personas
+            </button>
+          </div>
+
+          {/* Pill EN VIVO */}
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
+            <span
+              className="w-2 h-2 rounded-full bg-green-500"
+              style={{ animation: 'jetro-live-dot 1.4s ease-in-out infinite' }}
+            />
+            <span className="text-[11px] font-bold text-green-700 dark:text-green-400">
+              EN VIVO
+            </span>
+            <span className="w-px h-3 bg-border" />
+            <span className="text-xs font-bold text-foreground">{liveActiveCount}</span>
+            <span className="text-[11px] font-medium text-muted-foreground">activos</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Mapa */}
+      <CardContent className="p-0 relative">
+        <div className={cn('w-full relative', heightClassName)}>
+          {loading && zoneData.length === 0 && (
+            <Skeleton className="absolute inset-0 z-[900] rounded-none" />
+          )}
+
+          <MapContainer
+            center={DEFAULT_CENTER}
+            zoom={DEFAULT_ZOOM}
+            className="w-full h-full relative z-[500]"
+            zoomControl={false}
+            ref={map => {
+              mapRef.current = map;
+            }}
+          >
+            {mapLayers}
+          </MapContainer>
+
+          {/* Overlay de radar: decorativo, "sistema escuchando" — no representa datos puntuales.
+              Va por ENCIMA del mapa (z-[600]) con pointer-events-none: el barrido cónico
+              semitransparente tiñe las tiles (mix-blend multiply en claro) sin bloquear los
+              clicks de los marcadores. La animación se apaga sola vía prefers-reduced-motion. */}
+          <div
+            className="pointer-events-none absolute inset-0 z-[600] flex items-center justify-center overflow-hidden"
+            aria-hidden="true"
+          >
+            <div className="relative w-[620px] h-[620px] max-w-none">
+              <div className="absolute inset-[140px] rounded-full border border-dashed border-green-500/20 dark:border-green-400/20" />
+              <div className="absolute inset-0 rounded-full border border-dashed border-green-500/30 dark:border-green-400/25" />
+              <div className="jetro-radar-sweep absolute inset-0 rounded-full" />
             </div>
           </div>
-        </CardHeader>
 
-        <CardContent className="pt-0">
-          <ScrollArea className="h-[460px] pr-4">
-            <div className="space-y-3">
-              {/* Botón "Todas las zonas" */}
-              <button
-                type="button"
-                onClick={() => handleSelectZone(null)}
-                className={cn(
-                  'w-full rounded-2xl border p-4 text-left transition-all duration-300 relative overflow-hidden group/all',
-                  !internalSelectedZoneId
-                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
-                    : 'bg-card border-border hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+          {/* Chip de resumen (overlay top-left) */}
+          <div className="absolute top-4 left-4 z-[1000] rounded-xl border border-black/5 dark:border-white/10 bg-white/[.93] dark:bg-white/[.07] backdrop-blur-md px-3.5 py-2.5 shadow-sm dark:shadow-none">
+            <p className="text-[11px] font-bold text-foreground">
+              {totalGroups} grupos · {totalMembers} miembros
+            </p>
+            <p className="text-[10px] font-medium text-muted-foreground">
+              {zoneData.length} zona{zoneData.length !== 1 ? 's' : ''} · radar activo
+            </p>
+          </div>
+        </div>
+      </CardContent>
+
+      {/* Línea de tiempo (24h reales) */}
+      <div className="px-4 sm:px-5 pt-3.5 pb-1.5 border-t border-border">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-foreground">Actividad · últimas 24 h</span>
+          <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
+            reportes reales enviados por hora
+          </span>
+        </div>
+        <div className="flex items-end gap-[3px] h-[46px] mt-4 relative">
+          {activityBuckets.map((count, i) => {
+            const max = Math.max(1, ...activityBuckets);
+            const heightPct = Math.max(6, (count / max) * 100);
+            const isRecent = i >= 20; // últimas 4 horas
+            const isNow = i === 23;
+            return (
+              <div key={i} className="flex-1 relative h-full flex items-end">
+                {isNow && (
+                  <>
+                    <div className="absolute -top-1.5 bottom-0 right-0 w-[2px] bg-foreground dark:bg-green-400" />
+                    <span className="absolute -top-4 right-0 translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[9px] font-bold bg-foreground text-background dark:bg-green-400 dark:text-green-950">
+                      AHORA
+                    </span>
+                  </>
                 )}
-              >
-                {!internalSelectedZoneId && (
-                  <div className="absolute -right-4 -top-4 w-16 h-16 bg-white/10 rounded-full blur-2xl" />
-                )}
-                <div className="flex items-center justify-between relative z-10">
-                  <div>
-                    <p className="font-bold text-sm tracking-tight">Todas las zonas</p>
-                    <p
-                      className={cn(
-                        'text-xs mt-0.5 font-medium',
-                        !internalSelectedZoneId ? 'text-blue-100' : 'text-muted-foreground'
-                      )}
-                    >
-                      {zoneData.reduce((acc, item) => acc + item.groups.length, 0)} grupos totales
-                    </p>
-                  </div>
-                  <div
-                    className={cn(
-                      'p-2 rounded-xl transition-colors',
-                      !internalSelectedZoneId ? 'bg-white/20' : 'bg-muted'
-                    )}
-                  >
-                    <Search className="w-4 h-4" />
-                  </div>
-                </div>
-              </button>
+                <div
+                  className={cn(
+                    'w-full rounded-sm transition-[height] duration-500',
+                    isRecent ? 'bg-blue-500 dark:bg-green-400' : 'bg-slate-300 dark:bg-slate-500/35'
+                  )}
+                  style={{ height: `${heightPct}%` }}
+                  title={`${count} reporte${count !== 1 ? 's' : ''}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex justify-between mt-1.5">
+          {['00:00', '06:00', '12:00', '18:00', '24:00'].map(label => (
+            <span
+              key={label}
+              className="font-mono text-[9.5px] font-medium text-muted-foreground/70"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
 
-              {loading && (
-                <div className="space-y-2 p-4">
-                  <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
-                  <div className="h-3 w-1/2 bg-muted animate-pulse rounded" />
-                </div>
-              )}
+      {/* Leyenda inferior: chips de zona + escalas — scrollea horizontal si no entra */}
+      <div className="px-4 sm:px-5 pt-3 pb-4 flex items-center gap-3.5 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => handleSelectZone(null)}
+          className={cn(
+            'shrink-0 flex items-center gap-2 rounded-[10px] border px-3 py-1.5 transition-colors',
+            !internalSelectedZoneId
+              ? 'border-blue-500 bg-blue-500/[.08]'
+              : 'border-border bg-muted/40 hover:bg-muted'
+          )}
+        >
+          <span className="text-[10.5px] font-bold text-foreground">Todas las zonas</span>
+        </button>
+        {loading && zoneData.length === 0
+          ? [1, 2, 3].map(i => (
+              <div
+                key={i}
+                className="shrink-0 h-[30px] w-28 rounded-[10px] bg-muted animate-pulse"
+              />
+            ))
+          : zoneData.map(item => {
+              const isSelected = item.zone.id === internalSelectedZoneId;
+              return (
+                <button
+                  key={item.zone.id}
+                  type="button"
+                  onClick={() => handleSelectZone(item)}
+                  className={cn(
+                    'shrink-0 flex items-center gap-2 rounded-[10px] border px-3 py-1.5 transition-colors',
+                    isSelected ? 'bg-muted/40' : 'border-border bg-muted/40 hover:bg-muted'
+                  )}
+                  style={
+                    isSelected
+                      ? { borderColor: item.zone.color, background: `${item.zone.color}14` }
+                      : undefined
+                  }
+                >
+                  <span
+                    className="w-[9px] h-[9px] rounded-full shrink-0"
+                    style={{ backgroundColor: item.zone.color }}
+                  />
+                  <span className="flex flex-col items-start leading-tight">
+                    <span className="text-[10.5px] font-bold text-foreground">
+                      {item.zone.name}
+                    </span>
+                    <span className="text-[9.5px] font-medium text-muted-foreground">
+                      {item.groups.length} grupos · {item.zone.total_members || 0} miembros
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
 
-              {/* Lista de zonas */}
-              {zoneData.map((item) => {
-                const isSelected = item.zone.id === internalSelectedZoneId;
-                return (
-                  <div
-                    key={item.zone.id}
-                    className={cn(
-                      'rounded-2xl border transition-all duration-300 group/item overflow-hidden',
-                      isSelected
-                        ? 'bg-blue-500/5 border-blue-200 dark:border-blue-900 shadow-md ring-1 ring-blue-500/20'
-                        : 'border-border/50 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-muted/30 hover:shadow-sm'
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSelectZone(item)}
-                      className="w-full text-left p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm tracking-tight group-hover/item:text-blue-600 transition-colors">
-                            {item.zone.name}
-                          </p>
-                          <div className="flex items-center gap-3 mt-1.5">
-                            <div className="flex items-center gap-1">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={isSelected ? '#3b82f6' : '#94a3b8'} fillOpacity="0.85" stroke={isSelected ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={isSelected ? '#3b82f6' : '#94a3b8'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                              <span className="text-[10px] font-bold text-muted-foreground">
-                                {item.groups.length}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Users className="w-3 h-3 text-muted-foreground" />
-                              <span className="text-[10px] font-bold text-muted-foreground">
-                                {item.zone.total_members || 0}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div
-                          className="h-4 w-4 rounded-full border-2 border-white dark:border-gray-800 shadow-sm flex-shrink-0 mt-0.5"
-                          style={{ backgroundColor: item.zone.color }}
-                        />
-                      </div>
-                    </button>
+        <span className="shrink-0 w-px h-[30px] bg-border" />
 
-                    {/* Grupos expandidos cuando la zona está seleccionada */}
-                    {isSelected && item.groups.length > 0 && (
-                      <div className="px-3 pb-3 space-y-2">
-                        <div className="border-t border-blue-200/50 dark:border-blue-800/50 pt-3 flex items-center gap-2 mb-1 px-1">
-                          <div className="h-1 w-1 rounded-full bg-blue-500" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600/70">
-                            Células en zona
-                          </span>
-                        </div>
-                        {item.groups.map((group) => (
-                          <button
-                            type="button"
-                            key={group.id}
-                            className="w-full text-left rounded-xl border border-blue-200/30 dark:border-blue-800/30 p-2.5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all group/cell"
-                            onClick={() => {
-                              if (group.latitude && group.longitude) {
-                                setSelectedGroup(group);
-                                flyToGroup(Number(group.latitude), Number(group.longitude));
-                              }
-                            }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="p-1.5 bg-background rounded-lg shadow-sm border border-border/50 group-hover/cell:border-blue-500/30 transition-colors">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                  <path d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z" fill={item.zone.color} fillOpacity="0.85" stroke={item.zone.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                  <path d="M9 21V13H15V21" fill="white" fillOpacity="0.9" stroke={item.zone.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold truncate group-hover/cell:text-blue-600 transition-colors">
-                                  {group.group_name}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground truncate font-medium">
-                                  {group.leader_name || 'Sin líder'}
-                                </p>
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+        <div className="shrink-0 flex items-center gap-3">
+          <span className="text-[9.5px] font-bold tracking-wide text-muted-foreground">
+            REPORTES
+          </span>
+          {(['recent', 'aging', 'silent'] as ActivityStatus[]).map(status => (
+            <div key={status} className="flex items-center gap-1.5">
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: ACTIVITY_COLORS[status] }}
+              />
+              <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+                {status === 'recent' && 'esta semana'}
+                {status === 'aging' && 'este mes'}
+                {status === 'silent' && 'sin reportar'}
+              </span>
             </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-    </div>
+          ))}
+        </div>
+
+        <span className="shrink-0 w-px h-[30px] bg-border" />
+
+        <div className="shrink-0 flex items-center gap-2.5">
+          <span className="text-[9.5px] font-bold tracking-wide text-muted-foreground">TAMAÑO</span>
+          {[10, 16, 24].map(size => (
+            <span
+              key={size}
+              className="rounded-full bg-slate-300 dark:bg-slate-500"
+              style={{ width: size, height: size }}
+            />
+          ))}
+          <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+            = miembros del grupo
+          </span>
+        </div>
+      </div>
+    </Card>
   );
 }

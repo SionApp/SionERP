@@ -15,6 +15,8 @@ func SetupRoutes(e *echo.Echo) {
 	dashboardHandler := handlers.NewDashboardHandler()
 	authHandler := handlers.NewAuthHandler()
 	onboardingHandler := handlers.NewOnboardingHandler()
+	federatedHandler := handlers.NewFederatedHandler()
+	providerHandler := handlers.NewProviderHandler()
 
 	// API routes
 	api := e.Group("/api/v1")
@@ -33,12 +35,42 @@ func SetupRoutes(e *echo.Echo) {
 	api.POST("/auth/login", authHandler.Login)
 	api.POST("/auth/logout", authHandler.Logout)
 
-	// Onboarding routes (públicas — unauthenticated, outside protected group + TenantTx)
-	// POST /api/v1/onboarding/church — provision a new church + first admin user
-	// IMPORTANT: this route is intentionally outside protected group. TenantTx MUST NOT
-	// run here because no church_id context exists yet when the church is being created.
-	onboarding := api.Group("/onboarding")
-	onboarding.POST("/church", onboardingHandler.ProvisionChurch)
+	// Onboarding (POST /api/v1/onboarding/church) — registrado más abajo,
+	// gateado por ProviderKeyAuth (ver sdd/provider-api/design Decisión 5).
+	// TenantTx MUST NOT run aquí: no hay church_id de contexto todavía
+	// cuando la iglesia se está creando.
+
+	// Acceso federado (BonDev, I2 fase 1 modo read): GET /federated/redeem —
+	// PÚBLICA a propósito, montada FUERA de /api/v1 (BonDev arma la URL
+	// exacta como https://{tenant}.sionerp.local/federated/redeem?token=...,
+	// pensada para abrirse directo en el browser, no como llamada de API).
+	// Sin SupabaseAuth/TenantTx: no hay sesión previa que canjear. Ver SDD
+	// completo en Engram, proyecto "sionerp", sdd/federated-access-verify/*.
+	e.GET("/federated/redeem", federatedHandler.Redeem)
+
+	// SionERP Provider API (I1): consumida por BonDev (control plane del
+	// proveedor). PÚBLICA respecto de SupabaseAuth/TenantTx a propósito —
+	// auth propia por X-Provider-Key (middleware.ProviderKeyAuth), server-a-
+	// server, sin usuario ni church_id de sesión. Cada operación recibe el
+	// tenant por :id en la URL. Ver SDD en Engram, proyecto "sionerp",
+	// sdd/provider-api/{proposal,spec,design,tasks}.
+	provider := e.Group("/provider")
+	provider.Use(middleware.ProviderKeyAuth())
+	provider.GET("/tenants", providerHandler.ListTenants)
+	provider.GET("/tenants/:id", providerHandler.GetTenant)
+	provider.GET("/tenants/:id/health", providerHandler.GetTenantHealth)
+	provider.POST("/tenants", providerHandler.CreateTenant)
+	provider.POST("/tenants/:id/modules", providerHandler.SetModule)
+	provider.POST("/tenants/:id/suspend", providerHandler.Suspend)
+	provider.POST("/tenants/:id/reactivate", providerHandler.Reactivate)
+	provider.POST("/tenants/:id/cancel", providerHandler.Cancel)
+
+	// El mismo secreto de servicio también gatea el onboarding self-service
+	// (decisión del usuario, ver sdd/provider-api/design Decisión 5): deja
+	// de ser público, sólo un poseedor de PROVIDER_API_KEY puede invocarlo.
+	onboardingProvider := api.Group("/onboarding")
+	onboardingProvider.Use(middleware.ProviderKeyAuth())
+	onboardingProvider.POST("/church", onboardingHandler.ProvisionChurch)
 
 	// Public: la página de registro consulta si el auto-registro está habilitado
 	api.GET("/public/registration-status", handlers.NewSettingsHandler().GetRegistrationStatus)
@@ -47,7 +79,16 @@ func SetupRoutes(e *echo.Echo) {
 
 	// Protected routes (require authentication)
 	protected := api.Group("")
+	// Acceso federado: si hay una sesión federada válida (cookie httpOnly
+	// seteada por /federated/redeem), setea el contexto ANTES de
+	// SupabaseAuth — que trae su propio guard para saltearse cuando ve que
+	// ya está autenticada (ver middleware/auth.go). Si no hay sesión
+	// federada, este middleware es un no-op total.
+	protected.Use(middleware.FederatedSessionAuth())
 	protected.Use(middleware.SupabaseAuth())
+	// Bloquea cualquier escritura de una sesión federada ANTES de que la
+	// request llegue a abrir transacción — fail-fast, no sólo gating de UI.
+	protected.Use(middleware.FederatedReadOnly())
 	// Modo mantenimiento: 503 para no-staff cuando está activo (corre antes de abrir tx)
 	protected.Use(middleware.MaintenanceGate())
 	// ponytail: TenantTx registered here (Phase 0) but is a no-op pass-through when
@@ -183,6 +224,7 @@ func SetupRoutes(e *echo.Echo) {
 
 		// Analytics
 		discipleship.GET("/analytics", discipleshipHandler.GetAnalytics)
+		discipleship.GET("/analytics/timeline", discipleshipHandler.GetActivityTimeline)
 		// Las siguientes rutas se integraron en /analytics
 		// discipleship.GET("/analytics/zones", discipleshipHandler.GetZoneStats)
 		// discipleship.GET("/analytics/performance", discipleshipHandler.GetGroupPerformance)

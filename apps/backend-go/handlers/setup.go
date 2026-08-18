@@ -86,9 +86,28 @@ func (h *SetupHandler) GetSetupStatus(c echo.Context) error {
 		})
 	}
 
-	// Fetch modules
+	// Fetch modules — scoped to the caller's church. Without this filter a
+	// multi-tenant DB returns EVERY church's module rows (21 churches × 6 =
+	// 126), which rendered as duplicates ("módulos iterados") in Gestión de
+	// Módulos. church_id isn't on the context here (OptionalAuth doesn't
+	// resolve it, unlike SupabaseAuth), so derive it from the authenticated
+	// user_id; fall back to one row per key when unauthenticated (initial
+	// setup, before any church exists).
+	var churchID sql.NullString
+	if uid, ok := c.Get("user_id").(string); ok && uid != "" {
+		_ = db.DB.QueryRow("SELECT church_id FROM users WHERE id = $1", uid).Scan(&churchID)
+	}
+
 	var modules []models.Module
-	rows, err := db.DB.Query("SELECT key, name, description, is_installed, installed_at FROM modules ORDER BY name")
+	var rows *sql.Rows
+	if churchID.Valid && churchID.String != "" {
+		rows, err = db.DB.Query(
+			"SELECT key, name, description, is_installed, installed_at FROM modules WHERE church_id = $1 ORDER BY name",
+			churchID.String)
+	} else {
+		rows, err = db.DB.Query(
+			"SELECT DISTINCT ON (key) key, name, description, is_installed, installed_at FROM modules ORDER BY key, name")
+	}
 	if err != nil {
 		// If table doesn't exist, it might be a fresh install without migration run yet.
 		return c.JSON(http.StatusInternalServerError, map[string]string{

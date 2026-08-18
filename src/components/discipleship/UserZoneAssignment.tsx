@@ -19,17 +19,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { MobileListItem } from '@/components/mobile/MobileListItem';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { UserPlus, Search, MapPin, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useZones } from '@/hooks/useZones';
-import { useDiscipleshipLevels } from '@/hooks/useDiscipleshipLevels';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { ZonesService } from '@/services/zones.service';
-import { normalizeNullString } from '@/lib/utils';
+import { normalizeNullString, getAvatarColor } from '@/lib/utils';
 import { getDiscipleshipLevelConfig } from '@/lib/discipleship';
 
 interface AssignmentUser {
@@ -40,29 +39,22 @@ interface AssignmentUser {
   email: string;
   phone: string;
   role: string;
-  is_active: boolean;
   zone_name?: string;
   zone_id?: string;
   discipleship_level?: number;
-  created_at: string;
-  updated_at: string;
 }
 
 interface UserZoneAssignmentProps {
-  onAssignment?: (userId: string, zoneId: string, role?: string) => void;
+  onAssignment?: (userId: string, zoneId: string) => void;
 }
 
 const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment }) => {
   const isMobileApp = useMobileMode();
   const { zones, loading: zonesLoading } = useZones();
-  const { levels: discipleshipLevels, loading: levelsLoading } = useDiscipleshipLevels({
-    autoLoad: true,
-  });
   const [users, setUsers] = useState<AssignmentUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedZone, setSelectedZone] = useState('all');
-  const [selectedRole, setSelectedRole] = useState<string>('keep');
   const [selectedUser, setSelectedUser] = useState<AssignmentUser | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [assignZoneId, setAssignZoneId] = useState<string | undefined>(undefined);
@@ -151,20 +143,15 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
   const handleAssignToZone = async (user: AssignmentUser, zoneId: string) => {
     if (!assignZoneId) return;
 
-    const levelId = selectedRole === 'keep' ? undefined : selectedRole;
-    const level = levelId ? discipleshipLevels.find(l => l.id === levelId) : undefined;
-    const levelIndex = level ? level.order_index : undefined;
-
     try {
       setAssigning(true);
-      await ZonesService.assignUserToZone(zoneId, user.id, levelIndex);
+      await ZonesService.assignUserToZone(zoneId, user.id);
       const zone = zones.find(z => z.id === zoneId);
       toast.success(`${user.full_name} asignado a ${zone?.name || 'la zona'}`);
-      onAssignment?.(user.id, zoneId, levelId);
+      onAssignment?.(user.id, zoneId);
       setIsDialogOpen(false);
       setSelectedUser(null);
       setAssignZoneId(undefined);
-      setSelectedRole('keep');
 
       await loadUsers();
     } catch (error) {
@@ -178,7 +165,6 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
   const openAssignDialog = (user: AssignmentUser) => {
     setSelectedUser(user);
     setAssignZoneId(user.zone_id || undefined);
-    setSelectedRole('keep');
     setIsDialogOpen(true);
   };
 
@@ -217,8 +203,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
       render: user => (
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.full_name}`} />
-            <AvatarFallback>
+            <AvatarFallback className={getAvatarColor(user.full_name)}>
               {user.full_name
                 .split(' ')
                 .map(n => n[0])
@@ -273,8 +258,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <Avatar>
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.full_name}`} />
-            <AvatarFallback>
+            <AvatarFallback className={getAvatarColor(user.full_name)}>
               {user.full_name
                 .split(' ')
                 .map(n => n[0])
@@ -317,7 +301,6 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
         if (!open) {
           setSelectedUser(null);
           setAssignZoneId(undefined);
-          setSelectedRole('keep');
         }
       }}
     >
@@ -327,7 +310,8 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
             {selectedUser ? `Asignar ${selectedUser.full_name} a Zona` : 'Asignar a Zona'}
           </DialogTitle>
           <DialogDescription>
-            Selecciona una zona y opcionalmente actualiza el rol
+            Selecciona una zona para este usuario. El nivel jerárquico de discipulado se asigna
+            desde la pestaña Jerarquías.
           </DialogDescription>
         </DialogHeader>
 
@@ -357,29 +341,6 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="assign-role">Nivel de Discipulado (opcional)</Label>
-            <Select value={selectedRole} onValueChange={setSelectedRole}>
-              <SelectTrigger>
-                <SelectValue placeholder="Mantener nivel actual" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="keep">Mantener nivel actual</SelectItem>
-                {discipleshipLevels.map(level => (
-                  <SelectItem key={level.id} value={level.id}>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: level.color }}
-                      />
-                      {level.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="flex justify-end gap-2 pt-4">
             <Button
               variant="outline"
@@ -387,7 +348,6 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
                 setIsDialogOpen(false);
                 setSelectedUser(null);
                 setAssignZoneId(undefined);
-                setSelectedRole('keep');
               }}
             >
               Cancelar
@@ -411,7 +371,7 @@ const UserZoneAssignment: React.FC<UserZoneAssignmentProps> = ({ onAssignment })
     </Dialog>
   );
 
-  if (loadingUsers || zonesLoading || levelsLoading) {
+  if (loadingUsers || zonesLoading) {
     return (
       <Card>
         <CardHeader>

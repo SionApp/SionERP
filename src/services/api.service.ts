@@ -40,6 +40,7 @@ export class ApiService {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'GET',
         headers,
+        credentials: 'include', // manda la cookie httpOnly de sesión federada (acceso BonDev) si existe
       });
 
       if (!response.ok) {
@@ -76,7 +77,11 @@ export class ApiService {
     try {
       const headers = await this.getAuthHeaders();
       headers.delete('Content-Type');
-      const response = await fetch(`${this.baseUrl}${endpoint}`, { method: 'GET', headers });
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
       if (!response.ok) {
         const msg = await response.text().catch(() => '');
         const error = new Error(msg || `HTTP ${response.status}`) as Error & { status?: number };
@@ -99,6 +104,7 @@ export class ApiService {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: data ? JSON.stringify(data) : undefined,
       });
 
@@ -136,6 +142,7 @@ export class ApiService {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'PUT',
         headers,
+        credentials: 'include',
         body: data ? JSON.stringify(data) : undefined,
       });
 
@@ -173,6 +180,7 @@ export class ApiService {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'DELETE',
         headers,
+        credentials: 'include',
       });
 
       if (!response.ok) {

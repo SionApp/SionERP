@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"backend-sion/config"
 	"backend-sion/models"
 	"bytes"
 	"database/sql"
@@ -16,6 +17,54 @@ type ZonesHandler struct{}
 func NewZonesHandler() *ZonesHandler {
 	return &ZonesHandler{}
 }
+
+// zoneGrowthHealthSQL calcula, para una zona `z` en el WHERE externo, growth_rate y
+// health_index en vivo. Antes estos campos ni existían en la respuesta del backend —
+// el frontend los inventaba en 0 directamente (ver discipleship-analytics.service.ts).
+//
+//   - growth_rate: mismo criterio ya usado en dashboard.go (MonthlyGrowth) llevado a
+//     nivel de zona — compara miembros activos hoy contra miembros de grupos que ya
+//     existían hace 30 días (proxy de "cuántos había entonces", no un snapshot real).
+//   - health_index: promedio simple 0-100 entre asistencia real (últimos 30 días) y
+//     salud espiritual (mismos 13 indicadores del reporte semanal que ya se usan en
+//     discipulado, reescalados a /100). Es una definición nueva — antes no existía
+//     ningún cálculo de "salud" de zona en el backend.
+const zoneGrowthHealthSQL = `
+	COALESCE(
+		((SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active')::float
+		- (SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active' AND created_at <= NOW() - INTERVAL '30 days')::float)
+		/ NULLIF((SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active' AND created_at <= NOW() - INTERVAL '30 days'), 0) * 100
+	, 0) as growth_rate,
+	COALESCE((
+		COALESCE((
+			SELECT ROUND(AVG(CASE WHEN a.present THEN 100.0 ELSE 0.0 END), 2)
+			FROM discipleship_attendance a
+			JOIN discipleship_groups ga ON a.group_id = ga.id
+			WHERE ga.zone_id = z.id AND a.meeting_date >= CURRENT_DATE - INTERVAL '30 days'
+		), 0)
+		+
+		COALESCE((
+			SELECT AVG(
+				CASE WHEN COALESCE((r.report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_dm')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_friends')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'attendance_kids')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'group_discipleships')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'group_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_new_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_mature_disciples_care')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'spiritual_journal_days')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
+				CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+			) * 100.0 / 13.0
+			FROM discipleship_reports r
+			JOIN discipleship_groups gr ON (r.report_data->>'group_id')::uuid = gr.id
+			WHERE gr.zone_id = z.id AND r.period_end >= CURRENT_DATE - INTERVAL '28 days'
+		), 0)
+	) / 2.0, 0) as health_index
+`
 
 type geoJSONGeometry struct {
 	Type        string           `json:"type"`
@@ -43,16 +92,26 @@ func validateZoneBoundaries(boundaries json.RawMessage) error {
 	return nil
 }
 
-// GetZones obtiene todas las zonas
-
+// GetZones obtiene las zonas visibles para el usuario que consulta.
+// Pastor/staff/admin (o nivel 4-5 de discipulado) ven todas las zonas de la
+// iglesia. Un supervisor/líder con jerarquía asignada (nivel 1-3) sólo ve SU
+// propia zona — antes cualquier usuario autenticado veía las 4 zonas
+// completas sin importar su rol o jerarquía.
 func (h *ZonesHandler) GetZones(c echo.Context) error {
 	db, err := validateTx(c)
 	if err != nil {
 		return err
 	}
 
+	_, _, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, config.GetDB())
+
 	churchID, _ := c.Get("church_id").(string)
 	isActiveParam := c.QueryParam("is_active")
+
+	// Sin acceso completo y sin zona asignada: no hay nada que mostrar.
+	if !canSeeAll && userZoneID == nil {
+		return c.JSON(http.StatusOK, []models.ZoneWithDetails{})
+	}
 
 	query := `
 	SELECT
@@ -60,7 +119,13 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 		z.boundaries, COALESCE(z.center_lat, 0) as center_lat, COALESCE(z.center_lng, 0) as center_lng, z.is_active,
 		(SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_groups,
 		(SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_members,
-		COALESCE(z.avg_attendance, 0) as avg_attendance,
+		COALESCE((
+			SELECT ROUND(AVG(CASE WHEN a.present THEN 100.0 ELSE 0.0 END), 2)
+			FROM discipleship_attendance a
+			JOIN discipleship_groups gz ON a.group_id = gz.id
+			WHERE gz.zone_id = z.id AND a.meeting_date >= CURRENT_DATE - INTERVAL '30 days'
+		), 0) as avg_attendance,
+		` + zoneGrowthHealthSQL + `,
 		z.created_at, z.updated_at,
 		COALESCE(u.first_name || ' ' || u.last_name, '') as
 		supervisor_name
@@ -85,6 +150,13 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 		args = append(args, isActiveParam == "true")
 	}
 
+	// ── Scope a la propia zona si no tiene acceso completo ──
+	if !canSeeAll {
+		argCount++
+		query += fmt.Sprintf(" AND z.id = $%d", argCount)
+		args = append(args, *userZoneID)
+	}
+
 	query += " ORDER BY z.name"
 
 	rows, err := db.Query(query, args...)
@@ -103,6 +175,7 @@ func (h *ZonesHandler) GetZones(c echo.Context) error {
 			&z.ID, &z.Name, &z.Description, &z.Color, &z.SupervisorID,
 			&z.Boundaries, &z.CenterLat, &z.CenterLng, &z.IsActive,
 			&z.TotalGroups, &z.TotalMembers, &z.AvgAttendance,
+			&z.GrowthRate, &z.HealthIndex,
 			&z.CreatedAt, &z.UpdatedAt, &z.SupervisorName,
 		)
 		if err != nil {
@@ -130,7 +203,13 @@ func (h *ZonesHandler) GetZone(c echo.Context) error {
 		z.boundaries, COALESCE(z.center_lat, 0) as center_lat, COALESCE(z.center_lng, 0) as center_lng, z.is_active,
 		(SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_groups,
 		(SELECT COALESCE(SUM(member_count), 0) FROM discipleship_groups WHERE zone_id = z.id AND status = 'active') as total_members,
-		COALESCE(z.avg_attendance, 0) as avg_attendance,
+		COALESCE((
+			SELECT ROUND(AVG(CASE WHEN a.present THEN 100.0 ELSE 0.0 END), 2)
+			FROM discipleship_attendance a
+			JOIN discipleship_groups gz ON a.group_id = gz.id
+			WHERE gz.zone_id = z.id AND a.meeting_date >= CURRENT_DATE - INTERVAL '30 days'
+		), 0) as avg_attendance,
+		` + zoneGrowthHealthSQL + `,
 		z.created_at, z.updated_at,
 		COALESCE(u.first_name || ' ' || u.last_name, '') as supervisor_name
 		FROM zones z
@@ -143,6 +222,7 @@ func (h *ZonesHandler) GetZone(c echo.Context) error {
 		&z.ID, &z.Name, &z.Description, &z.Color, &z.SupervisorID,
 		&z.Boundaries, &z.CenterLat, &z.CenterLng, &z.IsActive,
 		&z.TotalGroups, &z.TotalMembers, &z.AvgAttendance,
+		&z.GrowthRate, &z.HealthIndex,
 		&z.CreatedAt, &z.UpdatedAt, &z.SupervisorName,
 	)
 
@@ -517,9 +597,16 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 		return err
 	}
 
+	_, _, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, config.GetDB())
+
 	churchID, _ := c.Get("church_id").(string)
 	isActiveParam := c.QueryParam("is_active")
 	selectedZoneID := c.QueryParam("zone_id")
+
+	// Sin acceso completo y sin zona asignada: mapa vacío, no todo el territorio.
+	if !canSeeAll && userZoneID == nil {
+		return c.JSON(http.StatusOK, models.ZoneMapResponse{Zones: []models.ZoneMapData{}})
+	}
 
 	query := `
 	SELECT
@@ -555,7 +642,17 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 		COALESCE(g.active_members, 0) as active_members,
 		COALESCE(g.status, '') as status,
 		COALESCE(gl.first_name || ' ' || gl.last_name, 'Sin líder') as leader_name,
-		COALESCE(gs.first_name || ' ' || gs.last_name, '') as group_supervisor_name
+		COALESCE(gs.first_name || ' ' || gs.last_name, '') as group_supervisor_name,
+		COALESCE((
+			SELECT MAX(r.submitted_at)::text FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id AND r.church_id = z.church_id
+		), '') as last_report_date,
+		EXISTS (
+			SELECT 1 FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.church_id = z.church_id
+			AND r.status = 'submitted'
+		) as has_pending_report
 	FROM zones z
 	LEFT JOIN users zu ON z.supervisor_id = zu.id
 	LEFT JOIN discipleship_groups g ON g.zone_id = z.id AND g.church_id = z.church_id
@@ -587,6 +684,13 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 		args = append(args, selectedZoneID)
 	}
 
+	// ── Scope a la propia zona si no tiene acceso completo ──
+	if !canSeeAll {
+		argCount++
+		query += fmt.Sprintf(" AND z.id = $%d", argCount)
+		args = append(args, *userZoneID)
+	}
+
 	query += " ORDER BY z.name, g.group_name"
 
 	rows, err := db.Query(query, args...)
@@ -616,6 +720,7 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 			&group.ZoneName, &group.MeetingDay, &group.MeetingTime, &group.MeetingLocation, &group.MeetingAddress,
 			&group.Latitude, &group.Longitude,
 			&group.MemberCount, &group.ActiveMembers, &group.Status, &group.LeaderName, &group.SupervisorName,
+			&group.LastReportDate, &group.HasPendingReport,
 		)
 		if err != nil {
 			c.Logger().Error("Error scanning map data:", err)
@@ -690,15 +795,12 @@ func (h *ZonesHandler) AssignGroupToZone(c echo.Context) error {
 	})
 }
 
-// AssignUserToZone asigna un usuario a una zona
+// AssignUserToZone asigna un usuario a una zona.
+// El nivel jerárquico de discipulado NO se toca acá — vive en discipleship_hierarchy
+// y se asigna desde la pestaña Jerarquías (ver AssignHierarchy / handlers/discipleship.go).
 func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 	zoneID := c.Param("id")
 	userID := c.Param("userId")
-
-	var req struct {
-		DiscipleshipLevel *int `json:"discipleship_level"`
-	}
-	c.Bind(&req)
 
 	db, err := validateTx(c)
 	if err != nil {
@@ -720,25 +822,10 @@ func (h *ZonesHandler) AssignUserToZone(c echo.Context) error {
 		})
 	}
 
-	query := `UPDATE users SET zone_id = $1, updated_at = NOW()`
-	args := []interface{}{zoneID}
-	argCount := 1
-
-	if req.DiscipleshipLevel != nil {
-		argCount++
-		query += fmt.Sprintf(", discipleship_level = $%d", argCount)
-		args = append(args, *req.DiscipleshipLevel)
-	}
-
-	argCount++
-	query += fmt.Sprintf(" WHERE id = $%d", argCount)
-	args = append(args, userID)
-
-	argCount++
-	query += fmt.Sprintf(" AND church_id = $%d", argCount)
-	args = append(args, churchID)
-
-	_, err = db.Exec(query, args...)
+	_, err = db.Exec(
+		"UPDATE users SET zone_id = $1, updated_at = NOW() WHERE id = $2 AND church_id = $3",
+		zoneID, userID, churchID,
+	)
 
 	if err != nil {
 		c.Logger().Error("Error assigning user to zone:", err)

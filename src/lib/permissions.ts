@@ -29,6 +29,10 @@ export interface UserPermissions {
   role_level: number;
   has_admin_access: boolean;
   installed_modules: string[];
+  /** Acceso federado (BonDev, modo sólo lectura) — ver Can.tsx y FederatedBanner.tsx */
+  is_federated?: boolean;
+  federated_operator_name?: string;
+  federated_expires_at?: string;
 }
 
 let cachedPermissions: UserPermissions | null = null;

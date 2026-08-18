@@ -26,6 +26,15 @@ AGENTS.md
 .opencode/
 .pi/
 graphify-out/
+.codegraph/
+
+# SDD / planning artifacts — INTERNAL, viven en Engram + repo privado.
+# Contienen estrategia comercial y debilidades sin parchear: NO exponer en el repo público.
+docs/superpowers/
+openspec/
+
+# Load-test run outputs (el harness tools/loadtest/ SÍ se commitea; los resultados crudos no).
+tools/loadtest/results/
 
 # Build artifacts
 apps/backend-go/tmp/
@@ -44,9 +53,11 @@ apps/backend-go/tmp/
 # Test artifacts
 test-results/
 playwright-report/
+tools/loadtest/results/
 
 # Datos sensibles de la iglesia (PII)
 data/
+repomix-output.xml
 .vercel
 
 # Supabase CLI local cache

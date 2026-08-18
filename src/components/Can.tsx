@@ -25,7 +25,11 @@ interface CanProps {
  */
 export function Can({ I, not = false, children, fallback = null }: CanProps) {
   const { permissions } = usePermissions();
-  const hasAccess = !!permissions && permissions.role_level >= I;
+  // Una sesión federada (BonDev, sólo lectura) nunca pasa un <Can> — por
+  // convención esto SIEMPRE gatea una acción (crear/editar/eliminar, ver el
+  // ejemplo del docstring), y el backend rechaza cualquier escritura de
+  // todas formas (FederatedReadOnly) — no tiene sentido mostrar el botón.
+  const hasAccess = !!permissions && !permissions.is_federated && permissions.role_level >= I;
   const effective = not ? !hasAccess : hasAccess;
 
   return <>{effective ? children : fallback}</>;

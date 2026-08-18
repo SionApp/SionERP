@@ -142,7 +142,7 @@ describe('useZones — mutaciones', () => {
 
     let zoneId: string | null = null;
     await act(async () => {
-      zoneId = await result.current.createZone({ name: 'Nueva Zona', is_active: true });
+      zoneId = await result.current.createZone({ name: 'Nueva Zona' });
     });
 
     expect(zoneId).toBe('nueva-zona-id');
@@ -158,7 +158,7 @@ describe('useZones — mutaciones', () => {
 
     let zoneId: string | null = 'no-null'; // valor inicial distinto de null
     await act(async () => {
-      zoneId = await result.current.createZone({ name: 'Duplicada', is_active: true });
+      zoneId = await result.current.createZone({ name: 'Duplicada' });
     });
 
     expect(zoneId).toBeNull();

@@ -11,18 +11,17 @@ import { Zone } from '@/types/discipleship.types';
 import { MapPin, Users, Building2, X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
-// Fix Leaflet default marker icon issue in bundlers
-const DEFAULT_ICON = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
-
-L.Marker.prototype.options.icon = DEFAULT_ICON;
+// Pin circular con el color de la zona — reemplaza el marker celeste default de
+// Leaflet, que se repetía idéntico sin importar la zona.
+function zoneCenterIcon(color: string): L.DivIcon {
+  return L.divIcon({
+    html: `<div style="width:16px;height:16px;border-radius:999px;background:${color};border:2.5px solid #ffffff;box-shadow:0 1px 4px rgba(15,23,42,.45);"></div>`,
+    className: '',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+    popupAnchor: [0, -8],
+  });
+}
 
 // ── Map fit helper ──
 function FitBounds({ zones }: { zones: Zone[] }) {
@@ -59,8 +58,10 @@ function ZoneMarker({ zone }: { zone: Zone }) {
           pathOptions={{
             color: zone.color || '#3b82f6',
             fillColor: zone.color || '#3b82f6',
-            fillOpacity: 0.15,
-            weight: 2,
+            fillOpacity: 0.16,
+            weight: 1.5,
+            dashArray: '5 5',
+            lineCap: 'round',
           }}
         />
       )}
@@ -68,6 +69,7 @@ function ZoneMarker({ zone }: { zone: Zone }) {
       {/* Center marker */}
       <Marker
         position={[zone.center_lat, zone.center_lng]}
+        icon={zoneCenterIcon(zone.color || '#3b82f6')}
         eventHandlers={{
           mouseover: e => {
             (e.target as L.Marker).openPopup();
@@ -251,8 +253,8 @@ export default function ZoneMapView() {
             zoomControl={true}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <FitBounds zones={validZones} />
             {validZones.map(zone => (

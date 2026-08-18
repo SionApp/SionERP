@@ -10,9 +10,9 @@ import { MobileStatTile } from '@/components/mobile/MobileStatTile';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { useLeaderDiscipleshipData } from '@/hooks/useLeaderDiscipleshipData';
 import { DiscipleshipService } from '@/services/discipleship.service';
-import type { GroupMemberWithDetails } from '@/types/discipleship.types';
+import type { AttendanceWithDetails, GroupMemberWithDetails } from '@/types/discipleship.types';
 import { addDays, format, startOfISOWeek } from 'date-fns';
-import { getIsoWeek, justEndedWeek } from '@/lib/iso-week';
+import { getIsoWeek, justEndedWeek, parseDateOnly } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import {
   AlertTriangle,
@@ -62,7 +62,9 @@ export default function LeaderDashboard() {
         setMembers(list);
         // Inicializar todos como presentes por defecto
         const init: Record<string, boolean> = {};
-        list.forEach(m => { init[m.user_id] = true; });
+        list.forEach(m => {
+          init[m.user_id] = true;
+        });
         setAttendanceMap(init);
       })
       .catch(() => setMembers([]))
@@ -78,13 +80,19 @@ export default function LeaderDashboard() {
         if (existing && existing.length > 0) {
           // Hay registros para esta fecha — usar esos valores
           const map: Record<string, boolean> = {};
-          members.forEach(m => { map[m.user_id] = false; }); // default ausente
-          existing.forEach((a: any) => { map[a.user_id] = a.present; });
+          members.forEach(m => {
+            map[m.user_id] = false;
+          }); // default ausente
+          existing.forEach((a: AttendanceWithDetails) => {
+            map[a.user_id] = a.present;
+          });
           setAttendanceMap(map);
         } else {
           // Sin registros — resetear todos a presentes
           const init: Record<string, boolean> = {};
-          members.forEach(m => { init[m.user_id] = true; });
+          members.forEach(m => {
+            init[m.user_id] = true;
+          });
           setAttendanceMap(init);
         }
       })
@@ -128,7 +136,7 @@ export default function LeaderDashboard() {
 
   // Check if report for this week already exists
   const hasCurrentWeekReport = myReports.some((report: { period_start: string }) => {
-    const reportStart = new Date(report.period_start);
+    const reportStart = parseDateOnly(report.period_start);
     return reportStart >= lastWeekStart && reportStart <= currentWeekEnd;
   });
 
@@ -178,7 +186,7 @@ export default function LeaderDashboard() {
 
   // Semanas que ya tienen reporte (para el aviso de duplicado en el picker)
   const existingWeeks = myReports.map((r: { period_start: string }) =>
-    getIsoWeek(new Date(r.period_start))
+    getIsoWeek(parseDateOnly(r.period_start))
   );
   const selectedWeekReported = existingWeeks.includes(selectedWeek.isoWeek);
 
@@ -236,7 +244,9 @@ export default function LeaderDashboard() {
 
   const membersList = loadingMembers ? (
     <div className="space-y-2">
-      {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+      {[...Array(4)].map((_, i) => (
+        <Skeleton key={i} className="h-12 w-full" />
+      ))}
     </div>
   ) : members.length === 0 ? (
     <div className="text-center py-8 text-muted-foreground">
@@ -286,7 +296,10 @@ export default function LeaderDashboard() {
     <div className="space-y-4">
       {/* Date picker */}
       <div className="flex items-center gap-3">
-        <label htmlFor="attendance-date" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+        <label
+          htmlFor="attendance-date"
+          className="text-sm font-medium text-muted-foreground whitespace-nowrap"
+        >
           Fecha de reunión
         </label>
         <input
@@ -301,7 +314,9 @@ export default function LeaderDashboard() {
       {/* Member rows */}
       {!attendanceLoaded ? (
         <div className="space-y-2">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
         </div>
       ) : (
         <div className="divide-y">
@@ -369,11 +384,14 @@ export default function LeaderDashboard() {
         {myReports.slice(0, 5).map(report => {
           const reportData = report.report_data as { attendance?: number; conversions?: number };
           return (
-            <div key={report.id} className="flex items-center justify-between p-3 border rounded-lg">
+            <div
+              key={report.id}
+              className="flex items-center justify-between p-3 border rounded-lg"
+            >
               <div>
                 <p className="font-medium">
-                  Semana {format(new Date(report.period_start), 'dd MMM', { locale: es })} -{' '}
-                  {format(new Date(report.period_end), 'dd MMM', { locale: es })}
+                  Semana {format(parseDateOnly(report.period_start), 'dd MMM', { locale: es })} -{' '}
+                  {format(parseDateOnly(report.period_end), 'dd MMM', { locale: es })}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Asistencia: {reportData?.attendance || 0} • Conversiones:{' '}
@@ -419,7 +437,10 @@ export default function LeaderDashboard() {
             value={myGroup?.member_count || stats?.total_members || 0}
             sub={`${myGroup?.active_members || 0} activos`}
           />
-          <MobileStatTile label="Asistencia" value={`${stats?.average_attendance || 0}%`} />
+          <MobileStatTile
+            label="Asistencia"
+            value={`${Math.round(stats?.average_attendance || 0)}%`}
+          />
           <MobileStatTile label="Reunión" value={myGroup?.meeting_day || 'N/D'} />
           <MobileStatTile
             label="Reporte"
@@ -497,7 +518,7 @@ export default function LeaderDashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.average_attendance || 0}%</div>
+            <div className="text-2xl font-bold">{Math.round(stats?.average_attendance || 0)}%</div>
             <p className="text-xs text-muted-foreground">Últimas 4 semanas</p>
           </CardContent>
         </Card>
@@ -560,7 +581,9 @@ export default function LeaderDashboard() {
             <Users className="h-5 w-5" />
             Mi Gente
             {members.length > 0 && (
-              <Badge variant="secondary" className="ml-1">{members.length}</Badge>
+              <Badge variant="secondary" className="ml-1">
+                {members.length}
+              </Badge>
             )}
           </CardTitle>
         </CardHeader>

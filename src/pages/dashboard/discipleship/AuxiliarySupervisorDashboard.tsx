@@ -4,7 +4,13 @@ import { ComplianceDashboard } from '@/components/discipleship/ComplianceDashboa
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -20,7 +26,7 @@ import { useAuxiliarySupervisorData } from '@/hooks/useAuxiliarySupervisorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipReport } from '@/types/discipleship.types';
 import { format } from 'date-fns';
-import { justEndedWeek } from '@/lib/iso-week';
+import { justEndedWeek, parseDateOnly } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import {
   CheckCircle,
@@ -101,7 +107,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
 
   // Validar si ya existe reporte para este período
   const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
-    const reportStart = new Date(report.period_start);
+    const reportStart = parseDateOnly(report.period_start);
     return reportStart >= periodStart && reportStart <= periodEnd;
   });
 
@@ -286,8 +292,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
                   >
                     <div>
                       <p className="font-medium">
-                        Semana del{' '}
-                        {format(new Date(report.period_start), 'dd MMM', { locale: es })}
+                        Semana del {format(parseDateOnly(report.period_start), 'dd MMM', { locale: es })}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Atención Nvos: {reportData?.new_disciples_care || 0} • VD:{' '}
@@ -360,10 +365,7 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
       <CardContent>
         <div className="space-y-4">
           {groups.map(group => (
-            <div
-              key={group.id}
-              className="flex items-center justify-between p-4 border rounded-lg"
-            >
+            <div key={group.id} className="flex items-center justify-between p-4 border rounded-lg">
               <div className="min-w-0">
                 <h4 className="font-medium truncate">{group.leader_name}</h4>
                 <p className="text-sm text-muted-foreground truncate">{group.group_name}</p>
@@ -588,7 +590,10 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
         <div className="flex gap-2 px-4 pt-4 overflow-x-auto snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <MobileStatTile label="Grupos" value={stats.groups_under_supervision || 0} />
           <MobileStatTile label="Miembros" value={stats.total_members || 0} />
-          <MobileStatTile label="Asistencia" value={`${Math.round(stats.average_attendance || 0)}%`} />
+          <MobileStatTile
+            label="Asistencia"
+            value={`${Math.round(stats.average_attendance || 0)}%`}
+          />
           <MobileStatTile
             label="Reporte"
             value={hasCurrentPeriodReport ? 'Enviado' : 'Pendiente'}
@@ -705,53 +710,35 @@ const AuxiliarySupervisorDashboard: React.FC = React.memo(() => {
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-6 h-auto min-w-max sm:min-w-0 gap-1">
-            <TabsTrigger
-              value="overview"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Resumen
-            </TabsTrigger>
-            <TabsTrigger
-              value="groups"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Grupos
-            </TabsTrigger>
-            <TabsTrigger
-              value="biweekly-report"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              <span className="hidden sm:inline">Reporte Semanal</span>
-              <span className="sm:hidden">Reporte</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="leaders"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Líderes
-            </TabsTrigger>
-            <TabsTrigger
-              value="approvals"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              <span className="hidden sm:inline">Aprobaciones</span>
-              <span className="sm:hidden">Aprob.</span>
-              {pendingReportsCount > 0 && (
-                <Badge variant="destructive" className="ml-1 text-[10px] h-4 px-1">
-                  {pendingReportsCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="compliance"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Cumplimiento
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        {/* Los tabs envuelven en vez de scrollear o comprimirse: con grid de N
+            columnas fijas el label más largo quedaba cortado entre 768 y 1280px.
+            `grow` los reparte en la fila y `flex-wrap` baja el sobrante. */}
+        <TabsList className="flex h-auto w-full flex-wrap gap-2 p-1.5">
+          <TabsTrigger value="overview" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Resumen
+          </TabsTrigger>
+          <TabsTrigger value="groups" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Grupos
+          </TabsTrigger>
+          <TabsTrigger value="biweekly-report" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            <span className="sm:hidden">Reporte</span>
+            <span className="hidden sm:inline">Reporte Semanal</span>
+          </TabsTrigger>
+          <TabsTrigger value="leaders" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Líderes
+          </TabsTrigger>
+          <TabsTrigger value="approvals" className="min-h-11 grow gap-1.5 px-3 text-xs sm:text-sm">
+            Aprobaciones
+            {pendingReportsCount > 0 && (
+              <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                {pendingReportsCount}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="compliance" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Cumplimiento
+          </TabsTrigger>
+        </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           {overviewContent}

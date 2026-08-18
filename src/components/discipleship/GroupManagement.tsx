@@ -152,7 +152,7 @@ const GroupManagement = () => {
   }, []);
 
   const loadGroups = useCallback(
-    async (p: number, lim: number, q: string, zone: string, status: string) => {
+    async (p: number, lim: number, q: string, zone: string, status: string, append = false) => {
       try {
         setLoading(true);
         const res = await DiscipleshipService.getGroups({
@@ -172,7 +172,7 @@ const GroupManagement = () => {
           meeting_location: normalizeNullString(g.meeting_location),
         }));
 
-        setGroups(normalized);
+        setGroups(prev => (append ? [...prev, ...normalized] : normalized));
         setTotal(res.total ?? 0);
       } catch {
         toast.error('Error al cargar los grupos');
@@ -183,7 +183,13 @@ const GroupManagement = () => {
     []
   );
 
+  const skipNextLoadRef = useRef(false);
+
   useEffect(() => {
+    if (skipNextLoadRef.current) {
+      skipNextLoadRef.current = false;
+      return;
+    }
     loadGroups(page, limit, search, filterZone, filterStatus);
   }, [page, limit, filterZone, filterStatus, loadGroups]);
 
@@ -646,8 +652,9 @@ const GroupManagement = () => {
               <button
                 onClick={() => {
                   const next = page + 1;
+                  skipNextLoadRef.current = true;
                   setPage(next);
-                  loadGroups(next, limit, search, filterZone, filterStatus);
+                  loadGroups(next, limit, search, filterZone, filterStatus, true);
                 }}
                 className="w-full py-2.5 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground cursor-pointer active:bg-accent transition-colors"
               >

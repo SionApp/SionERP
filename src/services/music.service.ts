@@ -273,15 +273,20 @@ export class MusicService {
     return mapMember(raw);
   }
 
-  static async getMyModuleRole(): Promise<{ roleLevel: number; isDirector: boolean }> {
+  /** hasRole=false means the backend returned no_module_role (404): the user was never added to the music team. */
+  static async getMyModuleRole(): Promise<{
+    roleLevel: number;
+    isDirector: boolean;
+    hasRole: boolean;
+  }> {
     try {
       const raw = await ApiService.get<{ role_level?: number }>(
         '/permissions/module-role?module=music'
       );
       const level = raw.role_level ?? 0;
-      return { roleLevel: level, isDirector: level >= 5 };
+      return { roleLevel: level, isDirector: level >= 5, hasRole: true };
     } catch {
-      return { roleLevel: 0, isDirector: false };
+      return { roleLevel: 0, isDirector: false, hasRole: false };
     }
   }
 
@@ -353,11 +358,12 @@ export class MusicService {
   ): Promise<{ assignment: MusicAssignment; unavailabilityWarning: boolean }> {
     const raw = await ApiService.post<
       RawCreateAssignmentResponse,
-      { member_id?: string; user_id?: string; funcion: string }
+      { member_id?: string; user_id?: string; funcion: string; instrument?: string }
     >(`${this.base}/events/${eventId}/assignments`, {
       member_id: data.memberId,
       user_id: data.userId,
       funcion: data.funcion,
+      instrument: data.instrument,
     });
     return {
       assignment: mapAssignment(raw.assignment),

@@ -36,6 +36,85 @@ func StartWeeklyReportScheduler() {
 	}()
 }
 
+// TenantPurgeGraceDays: días desde que un tenant queda status='cancelled'
+// hasta que StartTenantPurgeScheduler borra sus datos automáticamente.
+// Decisión de negocio, no técnica — 30 días es el default de la industria.
+const TenantPurgeGraceDays = 30
+
+// tenantPurgeCheckInterval: cada cuánto corre el chequeo. Diario alcanza —
+// no hace falta más granularidad para un borrado con 30 días de margen.
+const tenantPurgeCheckInterval = 24 * time.Hour
+
+// StartTenantPurgeScheduler lanza la goroutine que, una vez por día, busca
+// tenants cancelados hace más de TenantPurgeGraceDays y todavía no
+// purgados, y les borra los datos (purgeChurchData) dentro de una
+// transacción. Si algo falla en un tenant, loguea y sigue con el resto —
+// un tenant con error no bloquea el borrado de los demás.
+func StartTenantPurgeScheduler() {
+	go func() {
+		for {
+			db := config.GetDB()
+			if db == nil || db.DB == nil {
+				log.Println("[scheduler] purga de tenants: DB no disponible, omitiendo")
+			} else if err := runTenantPurgeSweep(db.DB); err != nil {
+				log.Printf("[scheduler] error en sweep de purga de tenants: %v", err)
+			}
+			time.Sleep(tenantPurgeCheckInterval)
+		}
+	}()
+}
+
+// runTenantPurgeSweep busca churches elegibles y las purga una por una.
+func runTenantPurgeSweep(db *sql.DB) error {
+	rows, err := db.Query(`
+		SELECT id, name FROM public.churches
+		WHERE status = 'cancelled'
+		  AND cancelled_at IS NOT NULL
+		  AND cancelled_at <= NOW() - ($1 || ' days')::interval
+		  AND deleted_at IS NULL
+	`, TenantPurgeGraceDays)
+	if err != nil {
+		return fmt.Errorf("runTenantPurgeSweep: query candidates: %w", err)
+	}
+
+	type candidate struct{ id, name string }
+	var candidates []candidate
+	for rows.Next() {
+		var c candidate
+		if scanErr := rows.Scan(&c.id, &c.name); scanErr == nil {
+			candidates = append(candidates, c)
+		}
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return fmt.Errorf("runTenantPurgeSweep: closing rows: %w", closeErr)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("runTenantPurgeSweep: iterating candidates: %w", err)
+	}
+
+	for _, c := range candidates {
+		counts, purgeErr := purgeChurchData(db, c.id)
+		if purgeErr != nil {
+			log.Printf("[scheduler] purga de tenant %s (%s) falló, NO se borró nada: %v", c.id, c.name, purgeErr)
+			continue
+		}
+
+		var totalRows int64
+		for _, n := range counts {
+			totalRows += n
+		}
+
+		if _, err := db.Exec(`UPDATE public.churches SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1`, c.id); err != nil {
+			log.Printf("[scheduler] tenant %s (%s): datos purgados (%d filas) pero no se pudo marcar deleted_at: %v", c.id, c.name, totalRows, err)
+			continue
+		}
+
+		log.Printf("[scheduler] tenant %s (%s) purgado: %d filas borradas en %d tablas", c.id, c.name, totalRows, len(counts))
+	}
+
+	return nil
+}
+
 // nextSaturdayAt23 returns the next Saturday at 23:00 local time after `from`.
 // If `from` is already Saturday but before 23:00, it returns today's 23:00.
 // If `from` is Saturday at or after 23:01, it returns next Saturday's 23:00.

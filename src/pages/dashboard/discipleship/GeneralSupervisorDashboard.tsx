@@ -19,7 +19,7 @@ import { useGeneralSupervisorData } from '@/hooks/useGeneralSupervisorData';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipReport } from '@/types/discipleship.types';
 import { format } from 'date-fns';
-import { justEndedWeek } from '@/lib/iso-week';
+import { justEndedWeek, parseDateOnly } from '@/lib/iso-week';
 import { es } from 'date-fns/locale';
 import {
   Building,
@@ -125,7 +125,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
 
   // Validar si ya existe reporte para este período
   const hasCurrentPeriodReport = myReports.some((report: { period_start: string }) => {
-    const reportStart = new Date(report.period_start);
+    const reportStart = parseDateOnly(report.period_start);
     return reportStart >= periodStart && reportStart <= periodEnd;
   });
 
@@ -358,8 +358,7 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
                   >
                     <div>
                       <p className="font-medium">
-                        Semana del{' '}
-                        {format(new Date(report.period_start), 'dd MMM', { locale: es })}
+                        Semana del {format(parseDateOnly(report.period_start), 'dd MMM', { locale: es })}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Atención Nvos: {reportData?.new_disciples_care || 0} • VD:{' '}
@@ -687,46 +686,31 @@ const GeneralSupervisorDashboard: React.FC = React.memo(() => {
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-full sm:grid sm:grid-cols-5 h-auto min-w-max sm:min-w-0 gap-1">
-            <TabsTrigger
-              value="overview"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Resumen
-            </TabsTrigger>
-            <TabsTrigger
-              value="zone-analysis"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Análisis Zonal
-            </TabsTrigger>
-            <TabsTrigger
-              value="monthly-report"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Reporte Semanal
-            </TabsTrigger>
-            <TabsTrigger
-              value="approvals"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              <span className="hidden sm:inline">Aprobaciones</span>
-              <span className="sm:hidden">Aprob.</span>
-              {pendingReportsCount > 0 && (
-                <Badge variant="destructive" className="ml-1 text-[10px] h-4 px-1">
-                  {pendingReportsCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="compliance"
-              className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0 px-3 sm:px-2"
-            >
-              Cumplimiento
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        {/* Los tabs envuelven en vez de scrollear o comprimirse: con grid de N
+            columnas fijas el label más largo quedaba cortado entre 768 y 1280px.
+            `grow` los reparte en la fila y `flex-wrap` baja el sobrante. */}
+        <TabsList className="flex h-auto w-full flex-wrap gap-2 p-1.5">
+          <TabsTrigger value="overview" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Resumen
+          </TabsTrigger>
+          <TabsTrigger value="zone-analysis" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Análisis Zonal
+          </TabsTrigger>
+          <TabsTrigger value="monthly-report" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Reporte Semanal
+          </TabsTrigger>
+          <TabsTrigger value="approvals" className="min-h-11 grow gap-1.5 px-3 text-xs sm:text-sm">
+            Aprobaciones
+            {pendingReportsCount > 0 && (
+              <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                {pendingReportsCount}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="compliance" className="min-h-11 grow px-3 text-xs sm:text-sm">
+            Cumplimiento
+          </TabsTrigger>
+        </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           {overviewContent}

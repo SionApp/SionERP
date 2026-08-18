@@ -113,6 +113,16 @@ type Claims struct {
 func SupabaseAuth() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			// Acceso federado (BonDev): si FederatedSessionAuth (registrado
+			// ANTES en el grupo protegido, ver routes.go) ya autenticó una
+			// sesión de sólo lectura, no hay nada que validar acá — sería
+			// intentar leer un JWT de Supabase donde no lo hay. Guard
+			// puramente aditivo: para toda request normal "is_federated"
+			// nunca está seteado y este bloque no hace nada.
+			if isFederated, _ := c.Get("is_federated").(bool); isFederated {
+				return next(c)
+			}
+
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
 				return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -182,9 +192,43 @@ func SupabaseAuth() echo.MiddlewareFunc {
 			c.Set("has_admin_access", HasAdminAccess(dbRole, isSuperAdmin))
 			// church_id for TenantTx — empty string until Phase 2 JWT backfill.
 			c.Set("church_id", churchID)
+			touchLastSeen(db, actualUserID)
 			return next(c)
 		}
 	}
+}
+
+// touchLastSeen actualiza users.last_seen_at, throttleado a 1h (ver design,
+// Decisión 3: active_users_30d no necesita resolución de minutos, y escribir
+// en cada request metería presión innecesaria al pool). Fire-and-forget: un
+// fallo acá nunca debe tumbar el request real.
+func touchLastSeen(db *config.Database, userID string) {
+	if db == nil || db.DB == nil {
+		return
+	}
+	_, err := db.DB.Exec(
+		`UPDATE users SET last_seen_at = now()
+		 WHERE id = $1 AND (last_seen_at IS NULL OR last_seen_at < now() - interval '1 hour')`,
+		userID,
+	)
+	if err != nil {
+		fmt.Printf("⚠️  touchLastSeen failed for user %s: %v\n", userID, err)
+	}
+}
+
+// isChurchSuspended chequea churches.status para la iglesia dada. Usada por
+// SupabaseAuth y FederatedSessionAuth para bloquear acceso de inmediato
+// cuando BonDev suspende un tenant (I1, POST /provider/tenants/:id/suspend).
+func isChurchSuspended(db *config.Database, churchID string) bool {
+	if db == nil || db.DB == nil {
+		return false
+	}
+	var status string
+	err := db.DB.QueryRow(`SELECT status FROM churches WHERE id = $1`, churchID).Scan(&status)
+	if err != nil {
+		return false
+	}
+	return status != "active"
 }
 
 func validateSupabaseToken(tokenString string) (*Claims, error) {

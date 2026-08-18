@@ -26,6 +26,23 @@ export interface IsoWeekBounds {
  *   2026-01-01 → "2026-W01"
  *   2026-01-04 (Sunday) → "2025-W53"  (same as 2025-12-29, the preceding Monday)
  */
+/**
+ * Parses a date-only value (e.g. a `period_start`/`period_end` from the API,
+ * which the backend sends as `"2026-08-17T00:00:00Z"` — UTC midnight) as a
+ * LOCAL calendar date, not a UTC instant.
+ *
+ * `new Date("2026-08-17T00:00:00Z")` is a specific instant, not "August 17".
+ * In any timezone behind UTC (all of the Americas), that instant falls on
+ * the PREVIOUS local day — e.g. in America/Caracas (UTC-4) it renders as
+ * "Sun Aug 16, 20:00". Since ISO weeks treat Sunday as belonging to the
+ * PRECEDING Monday's week, every date-only value silently rolls back into
+ * the wrong week for any user south of the Atlantic. Anchoring at local
+ * noon keeps the calendar date stable regardless of timezone offset.
+ */
+export function parseDateOnly(dateStr: string): Date {
+  return new Date(`${dateStr.slice(0, 10)}T12:00:00`);
+}
+
 export function getIsoWeek(date: Date): string {
   const week = getISOWeek(date);
   const year = getISOWeekYear(date);
