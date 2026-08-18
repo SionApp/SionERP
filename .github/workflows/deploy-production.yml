@@ -54,7 +54,10 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # --no-frozen-lockfile: el lockfile trae a xlsx desde un CDN
+      # (cdn.sheetjs.com) sin campo integrity, y --frozen-lockfile (default en
+      # CI) lo rechaza. Este job es un chequeo de build, no un gate de lockfile.
+      - run: pnpm install --no-frozen-lockfile
       - name: Typecheck + build frontend
         run: |
           pnpm typecheck
