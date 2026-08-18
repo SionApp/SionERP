@@ -54,10 +54,14 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-      # --no-frozen-lockfile: el lockfile trae a xlsx desde un CDN
-      # (cdn.sheetjs.com) sin campo integrity, y --frozen-lockfile (default en
-      # CI) lo rechaza. Este job es un chequeo de build, no un gate de lockfile.
-      - run: pnpm install --no-frozen-lockfile
+      # El lockfile referencia xlsx desde un CDN (cdn.sheetjs.com) sin campo
+      # integrity, y pnpm 10 aborta el install aun sin --frozen. Regeneramos el
+      # lockfile en el runner (efímero, NO se commitea) para que pnpm baje el
+      # tarball y compute la integrity al vuelo. Este job es un chequeo de build.
+      - name: Install deps
+        run: |
+          rm -f pnpm-lock.yaml
+          pnpm install --no-frozen-lockfile
       - name: Typecheck + build frontend
         run: |
           pnpm typecheck
@@ -124,7 +128,11 @@ jobs:
     name: Migraciones Supabase (prod)
     needs: backup
     runs-on: ubuntu-latest
-    environment: production
+    # Gate de aprobación manual: el environment 'production-db' tiene required
+    # reviewers, así que este job (el que toca la DB de prod) se PAUSA hasta que
+    # un reviewer lo apruebe desde la pestaña Actions. Nunca se aplican
+    # migraciones a prod desatendido.
+    environment: production-db
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
