@@ -44,6 +44,8 @@ export interface ZoneMapGroup extends DiscipleshipGroup {
   supervisor_name?: string;
   /** Timestamp del último reporte real recibido de este grupo (MAX(submitted_at)), '' si nunca reportó. */
   last_report_date?: string;
+  /** El grupo tiene un reporte enviado sin aprobar (status='submitted'). El marcador titila hasta que lo aprueban. */
+  has_pending_report?: boolean;
 }
 
 export interface ZoneMapData {

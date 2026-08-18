@@ -81,6 +81,9 @@ type ZoneMapGroup struct {
 	LeaderName      string  `json:"leader_name"`
 	SupervisorName  string  `json:"supervisor_name.omitempty"`
 	LastReportDate  string  `json:"last_report_date"`
+	// HasPendingReport: el grupo tiene un reporte enviado (status='submitted')
+	// todavía sin aprobar. En el mapa, su marcador titila hasta que lo aprueban.
+	HasPendingReport bool `json:"has_pending_report"`
 }
 
 type ZoneMapData struct {

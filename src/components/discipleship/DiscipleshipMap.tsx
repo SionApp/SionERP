@@ -85,8 +85,6 @@ const TILE_ATTRIBUTION =
 // (Supabase Realtime) todavía — polling es el fallback explícito que
 // contempla el propio diseño.
 const LIVE_POLL_MS = 30_000;
-// Cuánto dura el "ripple" visual de un grupo que acaba de reportar.
-const PULSE_DURATION_MS = 10_000;
 
 // ── Actividad de reporte (estado real, no inventado) ─────────
 // El diseño original pedía un semáforo de "creció / sin cambios / sin
@@ -394,10 +392,7 @@ export default function DiscipleshipMap({
   const [selectedPerson, setSelectedPerson] = useState<MapUser | null>(null);
 
   // Tiempo real (polling, ver comentario en LIVE_POLL_MS)
-  const [pulsingGroupIds, setPulsingGroupIds] = useState<Set<string>>(new Set());
   const [activityBuckets, setActivityBuckets] = useState<number[]>(new Array(24).fill(0));
-  const lastReportByGroup = useRef<Map<string, string>>(new Map());
-  const pulseTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // Firma de la última tanda de zonas renderizada — para saltar el re-render
   // cuando el poll trae exactamente lo mismo (evita el pestañeo de marcadores).
   const lastZonesSig = useRef<string>('');
@@ -416,8 +411,10 @@ export default function DiscipleshipMap({
     setInternalSelectedZoneId(selectedZoneId ?? null);
   }, [selectedZoneId]);
 
-  // Cargar zonas + grupos, con polling para detectar reportes nuevos (ripple)
-  // y refrescar el contador EN VIVO sin resetear el viewport del usuario.
+  // Cargar zonas + grupos, con polling para refrescar el estado en vivo
+  // (titileo de reportes pendientes, contador EN VIVO) sin resetear el
+  // viewport del usuario. El titileo lo decide has_pending_report del backend,
+  // así que no hace falta maquinaria de timeouts en el cliente.
   useEffect(() => {
     let cancelled = false;
 
@@ -428,51 +425,9 @@ export default function DiscipleshipMap({
         if (cancelled) return;
         const zones = response.zones || [];
 
-        // Diff contra el poll anterior: si last_report_date cambió, ese grupo
-        // "acaba de reportar" — dispara el ripple ~10s. No dispara en la
-        // primera carga (no hay "anterior" con qué comparar todavía).
-        if (!isFirstLoad) {
-          const newlyReported: string[] = [];
-          for (const zd of zones) {
-            for (const g of zd.groups) {
-              const prev = lastReportByGroup.current.get(g.id);
-              if (g.last_report_date && prev !== undefined && prev !== g.last_report_date) {
-                newlyReported.push(g.id);
-              }
-            }
-          }
-          if (newlyReported.length > 0) {
-            setPulsingGroupIds(prevSet => {
-              const next = new Set(prevSet);
-              newlyReported.forEach(id => next.add(id));
-              return next;
-            });
-            newlyReported.forEach(id => {
-              const existing = pulseTimeouts.current.get(id);
-              if (existing) clearTimeout(existing);
-              pulseTimeouts.current.set(
-                id,
-                setTimeout(() => {
-                  setPulsingGroupIds(prevSet => {
-                    const next = new Set(prevSet);
-                    next.delete(id);
-                    return next;
-                  });
-                  pulseTimeouts.current.delete(id);
-                }, PULSE_DURATION_MS)
-              );
-            });
-          }
-        }
-        lastReportByGroup.current = new Map(
-          zones.flatMap(zd => zd.groups.map(g => [g.id, g.last_report_date || '']))
-        );
-
         // Solo re-renderizar si la data realmente cambió. Sin este guard, cada
         // poll reemplaza el array completo y remonta todos los marcadores (nuevos
         // L.divIcon → setIcon → reinicia animaciones) = el pestañeo cada 30s.
-        // Cuando SÍ cambia (nuevo reporte), re-renderiza una vez, que es justo
-        // cuando querés que aparezca el ripple.
         const sig = JSON.stringify(zones);
         if (sig !== lastZonesSig.current) {
           lastZonesSig.current = sig;
@@ -485,14 +440,9 @@ export default function DiscipleshipMap({
 
     void load(true);
     const interval = setInterval(() => void load(false), LIVE_POLL_MS);
-    // Copia local del ref para el cleanup (regla react-hooks/exhaustive-deps:
-    // el .current puede cambiar antes de que corra la limpieza).
-    const timeouts = pulseTimeouts.current;
     return () => {
       cancelled = true;
       clearInterval(interval);
-      timeouts.forEach(t => clearTimeout(t));
-      timeouts.clear();
     };
   }, []);
 
@@ -721,7 +671,8 @@ export default function DiscipleshipMap({
           if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return null;
           const status = getActivityStatus(group.last_report_date);
           const isSelected = selectedGroup?.id === group.id;
-          const isPulsing = pulsingGroupIds.has(group.id);
+          // Titila mientras el reporte del grupo esté pendiente de aprobación.
+          const isPulsing = !!group.has_pending_report;
           return (
             <Marker
               key={`group-${group.id}`}
@@ -804,15 +755,26 @@ export default function DiscipleshipMap({
                       {formatRelativeTime(reportDate)}
                     </span>
                   </div>
-                  <Badge
-                    className="mt-1 w-fit text-[9.5px] font-bold tracking-wide border-0"
-                    style={{
-                      backgroundColor: `${ACTIVITY_COLORS[status]}1f`,
-                      color: ACTIVITY_COLORS[status],
-                    }}
-                  >
-                    {ACTIVITY_LABELS[status]}
-                  </Badge>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Badge
+                      className="w-fit text-[9.5px] font-bold tracking-wide border-0"
+                      style={{
+                        backgroundColor: `${ACTIVITY_COLORS[status]}1f`,
+                        color: ACTIVITY_COLORS[status],
+                      }}
+                    >
+                      {ACTIVITY_LABELS[status]}
+                    </Badge>
+                    {selectedGroup.has_pending_report && (
+                      <Badge className="w-fit text-[9.5px] font-bold tracking-wide border-0 bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-amber-500"
+                          style={{ animation: 'jetro-live-dot 1.4s ease-in-out infinite' }}
+                        />
+                        REPORTE PENDIENTE
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
             );
