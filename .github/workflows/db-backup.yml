@@ -1,0 +1,65 @@
+name: DB Backup (Supabase -> B2)
+
+# Backup diario de la base de Supabase (plan Free no trae backups automaticos)
+# hacia un bucket de Backblaze B2. Corre en GitHub Actions: sin server propio.
+#
+# GOTCHA: los triggers `schedule` solo disparan desde la rama default (main).
+# Este archivo tiene que estar en main para que el cron ande. `workflow_dispatch`
+# (el boton "Run workflow") anda desde cualquier rama donde exista.
+#
+# Retencion: NO se borra nada por script (un bug ahi borra el backup que
+# justo necesitabas). Se resuelve con una lifecycle rule en el bucket de B2
+# -> "keep only the last N days". Ver instrucciones al pie.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'   # 06:17 UTC diario (~02:17 Venezuela), hora muerta
+  workflow_dispatch: {}     # correr a mano desde la pestana Actions
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar pg_dump 17
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17 || {
+            sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+            curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client-17
+          }
+          command -v rclone >/dev/null || sudo apt-get install -y rclone
+
+      - name: Dump + subir a B2
+        env:
+          # Connection string de Supabase. Usar la del "Session pooler"
+          # (Dashboard -> Project Settings -> Database -> Connection string ->
+          # Session mode). El pooler transaccional (puerto 6543) NO sirve para
+          # pg_dump; el Session pooler (5432) si.
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          RCLONE_CONFIG_B2_TYPE: b2
+          RCLONE_CONFIG_B2_ACCOUNT: ${{ secrets.B2_KEY_ID }}
+          RCLONE_CONFIG_B2_KEY: ${{ secrets.B2_APP_KEY }}
+        run: |
+          set -euo pipefail
+          FILE="sionerp-$(date -u +%Y%m%d-%H%M%S).dump"
+
+          # -Fc: formato custom comprimido (restaura con pg_restore).
+          # --no-owner/--no-privileges: restaura limpio en un proyecto Supabase
+          # nuevo sin pelear con roles.
+          pg_dump "$SUPABASE_DB_URL" -Fc --no-owner --no-privileges -f "$FILE"
+
+          # Sanity check: un dump que "anduvo" pero salio vacio es PEOR que no
+          # tener backup, porque te da falsa tranquilidad. Si sale sospechoso, aborto.
+          SIZE=$(stat -c%s "$FILE")
+          echo "Dump: $FILE ($SIZE bytes)"
+          if [ "$SIZE" -lt 51200 ]; then
+            echo "::error::Dump sospechosamente chico (<50KB) - aborto sin subir." >&2
+            exit 1
+          fi
+
+          rclone copy "$FILE" "b2:${B2_BUCKET}/daily/" --progress
+          echo "Backup subido OK: daily/$FILE"
