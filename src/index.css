@@ -171,3 +171,85 @@ All colors MUST be HSL.
     transform: scale(1);
   }
 }
+
+/* Mapa en vivo (DiscipleshipMap): punto del pill "EN VIVO" */
+@keyframes jetro-live-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Mapa en vivo: ondas concéntricas cuando un grupo acaba de reportar */
+@keyframes jetro-pulse-ring {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+/* Mapa en vivo: barrido cónico del overlay de radar */
+@keyframes jetro-radar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Mapa en vivo: latido ambiental sutil de los marcadores de grupo */
+@keyframes jetro-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+/* Barrido cónico del radar (overlay decorativo del mapa en vivo). */
+.jetro-radar-sweep {
+  background: conic-gradient(from 0deg, rgba(34, 197, 94, 0.26), transparent 70deg);
+  mix-blend-mode: multiply;
+  animation: jetro-radar-spin 4s linear infinite;
+}
+:root[data-theme='dark'] .jetro-radar-sweep,
+.dark .jetro-radar-sweep {
+  background: conic-gradient(from 0deg, rgba(74, 222, 128, 0.22), transparent 70deg);
+  mix-blend-mode: normal;
+}
+
+/* Ondas concéntricas cuando un grupo acaba de reportar. Centradas en el
+   marcador (34×34), color heredado inline del estado del grupo. */
+.jetro-group-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 2px solid;
+  border-radius: 999px;
+  animation: jetro-pulse-ring 1.5s ease-out infinite;
+  pointer-events: none;
+}
+.jetro-group-pulse-delay {
+  animation-delay: 0.5s;
+}
+
+/* Latido ambiental de cada marcador de grupo ("sistema en vivo"). Se apaga
+   solo con prefers-reduced-motion. El ripple/ring van en hijos aparte, así
+   que el scale acá no los pisa. */
+.jetro-group-marker {
+  animation: jetro-breathe 3s ease-in-out infinite;
+  transform-origin: center;
+}

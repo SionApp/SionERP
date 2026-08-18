@@ -1719,6 +1719,64 @@ func nullIfEmpty(s string) interface{} {
 	return s
 }
 
+// GetActivityTimeline devuelve 24 buckets horarios (más viejo → más reciente)
+// con la cantidad de reportes REALES enviados en cada hora de las últimas 24h.
+// Respalda la línea de tiempo del mapa en vivo — nada de datos inventados, es
+// un COUNT sobre discipleship_reports.submitted_at.
+//
+// ponytail: buckets en horas de reloj del servidor (UTC), no alineados al
+// huso horario de la iglesia. Suficiente para el "vistazo en vivo" que pide
+// el diseño; si hace falta alinear a horas locales, sumar el offset acá.
+func (h *DiscipleshipHandler) GetActivityTimeline(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	dbGlobal := config.GetDB()
+	churchID, _ := c.Get("church_id").(string)
+	_, hierarchyLevel, _, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
+
+	userLevel := 5
+	if !canSeeAll && hierarchyLevel != nil {
+		userLevel = *hierarchyLevel
+	}
+
+	rows, err := q.Query(`
+		SELECT date_trunc('hour', submitted_at) as hour, COUNT(*)
+		FROM discipleship_reports
+		WHERE church_id = $1
+		AND report_level <= $2
+		AND submitted_at >= NOW() - INTERVAL '24 hours'
+		GROUP BY 1
+	`, churchID, userLevel)
+	if err != nil {
+		c.Logger().Error("Error fetching activity timeline:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al obtener la línea de tiempo de actividad",
+		})
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var hour time.Time
+		var count int
+		if err := rows.Scan(&hour, &count); err != nil {
+			continue
+		}
+		counts[hour.UTC().Format("2006-01-02T15")] = count
+	}
+
+	now := time.Now().UTC()
+	buckets := make([]int, 24)
+	for i := 0; i < 24; i++ {
+		hourKey := now.Add(time.Duration(i-23) * time.Hour).Format("2006-01-02T15")
+		buckets[i] = counts[hourKey]
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{"buckets": buckets})
+}
+
 // GetMultiplications obtiene el historial de multiplicaciones
 func (h *DiscipleshipHandler) GetMultiplications(c echo.Context) error {
 	q, err := validateTx(c)

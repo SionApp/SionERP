@@ -642,7 +642,11 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 		COALESCE(g.active_members, 0) as active_members,
 		COALESCE(g.status, '') as status,
 		COALESCE(gl.first_name || ' ' || gl.last_name, 'Sin líder') as leader_name,
-		COALESCE(gs.first_name || ' ' || gs.last_name, '') as group_supervisor_name
+		COALESCE(gs.first_name || ' ' || gs.last_name, '') as group_supervisor_name,
+		COALESCE((
+			SELECT MAX(r.submitted_at)::text FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id AND r.church_id = z.church_id
+		), '') as last_report_date
 	FROM zones z
 	LEFT JOIN users zu ON z.supervisor_id = zu.id
 	LEFT JOIN discipleship_groups g ON g.zone_id = z.id AND g.church_id = z.church_id
@@ -710,6 +714,7 @@ func (h *ZonesHandler) GetMapData(c echo.Context) error {
 			&group.ZoneName, &group.MeetingDay, &group.MeetingTime, &group.MeetingLocation, &group.MeetingAddress,
 			&group.Latitude, &group.Longitude,
 			&group.MemberCount, &group.ActiveMembers, &group.Status, &group.LeaderName, &group.SupervisorName,
+			&group.LastReportDate,
 		)
 		if err != nil {
 			c.Logger().Error("Error scanning map data:", err)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AuditLogModal } from '@/components/AuditLogModal';
 import { MobileDashboardScreen } from '@/components/mobile/screens/DashboardScreen';
+
+// Mapa: pesado (Leaflet). El Inicio es la primera pantalla que carga, así que
+// lo bajamos por demanda para no meter Leaflet en el bundle crítico del dashboard.
+const DiscipleshipMap = lazy(() => import('@/components/discipleship/DiscipleshipMap'));
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useMobileMode } from '@/hooks/useMobileMode';
@@ -333,6 +337,15 @@ const DashboardHome = () => {
               </button>
             ))}
           </div>
+        )}
+
+        {/* ── Mapa de zonas y células (staff+/pastor, con módulo de zonas) ──────
+            Vista global de la iglesia sobre el mapa: reemplaza en protagonismo
+            al feed de actividad, que baja debajo. */}
+        {canSeeSystemActivity && installedModules.includes('zones') && (
+          <Suspense fallback={<Skeleton className="w-full h-[580px] rounded-2xl" />}>
+            <DiscipleshipMap title="Mapa de zonas y células" />
+          </Suspense>
         )}
 
         {/* ── Two column grid ───────────────────────────────────────────────── */}

@@ -80,6 +80,7 @@ type ZoneMapGroup struct {
 	Status          string  `json:"status"`
 	LeaderName      string  `json:"leader_name"`
 	SupervisorName  string  `json:"supervisor_name.omitempty"`
+	LastReportDate  string  `json:"last_report_date"`
 }
 
 type ZoneMapData struct {

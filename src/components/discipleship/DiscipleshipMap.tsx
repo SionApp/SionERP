@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Drawer,
   DrawerContent,
@@ -7,9 +7,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from '@/components/ui/drawer';
-import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Switch } from '@/components/ui/switch';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { DiscipleshipService } from '@/services/discipleship.service';
@@ -21,7 +19,7 @@ import type {
   ZoneMapData,
   ZoneMapGroup,
 } from '@/types/discipleship.types';
-import { Calendar, Layers, MapPin, Search, User as UserIcon, Users } from 'lucide-react';
+import { Layers, MapPin, Search, User as UserIcon, Users } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -65,6 +63,8 @@ interface DiscipleshipMapProps {
   selectedZoneId?: string | null;
   onZoneSelect?: (zoneId: string | null, groups: DiscipleshipGroup[]) => void;
   heightClassName?: string;
+  /** Título de la vista (breadcrumb queda a cargo de la página, no del widget). Sin título: solo controles. */
+  title?: string;
 }
 
 // ── Constantes ──────────────────────────────────────────────
@@ -80,26 +80,116 @@ const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
+// Cada cuánto se refresca el mapa para detectar reportes nuevos (ripple) y
+// actualizar el contador EN VIVO / la línea de tiempo. No hay push real
+// (Supabase Realtime) todavía — polling es el fallback explícito que
+// contempla el propio diseño.
+const LIVE_POLL_MS = 30_000;
+// Cuánto dura el "ripple" visual de un grupo que acaba de reportar.
+const PULSE_DURATION_MS = 10_000;
+
+// ── Actividad de reporte (estado real, no inventado) ─────────
+// El diseño original pedía un semáforo de "creció / sin cambios / sin
+// reportar" basado en delta de miembros — dato que hoy no existe (no hay
+// snapshots históricos de member_count). Se reutiliza el mismo semáforo de
+// 3 colores pero con un significado que SÍ es 100% real: recencia del
+// último reporte (`last_report_date`, MAX(submitted_at) real del backend).
+// Es, además, la señal más útil para un pastor haciendo seguimiento.
+type ActivityStatus = 'recent' | 'aging' | 'silent';
+
+const ACTIVITY_COLORS: Record<ActivityStatus, string> = {
+  recent: '#22c55e',
+  aging: '#f59e0b',
+  silent: '#ef4444',
+};
+
+const ACTIVITY_LABELS: Record<ActivityStatus, string> = {
+  recent: 'REPORTÓ ESTA SEMANA',
+  aging: 'REPORTÓ ESTE MES',
+  silent: 'SIN REPORTAR',
+};
+
+/**
+ * Postgres devuelve el timestamptz como "YYYY-MM-DD HH:MM:SS.ffffff+00", que
+ * new Date() NO parsea: el offset viene en 2 dígitos (`+00`, no `+00:00`) y la
+ * fracción trae microsegundos. Ambos dan Invalid Date. Normalizamos:
+ *  - espacio → 'T'
+ *  - microsegundos → milisegundos (.755019 → .755)
+ *  - offset de 2 dígitos → ±HH:MM (+00 → +00:00)
+ */
+function parseBackendTimestamp(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const s = raw
+    .replace(' ', 'T')
+    .replace(/(\.\d{3})\d+/, '$1')
+    .replace(/([+-]\d{2})$/, '$1:00');
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function getActivityStatus(lastReportDate: string | undefined): ActivityStatus {
+  const d = parseBackendTimestamp(lastReportDate);
+  if (!d) return 'silent';
+  const daysAgo = (Date.now() - d.getTime()) / 86_400_000;
+  if (daysAgo <= 7) return 'recent';
+  if (daysAgo <= 30) return 'aging';
+  return 'silent';
+}
+
+function formatRelativeTime(date: Date | null): string {
+  if (!date) return 'Sin reportes aún';
+  const minutes = Math.floor((Date.now() - date.getTime()) / 60_000);
+  if (minutes < 1) return 'ahora mismo';
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `hace ${days} d`;
+}
+
+/** Diámetro del marcador de grupo: escala con miembros, con piso y techo. */
+function groupMarkerSize(members: number): number {
+  return Math.min(30, Math.max(14, 12 + members * 0.9));
+}
+
 // ── SVG Markers (as HTML strings for divIcon) ──────────────
 
-// Pin en forma de gota (teardrop) con una casita blanca adentro. El ancla es la
-// PUNTA inferior, así que marca el punto exacto en el mapa. `w` = ancho en px;
-// el alto se deriva a ~1.3x. La sombra va en el wrapper para no colisionar ids de SVG.
-function houseIconHtml(color: string, w: number, highlight = false): string {
-  const h = Math.round(w * 1.32);
-  const ring = highlight
-    ? `<circle cx="15" cy="14" r="12.5" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.9"/>`
+// Marcador de grupo: círculo de color = estado de reporte, diámetro = miembros.
+// Reemplaza el pin-casita anterior — así lo pide el rediseño "mapa en vivo".
+function groupCircleHtml(
+  color: string,
+  size: number,
+  isSelected: boolean,
+  pulsing: boolean
+): string {
+  const ring = isSelected
+    ? `<div style="position:absolute;inset:-5px;border-radius:999px;border:2px solid #fff;opacity:.9;"></div>`
     : '';
-  return `<div style="width:${w}px;height:${h}px;filter:drop-shadow(0 2px 2px rgba(15,23,42,.35));${
-    highlight ? 'animation:jetro-pin-pop .25s ease-out;' : ''
-  }">
-    <svg width="${w}" height="${h}" viewBox="0 0 30 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M15 1.5C7.8 1.5 2 7.2 2 14.2c0 8.1 13 24.3 13 24.3s13-16.2 13-24.3C28 7.2 22.2 1.5 15 1.5Z" fill="${color}" stroke="#ffffff" stroke-width="2.4"/>
-      ${ring}
-      <path d="M15 7.6 22 13v6.1a.8.8 0 0 1-.8.8H8.8a.8.8 0 0 1-.8-.8V13l7-5.4Z" fill="#ffffff"/>
-      <rect x="12.7" y="14.6" width="4.6" height="5.3" rx="0.7" fill="${color}"/>
-    </svg>
+  const ripple = pulsing
+    ? `<div class="jetro-group-pulse" style="border-color:${color}"></div>
+       <div class="jetro-group-pulse jetro-group-pulse-delay" style="border-color:${color}"></div>`
+    : '';
+  return `<div class="jetro-group-marker" style="position:relative;width:${size}px;height:${size}px;">
+    ${ripple}
+    ${ring}
+    <div style="width:100%;height:100%;border-radius:999px;background:${color};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(15,23,42,.4);"></div>
   </div>`;
+}
+
+function createGroupIcon(
+  color: string,
+  size: number,
+  isSelected: boolean,
+  pulsing: boolean
+): L.DivIcon {
+  const boxSize = size + 10; // margen para el ring/ripple sin recortar
+  return L.divIcon({
+    html: groupCircleHtml(color, size, isSelected, pulsing),
+    className: '',
+    iconSize: [boxSize, boxSize],
+    iconAnchor: [boxSize / 2, boxSize / 2],
+    popupAnchor: [0, -boxSize / 2],
+  });
 }
 
 // Badge circular para personas (más chico, sin punta — marca aproximada).
@@ -111,17 +201,6 @@ function personIconHtml(size: number): string {
       <path d="M6.5 17.8c0-3 2.6-5 5.5-5s5.5 2 5.5 5" fill="#ffffff"/>
     </svg>
   </div>`;
-}
-
-function createHouseIcon(color: string, w: number, highlight = false): L.DivIcon {
-  const h = Math.round(w * 1.32);
-  return L.divIcon({
-    html: houseIconHtml(color, w, highlight),
-    className: '',
-    iconSize: [w, h],
-    iconAnchor: [w / 2, h], // punta inferior
-    popupAnchor: [0, -h + 4],
-  });
 }
 
 function createPersonIcon(size: number): L.DivIcon {
@@ -291,7 +370,8 @@ function PopupCloseHandler({ onClose }: { onClose: () => void }) {
 export default function DiscipleshipMap({
   selectedZoneId,
   onZoneSelect,
-  heightClassName = 'h-[620px]',
+  heightClassName = 'h-[440px] lg:h-[580px]',
+  title,
 }: DiscipleshipMapProps) {
   const isMobileApp = useMobileMode();
   const mapRef = useRef<L.Map | null>(null);
@@ -313,6 +393,12 @@ export default function DiscipleshipMap({
   const [selectedGroup, setSelectedGroup] = useState<ZoneMapGroup | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<MapUser | null>(null);
 
+  // Tiempo real (polling, ver comentario en LIVE_POLL_MS)
+  const [pulsingGroupIds, setPulsingGroupIds] = useState<Set<string>>(new Set());
+  const [activityBuckets, setActivityBuckets] = useState<number[]>(new Array(24).fill(0));
+  const lastReportByGroup = useRef<Map<string, string>>(new Map());
+  const pulseTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
   // Map navigation state
   const [fitToBounds, setFitToBounds] = useState<{ bounds: L.LatLngBounds; key: string } | null>(
     null
@@ -327,18 +413,93 @@ export default function DiscipleshipMap({
     setInternalSelectedZoneId(selectedZoneId ?? null);
   }, [selectedZoneId]);
 
-  // Cargar zonas + grupos
+  // Cargar zonas + grupos, con polling para detectar reportes nuevos (ripple)
+  // y refrescar el contador EN VIVO sin resetear el viewport del usuario.
   useEffect(() => {
-    const load = async () => {
+    let cancelled = false;
+
+    const load = async (isFirstLoad: boolean) => {
       try {
-        setLoading(true);
+        if (isFirstLoad) setLoading(true);
         const response = await ZonesService.getMapData({ is_active: true });
-        setZoneData(response.zones || []);
+        if (cancelled) return;
+        const zones = response.zones || [];
+        setZoneData(zones);
+
+        // Diff contra el poll anterior: si last_report_date cambió, ese grupo
+        // "acaba de reportar" — dispara el ripple ~10s. No dispara en la
+        // primera carga (no hay "anterior" con qué comparar todavía).
+        if (!isFirstLoad) {
+          const newlyReported: string[] = [];
+          for (const zd of zones) {
+            for (const g of zd.groups) {
+              const prev = lastReportByGroup.current.get(g.id);
+              if (g.last_report_date && prev !== undefined && prev !== g.last_report_date) {
+                newlyReported.push(g.id);
+              }
+            }
+          }
+          if (newlyReported.length > 0) {
+            setPulsingGroupIds(prevSet => {
+              const next = new Set(prevSet);
+              newlyReported.forEach(id => next.add(id));
+              return next;
+            });
+            newlyReported.forEach(id => {
+              const existing = pulseTimeouts.current.get(id);
+              if (existing) clearTimeout(existing);
+              pulseTimeouts.current.set(
+                id,
+                setTimeout(() => {
+                  setPulsingGroupIds(prevSet => {
+                    const next = new Set(prevSet);
+                    next.delete(id);
+                    return next;
+                  });
+                  pulseTimeouts.current.delete(id);
+                }, PULSE_DURATION_MS)
+              );
+            });
+          }
+        }
+        lastReportByGroup.current = new Map(
+          zones.flatMap(zd => zd.groups.map(g => [g.id, g.last_report_date || '']))
+        );
       } finally {
-        setLoading(false);
+        if (isFirstLoad) setLoading(false);
       }
     };
-    void load();
+
+    void load(true);
+    const interval = setInterval(() => void load(false), LIVE_POLL_MS);
+    // Copia local del ref para el cleanup (regla react-hooks/exhaustive-deps:
+    // el .current puede cambiar antes de que corra la limpieza).
+    const timeouts = pulseTimeouts.current;
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      timeouts.forEach(t => clearTimeout(t));
+      timeouts.clear();
+    };
+  }, []);
+
+  // Línea de tiempo (24h reales) — mismo ciclo de refresco que el mapa.
+  useEffect(() => {
+    let cancelled = false;
+    const loadTimeline = async () => {
+      try {
+        const buckets = await DiscipleshipService.getActivityTimeline();
+        if (!cancelled) setActivityBuckets(buckets);
+      } catch (err) {
+        console.error('Error loading activity timeline:', err);
+      }
+    };
+    void loadTimeline();
+    const interval = setInterval(loadTimeline, LIVE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   // Cargar usuarios con coordenadas (usa endpoint de discipulado, no requiere staff+)
@@ -422,16 +583,22 @@ export default function DiscipleshipMap({
     return mapUsers.filter(u => u.zone_name === zoneName);
   }, [mapUsers, internalSelectedZoneId, zoneData]);
 
-  // Obtener color de zona para un grupo
-  const getGroupZoneColor = useCallback(
-    (group: ZoneMapGroup): string => {
-      for (const zd of zoneData) {
-        if (zd.groups.some(g => g.id === group.id)) {
-          return zd.zone.color || '#3b82f6';
-        }
-      }
-      return '#3b82f6';
-    },
+  const totalGroups = useMemo(
+    () => zoneData.reduce((acc, item) => acc + item.groups.length, 0),
+    [zoneData]
+  );
+  const totalMembers = useMemo(
+    () => zoneData.reduce((acc, item) => acc + (item.zone.total_members || 0), 0),
+    [zoneData]
+  );
+  // "activos" del pill EN VIVO: miembros activos reales, sumados de todos los
+  // grupos cargados (no solo los visibles) — así el contador no salta al filtrar por zona.
+  const liveActiveCount = useMemo(
+    () =>
+      zoneData.reduce(
+        (acc, item) => acc + item.groups.reduce((a, g) => a + (g.active_members || 0), 0),
+        0
+      ),
     [zoneData]
   );
 
@@ -529,19 +696,25 @@ export default function DiscipleshipMap({
         }}
       />
 
-      {/* Marcadores de Grupos (casitas) */}
+      {/* Marcadores de Grupos (círculos: color = estado de reporte, tamaño = miembros) */}
       {showGroups &&
         visibleGroups.map(group => {
           const lat = Number(group.latitude);
           const lng = Number(group.longitude);
           if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return null;
-          const zoneColor = getGroupZoneColor(group);
+          const status = getActivityStatus(group.last_report_date);
           const isSelected = selectedGroup?.id === group.id;
+          const isPulsing = pulsingGroupIds.has(group.id);
           return (
             <Marker
               key={`group-${group.id}`}
               position={[lat, lng]}
-              icon={createHouseIcon(zoneColor, isSelected ? 30 : 22, isSelected)}
+              icon={createGroupIcon(
+                ACTIVITY_COLORS[status],
+                groupMarkerSize(group.active_members || group.member_count || 0),
+                isSelected,
+                isPulsing
+              )}
               zIndexOffset={isSelected ? 1000 : 0}
               eventHandlers={{
                 click: () => {
@@ -575,71 +748,58 @@ export default function DiscipleshipMap({
           position={[Number(selectedGroup.latitude), Number(selectedGroup.longitude)]}
           closeOnClick={false}
           autoClose={false}
-          maxWidth={300}
+          maxWidth={240}
         >
-          <div className="p-3 min-w-[220px] bg-background rounded-xl shadow-2xl border border-border overflow-hidden">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
-              <div className="p-1.5 bg-blue-500/10 rounded-lg">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
-                    fill="#3b82f6"
-                    fillOpacity="0.85"
-                    stroke="#3b82f6"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+          {(() => {
+            const status = getActivityStatus(selectedGroup.last_report_date);
+            const reportDate = parseBackendTimestamp(selectedGroup.last_report_date);
+            return (
+              <div className="w-[220px] bg-background rounded-2xl shadow-2xl border border-border overflow-hidden">
+                <div className="flex items-center gap-2 px-3.5 py-3 border-b border-border/50">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: ACTIVITY_COLORS[status] }}
                   />
-                  <path
-                    d="M9 21V13H15V21"
-                    fill="white"
-                    fillOpacity="0.9"
-                    stroke="#3b82f6"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-              <p className="font-bold text-sm tracking-tight truncate">
-                {selectedGroup.group_name}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <UserIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">Líder:</span>{' '}
-                  {selectedGroup.leader_name || 'Sin asignar'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">Miembros:</span>{' '}
-                  {selectedGroup.active_members || 0}/{selectedGroup.member_count || 0}
-                </p>
-              </div>
-              {selectedGroup.meeting_location && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground line-clamp-1">
-                    <span className="font-semibold text-foreground">Ubicación:</span>{' '}
-                    {selectedGroup.meeting_location}
+                  <p className="font-bold text-xs tracking-tight truncate">
+                    {selectedGroup.group_name}
                   </p>
                 </div>
-              )}
-              {selectedGroup.meeting_day && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">Reunión:</span>{' '}
-                    {selectedGroup.meeting_day}
-                  </p>
+                <div className="px-3.5 py-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                      <UserIcon className="w-3 h-3" /> Líder
+                    </span>
+                    <span className="font-semibold text-foreground truncate max-w-[130px]">
+                      {selectedGroup.leader_name || 'Sin asignar'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Users className="w-3 h-3" /> Miembros
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {selectedGroup.active_members || 0}/{selectedGroup.member_count || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-medium">Último reporte</span>
+                    <span className="font-semibold text-foreground">
+                      {formatRelativeTime(reportDate)}
+                    </span>
+                  </div>
+                  <Badge
+                    className="mt-1 w-fit text-[9.5px] font-bold tracking-wide border-0"
+                    style={{
+                      backgroundColor: `${ACTIVITY_COLORS[status]}1f`,
+                      color: ACTIVITY_COLORS[status],
+                    }}
+                  >
+                    {ACTIVITY_LABELS[status]}
+                  </Badge>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            );
+          })()}
         </Popup>
       )}
 
@@ -689,7 +849,7 @@ export default function DiscipleshipMap({
     </>
   );
 
-  // ── Lista de zonas (compartida: Card de escritorio / Drawer de mobile) ──
+  // ── Lista de zonas (compartida: Drawer de mobile / chips de escritorio) ──
   const zoneListBody = (
     <div className="space-y-3">
       {/* Botón "Todas las zonas" */}
@@ -715,7 +875,7 @@ export default function DiscipleshipMap({
                 !internalSelectedZoneId ? 'text-blue-100' : 'text-muted-foreground'
               )}
             >
-              {zoneData.reduce((acc, item) => acc + item.groups.length, 0)} grupos totales
+              {totalGroups} grupos totales
             </p>
           </div>
           <div
@@ -761,26 +921,7 @@ export default function DiscipleshipMap({
                   </p>
                   <div className="flex items-center gap-3 mt-1.5">
                     <div className="flex items-center gap-1">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                        <path
-                          d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
-                          fill={isSelected ? '#3b82f6' : '#94a3b8'}
-                          fillOpacity="0.85"
-                          stroke={isSelected ? '#3b82f6' : '#94a3b8'}
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M9 21V13H15V21"
-                          fill="white"
-                          fillOpacity="0.9"
-                          stroke={isSelected ? '#3b82f6' : '#94a3b8'}
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <Users className="w-3 h-3 text-muted-foreground" />
                       <span className="text-[10px] font-bold text-muted-foreground">
                         {item.groups.length}
                       </span>
@@ -823,28 +964,13 @@ export default function DiscipleshipMap({
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-1.5 bg-background rounded-lg shadow-sm border border-border/50 group-hover/cell:border-blue-500/30 transition-colors">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                          <path
-                            d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
-                            fill={item.zone.color}
-                            fillOpacity="0.85"
-                            stroke={item.zone.color}
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M9 21V13H15V21"
-                            fill="white"
-                            fillOpacity="0.9"
-                            stroke={item.zone.color}
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </div>
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{
+                          backgroundColor:
+                            ACTIVITY_COLORS[getActivityStatus(group.last_report_date)],
+                        }}
+                      />
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate group-hover/cell:text-blue-600 transition-colors">
                           {group.group_name}
@@ -865,8 +991,8 @@ export default function DiscipleshipMap({
   );
 
   // ── Layout mobile: mapa a pantalla completa + toggles flotantes + hoja inferior ──
+  // (rediseño "mapa en vivo" aplica a escritorio; mobile queda como hoy, entrega aparte)
   if (isMobileApp) {
-    const totalGroups = zoneData.reduce((acc, item) => acc + item.groups.length, 0);
     return (
       <div className="relative w-full h-[calc(100dvh-172px)] rounded-2xl overflow-hidden border border-border">
         <MapContainer
@@ -934,185 +1060,246 @@ export default function DiscipleshipMap({
     );
   }
 
-  // ── Layout de escritorio ──
+  // ── Layout de escritorio: "mapa en tiempo real" — un solo Card a ancho completo ──
   return (
-    <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
-      {/* ── Mapa ── */}
-      <Card className="overflow-hidden border-border bg-card shadow-xl rounded-2xl relative group border-none lg:border-solid">
-        <CardContent className="p-0 relative">
-          <div className={cn('w-full transition-all duration-500', heightClassName)}>
-            <MapContainer
-              center={DEFAULT_CENTER}
-              zoom={DEFAULT_ZOOM}
-              className="w-full h-full"
-              zoomControl={false}
-              ref={map => {
-                mapRef.current = map;
-              }}
-            >
-              {mapLayers}
-
-              {/* Floating Toolbar Top Left */}
-              <div
-                className="leaflet-top leaflet-left"
-                style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000 }}
-              >
-                <div className="bg-background/80 backdrop-blur-md rounded-xl border border-border/50 p-2.5 shadow-lg flex items-center gap-4 transition-all hover:bg-background/90">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 bg-blue-500/10 rounded-lg">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <path
-                          d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
-                          fill="#3b82f6"
-                          fillOpacity="0.85"
-                          stroke="#3b82f6"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M9 21V13H15V21"
-                          fill="white"
-                          fillOpacity="0.9"
-                          stroke="#3b82f6"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Grupos
-                    </span>
-                  </div>
-                  <div className="h-4 w-[1px] bg-border" />
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 bg-indigo-500/10 rounded-lg">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle
-                          cx="12"
-                          cy="7"
-                          r="4"
-                          fill="#6366f1"
-                          stroke="#4f46e5"
-                          strokeWidth="1.5"
-                        />
-                        <path
-                          d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21"
-                          fill="#6366f1"
-                          fillOpacity="0.6"
-                          stroke="#4f46e5"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Personas
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </MapContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Sidebar ── */}
-      <Card className="border-border bg-card shadow-xl rounded-2xl flex flex-col overflow-hidden border-none lg:border-solid">
-        <CardHeader className="space-y-4 pb-4 bg-muted/30 border-b border-border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-blue-500" />
-              <CardTitle className="text-xl font-bold tracking-tight">Capas</CardTitle>
-            </div>
-            {internalSelectedZoneId ? (
-              <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800 hover:bg-blue-500/20 transition-colors">
-                {selectedZone?.zone.name}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-muted-foreground">
-                Global
-              </Badge>
-            )}
-          </div>
-
-          {/* Toggles de capas - Rediseñados */}
-          <div className="grid grid-cols-2 gap-2">
-            <div
+    <Card className="jetro-live-map overflow-hidden border-border bg-card shadow-xl rounded-2xl">
+      {/* Header: título + controles */}
+      <div className="flex items-center justify-between gap-3 flex-wrap px-4 sm:px-5 pt-4 pb-3">
+        {title ? (
+          <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground">{title}</h2>
+        ) : (
+          <div />
+        )}
+        <div className="flex items-center gap-2">
+          {/* Segmented Grupos / Personas — multi-toggle, no exclusivo */}
+          <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1">
+            <button
+              type="button"
+              onClick={() => setShowGroups(v => !v)}
               className={cn(
-                'flex items-center justify-between p-2 rounded-xl border transition-all',
+                'rounded-full px-3 py-1 text-[11px] font-bold transition-colors',
                 showGroups
-                  ? 'bg-blue-500/5 border-blue-200 dark:border-blue-800 shadow-sm'
-                  : 'bg-muted/50 border-transparent'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-muted-foreground hover:bg-blue-600/[.06]'
               )}
             >
-              <Label htmlFor="show-groups" className="cursor-pointer flex items-center gap-2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H4C3.45 21 3 20.55 3 20V10.5Z"
-                    fill={showGroups ? '#3b82f6' : '#94a3b8'}
-                    fillOpacity="0.85"
-                    stroke={showGroups ? '#3b82f6' : '#94a3b8'}
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M9 21V13H15V21"
-                    fill="white"
-                    fillOpacity="0.9"
-                    stroke={showGroups ? '#3b82f6' : '#94a3b8'}
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span className="text-xs font-medium">Grupos</span>
-              </Label>
-              <Switch
-                id="show-groups"
-                checked={showGroups}
-                onCheckedChange={setShowGroups}
-                className="scale-75"
-              />
-            </div>
-            <div
+              Grupos
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPeople(v => !v)}
               className={cn(
-                'flex items-center justify-between p-2 rounded-xl border transition-all',
+                'rounded-full px-3 py-1 text-[11px] font-bold transition-colors',
                 showPeople
-                  ? 'bg-indigo-500/5 border-indigo-200 dark:border-indigo-800 shadow-sm'
-                  : 'bg-muted/50 border-transparent'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-muted-foreground hover:bg-blue-600/[.06]'
               )}
             >
-              <Label htmlFor="show-people" className="cursor-pointer flex items-center gap-2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="7" r="4" fill="#6366f1" stroke="#4f46e5" strokeWidth="1.5" />
-                  <path
-                    d="M5.5 21C5.5 17.41 8.41 14.5 12 14.5C15.59 14.5 18.5 17.41 18.5 21"
-                    fill="#6366f1"
-                    fillOpacity="0.6"
-                    stroke="#4f46e5"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="text-xs font-medium">Personas</span>
-              </Label>
-              <Switch
-                id="show-people"
-                checked={showPeople}
-                onCheckedChange={setShowPeople}
-                className="scale-75"
-              />
+              Personas
+            </button>
+          </div>
+
+          {/* Pill EN VIVO */}
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
+            <span
+              className="w-2 h-2 rounded-full bg-green-500"
+              style={{ animation: 'jetro-live-dot 1.4s ease-in-out infinite' }}
+            />
+            <span className="text-[11px] font-bold text-green-700 dark:text-green-400">
+              EN VIVO
+            </span>
+            <span className="w-px h-3 bg-border" />
+            <span className="text-xs font-bold text-foreground">{liveActiveCount}</span>
+            <span className="text-[11px] font-medium text-muted-foreground">activos</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Mapa */}
+      <CardContent className="p-0 relative">
+        <div className={cn('w-full relative', heightClassName)}>
+          {loading && zoneData.length === 0 && (
+            <Skeleton className="absolute inset-0 z-[900] rounded-none" />
+          )}
+
+          <MapContainer
+            center={DEFAULT_CENTER}
+            zoom={DEFAULT_ZOOM}
+            className="w-full h-full relative z-[500]"
+            zoomControl={false}
+            ref={map => {
+              mapRef.current = map;
+            }}
+          >
+            {mapLayers}
+          </MapContainer>
+
+          {/* Overlay de radar: decorativo, "sistema escuchando" — no representa datos puntuales.
+              Va por ENCIMA del mapa (z-[600]) con pointer-events-none: el barrido cónico
+              semitransparente tiñe las tiles (mix-blend multiply en claro) sin bloquear los
+              clicks de los marcadores. La animación se apaga sola vía prefers-reduced-motion. */}
+          <div
+            className="pointer-events-none absolute inset-0 z-[600] flex items-center justify-center overflow-hidden"
+            aria-hidden="true"
+          >
+            <div className="relative w-[620px] h-[620px] max-w-none">
+              <div className="absolute inset-[140px] rounded-full border border-dashed border-green-500/20 dark:border-green-400/20" />
+              <div className="absolute inset-0 rounded-full border border-dashed border-green-500/30 dark:border-green-400/25" />
+              <div className="jetro-radar-sweep absolute inset-0 rounded-full" />
             </div>
           </div>
-        </CardHeader>
 
-        <CardContent className="pt-0">
-          <ScrollArea className="h-[460px] pr-4">{zoneListBody}</ScrollArea>
-        </CardContent>
-      </Card>
-    </div>
+          {/* Chip de resumen (overlay top-left) */}
+          <div className="absolute top-4 left-4 z-[1000] rounded-xl border border-black/5 dark:border-white/10 bg-white/[.93] dark:bg-white/[.07] backdrop-blur-md px-3.5 py-2.5 shadow-sm dark:shadow-none">
+            <p className="text-[11px] font-bold text-foreground">
+              {totalGroups} grupos · {totalMembers} miembros
+            </p>
+            <p className="text-[10px] font-medium text-muted-foreground">
+              {zoneData.length} zona{zoneData.length !== 1 ? 's' : ''} · radar activo
+            </p>
+          </div>
+        </div>
+      </CardContent>
+
+      {/* Línea de tiempo (24h reales) */}
+      <div className="px-4 sm:px-5 pt-3.5 pb-1.5 border-t border-border">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-foreground">Actividad · últimas 24 h</span>
+          <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
+            reportes reales enviados por hora
+          </span>
+        </div>
+        <div className="flex items-end gap-[3px] h-[46px] mt-4 relative">
+          {activityBuckets.map((count, i) => {
+            const max = Math.max(1, ...activityBuckets);
+            const heightPct = Math.max(6, (count / max) * 100);
+            const isRecent = i >= 20; // últimas 4 horas
+            const isNow = i === 23;
+            return (
+              <div key={i} className="flex-1 relative h-full flex items-end">
+                {isNow && (
+                  <>
+                    <div className="absolute -top-1.5 bottom-0 right-0 w-[2px] bg-foreground dark:bg-green-400" />
+                    <span className="absolute -top-4 right-0 translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[9px] font-bold bg-foreground text-background dark:bg-green-400 dark:text-green-950">
+                      AHORA
+                    </span>
+                  </>
+                )}
+                <div
+                  className={cn(
+                    'w-full rounded-sm transition-[height] duration-500',
+                    isRecent ? 'bg-blue-500 dark:bg-green-400' : 'bg-slate-300 dark:bg-slate-500/35'
+                  )}
+                  style={{ height: `${heightPct}%` }}
+                  title={`${count} reporte${count !== 1 ? 's' : ''}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex justify-between mt-1.5">
+          {['00:00', '06:00', '12:00', '18:00', '24:00'].map(label => (
+            <span
+              key={label}
+              className="font-mono text-[9.5px] font-medium text-muted-foreground/70"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Leyenda inferior: chips de zona + escalas — scrollea horizontal si no entra */}
+      <div className="px-4 sm:px-5 pt-3 pb-4 flex items-center gap-3.5 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => handleSelectZone(null)}
+          className={cn(
+            'shrink-0 flex items-center gap-2 rounded-[10px] border px-3 py-1.5 transition-colors',
+            !internalSelectedZoneId
+              ? 'border-blue-500 bg-blue-500/[.08]'
+              : 'border-border bg-muted/40 hover:bg-muted'
+          )}
+        >
+          <span className="text-[10.5px] font-bold text-foreground">Todas las zonas</span>
+        </button>
+        {loading && zoneData.length === 0
+          ? [1, 2, 3].map(i => (
+              <div
+                key={i}
+                className="shrink-0 h-[30px] w-28 rounded-[10px] bg-muted animate-pulse"
+              />
+            ))
+          : zoneData.map(item => {
+              const isSelected = item.zone.id === internalSelectedZoneId;
+              return (
+                <button
+                  key={item.zone.id}
+                  type="button"
+                  onClick={() => handleSelectZone(item)}
+                  className={cn(
+                    'shrink-0 flex items-center gap-2 rounded-[10px] border px-3 py-1.5 transition-colors',
+                    isSelected ? 'bg-muted/40' : 'border-border bg-muted/40 hover:bg-muted'
+                  )}
+                  style={
+                    isSelected
+                      ? { borderColor: item.zone.color, background: `${item.zone.color}14` }
+                      : undefined
+                  }
+                >
+                  <span
+                    className="w-[9px] h-[9px] rounded-full shrink-0"
+                    style={{ backgroundColor: item.zone.color }}
+                  />
+                  <span className="flex flex-col items-start leading-tight">
+                    <span className="text-[10.5px] font-bold text-foreground">
+                      {item.zone.name}
+                    </span>
+                    <span className="text-[9.5px] font-medium text-muted-foreground">
+                      {item.groups.length} grupos · {item.zone.total_members || 0} miembros
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+
+        <span className="shrink-0 w-px h-[30px] bg-border" />
+
+        <div className="shrink-0 flex items-center gap-3">
+          <span className="text-[9.5px] font-bold tracking-wide text-muted-foreground">
+            REPORTES
+          </span>
+          {(['recent', 'aging', 'silent'] as ActivityStatus[]).map(status => (
+            <div key={status} className="flex items-center gap-1.5">
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: ACTIVITY_COLORS[status] }}
+              />
+              <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+                {status === 'recent' && 'esta semana'}
+                {status === 'aging' && 'este mes'}
+                {status === 'silent' && 'sin reportar'}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <span className="shrink-0 w-px h-[30px] bg-border" />
+
+        <div className="shrink-0 flex items-center gap-2.5">
+          <span className="text-[9.5px] font-bold tracking-wide text-muted-foreground">TAMAÑO</span>
+          {[10, 16, 24].map(size => (
+            <span
+              key={size}
+              className="rounded-full bg-slate-300 dark:bg-slate-500"
+              style={{ width: size, height: size }}
+            />
+          ))}
+          <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+            = miembros del grupo
+          </span>
+        </div>
+      </div>
+    </Card>
   );
 }

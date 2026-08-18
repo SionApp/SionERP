@@ -42,6 +42,8 @@ export interface Zone {
 export interface ZoneMapGroup extends DiscipleshipGroup {
   leader_name?: string;
   supervisor_name?: string;
+  /** Timestamp del último reporte real recibido de este grupo (MAX(submitted_at)), '' si nunca reportó. */
+  last_report_date?: string;
 }
 
 export interface ZoneMapData {

@@ -159,17 +159,27 @@ export class DiscipleshipService {
     return ApiService.get(`/zones`);
   }
 
+  /** 24 buckets horarios (más viejo → más reciente) con reportes reales de las últimas 24h. */
+  static async getActivityTimeline(): Promise<number[]> {
+    const data = (await ApiService.get(`${this.baseUrl}/analytics/timeline`)) as {
+      buckets?: number[];
+    };
+    return data?.buckets || new Array(24).fill(0);
+  }
+
   static async getGroupPerformance(): Promise<GroupPerformance[]> {
-    const data = (await ApiService.get(`${this.baseUrl}/analytics`)) as any;
-    return ((data?.group_performance as any[]) || []).map((g: any) => ({
-      groupId: g.group_id || '',
-      groupName: g.group_name || 'Sin nombre',
-      leaderName: g.leader_name || 'Sin líder',
-      avgAttendance: g.avg_attendance || 0,
-      growthRate: g.growth_rate || 0,
-      spiritualTemp: g.spiritual_temp || 0,
-      status: g.status || 'active',
-      lastReportDate: g.last_report_date || '',
+    const data = (await ApiService.get(`${this.baseUrl}/analytics`)) as {
+      group_performance?: Array<Record<string, string | number | undefined>>;
+    };
+    return (data?.group_performance || []).map(g => ({
+      groupId: String(g.group_id ?? ''),
+      groupName: String(g.group_name ?? 'Sin nombre'),
+      leaderName: String(g.leader_name ?? 'Sin líder'),
+      avgAttendance: Number(g.avg_attendance ?? 0),
+      growthRate: Number(g.growth_rate ?? 0),
+      spiritualTemp: Number(g.spiritual_temp ?? 0),
+      status: String(g.status ?? 'active'),
+      lastReportDate: String(g.last_report_date ?? ''),
     }));
   }
 
@@ -383,10 +393,7 @@ export class DiscipleshipService {
   // CUMPLIMIENTO DE REPORTES (report_compliance)
   // =====================================================
 
-  static async getZoneRollup(
-    periodStart: string,
-    periodEnd: string
-  ): Promise<ZoneRollupResponse> {
+  static async getZoneRollup(periodStart: string, periodEnd: string): Promise<ZoneRollupResponse> {
     return ApiService.get(
       `${this.baseUrl}/zone-rollup?period_start=${periodStart}&period_end=${periodEnd}`
     );
