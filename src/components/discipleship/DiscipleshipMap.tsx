@@ -398,6 +398,9 @@ export default function DiscipleshipMap({
   const [activityBuckets, setActivityBuckets] = useState<number[]>(new Array(24).fill(0));
   const lastReportByGroup = useRef<Map<string, string>>(new Map());
   const pulseTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Firma de la última tanda de zonas renderizada — para saltar el re-render
+  // cuando el poll trae exactamente lo mismo (evita el pestañeo de marcadores).
+  const lastZonesSig = useRef<string>('');
 
   // Map navigation state
   const [fitToBounds, setFitToBounds] = useState<{ bounds: L.LatLngBounds; key: string } | null>(
@@ -424,7 +427,6 @@ export default function DiscipleshipMap({
         const response = await ZonesService.getMapData({ is_active: true });
         if (cancelled) return;
         const zones = response.zones || [];
-        setZoneData(zones);
 
         // Diff contra el poll anterior: si last_report_date cambió, ese grupo
         // "acaba de reportar" — dispara el ripple ~10s. No dispara en la
@@ -465,6 +467,17 @@ export default function DiscipleshipMap({
         lastReportByGroup.current = new Map(
           zones.flatMap(zd => zd.groups.map(g => [g.id, g.last_report_date || '']))
         );
+
+        // Solo re-renderizar si la data realmente cambió. Sin este guard, cada
+        // poll reemplaza el array completo y remonta todos los marcadores (nuevos
+        // L.divIcon → setIcon → reinicia animaciones) = el pestañeo cada 30s.
+        // Cuando SÍ cambia (nuevo reporte), re-renderiza una vez, que es justo
+        // cuando querés que aparezca el ripple.
+        const sig = JSON.stringify(zones);
+        if (sig !== lastZonesSig.current) {
+          lastZonesSig.current = sig;
+          setZoneData(zones);
+        }
       } finally {
         if (isFirstLoad) setLoading(false);
       }
@@ -489,7 +502,11 @@ export default function DiscipleshipMap({
     const loadTimeline = async () => {
       try {
         const buckets = await DiscipleshipService.getActivityTimeline();
-        if (!cancelled) setActivityBuckets(buckets);
+        if (cancelled) return;
+        // Mantener la misma referencia si los 24 buckets son idénticos → sin re-render.
+        setActivityBuckets(prev =>
+          prev.length === buckets.length && prev.every((v, i) => v === buckets[i]) ? prev : buckets
+        );
       } catch (err) {
         console.error('Error loading activity timeline:', err);
       }
