@@ -17,9 +17,21 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
+// localDevOrigins son los orígenes de frontend que se usan en desarrollo
+// local en esta máquina (SionERP en :5173/:5174, BonDev en :8080). Sirven de
+// default cuando CORS_ORIGINS no está seteado — production siempre lo setea
+// explícito (ver deploy), así que este fallback solo corre local.
+var localDevOrigins = []string{
+	"http://localhost:5173",
+	"http://localhost:5174",
+	"http://localhost:8080",
+	"http://localhost:8081",
+}
+
 // corsAllowOrigins resuelve la lista de orígenes permitidos desde
-// CORS_ORIGINS (coma-separado). Sin setear, devuelve ["*"] — el
-// comportamiento previo, sin cambios de default.
+// CORS_ORIGINS (coma-separado). Sin setear, devuelve localDevOrigins — antes
+// caía a ["*"], que es exactamente la combinación que el spec de CORS
+// prohíbe con AllowCredentials=true.
 //
 // Gotcha real (encontrado en vivo, 2026-07-24): "*" + AllowCredentials=true
 // es una combinación que el spec de CORS prohíbe — el browser bloquea
@@ -27,13 +39,14 @@ import (
 // (falla con net::ERR_FAILED, sin mensaje útil en la Network tab más allá
 // de eso). Esto rompe, por ejemplo, el acceso federado (BonDev): la cookie
 // httpOnly de sesión nunca llega si el frontend corre en un origen
-// distinto al backend (dev local: :5173 vs :8181). Setear CORS_ORIGINS con
-// los orígenes reales (ej. "http://localhost:5173,https://sionerp.app")
-// arregla esto sin tocar código.
+// distinto al backend (dev local: :5173 vs :8181). Con CORS_ORIGINS sin
+// setear, arrancar el backend "a mano" (sin pasar por .claude/launch.json)
+// caía en "*" y rompía el login apenas el frontend corría en un puerto
+// distinto al de siempre (ej. :8080) — de ahí el default explícito.
 func corsAllowOrigins() []string {
 	v := os.Getenv("CORS_ORIGINS")
 	if v == "" {
-		return []string{"*"}
+		return localDevOrigins
 	}
 	var origins []string
 	for _, o := range strings.Split(v, ",") {
@@ -42,7 +55,7 @@ func corsAllowOrigins() []string {
 		}
 	}
 	if len(origins) == 0 {
-		return []string{"*"}
+		return localDevOrigins
 	}
 	return origins
 }
