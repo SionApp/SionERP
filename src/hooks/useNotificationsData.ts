@@ -7,9 +7,16 @@ export function useNotificationsData() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lastFetchAt = useRef(0);
 
   // ── Fetch HTTP (carga inicial y reconexión) ─────────────────────────────────
-  const fetchAll = useCallback(async () => {
+  // throttle: Supabase reintenta el canal en loop cuando Realtime no conecta
+  // (ej. dev local), y cada reintento fallido emite CHANNEL_ERROR. Sin este
+  // throttle, el refetch de fallback se disparaba en cada reintento → inundación
+  // de GET /notifications. Máximo un refetch de fallback cada 60s.
+  const fetchAll = useCallback(async (opts?: { throttle?: boolean }) => {
+    if (opts?.throttle && Date.now() - lastFetchAt.current < 60_000) return;
+    lastFetchAt.current = Date.now();
     try {
       setLoading(true);
       const data = await NotificationService.getAll();
@@ -29,7 +36,9 @@ export function useNotificationsData() {
       // Fetch inicial mientras se conecta el canal
       fetchAll();
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user || cancelled) return;
 
       const channel = supabase
@@ -38,36 +47,34 @@ export function useNotificationsData() {
         .on(
           'postgres_changes',
           {
-            event:  'INSERT',
+            event: 'INSERT',
             schema: 'public',
-            table:  'notifications',
+            table: 'notifications',
             filter: `user_id=eq.${user.id}`,
           },
           ({ new: row }) => {
             setNotifications(prev => [row as Notification, ...prev]);
-          },
+          }
         )
         // Notificación marcada como leída en otra pestaña → sincronizar
         .on(
           'postgres_changes',
           {
-            event:  'UPDATE',
+            event: 'UPDATE',
             schema: 'public',
-            table:  'notifications',
+            table: 'notifications',
             filter: `user_id=eq.${user.id}`,
           },
           ({ new: row }) => {
             const updated = row as Notification;
-            setNotifications(prev =>
-              prev.map(n => (n.id === updated.id ? updated : n)),
-            );
-          },
+            setNotifications(prev => prev.map(n => (n.id === updated.id ? updated : n)));
+          }
         )
         .subscribe(status => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            // Canal caído → refetch por HTTP como fallback
-            console.warn('[notifications] Realtime error, refetching via HTTP');
-            if (!cancelled) fetchAll();
+            // Canal caído → refetch por HTTP como fallback, pero throttled: el
+            // canal reintenta solo y re-emite este estado en cada intento.
+            if (!cancelled) fetchAll({ throttle: true });
           }
         });
 
