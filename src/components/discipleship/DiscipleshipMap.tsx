@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/drawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import { ZonesService } from '@/services/zones.service';
@@ -80,11 +81,10 @@ const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-// Cada cuánto se refresca el mapa para detectar reportes nuevos (ripple) y
-// actualizar el contador EN VIVO / la línea de tiempo. No hay push real
-// (Supabase Realtime) todavía — polling es el fallback explícito que
-// contempla el propio diseño.
-const LIVE_POLL_MS = 30_000;
+// Poll de RESPALDO del mapa. Realtime (suscripción a discipleship_reports) es
+// el camino rápido; este intervalo solo cubre el caso de que Realtime no
+// conecte, y además se pausa cuando la pestaña está oculta.
+const LIVE_POLL_MS = 60_000;
 
 // ── Actividad de reporte (estado real, no inventado) ─────────
 // El diseño original pedía un semáforo de "creció / sin cambios / sin
@@ -411,23 +411,22 @@ export default function DiscipleshipMap({
     setInternalSelectedZoneId(selectedZoneId ?? null);
   }, [selectedZoneId]);
 
-  // Cargar zonas + grupos, con polling para refrescar el estado en vivo
-  // (titileo de reportes pendientes, contador EN VIVO) sin resetear el
-  // viewport del usuario. El titileo lo decide has_pending_report del backend,
-  // así que no hace falta maquinaria de timeouts en el cliente.
+  // Datos del mapa en vivo: carga inicial + Realtime (refresco instantáneo al
+  // cambiar un reporte) + polling de respaldo pausado cuando la pestaña está
+  // oculta. El titileo lo decide has_pending_report del backend, así que no
+  // hace falta maquinaria de timeouts en el cliente.
   useEffect(() => {
     let cancelled = false;
 
-    const load = async (isFirstLoad: boolean) => {
+    const loadZones = async (isFirstLoad: boolean) => {
       try {
         if (isFirstLoad) setLoading(true);
         const response = await ZonesService.getMapData({ is_active: true });
         if (cancelled) return;
         const zones = response.zones || [];
-
         // Solo re-renderizar si la data realmente cambió. Sin este guard, cada
-        // poll reemplaza el array completo y remonta todos los marcadores (nuevos
-        // L.divIcon → setIcon → reinicia animaciones) = el pestañeo cada 30s.
+        // refresco reemplaza el array completo y remonta todos los marcadores
+        // (nuevos L.divIcon → setIcon → reinicia animaciones) = pestañeo.
         const sig = JSON.stringify(zones);
         if (sig !== lastZonesSig.current) {
           lastZonesSig.current = sig;
@@ -438,17 +437,6 @@ export default function DiscipleshipMap({
       }
     };
 
-    void load(true);
-    const interval = setInterval(() => void load(false), LIVE_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
-
-  // Línea de tiempo (24h reales) — mismo ciclo de refresco que el mapa.
-  useEffect(() => {
-    let cancelled = false;
     const loadTimeline = async () => {
       try {
         const buckets = await DiscipleshipService.getActivityTimeline();
@@ -461,11 +449,66 @@ export default function DiscipleshipMap({
         console.error('Error loading activity timeline:', err);
       }
     };
+
+    const refresh = () => {
+      void loadZones(false);
+      void loadTimeline();
+    };
+
+    // Carga inicial
+    void loadZones(true);
     void loadTimeline();
-    const interval = setInterval(loadTimeline, LIVE_POLL_MS);
+
+    // Realtime: un cambio en discipleship_reports (nuevo reporte, aprobación o
+    // rechazo) refresca al instante — sin esperar el próximo poll. Scopeado por
+    // iglesia vía el JWT (la policy reports_realtime_church_staff filtra por
+    // church_id). Debounce para agrupar ráfagas en un solo refresh.
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const setupRealtime = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const churchId = (user.app_metadata as { church_id?: string } | undefined)?.church_id;
+      channel = supabase
+        .channel('map-reports')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'discipleship_reports',
+            ...(churchId ? { filter: `church_id=eq.${churchId}` } : {}),
+          },
+          () => {
+            if (cancelled) return;
+            if (debounce) clearTimeout(debounce);
+            debounce = setTimeout(refresh, 400);
+          }
+        )
+        .subscribe();
+    };
+    void setupRealtime();
+
+    // Polling de respaldo (por si Realtime no conecta, ej. dev sin websockets):
+    // solo cuando la pestaña está visible, para no generar "recargas" en background.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, LIVE_POLL_MS);
+
+    // Al volver a la pestaña, refrescar una vez (pudo cambiar mientras no mirabas).
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
       cancelled = true;
       clearInterval(interval);
+      if (debounce) clearTimeout(debounce);
+      document.removeEventListener('visibilitychange', onVisible);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, []);
 
