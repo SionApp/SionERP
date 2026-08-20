@@ -5,6 +5,7 @@ import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { MobileSectionHeader } from '@/components/mobile/MobileSectionHeader';
 import { MobileStatTile } from '@/components/mobile/MobileStatTile';
 import { MobileListItem } from '@/components/mobile/MobileListItem';
+import type { DiscipleshipReport } from '@/types/discipleship.types';
 
 /**
  * Preview pública de componentes mobile.
@@ -64,22 +65,39 @@ export default function MobilePreviewPage() {
     },
   ];
 
-  const mockActivity = [
+  const mockPendingReports: DiscipleshipReport[] = [
     {
       id: '1',
-      action: 'Nuevo miembro registrado',
-      user: 'Admin',
-      time: '2 min',
-      type: 'success' as const,
+      reporter_id: 'r1',
+      supervisor_id: null,
+      report_type: 'Reporte semanal',
+      report_level: 1,
+      period_start: '2026-08-10',
+      period_end: '2026-08-16',
+      status: 'submitted',
+      report_data: {},
+      submitted_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+      approved_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      reporter_name: 'Pastor Juan',
     },
     {
       id: '2',
-      action: 'Grupo multiplicado',
-      user: 'Pastor Juan',
-      time: '1 h',
-      type: 'warning' as const,
+      reporter_id: 'r2',
+      supervisor_id: null,
+      report_type: 'Reporte de supervisión',
+      report_level: 2,
+      period_start: '2026-08-03',
+      period_end: '2026-08-16',
+      status: 'submitted',
+      report_data: {},
+      submitted_at: new Date(Date.now() - 26 * 3600000).toISOString(),
+      approved_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      reporter_name: 'Marcos Díaz',
     },
-    { id: '3', action: 'Alerta de zona', user: 'Sistema', time: '3 h', type: 'danger' as const },
   ];
 
   const mockDiscActivities = [
@@ -175,10 +193,9 @@ export default function MobilePreviewPage() {
           stats={mockStats}
           actions={mockActions}
           modules={mockModules}
-          activity={mockActivity}
+          pendingReports={mockPendingReports}
           loading={false}
           onNavigate={() => {}}
-          onActivityClick={() => {}}
         />
 
         {/* ════════════════════════════════════════════════════════

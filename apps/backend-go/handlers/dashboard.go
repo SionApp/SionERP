@@ -4,8 +4,12 @@ import (
 	"backend-sion/config"
 	"backend-sion/models"
 	"backend-sion/utils"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -81,23 +85,6 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		}
 	}
 
-	// "Actividad reciente" son altas/bajas/ediciones de USUARIOS de toda la
-	// iglesia — un supervisor o servidor no tiene por qué ver quién dio de baja
-	// a quién. Se filtra acá, no solo en la UI: la respuesta cruda del endpoint
-	// no debe traer el feed si el rol no es admin/pastor/staff, o alcanza con
-	// abrir Network tab para verlo igual.
-	var recentActivity []models.RecentActivity
-	if utils.IsAdminRole(currentUserRole) {
-		recentActivity, err = h.GetRecentActivity(c)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": "Failed to fetch recent activity",
-			})
-		}
-	} else {
-		recentActivity = []models.RecentActivity{}
-	}
-
 	systemActivity := 0.0
 	if db != nil && db.DB.Ping() == nil {
 		systemActivity = 100.0
@@ -136,7 +123,6 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	response := models.DashboardResponse{
 		Stats:             stats,
 		RoleDistribution:  rolesDistribution,
-		RecentActivity:    recentActivity,
 		DiscipleshipStats: discipleshipStats,
 		CurrentUserRole:   currentUserRole,
 		InstalledModules:  installedModules,
@@ -207,90 +193,99 @@ func (h *DashboardHandler) GetRoleDistribution(churchID string) ([]models.RoleDi
 	return distribution, nil
 }
 
-func (h *DashboardHandler) GetRecentActivity(c echo.Context) ([]models.RecentActivity, error) {
+// domainTables agrupa las tablas auditadas en categorías de negocio, para el
+// filtro del módulo de Trazabilidad — evita que "discipulado" y "usuarios" se
+// mezclen sin distinción, como pasaba en el feed crudo del dashboard.
+var domainTables = map[string][]string{
+	"discipulado":   {"discipleship_alerts", "discipleship_goals", "discipleship_groups", "discipleship_reports", "cell_multiplication_tracking"},
+	"usuarios":      {"users", "user_profiles"},
+	"configuracion": {"church_info", "system_settings", "notification_config"},
+}
+
+// GetTraceability devuelve el historial de auditoría paginado y filtrable por
+// dominio — la versión completa de GetRecentActivity, que solo daba un
+// resumen de 10 filas sin filtro para el dashboard. Vive en su propio módulo
+// (/dashboard/trazabilidad) en vez de competir por espacio en el Inicio.
+func (h *DashboardHandler) GetTraceability(c echo.Context) error {
 	churchID, _ := c.Get("church_id").(string)
 
-	// Usar LEFT JOIN para capturar registros donde changed_by es NULL (ej: seed data)
-	// church_id scoping: audit_logs es multi-tenant (ver phase2b_tenant_schema_group_b) —
-	// sin este WHERE, cada dashboard mostraba actividad de TODAS las iglesias.
-	query := `
+	domain := c.QueryParam("domain")
+	limit := 25
+	if v := c.QueryParam("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	offset := 0
+	if v := c.QueryParam("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+
+	where := "WHERE a.church_id = $1"
+	args := []interface{}{churchID}
+	if tables, ok := domainTables[domain]; ok {
+		placeholders := make([]string, len(tables))
+		for i, t := range tables {
+			args = append(args, t)
+			placeholders[i] = fmt.Sprintf("$%d", len(args))
+		}
+		where += fmt.Sprintf(" AND a.table_name IN (%s)", strings.Join(placeholders, ","))
+	}
+
+	db := config.GetDB().DB
+
+	var total int
+	countQuery := "SELECT COUNT(*) FROM audit_logs a " + where
+	if err := db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		c.Logger().Error("Error counting traceability entries:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al contar el historial"})
+	}
+
+	args = append(args, limit, offset)
+	query := fmt.Sprintf(`
 		SELECT
-			a.id,
-			a.action,
-			a.table_name,
-			COALESCE(u.email, 'Sistema') as user_email,
-			COALESCE(u.first_name || ' ' || u.last_name, 'Sistema') as user_name,
-			a.changed_at
+			a.id, a.table_name, a.record_id, a.action,
+			COALESCE(u.first_name || ' ' || u.last_name, u.email, 'Sistema') as user_name,
+			a.old_values, a.new_values, a.changed_at
 		FROM audit_logs a
 		LEFT JOIN users u ON a.changed_by = u.id
-		WHERE a.church_id = $1
+		%s
 		ORDER BY a.changed_at DESC
-		LIMIT 10
-	`
+		LIMIT $%d OFFSET $%d
+	`, where, len(args)-1, len(args))
 
-	rows, err := config.GetDB().DB.Query(query, churchID)
+	rows, err := db.Query(query, args...)
 	if err != nil {
-		return nil, err
+		c.Logger().Error("Error fetching traceability:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener el historial"})
 	}
 	defer rows.Close()
 
-	var activities []models.RecentActivity
+	items := []models.TraceabilityEntry{}
 	for rows.Next() {
-
-		var id, action, tableName, userEmail, userName string
+		var e models.TraceabilityEntry
+		var recordID sql.NullString
+		var oldValues, newValues []byte
 		var changedAt time.Time
-
-		if err := rows.Scan(&id, &action, &tableName, &userEmail, &userName, &changedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.TableName, &recordID, &e.Action, &e.User, &oldValues, &newValues, &changedAt); err != nil {
 			continue
 		}
-
-		timeAgo := formatTimeAgo(changedAt)
-
-		displayUser := userName
-		if displayUser == "" || displayUser == "Sistema" {
-			displayUser = userEmail
+		if recordID.Valid {
+			e.RecordID = recordID.String
 		}
-
-		activityType := "info"
-		switch action {
-		case "INSERT", "create":
-			activityType = "success"
-		case "UPDATE", "update", "edit":
-			activityType = "warning"
-		case "DELETE", "delete", "remove":
-			activityType = "error"
-		default:
-			activityType = "info"
+		if len(oldValues) > 0 {
+			_ = json.Unmarshal(oldValues, &e.OldValues)
 		}
-		formattedAction := formatAction(action, tableName)
-		activities = append(activities, models.RecentActivity{
-			ID:     id,
-			Action: formattedAction,
-			User:   displayUser,
-			Time:   timeAgo,
-			Type:   activityType,
-		})
-
+		if len(newValues) > 0 {
+			_ = json.Unmarshal(newValues, &e.NewValues)
+		}
+		e.ChangedAt = changedAt.Format(time.RFC3339)
+		items = append(items, e)
 	}
-	return activities, nil
-}
 
-func formatTimeAgo(t time.Time) string {
-	duration := time.Since(t)
-
-	if duration.Hours() < 1 {
-		minutes := int(duration.Minutes())
-		if minutes == 0 {
-			return "ahora"
-		}
-		return fmt.Sprintf("%d min", minutes)
-	} else if duration.Hours() < 24 {
-		hours := int(duration.Hours())
-		return fmt.Sprintf("%d h", hours)
-	} else {
-		days := int(duration.Hours() / 24)
-		return fmt.Sprintf("%d d", days)
-	}
+	return c.JSON(http.StatusOK, models.TraceabilityResponse{Items: items, Total: total})
 }
 
 func (h *DashboardHandler) getDiscipleshipStats(q config.Querier, churchID string) models.DiscipleshipStats {
@@ -373,32 +368,4 @@ func calculateSpiritualHealth(q config.Querier, churchID string) float64 {
 		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
 	`, churchID).Scan(&health)
 	return health
-}
-
-func formatAction(action, tableName string) string {
-	actionTextMap := map[string]string{
-		"INSERT": "creó",
-		"UPDATE": "actualizó",
-		"DELETE": "eliminó",
-	}
-	tableTextMap := map[string]string{
-		"users":                "usuario",
-		"events":               "evento",
-		"reports":              "reporte",
-		"discipleship_goals":   "objetivo",
-		"goal_assignments":     "asignación de objetivo",
-		"goal_manual_progress": "progreso de objetivo",
-	}
-
-	actionText := actionTextMap[action]
-	if actionText == "" {
-		actionText = action
-	}
-
-	tableText := tableTextMap[tableName]
-	if tableText == "" {
-		tableText = tableName
-	}
-
-	return fmt.Sprintf("%s %s", actionText, tableText)
 }

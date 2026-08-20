@@ -1,17 +1,18 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import type { TraceabilityEntry } from '@/services/dashboard.service';
 import { Calendar, User, Activity, Database, ArrowRight } from 'lucide-react';
 
 interface AuditLogModalProps {
   isOpen: boolean;
   onClose: () => void;
-  auditLog: any;
+  auditLog: TraceabilityEntry | null;
 }
 
 export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps) => {
   if (!auditLog) return null;
 
-  const formatValue = (value: any) => {
+  const formatValue = (value: unknown) => {
     if (value === null || value === undefined) return 'N/A';
     if (typeof value === 'boolean') return value ? 'Sí' : 'No';
     if (typeof value === 'string' && value.includes('T') && value.includes('Z')) {
@@ -23,7 +24,7 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
   const getChangedFields = () => {
     if (!auditLog.old_values || !auditLog.new_values) return [];
 
-    const changes = [];
+    const changes: { field: string; oldValue: unknown; newValue: unknown }[] = [];
     const oldValues = auditLog.old_values;
     const newValues = auditLog.new_values;
 
@@ -67,17 +68,21 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
   };
 
   const fieldLabels: Record<string, string> = {
-    nombres: 'Nombres',
-    apellidos: 'Apellidos',
-    correo: 'Correo',
-    telefono: 'Teléfono',
-    direccion: 'Dirección',
+    first_name: 'Nombre',
+    last_name: 'Apellido',
+    email: 'Correo',
+    phone: 'Teléfono',
+    address: 'Dirección',
     role: 'Rol',
     is_active: 'Activo',
-    bautizado: 'Bautizado',
-    fecha_bautizo: 'Fecha de Bautizo',
-    cell_group: 'Grupo Celular',
-    pastoral_notes: 'Notas Pastorales',
+    is_active_member: 'Miembro activo',
+    zone_id: 'Zona',
+    status: 'Estado',
+    title: 'Título',
+    message: 'Mensaje',
+    priority: 'Prioridad',
+    group_name: 'Nombre del grupo',
+    leader_id: 'Líder',
     updated_at: 'Actualizado el',
   };
 
@@ -108,11 +113,7 @@ export const AuditLogModal = ({ isOpen, onClose, auditLog }: AuditLogModalProps)
               <User className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">Usuario</p>
-                <p className="text-sm text-muted-foreground">
-                  {auditLog.users
-                    ? `${auditLog.users.nombres} ${auditLog.users.apellidos}`
-                    : 'Sistema'}
-                </p>
+                <p className="text-sm text-muted-foreground">{auditLog.user || 'Sistema'}</p>
               </div>
             </div>
 

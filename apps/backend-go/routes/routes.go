@@ -123,6 +123,7 @@ func SetupRoutes(e *echo.Echo) {
 	dashboard := protected.Group("/dashboard")
 	{
 		dashboard.GET("/stats", dashboardHandler.GetStats) // GET /api/v1/dashboard/stats
+		dashboard.GET("/traceability", dashboardHandler.GetTraceability, middleware.RequireRole(utils.LevelStaff))
 	}
 
 	// Setup routes (Public or protected check inside handler)
