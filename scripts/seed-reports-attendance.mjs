@@ -4,17 +4,19 @@
  * para todos los grupos activos, así las gráficas de Crecimiento, Salud del
  * Sistema e Indicadores clave del dashboard pastoral tienen data real.
  *
- * SOLO LOCAL — apunta al Postgres de `supabase start` (127.0.0.1:54322).
- * Idempotente: usa NOT EXISTS / ON CONFLICT DO NOTHING, se puede re-correr.
+ * Apunta a local por default. Idempotente: usa NOT EXISTS / ON CONFLICT DO
+ * NOTHING, se puede re-correr sin duplicar.
  *
- * Uso: node scripts/seed-reports-attendance.mjs
+ * Uso:
+ *   node scripts/seed-reports-attendance.mjs                              (local)
+ *   SUPABASE_DB_URL='postgres://...' node scripts/seed-reports-attendance.mjs  (otra DB)
  */
 
 import pg from 'pg';
 import { randomUUID } from 'crypto';
 
 const { Client } = pg;
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const DB_URL = process.env.SUPABASE_DB_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 
 const REPORT_WEEKS = 16;
 const ATTENDANCE_WEEKS = 10;
