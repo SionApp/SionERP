@@ -13,10 +13,17 @@
  */
 
 import pg from 'pg';
+import { parse as parseConnectionString } from 'pg-connection-string';
 import { randomUUID } from 'crypto';
 
 const { Client } = pg;
 const DB_URL = process.env.SUPABASE_DB_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+
+// Ver comentario equivalente en hydrate-zones.mjs: si DB_URL trae sslmode=
+// en la query string, `pg` lo prioriza sobre un `ssl:` pasado junto con
+// `connectionString` — hay que parsear y pisar `ssl` DESPUÉS del parse.
+const connectionConfig = parseConnectionString(DB_URL);
+connectionConfig.ssl = process.env.SUPABASE_DB_URL ? { rejectUnauthorized: false } : false;
 
 const REPORT_WEEKS = 16;
 const ATTENDANCE_WEEKS = 10;
@@ -58,16 +65,8 @@ function buildReportData(groupId) {
   };
 }
 
-// Solo cuando apunta a otra DB (SUPABASE_DB_URL seteado): el pooler de
-// Supabase presenta un certificado que Node rechaza con sslmode=require
-// (`pg` lo trata como verify-full, no como "solo requerir TLS"). El tráfico
-// sigue cifrado; se relaja únicamente la verificación de la cadena, igual
-// que recomienda la propia documentación de Supabase para conexiones por
-// pooler. Local (sin la env var) sigue sin SSL, sin cambios.
-const sslConfig = process.env.SUPABASE_DB_URL ? { rejectUnauthorized: false } : false;
-
 async function main() {
-  const client = new Client({ connectionString: DB_URL, ssl: sslConfig });
+  const client = new Client(connectionConfig);
   await client.connect();
 
   const { rows: groups } = await client.query(`

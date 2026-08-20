@@ -1,25 +1,31 @@
 /**
  * hydrate-zones.mjs
- * Lleva OESTE 2, OESTE 3 y ESTE a la misma completitud que OESTE 1:
- * polígono real (OESTE 2/ESTE, generados — OESTE 3 ya lo tiene), 29 líderes
- * de nivel 1 con su grupo, ~9 miembros por grupo, y coordenadas dentro del
- * polígono de la zona (point-in-polygon real, no bounding box).
+ * Completa cada zona hasta TARGET_GROUPS grupos (líder nivel 1 + grupo +
+ * ~9 miembros + coordenadas dentro del polígono real de la zona).
  *
- * Replica el patrón EXACTO ya presente en OESTE 1 (verificado por consulta
- * directa antes de escribir esto):
- *  - discipleship_hierarchy nivel 1: user_id = líder, supervisor_id = el
- *    supervisor auxiliar (nivel 2) YA existente de esa zona, territory=NULL.
+ * Genérico y respetuoso de lo que ya exista en la DB destino:
+ *  - Si una zona no tiene polígono, le asigna uno de GENERATED_POLYGONS
+ *    (fallback demo — no se usa si la zona ya tiene boundaries reales).
+ *  - Si ya tiene polígono, lo usa tal cual — nunca lo pisa.
+ *  - Cuenta grupos REALES existentes (discipleship_groups), no filas de
+ *    discipleship_hierarchy — una zona puede tener grupos con leader_id
+ *    válido sin fila de jerarquía correspondiente (visto en prod).
+ *  - Los candidatos a nuevo líder excluyen: cualquiera que YA sea leader_id
+ *    de un grupo de esa zona, y cualquiera que YA tenga fila en
+ *    discipleship_hierarchy (evita duplicar o pisar supervisores).
+ *  - Grupos con coordenadas faltantes (latitude NULL o 0) se backfillean
+ *    dentro del polígono real de su zona, sin tocar el resto del grupo.
+ *
+ * Patrón replicado (verificado contra OESTE1 antes de escribir esto):
+ *  - discipleship_hierarchy nivel 1: supervisor_id = el supervisor auxiliar
+ *    (nivel 2) YA existente de esa zona, territory=NULL.
  *  - discipleship_groups: group_name = "Grupo de <NOMBRE>", supervisor_id
- *    NULL (así está en OESTE1, no es un bug mío), meeting_location NULL,
- *    member_count=active_members=9, status='active'.
- *  - discipleship_group_members: role_in_group='member', miembros tomados
- *    del pool general de la iglesia (no solo de la zona), pueden repetirse
- *    entre grupos — igual que OESTE1.
- *  - Los 29 líderes SÍ pertenecen a la zona (users.zone_id) y tienen role='server'.
+ *    NULL, meeting_location NULL, member_count=active_members=9, status='active'.
+ *  - discipleship_group_members: role_in_group='member', del pool general
+ *    de la iglesia, únicos dentro del grupo (UNIQUE(group_id,user_id)).
  *
- * Apunta a local por default. Idempotente: si una zona ya tiene boundaries,
- * no lo pisa; si ya tiene líderes (hierarchy nivel 1), no duplica — seguro
- * de re-correr o correr contra una DB que ya tiene parte del trabajo.
+ * Apunta a local por default. Idempotente: se puede re-correr sin duplicar
+ * — cada corrida solo agrega lo que falte para llegar a TARGET_GROUPS.
  *
  * Uso:
  *   node scripts/hydrate-zones.mjs                              (local)
@@ -27,10 +33,25 @@
  */
 
 import pg from 'pg';
+import { parse as parseConnectionString } from 'pg-connection-string';
 import { randomUUID } from 'crypto';
 
 const { Client } = pg;
 const DB_URL = process.env.SUPABASE_DB_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+
+// Config de conexión: si DB_URL trae `sslmode=require` (o similar), `pg` lo
+// parsea a su propio objeto ssl y ese gana sobre un `ssl:` explícito pasado
+// junto a `connectionString` — probado empíricamente, no alcanza con pasar
+// ambos. Por eso se parsea la connection string a mano y se pisa `ssl`
+// DESPUÉS del parse, así siempre gana lo que decidimos acá. El pooler de
+// Supabase presenta un certificado que Node rechaza en modo estricto
+// (verify-full); el tráfico sigue cifrado, solo se relaja la verificación
+// de la cadena — mismo approach que recomienda Supabase para conexiones por
+// pooler. Local (sin SUPABASE_DB_URL) sigue sin SSL, sin cambios.
+const connectionConfig = parseConnectionString(DB_URL);
+connectionConfig.ssl = process.env.SUPABASE_DB_URL ? { rejectUnauthorized: false } : false;
+
+const TARGET_GROUPS = 29;
 
 const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -46,9 +67,9 @@ function shuffledSample(arr, n) {
   return result;
 }
 
-// ─── Polígonos generados (demo, geografía plausible) ──────────────────────
-// Verificados por bounding box contra OESTE1 y OESTE3 reales, con >500m de
-// margen en cada caso — no se solapan. Editables después desde el mapa.
+// ─── Polígonos fallback (solo si la zona destino no tiene uno) ────────────
+// Geografía demo plausible en Coro, sin solape con OESTE1/OESTE3 reales
+// (verificado por bounding box con >500m de margen en cada caso).
 const GENERATED_POLYGONS = {
   'OESTE 2': [
     [-69.7, 11.383],
@@ -102,70 +123,61 @@ function randomPointInPolygon(ring) {
 
 // ─── Main ───────────────────────────────────────────────────────────────
 
-// Solo cuando apunta a otra DB (SUPABASE_DB_URL seteado): el pooler de
-// Supabase presenta un certificado que Node rechaza con sslmode=require
-// (`pg` lo trata como verify-full, no como "solo requerir TLS"). El tráfico
-// sigue cifrado; se relaja únicamente la verificación de la cadena, igual
-// que recomienda la propia documentación de Supabase para conexiones por
-// pooler. Local (sin la env var) sigue sin SSL, sin cambios.
-const sslConfig = process.env.SUPABASE_DB_URL ? { rejectUnauthorized: false } : false;
-
 async function main() {
-  const client = new Client({ connectionString: DB_URL, ssl: sslConfig });
+  const client = new Client(connectionConfig);
   await client.connect();
 
-  // ── 1) OESTE 3: ya tiene 29 grupos/líderes/miembros, solo faltan coords ──
-  const { rows: oeste3Groups } = await client.query(
-    `SELECT g.id, z.boundaries
-     FROM discipleship_groups g JOIN zones z ON g.zone_id = z.id
-     WHERE z.name = 'OESTE 3' AND (g.latitude IS NULL OR g.latitude = 0)`
-  );
-  console.log(`OESTE 3: ${oeste3Groups.length} grupos sin coordenadas`);
-  for (const g of oeste3Groups) {
-    const ring = g.boundaries.coordinates[0];
-    const [lng, lat] = randomPointInPolygon(ring);
-    await client.query(
-      `UPDATE discipleship_groups SET latitude = $1, longitude = $2 WHERE id = $3`,
-      [lat, lng, g.id]
-    );
-  }
-  console.log(`OESTE 3: coordenadas asignadas.`);
+  const { rows: zones } = await client.query(`SELECT id, name, church_id, boundaries FROM zones ORDER BY name`);
 
-  // ── 2) OESTE 2 y ESTE: build completo ──────────────────────────────────
-  for (const [zoneName, ring] of Object.entries(GENERATED_POLYGONS)) {
-    const { rows: zoneRows } = await client.query(
-      `SELECT id, church_id, boundaries FROM zones WHERE name = $1`,
-      [zoneName]
-    );
-    if (zoneRows.length === 0) {
-      console.log(`${zoneName}: no existe la zona, salteando.`);
-      continue;
-    }
-    const zone = zoneRows[0];
+  for (const zone of zones) {
+    const zoneName = zone.name;
 
-    if (!zone.boundaries) {
+    // ── 1) Asegurar polígono ──
+    let ring;
+    if (zone.boundaries) {
+      ring = zone.boundaries.coordinates[0];
+      console.log(`${zoneName}: usa su polígono real existente.`);
+    } else if (GENERATED_POLYGONS[zoneName]) {
+      ring = GENERATED_POLYGONS[zoneName];
       await client.query(`UPDATE zones SET boundaries = $1 WHERE id = $2`, [
         JSON.stringify({ type: 'Polygon', coordinates: [ring] }),
         zone.id,
       ]);
-      console.log(`${zoneName}: polígono asignado.`);
+      console.log(`${zoneName}: no tenía polígono, se asignó uno demo (fallback).`);
     } else {
-      console.log(`${zoneName}: ya tenía polígono, no se pisa.`);
-    }
-
-    // ¿Cuántos líderes nivel 1 faltan? (idempotente: continúa donde quedó,
-    // no saltea la zona entera si ya tiene algunos).
-    const TARGET_LEADERS = 29;
-    const { rows: existingLeaders } = await client.query(
-      `SELECT COUNT(*) FROM discipleship_hierarchy WHERE zone_name = $1 AND hierarchy_level = 1`,
-      [zoneName]
-    );
-    const need = TARGET_LEADERS - Number(existingLeaders[0].count);
-    if (need <= 0) {
-      console.log(`${zoneName}: ya tiene ${existingLeaders[0].count} líderes nivel 1, nada que hacer.`);
+      console.log(`${zoneName}: sin polígono y sin fallback definido — no se pueden generar coordenadas. Salteando.`);
       continue;
     }
-    console.log(`${zoneName}: ${existingLeaders[0].count} líderes existentes, faltan ${need}.`);
+
+    // ── 2) Backfill de coords en grupos existentes sin coordenadas ──
+    const { rows: groupsNoCoords } = await client.query(
+      `SELECT id FROM discipleship_groups WHERE zone_id = $1 AND (latitude IS NULL OR latitude = 0)`,
+      [zone.id]
+    );
+    for (const g of groupsNoCoords) {
+      const [lng, lat] = randomPointInPolygon(ring);
+      await client.query(`UPDATE discipleship_groups SET latitude = $1, longitude = $2 WHERE id = $3`, [
+        lat,
+        lng,
+        g.id,
+      ]);
+    }
+    if (groupsNoCoords.length > 0) {
+      console.log(`${zoneName}: ${groupsNoCoords.length} grupos existentes recibieron coordenadas.`);
+    }
+
+    // ── 3) Completar hasta TARGET_GROUPS grupos ──
+    const { rows: countRows } = await client.query(
+      `SELECT COUNT(*) FROM discipleship_groups WHERE zone_id = $1`,
+      [zone.id]
+    );
+    const existingGroups = Number(countRows[0].count);
+    const need = TARGET_GROUPS - existingGroups;
+    if (need <= 0) {
+      console.log(`${zoneName}: ya tiene ${existingGroups} grupos (>= ${TARGET_GROUPS}), nada que completar.`);
+      continue;
+    }
+    console.log(`${zoneName}: ${existingGroups} grupos existentes, faltan ${need} para llegar a ${TARGET_GROUPS}.`);
 
     // Supervisor auxiliar (nivel 2) ya existente de esta zona.
     const { rows: auxRows } = await client.query(
@@ -173,21 +185,23 @@ async function main() {
       [zoneName]
     );
     if (auxRows.length === 0) {
-      console.log(`${zoneName}: no tiene supervisor auxiliar (nivel 2), no puedo asignar líderes. Salteando.`);
+      console.log(`${zoneName}: no tiene supervisor auxiliar (nivel 2), no puedo asignar líderes nuevos. Salteando.`);
       continue;
     }
     const auxSupervisorId = auxRows[0].user_id;
 
-    // Candidatos: pertenecen a la zona, role='server', sin fila previa en hierarchy
-    // (esto además excluye automáticamente a los líderes ya creados en un run anterior).
+    // Candidatos: pertenecen a la zona, role='server', NO son ya leader_id
+    // de un grupo de esta zona, y NO tienen fila previa en hierarchy
+    // (cubre tanto duplicar líderes existentes como pisar supervisores).
     const { rows: candidates } = await client.query(
       `SELECT id, first_name, last_name FROM users u
        WHERE u.zone_id = $1 AND u.role = 'server'
+       AND u.id NOT IN (SELECT leader_id FROM discipleship_groups WHERE zone_id = $1)
        AND u.id NOT IN (SELECT user_id FROM discipleship_hierarchy)
        ORDER BY random() LIMIT $2`,
       [zone.id, need]
     );
-    console.log(`${zoneName}: ${candidates.length} candidatos a líder disponibles.`);
+    console.log(`${zoneName}: ${candidates.length} candidatos a líder disponibles (de ${need} necesarios).`);
 
     // Pool general de miembros (igual que OESTE1: de cualquier parte de la iglesia).
     const { rows: memberPool } = await client.query(
@@ -236,7 +250,7 @@ async function main() {
         );
       }
     }
-    console.log(`${zoneName}: ${candidates.length} grupos creados con líder + 9 miembros c/u.`);
+    console.log(`${zoneName}: ${candidates.length} grupos nuevos creados con líder + 9 miembros c/u.`);
   }
 
   await client.end();
