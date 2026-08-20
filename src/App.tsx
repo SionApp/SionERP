@@ -26,6 +26,7 @@ import RegisterUserPage from './pages/dashboard/RegisterUserPage';
 import ReportsPage from './pages/dashboard/ReportsPage';
 import RoleManagementPage from './pages/dashboard/RoleManagementPage';
 import RolesPage from './pages/dashboard/RolesPage';
+import TrazabilidadPage from './pages/dashboard/TrazabilidadPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 import UsersPage from './pages/dashboard/UsersPage';
 import { ApiService } from './services/api.service';
@@ -235,6 +236,14 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute requireAdminAccess>
                     <RolesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="trazabilidad"
+                element={
+                  <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
+                    <TrazabilidadPage />
                   </ProtectedRoute>
                 }
               />

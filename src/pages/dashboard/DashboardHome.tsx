@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AuditLogModal } from '@/components/AuditLogModal';
 import { MobileDashboardScreen } from '@/components/mobile/screens/DashboardScreen';
 
 // Mapa: pesado (Leaflet). El Inicio es la primera pantalla que carga, así que
@@ -14,15 +13,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { supabase } from '@/integrations/supabase/client';
-import { AuditLog } from '@/types/audit.types';
-import { RecentActivity } from '@/services/dashboard.service';
-import { cn } from '@/lib/utils';
+import { DiscipleshipService } from '@/services/discipleship.service';
+import type { DiscipleshipReport } from '@/types/discipleship.types';
+import { cn, formatTimeAgo } from '@/lib/utils';
 import { ROLE_LEVELS } from '@/lib/permissions';
 import {
   Activity,
   AlertTriangle,
   BookOpen,
+  CheckCircle2,
   ChevronRight,
+  ClipboardCheck,
   Map,
   Settings,
   UserPlus,
@@ -104,22 +105,6 @@ const StatCard = ({ title, value, sub, icon, color, loading }: StatCardProps) =>
   </Card>
 );
 
-// ── Activity dot color ───────────────────────────────────────────────────────
-
-const activityDot = (type: string) => {
-  switch (type) {
-    case 'success':
-      return 'bg-green-500';
-    case 'warning':
-      return 'bg-orange-500';
-    case 'error':
-    case 'danger':
-      return 'bg-red-500';
-    default:
-      return 'bg-blue-500';
-  }
-};
-
 // ── Role badge label ─────────────────────────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
@@ -136,10 +121,10 @@ const DashboardHome = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [zonesCount, setZonesCount] = useState<number | null>(null);
-  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pendingReports, setPendingReports] = useState<DiscipleshipReport[]>([]);
+  const [pendingReportsLoading, setPendingReportsLoading] = useState(true);
 
-  const { stats, discipleshipStats, recentActivity, currentUserRole, installedModules, loading } =
+  const { stats, discipleshipStats, currentUserRole, installedModules, loading } =
     useDashboardStats();
   const isMobileApp = useMobileMode();
 
@@ -152,6 +137,29 @@ const DashboardHome = () => {
       .then(({ count }: { count: number | null }) => setZonesCount(count ?? 0));
   }, []);
 
+  // Reportes de discipulado con status='submitted' que este usuario supervisa.
+  // El backend ya scopea por supervisor_id=yo (o huérfanos, si es admin/pastor)
+  // — para alguien sin gente a cargo, esto simplemente devuelve [] sin que haga
+  // falta ningún chequeo de rol acá.
+  useEffect(() => {
+    if (!installedModules.includes('discipleship')) {
+      setPendingReportsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    DiscipleshipService.getReports({ status: 'submitted', limit: 3 })
+      .then(reports => {
+        if (!cancelled) setPendingReports(reports || []);
+      })
+      .catch(err => console.error('Error loading pending reports:', err))
+      .finally(() => {
+        if (!cancelled) setPendingReportsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [installedModules]);
+
   const firstName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Admin';
   const lastLogin = user?.last_sign_in_at
     ? new Date(user.last_sign_in_at).toLocaleDateString('es-AR', {
@@ -161,11 +169,10 @@ const DashboardHome = () => {
       })
     : '—';
 
-  // Actividad reciente son altas/bajas/ediciones de usuarios de TODA la iglesia
-  // — un supervisor o servidor no tiene por qué verla. El backend ya no manda
-  // el feed para esos roles (devuelve []), esto además evita mostrar la tarjeta
-  // vacía "Sin actividad reciente" a alguien que nunca debería verla.
-  const canSeeSystemActivity = ROLE_LEVELS[currentUserRole ?? ''] >= ROLE_LEVELS.staff;
+  // Gate de nivel de sistema para contenido "de toda la iglesia" (hoy: el
+  // mapa de zonas). "Actividad reciente" vivía acá también — se mudó a su
+  // propio módulo (/dashboard/trazabilidad, ver GetTraceability).
+  const isStaffPlus = ROLE_LEVELS[currentUserRole ?? ''] >= ROLE_LEVELS.staff;
 
   const visibleActions = QUICK_ACTIONS.filter(a => {
     if (!currentUserRole || !a.roles.includes(currentUserRole)) return false;
@@ -173,14 +180,7 @@ const DashboardHome = () => {
     return true;
   });
 
-  const handleActivityClick = (activity: RecentActivity) => {
-    if (activity?.details) {
-      setSelectedAuditLog(activity.details as unknown as AuditLog);
-      setIsModalOpen(true);
-    }
-  };
-
-  // ── Modo mobile exclusivo: pantalla presentacional, modal compartido fuera del branch ──
+  // ── Modo mobile exclusivo: pantalla presentacional ──
   if (isMobileApp) {
     const moduleLinks = [
       ...(installedModules.includes('discipleship')
@@ -221,32 +221,21 @@ const DashboardHome = () => {
     ];
 
     return (
-      <>
-        <MobileDashboardScreen
-          firstName={firstName}
-          roleLabel={
-            currentUserRole ? (ROLE_LABELS[currentUserRole] ?? currentUserRole) : undefined
-          }
-          stats={{
-            totalUsers: stats.totalUsers,
-            newRegistrations: stats.newRegistrations,
-            totalGroups: discipleshipStats.totalGroups,
-            alertsCount: discipleshipStats.alertsCount,
-          }}
-          actions={visibleActions}
-          modules={moduleLinks}
-          activity={recentActivity}
-          canSeeActivity={canSeeSystemActivity}
-          loading={loading}
-          onNavigate={navigate}
-          onActivityClick={handleActivityClick}
-        />
-        <AuditLogModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          auditLog={selectedAuditLog}
-        />
-      </>
+      <MobileDashboardScreen
+        firstName={firstName}
+        roleLabel={currentUserRole ? (ROLE_LABELS[currentUserRole] ?? currentUserRole) : undefined}
+        stats={{
+          totalUsers: stats.totalUsers,
+          newRegistrations: stats.newRegistrations,
+          totalGroups: discipleshipStats.totalGroups,
+          alertsCount: discipleshipStats.alertsCount,
+        }}
+        actions={visibleActions}
+        modules={moduleLinks}
+        pendingReports={pendingReports}
+        loading={loading || pendingReportsLoading}
+        onNavigate={navigate}
+      />
     );
   }
 
@@ -339,10 +328,8 @@ const DashboardHome = () => {
           </div>
         )}
 
-        {/* ── Mapa de zonas y células (staff+/pastor, con módulo de zonas) ──────
-            Vista global de la iglesia sobre el mapa: reemplaza en protagonismo
-            al feed de actividad, que baja debajo. */}
-        {canSeeSystemActivity && installedModules.includes('zones') && (
+        {/* ── Mapa de zonas y células (staff+/pastor, con módulo de zonas) ── */}
+        {isStaffPlus && installedModules.includes('zones') && (
           <Suspense fallback={<Skeleton className="w-full h-[580px] rounded-2xl" />}>
             <DiscipleshipMap title="Mapa de zonas y células" />
           </Suspense>
@@ -350,60 +337,77 @@ const DashboardHome = () => {
 
         {/* ── Two column grid ───────────────────────────────────────────────── */}
         <div className="grid gap-4 lg:grid-cols-3">
-          {/* Activity feed — takes 2/3. Admin/pastor/staff only (ver canSeeSystemActivity). */}
-          {canSeeSystemActivity && (
+          {/* Reportes pendientes de tu aprobación — takes 2/3. Solo si el módulo de
+              discipulado está instalado; el backend ya scopea por supervisor_id=yo,
+              así que para alguien sin gente a cargo esto simplemente sale vacío. */}
+          {installedModules.includes('discipleship') && (
             <Card className="lg:col-span-2 border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-primary" />
-                  Actividad reciente
+                  <ClipboardCheck className="h-4 w-4 text-primary" />
+                  Reportes pendientes de tu aprobación
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-2">
-                {loading ? (
+                {pendingReportsLoading ? (
                   <div className="space-y-3">
-                    {[1, 2, 3, 4, 5].map(i => (
+                    {[1, 2, 3].map(i => (
                       <Skeleton key={i} className="h-12 w-full rounded-xl" />
                     ))}
                   </div>
-                ) : recentActivity.length === 0 ? (
+                ) : pendingReports.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
-                    <Activity className="h-8 w-8 opacity-20" />
-                    <p className="text-sm">Sin actividad reciente</p>
+                    <CheckCircle2 className="h-8 w-8 opacity-20" />
+                    <p className="text-sm">Estás al día — sin reportes pendientes</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {recentActivity.slice(0, 8).map((activity, i) => (
+                    {pendingReports.map(report => (
                       <div
-                        key={activity.id ?? i}
-                        onClick={() => handleActivityClick(activity)}
+                        key={report.id}
+                        onClick={() => navigate('/dashboard/discipleship')}
                         className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-accent/40 to-transparent border border-border/50 hover:from-accent/60 transition-colors cursor-pointer"
                       >
-                        <div
-                          className={cn(
-                            'w-2.5 h-2.5 rounded-full shrink-0',
-                            activityDot(activity.type)
-                          )}
-                        />
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-amber-500" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{activity.action}</p>
+                          <p className="text-sm font-medium truncate">
+                            {report.reporter_name || 'Reporte'}
+                          </p>
                           <p className="text-xs text-muted-foreground truncate">
-                            por {activity.user}
+                            {report.report_type}
                           </p>
                         </div>
                         <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                          {activity.time}
+                          {report.submitted_at ? formatTimeAgo(report.submitted_at) : ''}
                         </span>
                       </div>
                     ))}
                   </div>
                 )}
               </CardContent>
+              {!pendingReportsLoading && pendingReports.length > 0 && (
+                <div className="px-4 pb-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => navigate('/dashboard/discipleship')}
+                  >
+                    Ver todas en Discipulado
+                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </div>
+              )}
             </Card>
           )}
 
-          {/* Module summary — takes 1/3, o el ancho completo si no hay feed de actividad */}
-          <div className={cn('space-y-3', !canSeeSystemActivity && 'lg:col-span-3')}>
+          {/* Module summary — takes 1/3, o el ancho completo si no hay card de reportes */}
+          <div
+            className={cn(
+              'space-y-3',
+              !installedModules.includes('discipleship') && 'lg:col-span-3'
+            )}
+          >
             {/* Discipleship */}
             {installedModules.includes('discipleship') && (
               <Card
@@ -476,12 +480,6 @@ const DashboardHome = () => {
           </div>
         </div>
       </div>
-
-      <AuditLogModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        auditLog={selectedAuditLog}
-      />
     </div>
   );
 };

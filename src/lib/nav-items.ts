@@ -3,6 +3,7 @@ import {
   BarChart3,
   Calendar,
   Heart,
+  History,
   Home,
   Music2,
   Settings,
@@ -40,6 +41,12 @@ export const menuItems: MenuItemConfig[] = [
     minRole: ROLE_LEVELS.staff,
   },
   { title: 'Roles', url: '/dashboard/roles', icon: Shield, minRole: 0, requireAdminAccess: true },
+  {
+    title: 'Trazabilidad',
+    url: '/dashboard/trazabilidad',
+    icon: History,
+    minRole: ROLE_LEVELS.staff,
+  },
   {
     title: 'Discipulado',
     url: '/dashboard/discipleship',

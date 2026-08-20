@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -205,6 +206,24 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 	reportType := c.QueryParam("type")
 	reporterID := c.QueryParam("reporter_id")
 
+	// El frontend ya declaraba limit/offset en su filtro (DiscipleshipService.getReports),
+	// pero esta query los ignoraba por completo — LIMIT 50 fijo sin importar lo pedido.
+	// Eso hacía que un widget que pide "los últimos 3" (ej. Dashboard → Reportes
+	// pendientes) recibiera hasta 50 filas igual, sin límite real. Default 50
+	// (comportamiento previo) si no se pide un límite explícito.
+	limit := 50
+	if v := c.QueryParam("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	offset := 0
+	if v := c.QueryParam("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+
 	query := `
 		SELECT
 			r.id, r.reporter_id, r.supervisor_id, r.report_type, r.report_level,
@@ -254,7 +273,12 @@ func (h *DiscipleshipReportsHandler) GetReports(c echo.Context) error {
 		args = append(args, reporterID)
 	}
 
-	query += " ORDER BY r.submitted_at DESC LIMIT 50"
+	argCount++
+	query += fmt.Sprintf(" ORDER BY r.submitted_at DESC LIMIT $%d", argCount)
+	args = append(args, limit)
+	argCount++
+	query += fmt.Sprintf(" OFFSET $%d", argCount)
+	args = append(args, offset)
 
 	rows, err := q.Query(query, args...)
 	if err != nil {

@@ -2,7 +2,6 @@ import {
   DashboardService,
   DashboardStats,
   DiscipleshipDashboardStats,
-  RecentActivity,
   RoleDistribution,
 } from '@/services/dashboard.service';
 import { useEffect, useState } from 'react';
@@ -28,7 +27,6 @@ export const useDashboardStats = () => {
   });
 
   const [roleDistribution, setRoleDistribution] = useState<RoleDistribution[]>([]);
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [recentLogin, setRecentLogin] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>('pastor');
@@ -46,7 +44,6 @@ export const useDashboardStats = () => {
       setStats(data.stats);
       setDiscipleshipStats(data.discipleshipStats);
       setRoleDistribution(data.roleDistribution);
-      setRecentActivity(data.recentActivity);
       setRecentLogin(data.stats.lastLogin);
       setCurrentUserRole(data.currentUserRole || null);
       setInstalledModules(data.installedModules || []);
@@ -66,7 +63,6 @@ export const useDashboardStats = () => {
     stats,
     discipleshipStats,
     roleDistribution,
-    recentActivity,
     recentLogin,
     currentUserRole,
     installedModules,

@@ -1,7 +1,14 @@
 import { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
-import { RecentActivity } from '@/services/dashboard.service';
-import { Activity, AlertTriangle, ChevronRight, Network, UserPlus, Users } from 'lucide-react';
+import { cn, formatTimeAgo } from '@/lib/utils';
+import type { DiscipleshipReport } from '@/types/discipleship.types';
+import {
+  AlertTriangle,
+  ChevronRight,
+  ClipboardCheck,
+  Network,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { MobileListItem } from '../MobileListItem';
 import { MobileNotificationsBell } from '../MobileNotificationsBell';
 import { MobileScreen } from '../MobileScreen';
@@ -34,27 +41,11 @@ interface MobileDashboardScreenProps {
   };
   actions: QuickActionItem[];
   modules: ModuleLink[];
-  activity: RecentActivity[];
-  /** Admin/pastor/staff únicamente — el feed es de toda la iglesia, no de "lo mío". */
-  canSeeActivity?: boolean;
+  /** Reportes con status='submitted' que este usuario supervisa — vacío si no supervisa a nadie. */
+  pendingReports: DiscipleshipReport[];
   loading: boolean;
   onNavigate: (to: string) => void;
-  onActivityClick: (activity: RecentActivity) => void;
 }
-
-const activityDot = (type: string) => {
-  switch (type) {
-    case 'success':
-      return 'bg-green-500';
-    case 'warning':
-      return 'bg-orange-500';
-    case 'error':
-    case 'danger':
-      return 'bg-red-500';
-    default:
-      return 'bg-blue-500';
-  }
-};
 
 function greetingForNow(): string {
   const h = new Date().getHours();
@@ -119,11 +110,9 @@ export function MobileDashboardScreen({
   stats,
   actions,
   modules,
-  activity,
-  canSeeActivity = true,
+  pendingReports,
   loading,
   onNavigate,
-  onActivityClick,
 }: MobileDashboardScreenProps) {
   return (
     <MobileScreen header={<></>}>
@@ -210,35 +199,34 @@ export function MobileDashboardScreen({
         </div>
       )}
 
-      {/* ── Actividad reciente (4 items) — admin/pastor/staff únicamente ── */}
-      {canSeeActivity && (
+      {/* ── Reportes pendientes de tu aprobación — solo si supervisás a alguien ── */}
+      {(loading || pendingReports.length > 0) && (
         <>
-      <MobileSectionHeader title="Actividad reciente" />
-      {loading ? (
-        <div className="space-y-2 px-4">
-          {[1, 2, 3].map(i => (
-            <Skeleton key={i} className="h-12 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : activity.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-          <Activity className="h-7 w-7 opacity-20" />
-          <p className="text-xs">Sin actividad reciente</p>
-        </div>
-      ) : (
-        <div className="mx-4 overflow-hidden rounded-2xl border border-border divide-y divide-border bg-card">
-          {activity.slice(0, 4).map((item, i) => (
-            <MobileListItem
-              key={item.id ?? i}
-              leading={<div className={cn('h-2 w-2 rounded-full', activityDot(item.type))} />}
-              title={item.action}
-              subtitle={`por ${item.user}`}
-              trailing={<span className="text-[11px] text-muted-foreground">{item.time}</span>}
-              onClick={() => onActivityClick(item)}
-            />
-          ))}
-        </div>
-      )}
+          <MobileSectionHeader title="Reportes pendientes" />
+          {loading ? (
+            <div className="space-y-2 px-4">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-12 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : (
+            <div className="mx-4 overflow-hidden rounded-2xl border border-border divide-y divide-border bg-card">
+              {pendingReports.slice(0, 4).map(report => (
+                <MobileListItem
+                  key={report.id}
+                  leading={<ClipboardCheck className="h-4 w-4 text-amber-500" />}
+                  title={report.reporter_name || 'Reporte'}
+                  subtitle={report.report_type}
+                  trailing={
+                    <span className="text-[11px] text-muted-foreground">
+                      {report.submitted_at ? formatTimeAgo(report.submitted_at) : ''}
+                    </span>
+                  }
+                  onClick={() => onNavigate('/dashboard/discipleship')}
+                />
+              ))}
+            </div>
+          )}
         </>
       )}
 

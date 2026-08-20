@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { ApiService } from './api.service';
 
 // Singleton para callbacks de loading
 let dashboardLoadingCallbacks: {
@@ -27,13 +28,22 @@ export interface RoleDistribution {
   color: string;
 }
 
-export interface RecentActivity {
-  id?: string;
+export type TraceabilityDomain = 'discipulado' | 'usuarios' | 'configuracion';
+
+export interface TraceabilityEntry {
+  id: string;
+  table_name: string;
+  record_id: string;
   action: string;
   user: string;
-  time: string;
-  type: 'success' | 'warning' | 'info' | 'error' | 'danger';
-  details?: Record<string, unknown>;
+  old_values?: Record<string, unknown>;
+  new_values?: Record<string, unknown>;
+  changed_at: string;
+}
+
+export interface TraceabilityResponse {
+  items: TraceabilityEntry[];
+  total: number;
 }
 
 export interface DiscipleshipDashboardStats {
@@ -60,7 +70,6 @@ export class DashboardService {
     stats: DashboardStats;
     discipleshipStats: DiscipleshipDashboardStats;
     roleDistribution: RoleDistribution[];
-    recentActivity: RecentActivity[];
     currentUserRole?: string;
     installedModules: string[];
   }> {
@@ -99,7 +108,6 @@ export class DashboardService {
           lastLogin: new Date().toISOString(),
         },
         roleDistribution: data.roleDistribution || [],
-        recentActivity: data.recentActivity || [],
         discipleshipStats: data.discipleshipStats || this.getEmptyDiscipleshipStats(),
         currentUserRole: data.currentUserRole || null,
         installedModules: data.installedModules || [],
@@ -111,6 +119,20 @@ export class DashboardService {
     } finally {
       dashboardLoadingCallbacks.setFetching?.(false);
     }
+  }
+
+  /** Historial de auditoría paginado — módulo de Trazabilidad (staff+/pastor/admin). */
+  static async getTraceability(filters?: {
+    domain?: TraceabilityDomain;
+    limit?: number;
+    offset?: number;
+  }): Promise<TraceabilityResponse> {
+    const params = new URLSearchParams();
+    if (filters?.domain) params.append('domain', filters.domain);
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.offset) params.append('offset', String(filters.offset));
+    const query = params.toString();
+    return ApiService.get(`/dashboard/traceability${query ? `?${query}` : ''}`);
   }
 
   /**
