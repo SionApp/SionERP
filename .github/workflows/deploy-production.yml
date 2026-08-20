@@ -18,9 +18,15 @@ name: Deploy to production
 #                        migraciones no aplicadas (idempotente).
 #   B2_BUCKET, B2_KEY_ID, B2_APP_KEY  (ya existen, los usa db-backup.yml) —
 #                        destino del backup previo a migrar.
-#   RENDER_DEPLOY_HOOK  (opcional)  — deploy hook de Render. Dejalo SIN setear si
-#                        Render ya auto-deploya desde GitHub → el paso se salta.
-#   VERCEL_DEPLOY_HOOK  (opcional)  — deploy hook de Vercel. Mismo criterio.
+#   RENDER_DEPLOY_HOOK  (REQUERIDO) — deploy hook de Render (Service → Settings →
+#                        Deploy Hook). Verificado 2026-08-20: Render NO auto-deploya
+#                        desde GitHub en este proyecto — sin este secret, el backend
+#                        se queda con el binario viejo y el job "success"-ea igual
+#                        (solo salta el curl), dando una falsa sensación de deploy
+#                        completo. Sin este secret hay que redeployar a mano en
+#                        Render cada vez.
+#   VERCEL_DEPLOY_HOOK  (opcional)  — deploy hook de Vercel. Ese sí confirmado con
+#                        auto-deploy activo desde GitHub — dejar sin setear está bien.
 #
 # ── Trigger ──
 # Configurado en `main` (rama de producción por convención / default del repo).
@@ -157,9 +163,13 @@ jobs:
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
+          # Verificado 2026-08-20: Render NO auto-deploya desde GitHub en este
+          # proyecto. Sin el hook, el backend se queda con el binario viejo aunque
+          # el resto del pipeline (migraciones incluidas) haya corrido bien — un
+          # "success" silencioso acá sería engañoso. Falla fuerte en vez de saltar.
           if [ -z "$HOOK" ]; then
-            echo "RENDER_DEPLOY_HOOK sin setear — se asume auto-deploy de Render desde GitHub. Saltando."
-            exit 0
+            echo "::error::Falta el secret RENDER_DEPLOY_HOOK — Render no redeploya solo. Sin este hook el backend de prod se queda con el código viejo. Conseguilo en Render → Service → Settings → Deploy Hook, y cargalo con: gh secret set RENDER_DEPLOY_HOOK"
+            exit 1
           fi
           curl -fsSL -X POST "$HOOK"
 
