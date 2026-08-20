@@ -86,6 +86,13 @@ jobs:
             sudo apt-get install -y postgresql-client-17
           }
           command -v rclone >/dev/null || sudo apt-get install -y rclone
+          # El runner ya trae un pg_dump más viejo en /usr/bin (Ubuntu Noble
+          # default = v16), y apt no lo reemplaza al instalar postgresql-client-17
+          # (queda en /usr/lib/postgresql/17/bin, sin symlink automático). Sin
+          # esto, el `pg_dump` del paso siguiente resuelve a la versión vieja y
+          # aborta con "server version mismatch" (v17 en Supabase). $GITHUB_PATH
+          # antepone esta ruta para todos los steps que siguen en este job.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Dump + subir a B2 (pre-migrate/)
         env:
