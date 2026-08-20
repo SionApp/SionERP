@@ -58,8 +58,16 @@ function buildReportData(groupId) {
   };
 }
 
+// Solo cuando apunta a otra DB (SUPABASE_DB_URL seteado): el pooler de
+// Supabase presenta un certificado que Node rechaza con sslmode=require
+// (`pg` lo trata como verify-full, no como "solo requerir TLS"). El tráfico
+// sigue cifrado; se relaja únicamente la verificación de la cadena, igual
+// que recomienda la propia documentación de Supabase para conexiones por
+// pooler. Local (sin la env var) sigue sin SSL, sin cambios.
+const sslConfig = process.env.SUPABASE_DB_URL ? { rejectUnauthorized: false } : false;
+
 async function main() {
-  const client = new Client({ connectionString: DB_URL });
+  const client = new Client({ connectionString: DB_URL, ssl: sslConfig });
   await client.connect();
 
   const { rows: groups } = await client.query(`
