@@ -126,6 +126,10 @@ export class DiscipleshipService {
     return ApiService.post(`${this.baseUrl}/hierarchy`, data);
   }
 
+  static async removeHierarchy(userId: string): Promise<{ message: string }> {
+    return ApiService.delete(`${this.baseUrl}/hierarchy/${userId}`);
+  }
+
   static async getSubordinates(supervisorId?: string): Promise<DiscipleshipHierarchy[]> {
     if (supervisorId) {
       return ApiService.get(`${this.baseUrl}/hierarchy/${supervisorId}/subordinates`);
