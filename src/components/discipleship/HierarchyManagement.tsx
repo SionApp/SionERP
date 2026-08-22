@@ -21,7 +21,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MobileListItem } from '@/components/mobile/MobileListItem';
+import { MobileSegment } from '@/components/mobile/MobileSegment';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { useZones } from '@/hooks/useZones';
 import { DiscipleshipService, type UserForHierarchy } from '@/services/discipleship.service';
@@ -45,6 +47,21 @@ const HIERARCHY_LEVELS = [
   { value: 3, label: 'Nivel 3 - Supervisor General' },
   { value: 4, label: 'Nivel 4 - Coordinador' },
   { value: 5, label: 'Nivel 5 - Pastoral' },
+];
+
+// Sentinel usado solo en el <Select> del diálogo para revertir a miembro
+// (sin nivel). No es un hierarchy_level real — al guardar con este valor
+// se llama a removeHierarchy en vez de assignHierarchy.
+const NO_LEVEL = 0;
+
+const LEVEL_FILTER_OPTIONS = [
+  { value: 'all', label: 'Todos' },
+  { value: 'none', label: 'Sin asignar' },
+  { value: '1', label: 'Líder' },
+  { value: '2', label: 'Sup. Auxiliar' },
+  { value: '3', label: 'Sup. General' },
+  { value: '4', label: 'Coordinador' },
+  { value: '5', label: 'Pastoral' },
 ];
 
 // const ZONES = ['Zona Norte', 'Zona Sur', 'Zona Este', 'Zona Oeste', 'Zona Centro'];
@@ -89,6 +106,7 @@ const HierarchyManagement = () => {
   const [users, setUsers] = useState<UserForHierarchy[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [levelFilter, setLevelFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserForHierarchy | null>(null);
@@ -136,7 +154,12 @@ const HierarchyManagement = () => {
         (user.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (user.id_number || '').includes(searchTerm)
-    );
+    )
+    .filter(user => {
+      if (levelFilter === 'all') return true;
+      if (levelFilter === 'none') return !user.hierarchy_level;
+      return user.hierarchy_level === parseInt(levelFilter, 10);
+    });
 
   // Paginación
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
@@ -147,6 +170,12 @@ const HierarchyManagement = () => {
   // Reset a página 1 al cambiar búsqueda
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
+    setCurrentPage(1);
+    setMobileVisibleCount(25);
+  };
+
+  const handleLevelFilterChange = (value: string) => {
+    setLevelFilter(value);
     setCurrentPage(1);
     setMobileVisibleCount(25);
   };
@@ -184,7 +213,11 @@ const HierarchyManagement = () => {
       return;
     }
 
-    if (!formData.hierarchy_level || formData.hierarchy_level < 1 || formData.hierarchy_level > 5) {
+    if (
+      formData.hierarchy_level === undefined ||
+      formData.hierarchy_level < 0 ||
+      formData.hierarchy_level > 5
+    ) {
       toast.error('Nivel de jerarquía inválido');
       return;
     }
@@ -192,21 +225,26 @@ const HierarchyManagement = () => {
     try {
       setIsSaving(true);
 
-      const selectedZone = zones.find(z => z.name === formData.zone_name);
+      if (formData.hierarchy_level === NO_LEVEL) {
+        await DiscipleshipService.removeHierarchy(formData.user_id);
+        toast.success('Usuario revertido a miembro');
+      } else {
+        const selectedZone = zones.find(z => z.name === formData.zone_name);
 
-      // Preparar datos para enviar (solo enviar campos no vacíos)
-      const dataToSend: AssignHierarchyRequest = {
-        user_id: formData.user_id,
-        hierarchy_level: formData.hierarchy_level,
-        supervisor_id: formData.supervisor_id || undefined,
-        zone_name: formData.zone_name || undefined,
-        zone_id: selectedZone?.id || undefined,
-        territory: formData.territory || undefined,
-      };
+        // Preparar datos para enviar (solo enviar campos no vacíos)
+        const dataToSend: AssignHierarchyRequest = {
+          user_id: formData.user_id,
+          hierarchy_level: formData.hierarchy_level,
+          supervisor_id: formData.supervisor_id || undefined,
+          zone_name: formData.zone_name || undefined,
+          zone_id: selectedZone?.id || undefined,
+          territory: formData.territory || undefined,
+        };
 
-      await DiscipleshipService.assignHierarchy(dataToSend);
+        await DiscipleshipService.assignHierarchy(dataToSend);
+        toast.success('Jerarquía asignada exitosamente');
+      }
 
-      toast.success('Jerarquía asignada exitosamente');
       setIsDialogOpen(false);
       setSelectedUser(null);
       await loadData(); // Recargar datos
@@ -380,6 +418,7 @@ const HierarchyManagement = () => {
                 <SelectValue placeholder="Selecciona un nivel" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={NO_LEVEL.toString()}>Sin jerarquía (Miembro)</SelectItem>
                 {HIERARCHY_LEVELS.map(level => (
                   <SelectItem key={level.value} value={level.value.toString()}>
                     {level.label}
@@ -388,36 +427,40 @@ const HierarchyManagement = () => {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1">
-              El nivel determina qué dashboard verá el usuario y sus permisos en discipulado
+              {formData.hierarchy_level === NO_LEVEL
+                ? 'Quita al usuario de la jerarquía de discipulado; vuelve a ser un miembro sin rol.'
+                : 'El nivel determina qué dashboard verá el usuario y sus permisos en discipulado'}
             </p>
           </div>
 
           {/* Zona — va ANTES del supervisor para que filtre las opciones */}
-          <div>
-            <Label htmlFor="zone_name">Zona</Label>
-            <Select
-              value={formData.zone_name || '__none__'}
-              onValueChange={value =>
-                setFormData(prev => ({
-                  ...prev,
-                  zone_name: value === '__none__' ? '' : value,
-                  supervisor_id: '', // limpiar supervisor al cambiar zona
-                }))
-              }
-            >
-              <SelectTrigger id="zone_name">
-                <SelectValue placeholder="Selecciona una zona (opcional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Sin zona</SelectItem>
-                {zones.map(zone => (
-                  <SelectItem key={zone.id} value={zone.name}>
-                    {zone.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {formData.hierarchy_level !== NO_LEVEL && (
+            <div>
+              <Label htmlFor="zone_name">Zona</Label>
+              <Select
+                value={formData.zone_name || '__none__'}
+                onValueChange={value =>
+                  setFormData(prev => ({
+                    ...prev,
+                    zone_name: value === '__none__' ? '' : value,
+                    supervisor_id: '', // limpiar supervisor al cambiar zona
+                  }))
+                }
+              >
+                <SelectTrigger id="zone_name">
+                  <SelectValue placeholder="Selecciona una zona (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin zona</SelectItem>
+                  {zones.map(zone => (
+                    <SelectItem key={zone.id} value={zone.name}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Supervisor — filtrado por zona y nivel. Nivel 5 (Pastoral) no tiene supervisor */}
           {formData.hierarchy_level >= 1 && formData.hierarchy_level < 5 && (
@@ -459,30 +502,38 @@ const HierarchyManagement = () => {
           )}
 
           {/* Territorio */}
-          <div>
-            <Label htmlFor="territory">Territorio</Label>
-            <Input
-              id="territory"
-              placeholder="Descripción del territorio (opcional)"
-              value={formData.territory || ''}
-              onChange={e => setFormData(prev => ({ ...prev, territory: e.target.value }))}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Descripción del área geográfica o territorio asignado
-            </p>
-          </div>
+          {formData.hierarchy_level !== NO_LEVEL && (
+            <div>
+              <Label htmlFor="territory">Territorio</Label>
+              <Input
+                id="territory"
+                placeholder="Descripción del territorio (opcional)"
+                value={formData.territory || ''}
+                onChange={e => setFormData(prev => ({ ...prev, territory: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Descripción del área geográfica o territorio asignado
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button onClick={handleSaveHierarchy} disabled={isSaving}>
+          <Button
+            onClick={handleSaveHierarchy}
+            disabled={isSaving}
+            variant={formData.hierarchy_level === NO_LEVEL ? 'destructive' : 'default'}
+          >
             {isSaving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Guardando...
               </>
+            ) : formData.hierarchy_level === NO_LEVEL ? (
+              'Revertir a Miembro'
             ) : (
               'Guardar Jerarquía'
             )}
@@ -509,6 +560,13 @@ const HierarchyManagement = () => {
                 onChange={e => handleSearchChange(e.target.value)}
               />
             </div>
+            <MobileSegment
+              className="mt-2"
+              options={LEVEL_FILTER_OPTIONS}
+              value={levelFilter}
+              onChange={handleLevelFilterChange}
+              scrollable
+            />
           </div>
 
           <p className="px-4 py-2 text-xs text-muted-foreground">
@@ -595,6 +653,17 @@ const HierarchyManagement = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Filtro por nivel de jerarquía */}
+      <Tabs value={levelFilter} onValueChange={handleLevelFilterChange}>
+        <TabsList className="flex-wrap h-auto gap-1">
+          {LEVEL_FILTER_OPTIONS.map(opt => (
+            <TabsTrigger key={opt.value} value={opt.value}>
+              {opt.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {/* Lista de usuarios */}
       <Card>

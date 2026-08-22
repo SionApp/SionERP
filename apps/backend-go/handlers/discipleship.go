@@ -1252,6 +1252,49 @@ func (h *DiscipleshipHandler) AssignHierarchy(c echo.Context) error {
 	})
 }
 
+// RemoveHierarchy revierte a un usuario a "miembro" (sin nivel de jerarquía),
+// deshaciendo lo que AssignHierarchy escribió: la fila en discipleship_hierarchy,
+// el rol espejo en module_user_roles, y el nivel en users.
+func (h *DiscipleshipHandler) RemoveHierarchy(c echo.Context) error {
+	userID := c.Param("user_id")
+	if userID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "user_id requerido",
+		})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, _ := c.Get("church_id").(string)
+
+	_, err = q.Exec("DELETE FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2", userID, churchID)
+	if err != nil {
+		c.Logger().Error("Error removing hierarchy:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Error al quitar la jerarquía",
+		})
+	}
+
+	_, err = q.Exec(
+		"DELETE FROM module_user_roles WHERE user_id = $1 AND church_id = $2 AND module_key = 'discipleship'",
+		userID, churchID,
+	)
+	if err != nil {
+		c.Logger().Errorf("⚠ Error limpiando module_user_roles para user %s: %v", userID, err)
+	}
+
+	_, _ = q.Exec(
+		"UPDATE users SET discipleship_level = NULL, updated_at = NOW() WHERE id = $1 AND church_id = $2",
+		userID, churchID,
+	)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Usuario revertido a miembro exitosamente",
+	})
+}
+
 // discipleshipLevelName devuelve el nombre legible del nivel de discipulado.
 func discipleshipLevelName(level int) string {
 	switch level {

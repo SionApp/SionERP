@@ -202,6 +202,7 @@ func SetupRoutes(e *echo.Echo) {
 		// Jerarquía
 		discipleship.GET("/hierarchy", discipleshipHandler.GetHierarchy)
 		discipleship.POST("/hierarchy", discipleshipHandler.AssignHierarchy, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
+		discipleship.DELETE("/hierarchy/:user_id", discipleshipHandler.RemoveHierarchy, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelCoordinator))
 		discipleship.GET("/hierarchy/:id/subordinates", discipleshipHandler.GetSubordinates)
 
 		// Niveles de Discipulado
