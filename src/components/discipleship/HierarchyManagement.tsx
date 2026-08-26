@@ -405,7 +405,7 @@ const HierarchyManagement = () => {
           <div>
             <Label htmlFor="hierarchy_level">Nivel de Jerarquía *</Label>
             <Select
-              value={(formData.hierarchy_level || 1).toString()}
+              value={(formData.hierarchy_level ?? 1).toString()}
               onValueChange={value => {
                 const level = parseInt(value, 10);
                 if (!isNaN(level)) {

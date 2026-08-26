@@ -463,6 +463,73 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 		rows.Close()
 	}
 
+	// 2.5. Discipulados insuficientes — el último reporte tiene menos discipulados
+	// que discípulos maduros (regla pastoral: cada DM debería estar discipulando a alguien).
+	rows, err = q.Query(`
+		SELECT g.id, g.group_name, g.leader_id, g.zone_id, lr.attendance_dm, lr.group_discipleships
+		FROM discipleship_groups g
+		JOIN LATERAL (
+			SELECT
+				COALESCE((r.report_data->>'attendance_dm')::int, 0) AS attendance_dm,
+				COALESCE((r.report_data->>'group_discipleships')::int, 0) AS group_discipleships
+			FROM discipleship_reports r
+			WHERE (r.report_data->>'group_id')::uuid = g.id
+			AND r.church_id = $1
+			AND r.report_type = 'leader'
+			ORDER BY r.period_end DESC
+			LIMIT 1
+		) lr ON true
+		WHERE g.church_id = $1
+		AND g.status = 'active'
+		AND lr.attendance_dm > 0
+		AND lr.group_discipleships < lr.attendance_dm
+		AND NOT EXISTS (
+			SELECT 1 FROM discipleship_alerts a
+			WHERE a.related_group_id = g.id
+			AND a.church_id = $1
+			AND a.alert_type = 'insufficient_discipleship'
+			AND a.resolved = false
+			AND a.created_at >= CURRENT_DATE - INTERVAL '7 days'
+		)
+	`, churchID)
+	if err != nil {
+		c.Logger().Error("Error querying groups for insufficient discipleship:", err)
+	} else {
+		for rows.Next() {
+			var groupID, groupName, leaderID string
+			var zoneID sql.NullString
+			var attendanceDM, groupDiscipleships int
+			err = rows.Scan(&groupID, &groupName, &leaderID, &zoneID, &attendanceDM, &groupDiscipleships)
+			if err != nil {
+				continue
+			}
+
+			var zoneIDValue interface{}
+			if zoneID.Valid {
+				zoneIDValue = zoneID.String
+			} else {
+				zoneIDValue = nil
+			}
+
+			_, _ = q.Exec(`
+				INSERT INTO discipleship_alerts (
+					alert_type, title, message, priority,
+					related_group_id, related_user_id, zone_id, action_required, church_id
+				) VALUES (
+					'insufficient_discipleship',
+					'Discipulados por debajo de lo esperado',
+					$1,
+					3,
+					$2, $3, $4, true, $5
+				)
+			`, fmt.Sprintf("El grupo '%s' tiene %d discípulos maduros pero reportó solo %d discipulados (se esperan al menos %d)",
+				groupName, attendanceDM, groupDiscipleships, attendanceDM),
+				groupID, leaderID, zoneIDValue, churchID)
+			alertsCreated++
+		}
+		rows.Close()
+	}
+
 	// 3. Declive espiritual — temperatura calculada < 5 por 4 semanas seguidas
 	rows, err = q.Query(`
 		SELECT g.id, g.group_name, g.leader_id, g.zone_id,
@@ -480,7 +547,7 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 					CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-					CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+					CASE WHEN COALESCE((r.report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 				)
 				FROM discipleship_reports r
 				WHERE (r.report_data->>'group_id')::uuid = g.id
@@ -505,7 +572,7 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 				CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 				CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 				CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-				CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+				CASE WHEN COALESCE((r.report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 			)
 			FROM discipleship_reports r
 			WHERE (r.report_data->>'group_id')::uuid = g.id
@@ -772,7 +839,7 @@ func (h *DiscipleshipAlertsHandler) GenerateAutomaticAlerts(c echo.Context) erro
 				CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 				CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 				CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-				CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+				CASE WHEN COALESCE((r.report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 			) >= 8
 		) >= 12
 		AND NOT EXISTS (

@@ -236,6 +236,18 @@ export class UserService {
     return ApiService.post<ImportResult>('/users/bulk', { users: rows });
   }
 
+  static async exportUsers(): Promise<void> {
+    const blob = await ApiService.getBlob('/users/export');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `usuarios-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   static async createUserDirect(userData: {
     email: string;
     password: string;

@@ -109,6 +109,7 @@ func SetupRoutes(e *echo.Echo) {
 		usersAdmin.DELETE("/:id", userHandler.DeleteUser)        // DELETE /api/v1/users/:id
 		usersAdmin.POST("/direct", userHandler.CreateUserDirect) // POST /api/v1/users/direct
 		usersAdmin.POST("/bulk", userHandler.BulkImportUsers)    // POST /api/v1/users/bulk
+		usersAdmin.GET("/export", userHandler.ExportUsers)       // GET /api/v1/users/export
 	}
 
 	// Member+ (level 0): Profile access (any authenticated user)
@@ -215,6 +216,9 @@ func SetupRoutes(e *echo.Echo) {
 		// Miembros de Grupo - rutas específicas primero para evitar conflicto con :id
 		discipleship.GET("/groups/:id/members", discipleshipHandler.GetGroupMembers)
 		discipleship.POST("/groups/:id/members", discipleshipHandler.AddGroupMember)
+		discipleship.GET("/groups/:id/visitors", discipleshipHandler.GetGroupVisitors)
+		discipleship.POST("/groups/:id/visitors", discipleshipHandler.CreateVisitor)
+		discipleship.PUT("/visitors/:id", discipleshipHandler.UpdateVisitor)
 		discipleship.PUT("/members/:memberId", discipleshipHandler.UpdateGroupMember)
 		discipleship.DELETE("/members/:memberId", discipleshipHandler.RemoveGroupMember)
 
@@ -262,6 +266,7 @@ func SetupRoutes(e *echo.Echo) {
 		// Alertas
 		discipleship.GET("/alerts", alertsHandler.GetAlerts)
 		discipleship.GET("/multiplications", discipleshipHandler.GetMultiplications)
+		discipleship.POST("/multiplications", discipleshipHandler.CreateMultiplication, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelGeneral))
 		discipleship.POST("/alerts", alertsHandler.CreateAlert)
 		discipleship.PUT("/alerts/:id/resolve", alertsHandler.ResolveAlert)
 		discipleship.DELETE("/alerts/:id", alertsHandler.DeleteAlert)

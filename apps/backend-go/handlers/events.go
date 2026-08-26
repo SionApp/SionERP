@@ -300,12 +300,28 @@ func (h *EventsHandler) Register(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "evento no encontrado"})
 	}
 
+	if body.Status == "going" {
+		var maxAttendees sql.NullInt64
+		var confirmedCount int
+		q.QueryRow("SELECT max_attendees FROM events WHERE id = $1", eventID).Scan(&maxAttendees)
+		if maxAttendees.Valid {
+			q.QueryRow(`
+				SELECT COUNT(*) FROM event_registrations
+				WHERE event_id = $1 AND status = 'going' AND user_id != $2
+			`, eventID, callerID).Scan(&confirmedCount)
+			if int64(confirmedCount) >= maxAttendees.Int64 {
+				return c.JSON(http.StatusConflict, map[string]string{"error": "el evento alcanzó su cupo máximo"})
+			}
+		}
+	}
+
 	_, err = q.Exec(`
-		INSERT INTO event_registrations (event_id, user_id, status)
-		VALUES ($1, $2, $3)
+		INSERT INTO event_registrations (event_id, user_id, status, church_id)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (event_id, user_id) DO UPDATE SET status = EXCLUDED.status
-	`, eventID, callerID, body.Status)
+	`, eventID, callerID, body.Status, churchID)
 	if err != nil {
+		c.Logger().Error("Error registering for event:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo registrar la inscripción"})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"message": "Inscripción actualizada", "status": body.Status})

@@ -615,3 +615,19 @@ export interface MemberAttendanceStats {
   present_count: number;
   attendance_percentage: number;
 }
+
+export interface Visitor {
+  id: string;
+  group_id: string | null;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  invited_by: string | null;
+  invited_by_name: string;
+  first_visit_date: string;
+  status: 'new' | 'following_up' | 'converted' | 'inactive';
+  converted_user_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}

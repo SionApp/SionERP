@@ -361,7 +361,7 @@ func calculateSpiritualHealth(q config.Querier, churchID string) float64 {
 			CASE WHEN COALESCE((report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+			CASE WHEN COALESCE((report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 		) * 10.0 / 13.0, 0)
 		FROM discipleship_reports
 		WHERE church_id = $1
