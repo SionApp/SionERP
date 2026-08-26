@@ -1540,7 +1540,7 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 			CASE WHEN COALESCE((report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+			CASE WHEN COALESCE((report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 		) * 10.0 / 13.0, 0)
 		FROM discipleship_reports
 		WHERE church_id = $2
@@ -1581,7 +1581,7 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 					CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-					CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+					CASE WHEN COALESCE((r.report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 				) * 10.0 / 13.0
 				FROM discipleship_reports r
 				WHERE (r.report_data->>'group_id')::uuid = g.id
@@ -1740,7 +1740,7 @@ func calculateGroupPhase(db *config.Database, groupID string, spiritualTemp floa
 			CASE WHEN COALESCE((report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+			CASE WHEN COALESCE((report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 		) >= 8
 	`, groupID).Scan(&solidWeeks)
 
@@ -1821,6 +1821,65 @@ func (h *DiscipleshipHandler) GetActivityTimeline(c echo.Context) error {
 }
 
 // GetMultiplications obtiene el historial de multiplicaciones
+// CreateMultiplicationRequest — planifica una multiplicación de célula.
+// new_group_id se deja NULL a propósito: el grupo nuevo todavía no existe,
+// se crea después (CreateGroup) cuando la multiplicación efectivamente ocurre.
+type CreateMultiplicationRequest struct {
+	ParentGroupID      string `json:"parent_group_id" validate:"required"`
+	NewLeaderID        string `json:"new_leader_id"`
+	MultiplicationDate string `json:"multiplication_date" validate:"required"`
+	InitialMembers     int    `json:"initial_members"`
+	Notes              string `json:"notes"`
+}
+
+// CreateMultiplication planifica una multiplicación: registra la fecha
+// objetivo, el grupo padre y (opcionalmente) quién liderará el grupo nuevo.
+// parent_leader_id se deriva del grupo padre, no lo manda el cliente.
+func (h *DiscipleshipHandler) CreateMultiplication(c echo.Context) error {
+	var req CreateMultiplicationRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Datos inválidos"})
+	}
+	if err := validate.Struct(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Validación fallida: " + err.Error()})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, _ := c.Get("church_id").(string)
+
+	var parentLeaderID string
+	err = q.QueryRow(
+		"SELECT leader_id FROM discipleship_groups WHERE id = $1 AND church_id = $2",
+		req.ParentGroupID, churchID,
+	).Scan(&parentLeaderID)
+	if err == sql.ErrNoRows {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "grupo padre no encontrado"})
+	} else if err != nil {
+		c.Logger().Error("Error looking up parent group:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al planificar la multiplicación"})
+	}
+
+	var newID string
+	err = q.QueryRow(`
+		INSERT INTO cell_multiplication_tracking (
+			church_id, parent_group_id, parent_leader_id, new_leader_id,
+			multiplication_date, initial_members, multiplication_type, success_status, notes
+		) VALUES ($1, $2, $3, $4, $5, $6, 'planned', 'planned', $7)
+		RETURNING id
+	`, churchID, req.ParentGroupID, parentLeaderID, nullIfEmpty(req.NewLeaderID),
+		req.MultiplicationDate, req.InitialMembers, nullIfEmpty(req.Notes),
+	).Scan(&newID)
+	if err != nil {
+		c.Logger().Error("Error creating multiplication:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al planificar la multiplicación"})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]string{"id": newID, "message": "Multiplicación planificada exitosamente"})
+}
+
 func (h *DiscipleshipHandler) GetMultiplications(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -2279,7 +2338,7 @@ func (h *DiscipleshipHandler) GetDashboardStatsByLevel(c echo.Context) error {
 			CASE WHEN COALESCE((report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-			CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+			CASE WHEN COALESCE((report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 		) * 10.0 / 13.0, 0)
 		FROM discipleship_reports
 		WHERE church_id = $2 AND report_level <= $1
@@ -2394,7 +2453,7 @@ func (h *DiscipleshipHandler) GetLeaderGroupStats(c echo.Context) error {
 					CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 					CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-					CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+					CASE WHEN COALESCE((r.report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 				) * 10.0 / 13.0
 				FROM discipleship_reports r
 				WHERE (r.report_data->>'group_id')::uuid = g.id

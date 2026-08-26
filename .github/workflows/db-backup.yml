@@ -61,5 +61,25 @@ jobs:
             exit 1
           fi
 
+          # Chequeo de integridad estructural: un dump corrupto puede pesar lo
+          # esperado y seguir siendo inservible. pg_restore --list solo lee el
+          # indice del archivo (no toca ninguna DB) - si esto falla, el dump no
+          # sirve para restaurar y no tiene sentido subirlo.
+          if ! pg_restore --list "$FILE" > /dev/null; then
+            echo "::error::El dump no pasa pg_restore --list - archivo corrupto, aborto sin subir." >&2
+            exit 1
+          fi
+
+          sha256sum "$FILE" > "$FILE.sha256"
+
           rclone copy "$FILE" "b2:${B2_BUCKET}/daily/" --progress
-          echo "Backup subido OK: daily/$FILE"
+          rclone copy "$FILE.sha256" "b2:${B2_BUCKET}/daily/" --progress
+
+          # Verifica que lo que quedo en B2 sea byte a byte lo que se subio
+          # (detecta corrupcion en la subida, no solo en el dump local).
+          if ! rclone checksum sha256 "$FILE.sha256" "b2:${B2_BUCKET}/daily/"; then
+            echo "::error::El backup subido a B2 no coincide con el checksum local - subida corrupta." >&2
+            exit 1
+          fi
+
+          echo "Backup subido y verificado OK: daily/$FILE"

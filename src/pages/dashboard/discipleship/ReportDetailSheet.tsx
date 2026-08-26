@@ -33,13 +33,13 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
 const FIELD_LABELS: Record<string, string> = {
   // Asistencia a reuniones
   attendance_nd: 'Asistencia célula (ND)',
-  attendance_dm: 'Asistencia discipulado matrimonios',
+  attendance_dm: 'Asistencia discípulos maduros',
   attendance_friends: 'Asistencia de amigos / invitados',
   attendance_kids: 'Asistencia de niños',
   // Servicios de iglesia
   service_attendance_sunday: 'Asistió al servicio dominical',
   service_attendance_prayer: 'Asistió al servicio de oración',
-  doctrine_attendance: 'Asistió a doctrina',
+  doctrine_attendance: 'Asistencia a doctrina',
   // Actividades del grupo (líder)
   group_discipleships: 'Discipulados realizados',
   group_evangelism: 'Evangelismo del grupo',
@@ -236,8 +236,7 @@ export function ReportDetailSheet({
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="h-4 w-4 shrink-0" />
                   <span>
-                    Enviado:{' '}
-                    <span className="font-medium text-foreground">{submittedLabel}</span>
+                    Enviado: <span className="font-medium text-foreground">{submittedLabel}</span>
                   </span>
                 </div>
               </div>
@@ -318,8 +317,7 @@ export function ReportDetailSheet({
             <div className="px-5 py-5 space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="reject-feedback" className="text-sm font-medium">
-                  Motivo del rechazo{' '}
-                  <span className="text-red-500">*</span>
+                  Motivo del rechazo <span className="text-red-500">*</span>
                 </Label>
                 <Textarea
                   id="reject-feedback"

@@ -762,7 +762,7 @@ func (h *DiscipleshipGoalsHandler) AutoUpdateProgress(c echo.Context) error {
 				CASE WHEN COALESCE((report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 				CASE WHEN (report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 				CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-				CASE WHEN (report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+				CASE WHEN COALESCE((report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 			), 0) * 10 / 12  -- Promedio trimestral * 10 para escala 1-10
 			FROM discipleship_reports
 			WHERE church_id = $1 AND report_level <= $2 AND period_end >= CURRENT_DATE - INTERVAL '90 days'

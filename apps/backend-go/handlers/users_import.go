@@ -4,6 +4,7 @@ import (
 	"backend-sion/config"
 	"backend-sion/utils"
 	"database/sql"
+	"encoding/csv"
 	"net/http"
 	"regexp"
 	"strings"
@@ -144,6 +145,68 @@ func (h *UserHandler) BulkImportUsers(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, result)
+}
+
+// ExportUsers handles GET /api/v1/users/export. Devuelve un CSV con las
+// mismas columnas en español que acepta ImportUsersModal, para poder
+// editar y re-importar el archivo (round-trip). Staff no ve admins,
+// igual que en GetUsers.
+func (h *UserHandler) ExportUsers(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, _ := c.Get("church_id").(string)
+	requestingUserID, _ := c.Get("user_id").(string)
+
+	var requestingRole string
+	_ = q.QueryRow("SELECT role FROM users WHERE id = $1", requestingUserID).Scan(&requestingRole)
+	requestingRoleLevel := utils.GetRoleLevel(requestingRole)
+
+	query := `
+		SELECT first_name, last_name, email, COALESCE(phone, ''), COALESCE(address, ''),
+			COALESCE(id_number, ''), role, COALESCE(birth_date::text, ''), whatsapp
+		FROM users
+		WHERE is_active = true AND church_id = $1
+	`
+	args := []interface{}{churchID}
+	if requestingRoleLevel < utils.LevelPastor {
+		query += " AND role != $2"
+		args = append(args, utils.RoleAdmin)
+	}
+	query += " ORDER BY first_name, last_name"
+
+	rows, err := q.Query(query, args...)
+	if err != nil {
+		c.Logger().Error("Error exporting users:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo exportar usuarios"})
+	}
+	defer rows.Close()
+
+	c.Response().Header().Set(echo.HeaderContentType, "text/csv; charset=utf-8")
+	c.Response().Header().Set("Content-Disposition", `attachment; filename="usuarios.csv"`)
+	c.Response().WriteHeader(http.StatusOK)
+
+	w := csv.NewWriter(c.Response())
+	_ = w.Write([]string{"Nombres", "Apellidos", "Correo Electronico", "Celular", "Direccion", "Cedula", "Rol", "F. Nac.", "WhatsApp"})
+
+	for rows.Next() {
+		var firstName, lastName, email, phone, address, idNumber, role, birthDate string
+		var whatsapp bool
+		if err := rows.Scan(&firstName, &lastName, &email, &phone, &address, &idNumber, &role, &birthDate, &whatsapp); err != nil {
+			continue
+		}
+		wsp := "No"
+		if whatsapp {
+			wsp = "Si"
+		}
+		_ = w.Write([]string{firstName, lastName, email, phone, address, idNumber, role, birthDate, wsp})
+	}
+	if err := rows.Err(); err != nil {
+		c.Logger().Error("Error iterating exported users:", err)
+	}
+	w.Flush()
+	return nil
 }
 
 // insertUserChunk pre-checks existing emails for a chunk, then inserts

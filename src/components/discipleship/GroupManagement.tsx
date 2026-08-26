@@ -42,7 +42,7 @@ import {
   type PaginationState,
 } from '@tanstack/react-table';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, Loader2, Pencil, Plus, Search, Users } from 'lucide-react';
+import { ChevronLeft, Loader2, Pencil, Plus, Search, Split, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -126,6 +126,17 @@ const GroupManagement = () => {
     status: 'active',
   });
   const [geolocation, setGeolocation] = useState<GeolocationResult | null>(null);
+
+  // Planificar multiplicación
+  const [multiplyingGroup, setMultiplyingGroup] = useState<DiscipleshipGroup | null>(null);
+  const [isMultDialogOpen, setIsMultDialogOpen] = useState(false);
+  const [isSavingMult, setIsSavingMult] = useState(false);
+  const [multForm, setMultForm] = useState({
+    multiplication_date: '',
+    new_leader_id: '',
+    initial_members: 0,
+    notes: '',
+  });
 
   // Mobile: hide bottom nav when pushed into member detail
   useEffect(() => {
@@ -309,16 +320,48 @@ const GroupManagement = () => {
     [loadGroups, page, limit, search, filterZone, filterStatus]
   );
 
+  const handleOpenMultDialog = useCallback((group: DiscipleshipGroup) => {
+    setMultiplyingGroup(group);
+    setMultForm({ multiplication_date: '', new_leader_id: '', initial_members: 0, notes: '' });
+    setIsMultDialogOpen(true);
+  }, []);
+
+  const handleSaveMultiplication = async () => {
+    if (!multiplyingGroup) return;
+    if (!multForm.multiplication_date) {
+      toast.error('Elegí una fecha objetivo');
+      return;
+    }
+    try {
+      setIsSavingMult(true);
+      await DiscipleshipService.createMultiplication({
+        parent_group_id: multiplyingGroup.id,
+        new_leader_id: multForm.new_leader_id || undefined,
+        multiplication_date: multForm.multiplication_date,
+        initial_members: multForm.initial_members || undefined,
+        notes: multForm.notes || undefined,
+      });
+      toast.success('Multiplicación planificada exitosamente');
+      setIsMultDialogOpen(false);
+      setMultiplyingGroup(null);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Error al planificar la multiplicación');
+    } finally {
+      setIsSavingMult(false);
+    }
+  };
+
   const columns = useMemo(
     () =>
       buildGroupsColumns({
         onManageMembers: g => setSelectedGroupForMembers(g),
         onEdit: g => handleOpenDialog(g),
         onDelete: handleDelete,
+        onPlanMultiplication: handleOpenMultDialog,
         canEdit: canEditGroup,
         canDelete: canDeleteGroup,
       }),
-    [handleOpenDialog, handleDelete, canEditGroup, canDeleteGroup]
+    [handleOpenDialog, handleDelete, handleOpenMultDialog, canEditGroup, canDeleteGroup]
   );
 
   const [pagination] = useState<PaginationState>({ pageIndex: 0, pageSize: limit });
@@ -522,11 +565,102 @@ const GroupManagement = () => {
     </Dialog>
   ) : null;
 
+  const multiplicationDialog = (
+    <Dialog open={isMultDialogOpen} onOpenChange={setIsMultDialogOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Planificar multiplicación</DialogTitle>
+          <DialogDescription>
+            {multiplyingGroup?.group_name} — se registra como planificada; el grupo nuevo se crea
+            aparte cuando la multiplicación efectivamente ocurre.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="mult_date">Fecha objetivo *</Label>
+            <Input
+              id="mult_date"
+              type="date"
+              value={multForm.multiplication_date}
+              onChange={e =>
+                setMultForm(prev => ({ ...prev, multiplication_date: e.target.value }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="mult_leader">Nuevo líder (opcional)</Label>
+            <Select
+              value={multForm.new_leader_id || '__none__'}
+              onValueChange={value =>
+                setMultForm(prev => ({ ...prev, new_leader_id: value === '__none__' ? '' : value }))
+              }
+            >
+              <SelectTrigger id="mult_leader">
+                <SelectValue placeholder="Todavía sin definir" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Todavía sin definir</SelectItem>
+                {leaders.map(leader => (
+                  <SelectItem key={leader.id} value={leader.id}>
+                    {leader.first_name} {leader.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="mult_members">Miembros iniciales estimados</Label>
+            <Input
+              id="mult_members"
+              type="number"
+              min="0"
+              value={multForm.initial_members}
+              onChange={e =>
+                setMultForm(prev => ({ ...prev, initial_members: parseInt(e.target.value) || 0 }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="mult_notes">Notas</Label>
+            <Input
+              id="mult_notes"
+              placeholder="Opcional"
+              value={multForm.notes}
+              onChange={e => setMultForm(prev => ({ ...prev, notes: e.target.value }))}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => setIsMultDialogOpen(false)}
+            disabled={isSavingMult}
+          >
+            Cancelar
+          </Button>
+          <Button onClick={handleSaveMultiplication} disabled={isSavingMult}>
+            {isSavingMult ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Split className="w-4 h-4 mr-2" />
+                Planificar
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   // ── Mobile: pushed-detail (miembros del grupo) ──
   if (isMobileApp && selectedGroupForMembers) {
     return (
       <>
-        {groupDialog}
+        {groupDialog} {multiplicationDialog}
         <div className="-mx-3 -mt-3">
           <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-lg border-b border-border/40 px-3 h-12 flex items-center gap-2">
             <button
@@ -538,6 +672,15 @@ const GroupManagement = () => {
             <span className="font-semibold truncate flex-1 text-sm">
               {selectedGroupForMembers.group_name}
             </span>
+            {canEditGroup && (
+              <button
+                onClick={() => handleOpenMultDialog(selectedGroupForMembers)}
+                className="p-1.5 rounded-xl hover:bg-accent/60 active:bg-accent transition-colors cursor-pointer text-muted-foreground"
+                aria-label="Planificar multiplicación"
+              >
+                <Split className="w-4 h-4" />
+              </button>
+            )}
             {canEditGroup && (
               <button
                 onClick={() => handleOpenDialog(selectedGroupForMembers)}
@@ -560,7 +703,7 @@ const GroupManagement = () => {
   if (isMobileApp) {
     return (
       <>
-        {groupDialog}
+        {groupDialog} {multiplicationDialog}
         <div className="-mx-3 -mt-3">
           {/* Sticky search + status pills */}
           <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-lg border-b border-border/30 px-4 pt-3 pb-2 space-y-2">
@@ -671,7 +814,7 @@ const GroupManagement = () => {
   if (selectedGroupForMembers) {
     return (
       <>
-        {groupDialog}
+        {groupDialog} {multiplicationDialog}
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between mb-4">
@@ -693,7 +836,7 @@ const GroupManagement = () => {
   // ── Web: lista de grupos ──
   return (
     <>
-      {groupDialog}
+      {groupDialog} {multiplicationDialog}
       <Card>
         <CardHeader className="border-b px-4 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

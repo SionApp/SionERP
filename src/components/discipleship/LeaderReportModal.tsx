@@ -17,11 +17,13 @@ import type { CreateReportRequest } from '@/types/discipleship.types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
+  AlertTriangle,
   Baby,
   BookOpen,
   BookText,
   Church,
   Flame,
+  GraduationCap,
   Megaphone,
   RefreshCw,
   Send,
@@ -73,7 +75,7 @@ export function LeaderReportModal({
     // Asistencia Congregacional
     service_attendance_prayer: false,
     service_attendance_sunday: false,
-    doctrine_attendance: false,
+    doctrine_attendance: 0,
 
     // Estado del Grupo
     is_multiplying: false,
@@ -94,10 +96,12 @@ export function LeaderReportModal({
     if (!isOpen) return;
     const isoWeek = getCurrentIsoWeek();
     DiscipleshipAnalyticsService.getActiveManualAssignments(isoWeek)
-      .then((assignments) => {
+      .then(assignments => {
         setManualAssignments(assignments);
         const initial: Record<string, number> = {};
-        assignments.forEach((a) => { initial[a.assignment_id] = 0; });
+        assignments.forEach(a => {
+          initial[a.assignment_id] = 0;
+        });
         setManualValues(initial);
       })
       .catch(() => {
@@ -148,14 +152,14 @@ export function LeaderReportModal({
 
       // Submit manual goal progress (non-blocking — report is already saved)
       const progressPromises = manualAssignments
-        .filter((a) => manualValues[a.assignment_id] > 0)
-        .map((a) =>
+        .filter(a => manualValues[a.assignment_id] > 0)
+        .map(a =>
           DiscipleshipAnalyticsService.submitManualProgress(
             a.assignment_id,
             manualValues[a.assignment_id],
             newReportId,
             periodStartStr,
-            periodEndStr,
+            periodEndStr
           ).catch(() => {
             toast.warning('Reporte guardado, progreso del objetivo no se sincronizó');
           })
@@ -192,7 +196,7 @@ export function LeaderReportModal({
       leader_evangelism: 0,
       service_attendance_prayer: false,
       service_attendance_sunday: false,
-      doctrine_attendance: false,
+      doctrine_attendance: 0,
       is_multiplying: false,
     });
     setManualAssignments([]);
@@ -200,7 +204,7 @@ export function LeaderReportModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Reporte Semanal del Líder</DialogTitle>
@@ -221,10 +225,37 @@ export function LeaderReportModal({
             </div>
 
             <div className="space-y-3">
-              <Label className="text-sm font-semibold text-muted-foreground block mb-2">Asistencia a la reunión de discipulado</Label>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <Label className="text-sm font-semibold text-muted-foreground block mb-2">
+                Asistencia a la reunión de discipulado
+              </Label>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="attendance_nd" className="flex items-center gap-2 text-sm font-medium">
+                  <Label
+                    htmlFor="doctrine_attendance"
+                    className="flex items-center gap-2 text-sm font-medium"
+                  >
+                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                    Doctrina
+                  </Label>
+                  <Input
+                    id="doctrine_attendance"
+                    type="number"
+                    min="0"
+                    className="bg-background"
+                    value={reportData.doctrine_attendance}
+                    onChange={e =>
+                      setReportData({
+                        ...reportData,
+                        doctrine_attendance: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="attendance_nd"
+                    className="flex items-center gap-2 text-sm font-medium"
+                  >
                     <UserPlus className="h-4 w-4 text-muted-foreground" />
                     Nuevos Discípulos
                   </Label>
@@ -234,13 +265,16 @@ export function LeaderReportModal({
                     min="0"
                     className="bg-background"
                     value={reportData.attendance_nd}
-                    onChange={(e) =>
+                    onChange={e =>
                       setReportData({ ...reportData, attendance_nd: parseInt(e.target.value) || 0 })
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="attendance_dm" className="flex items-center gap-2 text-sm font-medium">
+                  <Label
+                    htmlFor="attendance_dm"
+                    className="flex items-center gap-2 text-sm font-medium"
+                  >
                     <UserCheck className="h-4 w-4 text-muted-foreground" />
                     Disc. Maduros
                   </Label>
@@ -250,13 +284,16 @@ export function LeaderReportModal({
                     min="0"
                     className="bg-background"
                     value={reportData.attendance_dm}
-                    onChange={(e) =>
+                    onChange={e =>
                       setReportData({ ...reportData, attendance_dm: parseInt(e.target.value) || 0 })
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="attendance_friends" className="flex items-center gap-2 text-sm font-medium">
+                  <Label
+                    htmlFor="attendance_friends"
+                    className="flex items-center gap-2 text-sm font-medium"
+                  >
                     <Smile className="h-4 w-4 text-muted-foreground" />
                     Amigos
                   </Label>
@@ -266,13 +303,19 @@ export function LeaderReportModal({
                     min="0"
                     className="bg-background"
                     value={reportData.attendance_friends}
-                    onChange={(e) =>
-                      setReportData({ ...reportData, attendance_friends: parseInt(e.target.value) || 0 })
+                    onChange={e =>
+                      setReportData({
+                        ...reportData,
+                        attendance_friends: parseInt(e.target.value) || 0,
+                      })
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="attendance_kids" className="flex items-center gap-2 text-sm font-medium">
+                  <Label
+                    htmlFor="attendance_kids"
+                    className="flex items-center gap-2 text-sm font-medium"
+                  >
                     <Baby className="h-4 w-4 text-muted-foreground" />
                     Niños
                   </Label>
@@ -282,8 +325,11 @@ export function LeaderReportModal({
                     min="0"
                     className="bg-background"
                     value={reportData.attendance_kids}
-                    onChange={(e) =>
-                      setReportData({ ...reportData, attendance_kids: parseInt(e.target.value) || 0 })
+                    onChange={e =>
+                      setReportData({
+                        ...reportData,
+                        attendance_kids: parseInt(e.target.value) || 0,
+                      })
                     }
                   />
                 </div>
@@ -292,7 +338,10 @@ export function LeaderReportModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4 border-t">
               <div className="space-y-2">
-                <Label htmlFor="group_discipleships" className="flex items-center gap-2 text-sm font-medium">
+                <Label
+                  htmlFor="group_discipleships"
+                  className="flex items-center gap-2 text-sm font-medium"
+                >
                   <BookOpen className="h-4 w-4 text-muted-foreground" />
                   Discipulados realizados en el grupo
                 </Label>
@@ -302,13 +351,28 @@ export function LeaderReportModal({
                   min="0"
                   className="bg-background"
                   value={reportData.group_discipleships}
-                  onChange={(e) =>
-                    setReportData({ ...reportData, group_discipleships: parseInt(e.target.value) || 0 })
+                  onChange={e =>
+                    setReportData({
+                      ...reportData,
+                      group_discipleships: parseInt(e.target.value) || 0,
+                    })
                   }
                 />
+                {reportData.attendance_dm > 0 &&
+                  reportData.group_discipleships < reportData.attendance_dm && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      Con {reportData.attendance_dm} disc. maduros se esperan al menos{' '}
+                      {reportData.attendance_dm} discipulados — reportaste{' '}
+                      {reportData.group_discipleships}.
+                    </p>
+                  )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="group_evangelism" className="flex items-center gap-2 text-sm font-medium">
+                <Label
+                  htmlFor="group_evangelism"
+                  className="flex items-center gap-2 text-sm font-medium"
+                >
                   <Megaphone className="h-4 w-4 text-muted-foreground" />
                   Personas evangelizadas en grupo
                 </Label>
@@ -318,8 +382,11 @@ export function LeaderReportModal({
                   min="0"
                   className="bg-background"
                   value={reportData.group_evangelism}
-                  onChange={(e) =>
-                    setReportData({ ...reportData, group_evangelism: parseInt(e.target.value) || 0 })
+                  onChange={e =>
+                    setReportData({
+                      ...reportData,
+                      group_evangelism: parseInt(e.target.value) || 0,
+                    })
                   }
                 />
               </div>
@@ -337,7 +404,10 @@ export function LeaderReportModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <Label htmlFor="leader_new_disciples_care" className="flex items-center gap-2 text-sm font-medium">
+                <Label
+                  htmlFor="leader_new_disciples_care"
+                  className="flex items-center gap-2 text-sm font-medium"
+                >
                   <UserPlus className="h-4 w-4 text-muted-foreground" />
                   Atención a Nuevos Discípulos
                 </Label>
@@ -347,13 +417,19 @@ export function LeaderReportModal({
                   min="0"
                   className="bg-background"
                   value={reportData.leader_new_disciples_care}
-                  onChange={(e) =>
-                    setReportData({ ...reportData, leader_new_disciples_care: parseInt(e.target.value) || 0 })
+                  onChange={e =>
+                    setReportData({
+                      ...reportData,
+                      leader_new_disciples_care: parseInt(e.target.value) || 0,
+                    })
                   }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="leader_mature_disciples_care" className="flex items-center gap-2 text-sm font-medium">
+                <Label
+                  htmlFor="leader_mature_disciples_care"
+                  className="flex items-center gap-2 text-sm font-medium"
+                >
                   <Users className="h-4 w-4 text-muted-foreground" />
                   Atención Personalizada a D.M.
                 </Label>
@@ -363,7 +439,7 @@ export function LeaderReportModal({
                   min="0"
                   className="bg-background"
                   value={reportData.leader_mature_disciples_care}
-                  onChange={(e) =>
+                  onChange={e =>
                     setReportData({
                       ...reportData,
                       leader_mature_disciples_care: parseInt(e.target.value) || 0,
@@ -375,7 +451,10 @@ export function LeaderReportModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
               <div className="space-y-2">
-                <Label htmlFor="spiritual_journal_days" className="flex items-center gap-2 text-sm font-medium">
+                <Label
+                  htmlFor="spiritual_journal_days"
+                  className="flex items-center gap-2 text-sm font-medium"
+                >
                   <BookText className="h-4 w-4 text-muted-foreground" />
                   Diario Espiritual personal (Días)
                 </Label>
@@ -385,13 +464,19 @@ export function LeaderReportModal({
                   min="0"
                   className="bg-background"
                   value={reportData.spiritual_journal_days}
-                  onChange={(e) =>
-                    setReportData({ ...reportData, spiritual_journal_days: parseInt(e.target.value) || 0 })
+                  onChange={e =>
+                    setReportData({
+                      ...reportData,
+                      spiritual_journal_days: parseInt(e.target.value) || 0,
+                    })
                   }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="leader_evangelism" className="flex items-center gap-2 text-sm font-medium">
+                <Label
+                  htmlFor="leader_evangelism"
+                  className="flex items-center gap-2 text-sm font-medium"
+                >
                   <Megaphone className="h-4 w-4 text-muted-foreground" />
                   Evangelismo personal
                 </Label>
@@ -401,7 +486,7 @@ export function LeaderReportModal({
                   min="0"
                   className="bg-background"
                   value={reportData.leader_evangelism}
-                  onChange={(e) =>
+                  onChange={e =>
                     setReportData({
                       ...reportData,
                       leader_evangelism: parseInt(e.target.value) || 0,
@@ -420,69 +505,48 @@ export function LeaderReportModal({
               </div>
               <h3 className="text-lg font-semibold">Asistencia Congregacional</h3>
             </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label
-                  htmlFor="service_prayer_leader"
-                  className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
-                    reportData.service_attendance_prayer
-                      ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-900'
-                  }`}
-                >
-                  <Checkbox 
-                    id="service_prayer_leader" 
-                    checked={reportData.service_attendance_prayer}
-                    onCheckedChange={(checked) => 
-                      setReportData({ ...reportData, service_attendance_prayer: checked === true })
-                    }
-                  />
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Flame className="h-4 w-4 text-orange-500" />
-                    Servicio de Oración
-                  </div>
-              </label>
-              
-              <label
-                  htmlFor="service_sunday_leader"
-                  className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
-                    reportData.service_attendance_sunday
-                      ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-900'
-                  }`}
-                >
-                  <Checkbox 
-                    id="service_sunday_leader" 
-                    checked={reportData.service_attendance_sunday}
-                    onCheckedChange={(checked) => 
-                      setReportData({ ...reportData, service_attendance_sunday: checked === true })
-                    }
-                  />
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Church className="h-4 w-4 text-slate-500" />
-                    Servicio Dominical
-                  </div>
+                htmlFor="service_prayer_leader"
+                className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
+                  reportData.service_attendance_prayer
+                    ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                }`}
+              >
+                <Checkbox
+                  id="service_prayer_leader"
+                  checked={reportData.service_attendance_prayer}
+                  onCheckedChange={checked =>
+                    setReportData({ ...reportData, service_attendance_prayer: checked === true })
+                  }
+                />
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Flame className="h-4 w-4 text-orange-500" />
+                  Servicio de Oración
+                </div>
               </label>
 
               <label
-                  htmlFor="doctrine_leader"
-                  className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
-                    reportData.doctrine_attendance
-                      ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-900'
-                  }`}
-                >
-                  <Checkbox 
-                    id="doctrine_leader" 
-                    checked={reportData.doctrine_attendance}
-                    onCheckedChange={(checked) => 
-                      setReportData({ ...reportData, doctrine_attendance: checked === true })
-                    }
-                  />
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <BookOpen className="h-4 w-4 text-indigo-500" />
-                    Asistencia a Doctrina
-                  </div>
+                htmlFor="service_sunday_leader"
+                className={`flex items-center space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
+                  reportData.service_attendance_sunday
+                    ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                }`}
+              >
+                <Checkbox
+                  id="service_sunday_leader"
+                  checked={reportData.service_attendance_sunday}
+                  onCheckedChange={checked =>
+                    setReportData({ ...reportData, service_attendance_sunday: checked === true })
+                  }
+                />
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Church className="h-4 w-4 text-slate-500" />
+                  Servicio Dominical
+                </div>
               </label>
             </div>
           </div>
@@ -504,10 +568,10 @@ export function LeaderReportModal({
                   : 'hover:bg-slate-50 dark:hover:bg-slate-900'
               }`}
             >
-              <Checkbox 
-                id="is_multiplying" 
+              <Checkbox
+                id="is_multiplying"
                 checked={reportData.is_multiplying}
-                onCheckedChange={(checked) => 
+                onCheckedChange={checked =>
                   setReportData({ ...reportData, is_multiplying: checked === true })
                 }
               />
@@ -523,7 +587,7 @@ export function LeaderReportModal({
             </label>
           </div>
         </div>
-        
+
         {/* SECCIÓN: Objetivos Manuales */}
         {manualAssignments.length > 0 && (
           <div className="p-5 border rounded-xl bg-card text-card-foreground shadow-sm space-y-4">
@@ -537,12 +601,14 @@ export function LeaderReportModal({
               </div>
             </div>
             <div className="space-y-3">
-              {manualAssignments.map((a) => (
+              {manualAssignments.map(a => (
                 <div key={a.assignment_id} className="space-y-1">
                   <Label htmlFor={`goal-${a.assignment_id}`} className="text-sm font-medium">
                     {a.goal_title}
                     {a.already_reported_for_period && (
-                      <span className="ml-2 text-xs text-muted-foreground">(ya reportado esta semana)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (ya reportado esta semana)
+                      </span>
                     )}
                   </Label>
                   <Input
@@ -551,8 +617,11 @@ export function LeaderReportModal({
                     min={0}
                     className="bg-background"
                     value={manualValues[a.assignment_id] ?? 0}
-                    onChange={(e) =>
-                      setManualValues({ ...manualValues, [a.assignment_id]: parseInt(e.target.value) || 0 })
+                    onChange={e =>
+                      setManualValues({
+                        ...manualValues,
+                        [a.assignment_id]: parseInt(e.target.value) || 0,
+                      })
                     }
                   />
                 </div>

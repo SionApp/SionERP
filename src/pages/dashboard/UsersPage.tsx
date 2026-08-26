@@ -29,7 +29,7 @@ import {
   type PaginationState,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { Plus, Search, Upload } from 'lucide-react';
+import { Download, Plus, Search, Upload } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -240,9 +240,7 @@ const UsersPage = () => {
     <div className="space-y-4 p-2 sm:p-4 md:p-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Gestión de Usuarios
-        </h1>
+        <h1 className="text-2xl font-bold text-foreground">Gestión de Usuarios</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Administrá los usuarios registrados en el sistema
         </p>
@@ -270,6 +268,18 @@ const UsersPage = () => {
                 />
               </div>
               <Can I={ROLE_LEVELS.staff}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    UserService.exportUsers().catch(() =>
+                      toast.error('No se pudo exportar usuarios')
+                    )
+                  }
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Exportar</span>
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                   <Upload className="h-4 w-4" />
                   <span className="hidden sm:inline ml-1">Importar</span>

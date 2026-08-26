@@ -88,6 +88,7 @@ export type GroupsColumnMeta = {
   onManageMembers: (group: DiscipleshipGroup) => void;
   onEdit: (group: DiscipleshipGroup) => void;
   onDelete: (group: DiscipleshipGroup) => void;
+  onPlanMultiplication: (group: DiscipleshipGroup) => void;
   canEdit: boolean;
   canDelete: boolean;
 };
@@ -192,6 +193,11 @@ export function buildGroupsColumns(meta: GroupsColumnMeta): ColumnDef<Disciplesh
                   </DropdownMenuItem>
                   {meta.canEdit && (
                     <DropdownMenuItem onClick={() => meta.onEdit(g)}>Editar grupo</DropdownMenuItem>
+                  )}
+                  {meta.canEdit && (
+                    <DropdownMenuItem onClick={() => meta.onPlanMultiplication(g)}>
+                      Planificar multiplicación
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuGroup>
                 {meta.canDelete && (

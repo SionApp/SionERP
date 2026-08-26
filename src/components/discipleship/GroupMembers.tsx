@@ -55,6 +55,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
+import { GroupVisitors } from './GroupVisitors';
 
 interface GroupMembersProps {
   groupId: string;
@@ -625,6 +626,7 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
           )}
         </CardContent>
       </Card>
+      <GroupVisitors groupId={groupId} />
       {dialogs}
     </>
   );

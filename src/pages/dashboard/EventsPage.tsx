@@ -373,7 +373,8 @@ const EventsPage = () => {
         ? EventsService.unregister(ev.id)
         : EventsService.register(ev.id, 'going'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['events'] }),
-    onError: () => toast.error('No se pudo actualizar tu inscripción'),
+    onError: (error: unknown) =>
+      toast.error(error instanceof Error ? error.message : 'No se pudo actualizar tu inscripción'),
   });
 
   const deleteMutation = useMutation({
@@ -430,9 +431,7 @@ const EventsPage = () => {
     <div className="space-y-4 p-3 sm:p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-            Gestión de Eventos
-          </h1>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Gestión de Eventos</h1>
           <p className="text-sm text-muted-foreground">
             Creá y administrá eventos para tu congregación
           </p>

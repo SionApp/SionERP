@@ -57,7 +57,7 @@ const zoneGrowthHealthSQL = `
 				CASE WHEN COALESCE((r.report_data->>'leader_evangelism')::int, 0) > 0 THEN 1 ELSE 0 END +
 				CASE WHEN (r.report_data->>'service_attendance_sunday')::boolean THEN 1 ELSE 0 END +
 				CASE WHEN (r.report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
-				CASE WHEN (r.report_data->>'doctrine_attendance')::boolean THEN 1 ELSE 0 END
+				CASE WHEN COALESCE((r.report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 			) * 100.0 / 13.0
 			FROM discipleship_reports r
 			JOIN discipleship_groups gr ON (r.report_data->>'group_id')::uuid = gr.id

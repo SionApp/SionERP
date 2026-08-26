@@ -24,6 +24,7 @@ import type {
   ZoneStats,
   CreateDiscipleshipLevelRequest,
   UpdateDiscipleshipLevelRequest,
+  Visitor,
 } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
 
@@ -128,6 +129,41 @@ export class DiscipleshipService {
 
   static async removeHierarchy(userId: string): Promise<{ message: string }> {
     return ApiService.delete(`${this.baseUrl}/hierarchy/${userId}`);
+  }
+
+  static async getGroupVisitors(groupId: string): Promise<Visitor[]> {
+    return ApiService.get(`${this.baseUrl}/groups/${groupId}/visitors`);
+  }
+
+  static async createVisitor(
+    groupId: string,
+    data: {
+      first_name: string;
+      last_name?: string;
+      phone?: string;
+      invited_by?: string;
+      first_visit_date?: string;
+      notes?: string;
+    }
+  ): Promise<{ id: string; message: string }> {
+    return ApiService.post(`${this.baseUrl}/groups/${groupId}/visitors`, data);
+  }
+
+  static async updateVisitor(
+    visitorId: string,
+    data: { status: Visitor['status']; converted_user_id?: string; notes?: string }
+  ): Promise<{ message: string }> {
+    return ApiService.put(`${this.baseUrl}/visitors/${visitorId}`, data);
+  }
+
+  static async createMultiplication(data: {
+    parent_group_id: string;
+    new_leader_id?: string;
+    multiplication_date: string;
+    initial_members?: number;
+    notes?: string;
+  }): Promise<{ id: string; message: string }> {
+    return ApiService.post(`${this.baseUrl}/multiplications`, data);
   }
 
   static async getSubordinates(supervisorId?: string): Promise<DiscipleshipHierarchy[]> {
