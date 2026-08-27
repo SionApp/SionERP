@@ -118,6 +118,14 @@ func SetupRoutes(e *echo.Echo) {
 		usersSelf.GET("/me", userHandler.GetCurrentUser)                // GET /api/v1/users/me
 		usersSelf.PUT("/me", userHandler.UpdateCurrentUser)             // PUT /api/v1/users/me
 		usersSelf.PUT("/me/onboarding", userHandler.CompleteOnboarding) // PUT /api/v1/users/me/onboarding
+
+		// Documentos adjuntos (#58): sin gate de rol a nivel de grupo —
+		// canManageUserDocuments adentro del handler autoriza "propios o
+		// staff+", el mismo criterio que UpdateUser usa para el propio perfil.
+		docsHandler := handlers.NewUserDocumentsHandler()
+		usersSelf.GET("/:id/documents", docsHandler.GetDocuments)
+		usersSelf.POST("/:id/documents", docsHandler.CreateDocument)
+		usersSelf.DELETE("/:id/documents/:docId", docsHandler.DeleteDocument)
 	}
 
 	// Dashboard routes

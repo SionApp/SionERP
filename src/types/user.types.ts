@@ -128,3 +128,12 @@ export interface UpdateUserRequest {
   whatsapp?: boolean;
   pastoral_notes?: string;
 }
+
+/** Issue #58: documentos adjuntos al perfil (cédula, partida de bautismo, etc.). */
+export interface UserDocument {
+  id: string;
+  file_name: string;
+  storage_path: string;
+  uploaded_by_name: string;
+  created_at: string;
+}

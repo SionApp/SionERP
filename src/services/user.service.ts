@@ -1,7 +1,14 @@
 import { Invitation } from '@/types/invitation.types';
 import type { ImportResult, UserImportRow } from '@/types/user-import.types';
-import { CreateUserData, UpdateUserData, UpdateUserRequest, User } from '@/types/user.types';
+import {
+  CreateUserData,
+  UpdateUserData,
+  UpdateUserRequest,
+  User,
+  UserDocument,
+} from '@/types/user.types';
 import { ApiService } from './api.service';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface UserFilters {
   search?: string;
@@ -263,5 +270,41 @@ export class UserService {
       console.error('Error creating user directly:', error);
       throw error;
     }
+  }
+
+  // ── Documentos adjuntos (#58) ──
+  // Bucket privado: nunca getPublicUrl acá, sólo URLs firmadas temporales.
+
+  static async getDocuments(userId: string): Promise<UserDocument[]> {
+    return ApiService.get<UserDocument[]>(`/users/${userId}/documents`);
+  }
+
+  static async uploadDocument(userId: string, file: File): Promise<void> {
+    const filePath = `${userId}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from('church-documents')
+      .upload(filePath, file, { cacheControl: '3600', upsert: false });
+    if (uploadError) {
+      throw new Error('Error al subir el documento');
+    }
+    await ApiService.post<void, { file_name: string; storage_path: string }>(
+      `/users/${userId}/documents`,
+      { file_name: file.name, storage_path: filePath }
+    );
+  }
+
+  static async getDocumentSignedUrl(storagePath: string): Promise<string> {
+    const { data, error } = await supabase.storage
+      .from('church-documents')
+      .createSignedUrl(storagePath, 60);
+    if (error || !data) {
+      throw new Error('Error al generar el enlace del documento');
+    }
+    return data.signedUrl;
+  }
+
+  static async deleteDocument(userId: string, docId: string, storagePath: string): Promise<void> {
+    await ApiService.delete<void>(`/users/${userId}/documents/${docId}`);
+    await supabase.storage.from('church-documents').remove([storagePath]);
   }
 }
