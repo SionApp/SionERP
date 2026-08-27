@@ -157,3 +157,19 @@ export type UpdateIntegrationSettings = Omit<
   'id' | 'created_at' | 'updated_at'
 >;
 export type UpdateBackupSettings = Omit<BackupSettings, 'id' | 'created_at' | 'updated_at'>;
+
+/** Issue #53: eventos críticos de seguridad (cambio de rol, suspensión, exportación). */
+export type SecurityEventType =
+  | 'role_changed'
+  | 'user_suspended'
+  | 'user_reactivated'
+  | 'user_data_exported';
+
+export interface SecurityEvent {
+  id: string;
+  event_type: SecurityEventType;
+  user_name: string;
+  actor_name: string;
+  ip_address: string;
+  created_at: string;
+}

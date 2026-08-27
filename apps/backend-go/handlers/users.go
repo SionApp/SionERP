@@ -4,6 +4,7 @@ package handlers
 import (
 	"backend-sion/config"
 	"backend-sion/database"
+	"backend-sion/middleware"
 	"backend-sion/models"
 	"backend-sion/utils"
 	"database/sql"
@@ -465,6 +466,14 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		})
 	}
 
+	// Issue #53: si se está cambiando el rol, capturar el valor ANTERIOR
+	// antes del update para loguear old->new — sin esto no hay forma de
+	// saber qué cambió después del hecho.
+	var previousRole string
+	if req.Role != nil {
+		_ = q.QueryRow("SELECT role FROM users WHERE id = $1", userID).Scan(&previousRole)
+	}
+
 	query, args, err := database.BuildUpdateQuery(&req, "users", "id", userID)
 	if err != nil {
 		c.Logger().Error("Error building update query:", err)
@@ -490,6 +499,13 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]interface{}{
 			"error":   "User not found",
 			"message": fmt.Sprintf("User with ID %s does not exist", userID),
+		})
+	}
+
+	if req.Role != nil && previousRole != "" && previousRole != *req.Role {
+		middleware.LogSecurityEvent(c, "role_changed", userID, currentUserID, map[string]any{
+			"from_role": previousRole,
+			"to_role":   *req.Role,
 		})
 	}
 
@@ -586,6 +602,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 	}
 
 	c.Logger().Info(fmt.Sprintf("User deleted successfully: target=%s by=%s", userID, currentUserID))
+	middleware.LogSecurityEvent(c, "user_suspended", userID, currentUserID, nil)
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "User deleted successfully",
 		"user_id": userID,

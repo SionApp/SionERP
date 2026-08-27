@@ -170,6 +170,7 @@ func SetupRoutes(e *echo.Echo) {
 		settings.PUT("/notifications", handlers.NewSettingsHandler().UpdateNotificationConfig)
 		settings.GET("/security", handlers.NewSettingsHandler().GetSecuritySettings)
 		settings.PUT("/security", handlers.NewSettingsHandler().UpdateSecuritySettings)
+		settings.GET("/security/events", handlers.NewSecurityEventsHandler().GetEvents)
 		settings.GET("/integrations", handlers.NewSettingsHandler().GetIntegrationSettings)
 		settings.PUT("/integrations", handlers.NewSettingsHandler().UpdateIntegrationSettings)
 		settings.GET("/backups", handlers.NewSettingsHandler().GetBackupSettings)
