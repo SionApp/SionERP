@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/lib/pq"
 )
 
 // StartWeeklyReportScheduler launches the goroutine that fires every Saturday
@@ -263,6 +264,79 @@ func processNotificationQueue(db *sql.DB) error {
 		)
 	}
 	return nil
+}
+
+// reportScheduleCheckInterval: cada cuánto se revisan report_schedules
+// vencidos. Una hora alcanza — la granularidad real es weekly/monthly.
+const reportScheduleCheckInterval = 1 * time.Hour
+
+// StartReportScheduleDispatcher lanza la goroutine que, cada hora, busca
+// report_schedules activos con next_run_at vencido, avisa a los destinatarios
+// vía notification_queue (issue #52) y reprograma la próxima corrida.
+// Issue #67.
+func StartReportScheduleDispatcher() {
+	go func() {
+		for {
+			db := config.GetDB()
+			if db != nil && db.DB != nil {
+				if n, err := runReportScheduleSweep(db.DB, time.Now()); err != nil {
+					log.Printf("[scheduler] error en dispatcher de reportes programados: %v", err)
+				} else if n > 0 {
+					log.Printf("[scheduler] reportes programados despachados: %d", n)
+				}
+			}
+			time.Sleep(reportScheduleCheckInterval)
+		}
+	}()
+}
+
+func runReportScheduleSweep(db *sql.DB, now time.Time) (int, error) {
+	rows, err := db.Query(`
+		SELECT id, church_id, report_type, format, title, frequency, recipient_user_ids
+		FROM report_schedules
+		WHERE active = true AND next_run_at <= $1
+	`, now)
+	if err != nil {
+		return 0, fmt.Errorf("runReportScheduleSweep: querying due schedules: %w", err)
+	}
+
+	type due struct {
+		id, churchID, reportType, format, title, frequency string
+		recipients                                         []string
+	}
+	var items []due
+	for rows.Next() {
+		var d due
+		if scanErr := rows.Scan(&d.id, &d.churchID, &d.reportType, &d.format, &d.title,
+			&d.frequency, pq.Array(&d.recipients)); scanErr == nil {
+			items = append(items, d)
+		}
+	}
+	rows.Close()
+
+	dispatched := 0
+	for _, d := range items {
+		subject := fmt.Sprintf("Reporte programado listo: %s", d.title)
+		body := fmt.Sprintf(
+			"Tu reporte \"%s\" (%s) ya está disponible. Entrá a Reportes en el sistema para verlo y exportarlo en %s.",
+			d.title, d.reportType, d.format,
+		)
+		for _, uid := range d.recipients {
+			_, _ = db.Exec(`
+				INSERT INTO notification_queue (church_id, user_id, channel, subject, body)
+				VALUES ($1, $2, 'email', $3, $4)
+			`, d.churchID, uid, subject, body)
+		}
+		_, _ = db.Exec(`
+			INSERT INTO report_generations (report_type, format, title, church_id)
+			VALUES ($1, $2, $3, $4)
+		`, d.reportType, d.format, d.title, d.churchID)
+		_, _ = db.Exec(`
+			UPDATE report_schedules SET next_run_at = $1 WHERE id = $2
+		`, nextRunFor(d.frequency, now), d.id)
+		dispatched++
+	}
+	return dispatched, nil
 }
 
 // TenantPurgeGraceDays: días desde que un tenant queda status='cancelled'

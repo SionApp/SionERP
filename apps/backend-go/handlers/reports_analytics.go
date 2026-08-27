@@ -4,8 +4,10 @@ import (
 	"backend-sion/config"
 	"database/sql"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/lib/pq"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -264,4 +266,171 @@ func (h *ReportsAnalyticsHandler) GetGenerations(c echo.Context) error {
 		out = append(out, g)
 	}
 	return c.JSON(http.StatusOK, out)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Report schedules — issue #67: programación automática de reportes.
+// El "template" ES el schedule (tipo + formato + título + frecuencia +
+// destinatarios); no hace falta una entidad separada. El envío real corre en
+// scheduler.go, que reusa notification_queue en vez de generar un adjunto.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type reportScheduleDTO struct {
+	ID            string   `json:"id"`
+	ReportType    string   `json:"report_type"`
+	Format        string   `json:"format"`
+	Title         string   `json:"title"`
+	Frequency     string   `json:"frequency"`
+	RecipientIDs  []string `json:"recipient_user_ids"`
+	Active        bool     `json:"active"`
+	NextRunAt     string   `json:"next_run_at"`
+	CreatedByName string   `json:"created_by_name"`
+}
+
+// GetSchedules lists all report schedules for the church.
+func (h *ReportsAnalyticsHandler) GetSchedules(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
+	rows, err := q.Query(`
+		SELECT rs.id::text, rs.report_type, rs.format, rs.title, rs.frequency,
+		       rs.recipient_user_ids, rs.active,
+		       to_char(rs.next_run_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+		       COALESCE(TRIM(u.first_name || ' ' || u.last_name), '')
+		FROM report_schedules rs
+		LEFT JOIN users u ON u.id = rs.created_by AND u.church_id = $1
+		WHERE rs.church_id = $1
+		ORDER BY rs.created_at DESC
+	`, churchID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo listar la programación"})
+	}
+	defer rows.Close()
+
+	out := []reportScheduleDTO{}
+	for rows.Next() {
+		var s reportScheduleDTO
+		var recipients pq.StringArray
+		if err := rows.Scan(&s.ID, &s.ReportType, &s.Format, &s.Title, &s.Frequency,
+			&recipients, &s.Active, &s.NextRunAt, &s.CreatedByName); err != nil {
+			continue
+		}
+		s.RecipientIDs = []string(recipients)
+		out = append(out, s)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+type upsertScheduleRequest struct {
+	ReportType   string   `json:"report_type"`
+	Format       string   `json:"format"`
+	Title        string   `json:"title"`
+	Frequency    string   `json:"frequency"`
+	RecipientIDs []string `json:"recipient_user_ids"`
+	Active       *bool    `json:"active"`
+}
+
+func nextRunFor(frequency string, from time.Time) time.Time {
+	if frequency == "monthly" {
+		return from.AddDate(0, 1, 0)
+	}
+	return from.AddDate(0, 0, 7)
+}
+
+// CreateSchedule creates a new report schedule.
+func (h *ReportsAnalyticsHandler) CreateSchedule(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	callerID, _ := c.Get("user_id").(string)
+
+	var req upsertScheduleRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "cuerpo inválido"})
+	}
+	if req.ReportType == "" || req.Title == "" || req.Frequency == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "tipo, título y frecuencia son obligatorios"})
+	}
+	if req.Format == "" {
+		req.Format = "pdf"
+	}
+
+	next := nextRunFor(req.Frequency, time.Now())
+	_, err = q.Exec(`
+		INSERT INTO report_schedules
+			(church_id, report_type, format, title, frequency, recipient_user_ids, next_run_at, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8,'')::uuid)
+	`, churchID, req.ReportType, req.Format, req.Title, req.Frequency,
+		pq.Array(req.RecipientIDs), next, callerID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo crear la programación"})
+	}
+	return c.JSON(http.StatusCreated, map[string]string{"message": "Programación creada"})
+}
+
+// UpdateSchedule edits an existing schedule (title, frequency, recipients, active).
+func (h *ReportsAnalyticsHandler) UpdateSchedule(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	id := c.Param("id")
+
+	var req upsertScheduleRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "cuerpo inválido"})
+	}
+	active := true
+	if req.Active != nil {
+		active = *req.Active
+	}
+	result, err := q.Exec(`
+		UPDATE report_schedules
+		SET title = $1, format = $2, frequency = $3, recipient_user_ids = $4, active = $5
+		WHERE id = $6::uuid AND church_id = $7
+	`, req.Title, req.Format, req.Frequency, pq.Array(req.RecipientIDs), active, id, churchID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo actualizar la programación"})
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "programación no encontrada"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "Programación actualizada"})
+}
+
+// DeleteSchedule removes a report schedule.
+func (h *ReportsAnalyticsHandler) DeleteSchedule(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	id := c.Param("id")
+
+	result, err := q.Exec(`DELETE FROM report_schedules WHERE id = $1::uuid AND church_id = $2`, id, churchID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo eliminar la programación"})
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "programación no encontrada"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "Programación eliminada"})
 }

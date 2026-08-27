@@ -353,5 +353,10 @@ func SetupRoutes(e *echo.Echo) {
 		reports.GET("/activities", reportsAnalytics.GetActivitiesReport)
 		reports.GET("/generations", reportsAnalytics.GetGenerations)
 		reports.POST("/generations", reportsAnalytics.LogGeneration)
+
+		reports.GET("/schedules", reportsAnalytics.GetSchedules)
+		reports.POST("/schedules", reportsAnalytics.CreateSchedule, middleware.RequireRole(utils.LevelStaff))
+		reports.PUT("/schedules/:id", reportsAnalytics.UpdateSchedule, middleware.RequireRole(utils.LevelStaff))
+		reports.DELETE("/schedules/:id", reportsAnalytics.DeleteSchedule, middleware.RequireRole(utils.LevelStaff))
 	}
 }

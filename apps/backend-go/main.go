@@ -198,6 +198,9 @@ func main() {
 	// Cola de notificaciones por email (Resend) — no-op si no hay API key configurada
 	handlers.StartNotificationQueueWorker()
 
+	// Programación automática de reportes (users/growth/demographics/activities)
+	handlers.StartReportScheduleDispatcher()
+
 	// Borrado automático de datos de tenants cancelados (30 días de gracia)
 	handlers.StartTenantPurgeScheduler()
 

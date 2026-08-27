@@ -1,12 +1,48 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { BarChart3, Download, FileText, PieChart, TrendingUp, Users } from 'lucide-react';
+import {
+  BarChart3,
+  Calendar,
+  Download,
+  FileText,
+  PieChart,
+  Plus,
+  Trash2,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { ReportsService } from '@/services/reports.service';
-import type { LabelValue, ReportType } from '@/types/report.types';
+import { UserService } from '@/services/user.service';
+import type {
+  LabelValue,
+  ReportFrequency,
+  ReportType,
+  UpsertReportScheduleInput,
+} from '@/types/report.types';
 import { downloadReportCSV, printReportPDF, type ReportSection } from './report-export';
 
 // ── Small presentational bits ──
@@ -303,6 +339,231 @@ export function ReportsHistory() {
           </Badge>
         </div>
       ))}
+    </div>
+  );
+}
+
+const FREQUENCY_LABEL: Record<ReportFrequency, string> = {
+  weekly: 'Semanal',
+  monthly: 'Mensual',
+};
+
+function NewScheduleDialog() {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [reportType, setReportType] = useState<ReportType>('users');
+  const [format, setFormat] = useState<'csv' | 'pdf'>('pdf');
+  const [title, setTitle] = useState('');
+  const [frequency, setFrequency] = useState<ReportFrequency>('weekly');
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users-for-report-schedule'],
+    queryFn: () => UserService.getAllUsers(),
+    enabled: open,
+  });
+  const eligible = users.filter(u => ['supervisor', 'staff', 'pastor', 'admin'].includes(u.role));
+
+  const create = useMutation({
+    mutationFn: (input: UpsertReportScheduleInput) => ReportsService.createSchedule(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['report-schedules'] });
+      toast.success('Programación creada');
+      setOpen(false);
+      setTitle('');
+      setRecipientIds([]);
+    },
+    onError: () => toast.error('No se pudo crear la programación'),
+  });
+
+  function toggleRecipient(id: string) {
+    setRecipientIds(prev => (prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]));
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5">
+          <Plus className="h-4 w-4" />
+          Nueva programación
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nueva programación de reporte</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Título</Label>
+            <Input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Ej: Reporte mensual de crecimiento"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Tipo de reporte</Label>
+              <Select value={reportType} onValueChange={v => setReportType(v as ReportType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(REPORT_LABEL) as ReportType[]).map(t => (
+                    <SelectItem key={t} value={t}>
+                      {REPORT_LABEL[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Frecuencia</Label>
+              <Select value={frequency} onValueChange={v => setFrequency(v as ReportFrequency)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Semanal</SelectItem>
+                  <SelectItem value="monthly">Mensual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Formato</Label>
+            <Select value={format} onValueChange={v => setFormat(v as 'csv' | 'pdf')}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pdf">PDF</SelectItem>
+                <SelectItem value="csv">CSV</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Destinatarios</Label>
+            <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-border p-2">
+              {eligible.length === 0 && (
+                <p className="text-xs text-muted-foreground">Sin usuarios elegibles.</p>
+              )}
+              {eligible.map(u => (
+                <label key={u.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={recipientIds.includes(u.id)}
+                    onCheckedChange={() => toggleRecipient(u.id)}
+                  />
+                  {u.first_name} {u.last_name}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            disabled={!title || recipientIds.length === 0 || create.isPending}
+            onClick={() =>
+              create.mutate({
+                report_type: reportType,
+                format,
+                title,
+                frequency,
+                recipient_user_ids: recipientIds,
+              })
+            }
+          >
+            Crear
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function ReportSchedules() {
+  const queryClient = useQueryClient();
+  const { data: schedules = [], isLoading } = useQuery({
+    queryKey: ['report-schedules'],
+    queryFn: () => ReportsService.getSchedules(),
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: (s: (typeof schedules)[number]) =>
+      ReportsService.updateSchedule(s.id, {
+        report_type: s.report_type,
+        format: s.format,
+        title: s.title,
+        frequency: s.frequency,
+        recipient_user_ids: s.recipient_user_ids,
+        active: !s.active,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-schedules'] }),
+    onError: () => toast.error('No se pudo actualizar la programación'),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => ReportsService.deleteSchedule(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['report-schedules'] });
+      toast.success('Programación eliminada');
+    },
+    onError: () => toast.error('No se pudo eliminar la programación'),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          El sistema avisa por email a los destinatarios cuando el reporte está listo.
+        </p>
+        <NewScheduleDialog />
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2].map(i => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : schedules.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          Todavía no hay reportes programados.
+        </p>
+      ) : (
+        <div className="divide-y divide-border rounded-md border border-border">
+          {schedules.map(s => (
+            <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{s.title}</p>
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  {REPORT_LABEL[s.report_type]} · {FREQUENCY_LABEL[s.frequency]} · próxima:{' '}
+                  {new Date(s.next_run_at).toLocaleDateString('es-AR', {
+                    day: 'numeric',
+                    month: 'short',
+                  })}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={s.active}
+                  onCheckedChange={() => toggleActive.mutate(s)}
+                  aria-label="Activo"
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-destructive"
+                  onClick={() => remove.mutate(s.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
