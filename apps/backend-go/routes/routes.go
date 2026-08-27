@@ -349,6 +349,7 @@ func SetupRoutes(e *echo.Echo) {
 	{
 		reports.GET("/users", reportsAnalytics.GetUsersReport)
 		reports.GET("/growth", reportsAnalytics.GetGrowthReport)
+		reports.GET("/growth/comparison", reportsAnalytics.GetGrowthComparison)
 		reports.GET("/demographics", reportsAnalytics.GetDemographicsReport)
 		reports.GET("/activities", reportsAnalytics.GetActivitiesReport)
 		reports.GET("/generations", reportsAnalytics.GetGenerations)

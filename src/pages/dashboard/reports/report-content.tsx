@@ -1,17 +1,32 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import type { DateRange } from 'react-day-picker';
 import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  ArrowDown,
+  ArrowUp,
   BarChart3,
   Calendar,
   Download,
   FileText,
+  GitCompare,
   PieChart,
   Plus,
   Trash2,
   TrendingUp,
   Users,
 } from 'lucide-react';
+import { DatePickerWithRange } from '@/components/ui/date-picker-with-range';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +53,7 @@ import {
 import { ReportsService } from '@/services/reports.service';
 import { UserService } from '@/services/user.service';
 import type {
+  GrowthComparison,
   LabelValue,
   ReportFrequency,
   ReportType,
@@ -143,14 +159,180 @@ function ReportBlock({
   );
 }
 
+// GrowthReportBlock — issue #2: gráfico de línea de crecimiento temporal con
+// filtro de rango de fechas (por defecto, últimos 12 meses que ya calcula el
+// backend cuando no se manda rango).
+function GrowthReportBlock() {
+  const [range, setRange] = useState<DateRange | undefined>(undefined);
+  const from = range?.from ? format(range.from, 'yyyy-MM-dd') : undefined;
+  const to = range?.to ? format(range.to, 'yyyy-MM-dd') : undefined;
+
+  const growth = useQuery({
+    queryKey: ['report-growth', from, to],
+    queryFn: () => ReportsService.getGrowthReport(from, to),
+  });
+
+  async function exportAs(fmt: 'csv' | 'pdf') {
+    const sections: ReportSection[] = growth.data
+      ? [{ heading: 'Nuevos por mes', rows: growth.data.monthly }]
+      : [];
+    if (fmt === 'csv') downloadReportCSV('Reporte de Crecimiento', sections);
+    else printReportPDF('Reporte de Crecimiento', sections);
+    try {
+      await ReportsService.logGeneration('growth', fmt, 'Reporte de Crecimiento');
+    } catch {
+      /* logging is best-effort */
+    }
+    toast.success(`Reporte exportado (${fmt.toUpperCase()})`);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 space-y-0 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          Reporte de Crecimiento
+        </CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <DatePickerWithRange date={range} onDateChange={setRange} className="w-auto" />
+          {!growth.isLoading && (
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1"
+                onClick={() => exportAs('csv')}
+              >
+                <Download className="h-3.5 w-3.5" />
+                CSV
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1"
+                onClick={() => exportAs('pdf')}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                PDF
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {growth.isLoading ? (
+          <Skeleton className="h-52 w-full" />
+        ) : !growth.data || growth.data.monthly.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Sin datos en el rango seleccionado.
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={growth.data.monthly}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="value"
+                name="Nuevos usuarios"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// PeriodComparisonCard — issue #6: comparar el total de usuarios nuevos entre
+// dos rangos de fechas elegidos por el usuario.
+function PeriodComparisonCard() {
+  const [rangeA, setRangeA] = useState<DateRange | undefined>(undefined);
+  const [rangeB, setRangeB] = useState<DateRange | undefined>(undefined);
+  const [result, setResult] = useState<GrowthComparison | null>(null);
+
+  const compare = useMutation({
+    mutationFn: () =>
+      ReportsService.getGrowthComparison(
+        format(rangeA!.from!, 'yyyy-MM-dd'),
+        format(rangeA!.to!, 'yyyy-MM-dd'),
+        format(rangeB!.from!, 'yyyy-MM-dd'),
+        format(rangeB!.to!, 'yyyy-MM-dd')
+      ),
+    onSuccess: setResult,
+    onError: () => toast.error('No se pudo calcular la comparativa'),
+  });
+
+  const canCompare = !!(rangeA?.from && rangeA?.to && rangeB?.from && rangeB?.to);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <GitCompare className="h-4 w-4 text-primary" />
+          Comparativa de Períodos
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground">Período A</p>
+            <DatePickerWithRange date={rangeA} onDateChange={setRangeA} className="w-full" />
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground">Período B</p>
+            <DatePickerWithRange date={rangeB} onDateChange={setRangeB} className="w-full" />
+          </div>
+        </div>
+        <Button
+          size="sm"
+          disabled={!canCompare || compare.isPending}
+          onClick={() => compare.mutate()}
+        >
+          Comparar
+        </Button>
+
+        {result && (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-border bg-card p-3">
+              <p className="text-xs text-muted-foreground">Período A</p>
+              <p className="text-xl font-bold tabular-nums">{result.period_a_total}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-3">
+              <p className="text-xs text-muted-foreground">Período B</p>
+              <p className="text-xl font-bold tabular-nums">{result.period_b_total}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-3">
+              <p className="text-xs text-muted-foreground">Variación</p>
+              <p
+                className={`flex items-center gap-1 text-xl font-bold tabular-nums ${
+                  result.change_pct >= 0 ? 'text-emerald-600' : 'text-destructive'
+                }`}
+              >
+                {result.change_pct >= 0 ? (
+                  <ArrowUp className="h-4 w-4" />
+                ) : (
+                  <ArrowDown className="h-4 w-4" />
+                )}
+                {Math.abs(result.change_pct).toFixed(1)}%
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ReportsContent() {
   const users = useQuery({
     queryKey: ['report-users'],
     queryFn: () => ReportsService.getUsersReport(),
-  });
-  const growth = useQuery({
-    queryKey: ['report-growth'],
-    queryFn: () => ReportsService.getGrowthReport(),
   });
   const demo = useQuery({
     queryKey: ['report-demographics'],
@@ -207,15 +389,9 @@ export function ReportsContent() {
         )}
       </ReportBlock>
 
-      <ReportBlock
-        title="Reporte de Crecimiento"
-        Icon={TrendingUp}
-        loading={growth.isLoading}
-        reportType="growth"
-        sections={growth.data ? [{ heading: 'Nuevos por mes', rows: growth.data.monthly }] : []}
-      >
-        {growth.data && <BarList data={growth.data.monthly} />}
-      </ReportBlock>
+      <GrowthReportBlock />
+
+      <PeriodComparisonCard />
 
       <ReportBlock
         title="Reporte Demográfico"

@@ -2,6 +2,7 @@ import { ApiService } from './api.service';
 import type {
   UsersReport,
   GrowthReport,
+  GrowthComparison,
   DemographicsReport,
   ActivitiesReport,
   ReportGeneration,
@@ -18,8 +19,20 @@ export class ReportsService {
     return ApiService.get<UsersReport>(`${this.base}/users`);
   }
 
-  static getGrowthReport(): Promise<GrowthReport> {
-    return ApiService.get<GrowthReport>(`${this.base}/growth`);
+  static getGrowthReport(from?: string, to?: string): Promise<GrowthReport> {
+    const qs = from && to ? `?from=${from}&to=${to}` : '';
+    return ApiService.get<GrowthReport>(`${this.base}/growth${qs}`);
+  }
+
+  static getGrowthComparison(
+    aFrom: string,
+    aTo: string,
+    bFrom: string,
+    bTo: string
+  ): Promise<GrowthComparison> {
+    return ApiService.get<GrowthComparison>(
+      `${this.base}/growth/comparison?a_from=${aFrom}&a_to=${aTo}&b_from=${bFrom}&b_to=${bTo}`
+    );
   }
 
   static getDemographicsReport(): Promise<DemographicsReport> {
