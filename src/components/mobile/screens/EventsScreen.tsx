@@ -45,12 +45,20 @@ function MobileEventCard({
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div
         className={cn(
-          'relative flex h-20 items-center justify-center bg-cover bg-center',
+          'relative flex h-20 items-center justify-center overflow-hidden',
           !event.imageUrl && cat.banner
         )}
-        style={event.imageUrl ? { backgroundImage: `url(${event.imageUrl})` } : undefined}
       >
-        {!event.imageUrl && <cat.Icon className="h-8 w-8 text-white/80" />}
+        {event.imageUrl ? (
+          <img
+            src={event.imageUrl}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <cat.Icon className="h-8 w-8 text-white/80" />
+        )}
         <Badge className={cn('absolute right-3 top-3 border-0 text-xs', cat.chip)}>
           {cat.label}
         </Badge>

@@ -4,7 +4,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -16,27 +16,42 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import SetupPage from './pages/SetupPage';
 import MobilePreviewPage from './pages/MobilePreviewPage';
-import DashboardHome from './pages/dashboard/DashboardHome';
-import DiscipleshipPage from './pages/dashboard/DiscipleshipPage';
-import EventsPage from './pages/dashboard/EventsPage';
-import { GoalsDashboard } from './pages/dashboard/GoalsDashboard';
-import ModulesManagementPage from './pages/dashboard/ModulesManagementPage';
-import ProfilePage from './pages/dashboard/ProfilePage';
-import RegisterUserPage from './pages/dashboard/RegisterUserPage';
-import ReportsPage from './pages/dashboard/ReportsPage';
-import RoleManagementPage from './pages/dashboard/RoleManagementPage';
-import RolesPage from './pages/dashboard/RolesPage';
-import TrazabilidadPage from './pages/dashboard/TrazabilidadPage';
-import SettingsPage from './pages/dashboard/SettingsPage';
-import UsersPage from './pages/dashboard/UsersPage';
 import { ApiService } from './services/api.service';
 import { setLoadingCallbacks } from './services/api.service';
 import { setDashboardLoadingCallbacks } from './services/dashboard.service';
-import ZonesPage from './pages/dashboard/ZonesPage';
-import MusicPage from './pages/dashboard/MusicPage';
-import MusicEventDetailPage from './pages/dashboard/music/MusicEventDetailPage';
 import { useMagicLinkCallback } from './hooks/useMagicLinkCallback';
 import { ROLE_LEVELS } from './lib/permissions';
+
+// Páginas del dashboard: carga perezosa — cada una es su propio chunk, así
+// el bundle inicial no arrastra las 14 pantallas de golpe cuando el usuario
+// solo va a visitar 1 o 2 en la sesión. Login/Register/Setup quedan estáticas
+// porque son lo primero que se ve, sin excepción.
+const DashboardHome = lazy(() => import('./pages/dashboard/DashboardHome'));
+const DiscipleshipPage = lazy(() => import('./pages/dashboard/DiscipleshipPage'));
+const EventsPage = lazy(() => import('./pages/dashboard/EventsPage'));
+const GoalsDashboard = lazy(() =>
+  import('./pages/dashboard/GoalsDashboard').then(m => ({ default: m.GoalsDashboard }))
+);
+const ModulesManagementPage = lazy(() => import('./pages/dashboard/ModulesManagementPage'));
+const ProfilePage = lazy(() => import('./pages/dashboard/ProfilePage'));
+const RegisterUserPage = lazy(() => import('./pages/dashboard/RegisterUserPage'));
+const ReportsPage = lazy(() => import('./pages/dashboard/ReportsPage'));
+const RoleManagementPage = lazy(() => import('./pages/dashboard/RoleManagementPage'));
+const RolesPage = lazy(() => import('./pages/dashboard/RolesPage'));
+const TrazabilidadPage = lazy(() => import('./pages/dashboard/TrazabilidadPage'));
+const SettingsPage = lazy(() => import('./pages/dashboard/SettingsPage'));
+const UsersPage = lazy(() => import('./pages/dashboard/UsersPage'));
+const ZonesPage = lazy(() => import('./pages/dashboard/ZonesPage'));
+const MusicPage = lazy(() => import('./pages/dashboard/MusicPage'));
+const MusicEventDetailPage = lazy(() => import('./pages/dashboard/music/MusicEventDetailPage'));
+
+// Fallback mientras se descarga el chunk de la página — mismo spinner que
+// ya usa SetupGuard, para que no se sienta como un componente distinto.
+const RouteFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+  </div>
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -150,163 +165,165 @@ const AppContent = () => {
         <Toaster />
         <Sonner />
         <SetupGuard>
-          <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/setup" element={<SetupPage />} />
-            <Route path="/mobile-preview" element={<MobilePreviewPage />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout />
-                </ProtectedRoute>
-              }
-            >
-              {/* Member+ (base access) */}
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<Login />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/setup" element={<SetupPage />} />
+              <Route path="/mobile-preview" element={<MobilePreviewPage />} />
               <Route
-                index
+                path="/dashboard"
                 element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro">
-                    <DashboardHome />
+                  <ProtectedRoute>
+                    <DashboardLayout />
                   </ProtectedRoute>
                 }
-              />
-              <Route
-                path="profile"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro">
-                    <ProfilePage />
-                  </ProtectedRoute>
-                }
-              />
+              >
+                {/* Member+ (base access) */}
+                <Route
+                  index
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro">
+                      <DashboardHome />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="profile"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredRoleName="Miembro">
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Staff+ (staff, supervisor, pastor, admin) */}
-              <Route
-                path="users"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
-                    <UsersPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="register-user"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
-                    <RegisterUserPage />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Staff+ (staff, supervisor, pastor, admin) */}
+                <Route
+                  path="users"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
+                      <UsersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="register-user"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
+                      <RegisterUserPage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Supervisor+ (supervisor, pastor, admin) */}
-              <Route
-                path="reports"
-                element={
-                  <ProtectedRoute
-                    minRole={ROLE_LEVELS.supervisor}
-                    requiredModule="reports"
-                    requiredRoleName="Supervisor"
-                  >
-                    <ReportsPage />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Supervisor+ (supervisor, pastor, admin) */}
+                <Route
+                  path="reports"
+                  element={
+                    <ProtectedRoute
+                      minRole={ROLE_LEVELS.supervisor}
+                      requiredModule="reports"
+                      requiredRoleName="Supervisor"
+                    >
+                      <ReportsPage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Admin access (pastor or admin — defined by backend has_admin_access flag) */}
-              <Route
-                path="settings"
-                element={
-                  <ProtectedRoute requireAdminAccess>
-                    <SettingsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="modules"
-                element={
-                  <ProtectedRoute requireAdminAccess>
-                    <ModulesManagementPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="roles"
-                element={
-                  <ProtectedRoute requireAdminAccess>
-                    <RolesPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="trazabilidad"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
-                    <TrazabilidadPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="role-management"
-                element={
-                  <ProtectedRoute requireAdminAccess>
-                    <RoleManagementPage />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Admin access (pastor or admin — defined by backend has_admin_access flag) */}
+                <Route
+                  path="settings"
+                  element={
+                    <ProtectedRoute requireAdminAccess>
+                      <SettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="modules"
+                  element={
+                    <ProtectedRoute requireAdminAccess>
+                      <ModulesManagementPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="roles"
+                  element={
+                    <ProtectedRoute requireAdminAccess>
+                      <RolesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="trazabilidad"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.staff} requiredRoleName="Staff">
+                      <TrazabilidadPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="role-management"
+                  element={
+                    <ProtectedRoute requireAdminAccess>
+                      <RoleManagementPage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Module-based (member+ but requires module installed) */}
-              <Route
-                path="discipleship"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship">
-                    <DiscipleshipPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="discipleship/goals"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship">
-                    <GoalsDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="zones"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="zones">
-                    <ZonesPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="events"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="events">
-                    <EventsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="music"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
-                    <MusicPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="music/eventos/:id"
-                element={
-                  <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
-                    <MusicEventDetailPage />
-                  </ProtectedRoute>
-                }
-              />
-            </Route>
-          </Routes>
+                {/* Module-based (member+ but requires module installed) */}
+                <Route
+                  path="discipleship"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship">
+                      <DiscipleshipPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="discipleship/goals"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="discipleship">
+                      <GoalsDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="zones"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="zones">
+                      <ZonesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="events"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="events">
+                      <EventsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="music"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
+                      <MusicPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="music/eventos/:id"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
+                      <MusicEventDetailPage />
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
+            </Routes>
+          </Suspense>
         </SetupGuard>
       </BrowserRouter>
     </>
