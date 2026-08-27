@@ -95,7 +95,8 @@ func (h *ReportsAnalyticsHandler) GetUsersReport(c echo.Context) error {
 	})
 }
 
-// GetGrowthReport — new users per month over the last 12 months.
+// GetGrowthReport — new users per month. Defaults to the last 12 months;
+// accepts ?from=YYYY-MM-DD&to=YYYY-MM-DD to filter by a custom range (#2).
 func (h *ReportsAnalyticsHandler) GetGrowthReport(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -106,14 +107,71 @@ func (h *ReportsAnalyticsHandler) GetGrowthReport(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
-	monthly := scanLabelValuesQ(q, `
-		SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS m, count(*)
-		FROM users
-		WHERE church_id = $1
-		  AND created_at >= now() - interval '12 months'
-		GROUP BY 1 ORDER BY 1
-	`, churchID)
+	from, to := c.QueryParam("from"), c.QueryParam("to")
+	var monthly []labelValue
+	if from != "" && to != "" {
+		monthly = scanLabelValuesQ(q, `
+			SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS m, count(*)
+			FROM users
+			WHERE church_id = $1
+			  AND created_at >= $2::date
+			  AND created_at < ($3::date + interval '1 day')
+			GROUP BY 1 ORDER BY 1
+		`, churchID, from, to)
+	} else {
+		monthly = scanLabelValuesQ(q, `
+			SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS m, count(*)
+			FROM users
+			WHERE church_id = $1
+			  AND created_at >= now() - interval '12 months'
+			GROUP BY 1 ORDER BY 1
+		`, churchID)
+	}
 	return c.JSON(http.StatusOK, map[string]any{"monthly": monthly})
+}
+
+// GetGrowthComparison — issue #6: compara el total de usuarios nuevos entre
+// dos rangos de fechas (?a_from&a_to&b_from&b_to) y devuelve la variación %.
+func (h *ReportsAnalyticsHandler) GetGrowthComparison(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
+	aFrom, aTo := c.QueryParam("a_from"), c.QueryParam("a_to")
+	bFrom, bTo := c.QueryParam("b_from"), c.QueryParam("b_to")
+	if aFrom == "" || aTo == "" || bFrom == "" || bTo == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "faltan fechas de ambos períodos"})
+	}
+
+	countInRange := func(from, to string) int {
+		var n int
+		_ = q.QueryRow(`
+			SELECT count(*) FROM users
+			WHERE church_id = $1 AND created_at >= $2::date AND created_at < ($3::date + interval '1 day')
+		`, churchID, from, to).Scan(&n)
+		return n
+	}
+
+	totalA := countInRange(aFrom, aTo)
+	totalB := countInRange(bFrom, bTo)
+
+	var changePct float64
+	if totalA > 0 {
+		changePct = (float64(totalB) - float64(totalA)) / float64(totalA) * 100
+	} else if totalB > 0 {
+		changePct = 100
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"period_a_total": totalA,
+		"period_b_total": totalB,
+		"change_pct":     changePct,
+	})
 }
 
 // GetDemographicsReport — breakdown by age bucket, marital status and role.

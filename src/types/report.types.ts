@@ -18,6 +18,12 @@ export interface GrowthReport {
   monthly: LabelValue[];
 }
 
+export interface GrowthComparison {
+  period_a_total: number;
+  period_b_total: number;
+  change_pct: number;
+}
+
 export interface DemographicsReport {
   by_age: LabelValue[];
   by_marital_status: LabelValue[];
