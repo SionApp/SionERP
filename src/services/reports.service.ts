@@ -7,6 +7,8 @@ import type {
   ReportGeneration,
   ReportType,
   ReportFormat,
+  ReportSchedule,
+  UpsertReportScheduleInput,
 } from '@/types/report.types';
 
 export class ReportsService {
@@ -37,5 +39,21 @@ export class ReportsService {
       `${this.base}/generations`,
       { report_type: reportType, format, title }
     );
+  }
+
+  static getSchedules(): Promise<ReportSchedule[]> {
+    return ApiService.get<ReportSchedule[]>(`${this.base}/schedules`);
+  }
+
+  static createSchedule(input: UpsertReportScheduleInput): Promise<void> {
+    return ApiService.post<void, UpsertReportScheduleInput>(`${this.base}/schedules`, input);
+  }
+
+  static updateSchedule(id: string, input: UpsertReportScheduleInput): Promise<void> {
+    return ApiService.put<void, UpsertReportScheduleInput>(`${this.base}/schedules/${id}`, input);
+  }
+
+  static deleteSchedule(id: string): Promise<void> {
+    return ApiService.delete<void>(`${this.base}/schedules/${id}`);
   }
 }

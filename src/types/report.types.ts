@@ -39,3 +39,26 @@ export interface ReportGeneration {
   generated_by: string;
   generated_at: string;
 }
+
+export type ReportFrequency = 'weekly' | 'monthly';
+
+export interface ReportSchedule {
+  id: string;
+  report_type: ReportType;
+  format: ReportFormat;
+  title: string;
+  frequency: ReportFrequency;
+  recipient_user_ids: string[];
+  active: boolean;
+  next_run_at: string;
+  created_by_name: string;
+}
+
+export interface UpsertReportScheduleInput {
+  report_type: ReportType;
+  format: ReportFormat;
+  title: string;
+  frequency: ReportFrequency;
+  recipient_user_ids: string[];
+  active?: boolean;
+}
