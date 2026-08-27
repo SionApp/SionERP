@@ -88,6 +88,48 @@ export interface UserPreferences {
   updated_at: string;
 }
 
+/**
+ * Los campos de política de contraseña y bloqueo se guardan para referencia.
+ * El login pasa por Supabase Auth directo desde el navegador — el backend Go
+ * todavía no aplica estos valores en el flujo real de autenticación.
+ */
+export interface SecuritySettings {
+  id: string;
+  min_password_length: number;
+  require_uppercase: boolean;
+  require_number: boolean;
+  require_special_char: boolean;
+  password_expiry_days: number | null;
+  max_login_attempts: number;
+  lockout_duration_minutes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Los campos *_api_key son write-only: nunca vuelven del backend con su valor real. */
+export interface IntegrationSettings {
+  id: string;
+  whatsapp_enabled: boolean;
+  whatsapp_phone_number_id: string | null;
+  whatsapp_api_key: string | null;
+  payment_provider: 'none' | 'stripe' | 'mercadopago';
+  payment_api_key: string | null;
+  email_provider: 'none' | 'resend' | 'sendgrid';
+  email_api_key: string | null;
+  crm_webhook_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** El respaldo automático diario corre por GitHub Actions, independiente de esta tabla. */
+export interface BackupSettings {
+  id: string;
+  retention_days: number;
+  notify_email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SettingsAuditLog {
   id: string;
   table_name: string;
@@ -109,3 +151,9 @@ export type UpdateNotificationConfig = Partial<
 export type UpdateUserPreferences = Partial<
   Omit<UserPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'>
 >;
+export type UpdateSecuritySettings = Omit<SecuritySettings, 'id' | 'created_at' | 'updated_at'>;
+export type UpdateIntegrationSettings = Omit<
+  IntegrationSettings,
+  'id' | 'created_at' | 'updated_at'
+>;
+export type UpdateBackupSettings = Omit<BackupSettings, 'id' | 'created_at' | 'updated_at'>;

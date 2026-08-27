@@ -168,6 +168,12 @@ func SetupRoutes(e *echo.Echo) {
 		settings.PUT("/church", handlers.NewSettingsHandler().UpdateChurchInfo)
 		settings.GET("/notifications", handlers.NewSettingsHandler().GetNotificationConfig)
 		settings.PUT("/notifications", handlers.NewSettingsHandler().UpdateNotificationConfig)
+		settings.GET("/security", handlers.NewSettingsHandler().GetSecuritySettings)
+		settings.PUT("/security", handlers.NewSettingsHandler().UpdateSecuritySettings)
+		settings.GET("/integrations", handlers.NewSettingsHandler().GetIntegrationSettings)
+		settings.PUT("/integrations", handlers.NewSettingsHandler().UpdateIntegrationSettings)
+		settings.GET("/backups", handlers.NewSettingsHandler().GetBackupSettings)
+		settings.PUT("/backups", handlers.NewSettingsHandler().UpdateBackupSettings)
 	}
 
 	preferencesHandler := handlers.NewPreferencesHandler()

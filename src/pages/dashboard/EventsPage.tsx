@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -12,6 +12,9 @@ import {
   Users,
   Pencil,
   Check,
+  Image as ImageIcon,
+  Loader2,
+  X,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +53,7 @@ const EMPTY_FORM: CreateEventRequest = {
   isPublished: true,
   maxAttendees: null,
   organizer: '',
+  imageUrl: '',
 };
 
 // ─────────────────────────────────────────────
@@ -86,10 +90,37 @@ function EventFormDialog({
             isPublished: editing.isPublished,
             maxAttendees: editing.maxAttendees,
             organizer: editing.organizer,
+            imageUrl: editing.imageUrl,
           }
         : EMPTY_FORM
     );
   }
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Solo se permiten imágenes');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen no puede superar los 5MB');
+      return;
+    }
+    try {
+      setIsUploadingImage(true);
+      const url = await EventsService.uploadImage(file);
+      setForm(p => ({ ...p, imageUrl: url }));
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Error al subir la imagen');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -138,6 +169,48 @@ function EventFormDialog({
                 placeholder="Describí el evento…"
                 rows={3}
               />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Imagen del evento</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageSelect}
+              />
+              {form.imageUrl ? (
+                <div className="relative w-full max-w-xs">
+                  <img
+                    src={form.imageUrl}
+                    alt="Imagen del evento"
+                    className="w-full h-32 object-cover rounded-lg border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, imageUrl: '' }))}
+                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 shadow"
+                    aria-label="Quitar imagen"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploadingImage}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {isUploadingImage ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                  )}
+                  {isUploadingImage ? 'Subiendo…' : 'Subir imagen'}
+                </Button>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Categoría *</Label>
@@ -274,8 +347,14 @@ function EventCard({
   const going = event.myStatus === 'going';
   return (
     <Card className="group overflow-hidden transition-shadow hover:shadow-lg">
-      <div className={cn('relative flex h-28 items-center justify-center', cat.banner)}>
-        <cat.Icon className="h-10 w-10 text-white/80" />
+      <div
+        className={cn(
+          'relative flex h-28 items-center justify-center bg-cover bg-center',
+          !event.imageUrl && cat.banner
+        )}
+        style={event.imageUrl ? { backgroundImage: `url(${event.imageUrl})` } : undefined}
+      >
+        {!event.imageUrl && <cat.Icon className="h-10 w-10 text-white/80" />}
         <Badge className={cn('absolute right-3 top-3 border-0', cat.chip)}>{cat.label}</Badge>
         {!event.isPublished && (
           <Badge variant="secondary" className="absolute left-3 top-3">

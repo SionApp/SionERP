@@ -1,4 +1,5 @@
 import { ApiService } from './api.service';
+import { supabase } from '@/integrations/supabase/client';
 import type {
   ChurchEvent,
   CreateEventRequest,
@@ -116,6 +117,23 @@ export class EventsService {
 
   static async unregister(eventId: string): Promise<void> {
     await ApiService.delete(`${this.base}/${eventId}/register`);
+  }
+
+  static async uploadImage(file: File): Promise<string> {
+    const fileExt = file.name.split('.').pop();
+    const filePath = `events/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('church-assets')
+      .upload(filePath, file, { cacheControl: '3600', upsert: false });
+    if (uploadError) {
+      throw new Error('Error al subir la imagen');
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('church-assets').getPublicUrl(filePath);
+    return publicUrl;
   }
 
   static async getRegistrations(eventId: string): Promise<EventRegistration[]> {
