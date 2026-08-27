@@ -1,11 +1,17 @@
 import { supabase } from '@/integrations/supabase/client';
 import type {
+  BackupSettings,
   ChurchInfo,
+  IntegrationSettings,
   NotificationConfig,
+  SecuritySettings,
   SettingsAuditLog,
   SystemSettings,
+  UpdateBackupSettings,
   UpdateChurchInfo,
+  UpdateIntegrationSettings,
   UpdateNotificationConfig,
+  UpdateSecuritySettings,
   UpdateSystemSettings,
   UpdateUserPreferences,
   UserPreferences,
@@ -142,6 +148,83 @@ export class SettingsService {
     } catch (error) {
       console.error('Error updating notification config:', error);
       throw new Error('Error al actualizar configuración de notificaciones');
+    }
+  }
+
+  // =====================================================
+  // SECURITY SETTINGS
+  // =====================================================
+
+  static async getSecuritySettings(): Promise<SecuritySettings> {
+    try {
+      return await ApiService.get<SecuritySettings>('/settings/security');
+    } catch (error) {
+      console.error('Error fetching security settings:', error);
+      throw new Error('Error al cargar configuración de seguridad');
+    }
+  }
+
+  static async updateSecuritySettings(updates: UpdateSecuritySettings): Promise<SecuritySettings> {
+    try {
+      return await ApiService.put<SecuritySettings, UpdateSecuritySettings>(
+        '/settings/security',
+        updates
+      );
+    } catch (error) {
+      console.error('Error updating security settings:', error);
+      throw new Error('Error al actualizar configuración de seguridad');
+    }
+  }
+
+  // =====================================================
+  // INTEGRATION SETTINGS
+  // =====================================================
+
+  static async getIntegrationSettings(): Promise<IntegrationSettings> {
+    try {
+      return await ApiService.get<IntegrationSettings>('/settings/integrations');
+    } catch (error) {
+      console.error('Error fetching integration settings:', error);
+      throw new Error('Error al cargar configuración de integraciones');
+    }
+  }
+
+  static async updateIntegrationSettings(
+    updates: UpdateIntegrationSettings
+  ): Promise<IntegrationSettings> {
+    try {
+      return await ApiService.put<IntegrationSettings, UpdateIntegrationSettings>(
+        '/settings/integrations',
+        updates
+      );
+    } catch (error) {
+      console.error('Error updating integration settings:', error);
+      throw new Error('Error al actualizar configuración de integraciones');
+    }
+  }
+
+  // =====================================================
+  // BACKUP SETTINGS
+  // =====================================================
+
+  static async getBackupSettings(): Promise<BackupSettings> {
+    try {
+      return await ApiService.get<BackupSettings>('/settings/backups');
+    } catch (error) {
+      console.error('Error fetching backup settings:', error);
+      throw new Error('Error al cargar configuración de respaldos');
+    }
+  }
+
+  static async updateBackupSettings(updates: UpdateBackupSettings): Promise<BackupSettings> {
+    try {
+      return await ApiService.put<BackupSettings, UpdateBackupSettings>(
+        '/settings/backups',
+        updates
+      );
+    } catch (error) {
+      console.error('Error updating backup settings:', error);
+      throw new Error('Error al actualizar configuración de respaldos');
     }
   }
 

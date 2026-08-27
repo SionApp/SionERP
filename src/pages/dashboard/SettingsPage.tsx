@@ -23,7 +23,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { applyBrandColors } from '@/hooks/useBrandColors';
 import { SettingsService } from '@/services/settings.service';
-import type { ChurchInfo, NotificationConfig, SystemSettings } from '@/types/settings.types';
+import type {
+  BackupSettings,
+  ChurchInfo,
+  IntegrationSettings,
+  NotificationConfig,
+  SecuritySettings,
+  SystemSettings,
+} from '@/types/settings.types';
 import {
   Bell,
   ChevronLeft,
@@ -32,6 +39,7 @@ import {
   Database,
   Loader2,
   Map,
+  Plug,
   RotateCcw,
   Save,
   Settings,
@@ -46,6 +54,7 @@ const SECTIONS = [
   { key: 'zones', label: 'Zonas', icon: Map },
   { key: 'notifications', label: 'Notificaciones', icon: Bell },
   { key: 'security', label: 'Seguridad', icon: Shield },
+  { key: 'integrations', label: 'Integraciones', icon: Plug },
   { key: 'backup', label: 'Respaldos', icon: Database },
 ] as const;
 
@@ -63,6 +72,9 @@ const SettingsPage = () => {
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [churchInfo, setChurchInfo] = useState<ChurchInfo | null>(null);
   const [notificationConfig, setNotificationConfig] = useState<NotificationConfig | null>(null);
+  const [securitySettings, setSecuritySettings] = useState<SecuritySettings | null>(null);
+  const [integrationSettings, setIntegrationSettings] = useState<IntegrationSettings | null>(null);
+  const [backupSettings, setBackupSettings] = useState<BackupSettings | null>(null);
 
   // Cargar datos al montar
   useEffect(() => {
@@ -72,14 +84,20 @@ const SettingsPage = () => {
   const loadAllSettings = async () => {
     try {
       setIsLoading(true);
-      const [system, church, notifications] = await Promise.all([
+      const [system, church, notifications, security, integrations, backups] = await Promise.all([
         SettingsService.getSystemSettings(),
         SettingsService.getChurchInfo(),
         SettingsService.getNotificationConfig(),
+        SettingsService.getSecuritySettings(),
+        SettingsService.getIntegrationSettings(),
+        SettingsService.getBackupSettings(),
       ]);
       setSystemSettings(system);
       setChurchInfo(church);
       setNotificationConfig(notifications);
+      setSecuritySettings(security);
+      setIntegrationSettings(integrations);
+      setBackupSettings(backups);
     } catch (error: unknown) {
       console.error('Error loading settings:', error);
       toast.error('Error al cargar configuraciones');
@@ -121,6 +139,48 @@ const SettingsPage = () => {
       setIsSaving(true);
       await SettingsService.updateNotificationConfig(notificationConfig);
       toast.success('Configuración de notificaciones guardada');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Error al guardar');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveSecuritySettings = async () => {
+    if (!securitySettings) return;
+    try {
+      setIsSaving(true);
+      const updated = await SettingsService.updateSecuritySettings(securitySettings);
+      setSecuritySettings(updated);
+      toast.success('Política de seguridad guardada');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Error al guardar');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveIntegrationSettings = async () => {
+    if (!integrationSettings) return;
+    try {
+      setIsSaving(true);
+      const updated = await SettingsService.updateIntegrationSettings(integrationSettings);
+      setIntegrationSettings(updated);
+      toast.success('Integraciones guardadas');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Error al guardar');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveBackupSettings = async () => {
+    if (!backupSettings) return;
+    try {
+      setIsSaving(true);
+      const updated = await SettingsService.updateBackupSettings(backupSettings);
+      setBackupSettings(updated);
+      toast.success('Política de respaldo guardada');
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Error al guardar');
     } finally {
@@ -935,6 +995,327 @@ const SettingsPage = () => {
             {isSaving ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </div>
+
+        <Separator />
+
+        {securitySettings && (
+          <>
+            <div className="rounded-lg border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 p-3 sm:p-4">
+              <p className="text-sm text-amber-800 dark:text-amber-300">
+                El login pasa directo por el proveedor de autenticación — estos valores todavía no
+                se aplican automáticamente al iniciar sesión, quedan guardados como política de
+                referencia.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="sec-minlen">Largo mínimo de contraseña</Label>
+                <Input
+                  id="sec-minlen"
+                  type="number"
+                  min={6}
+                  max={64}
+                  value={securitySettings.min_password_length}
+                  onChange={e =>
+                    setSecuritySettings({
+                      ...securitySettings,
+                      min_password_length: parseInt(e.target.value) || 6,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sec-expiry">Vencimiento de contraseña (días)</Label>
+                <Input
+                  id="sec-expiry"
+                  type="number"
+                  min={0}
+                  placeholder="Nunca expira"
+                  value={securitySettings.password_expiry_days ?? ''}
+                  onChange={e =>
+                    setSecuritySettings({
+                      ...securitySettings,
+                      password_expiry_days: e.target.value ? parseInt(e.target.value) : null,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sec-attempts">Intentos de login antes de bloquear</Label>
+                <Input
+                  id="sec-attempts"
+                  type="number"
+                  min={3}
+                  max={20}
+                  value={securitySettings.max_login_attempts}
+                  onChange={e =>
+                    setSecuritySettings({
+                      ...securitySettings,
+                      max_login_attempts: parseInt(e.target.value) || 5,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sec-lockout">Duración del bloqueo (minutos)</Label>
+                <Input
+                  id="sec-lockout"
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={securitySettings.lockout_duration_minutes}
+                  onChange={e =>
+                    setSecuritySettings({
+                      ...securitySettings,
+                      lockout_duration_minutes: parseInt(e.target.value) || 15,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                {
+                  key: 'require_uppercase' as const,
+                  label: 'Requerir mayúscula',
+                },
+                { key: 'require_number' as const, label: 'Requerir número' },
+                {
+                  key: 'require_special_char' as const,
+                  label: 'Requerir carácter especial',
+                },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between p-4 border rounded-lg">
+                  <h4 className="font-medium">{label}</h4>
+                  <Switch
+                    checked={securitySettings[key]}
+                    onCheckedChange={checked =>
+                      setSecuritySettings({ ...securitySettings, [key]: checked })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSaveSecuritySettings} disabled={isSaving}>
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {isSaving ? 'Guardando...' : 'Guardar política de seguridad'}
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const integrationsContent = (
+    <Card className={isMobileApp ? 'border-none shadow-none' : undefined}>
+      {!isMobileApp && (
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Plug className="w-5 h-5" />
+            Integraciones
+          </CardTitle>
+          <CardDescription>Conectá servicios externos</CardDescription>
+        </CardHeader>
+      )}
+      <CardContent
+        className={isMobileApp ? 'space-y-4 p-0' : 'space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6'}
+      >
+        {integrationSettings && (
+          <>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h4 className="font-medium">WhatsApp Business</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Aún no hay un cliente conectado a esta key — queda guardada para cuando se
+                    construya la integración (issue #8).
+                  </p>
+                </div>
+                <Switch
+                  checked={integrationSettings.whatsapp_enabled}
+                  onCheckedChange={checked =>
+                    setIntegrationSettings({ ...integrationSettings, whatsapp_enabled: checked })
+                  }
+                />
+              </div>
+              {integrationSettings.whatsapp_enabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="wsp-phone">Phone Number ID</Label>
+                    <Input
+                      id="wsp-phone"
+                      value={integrationSettings.whatsapp_phone_number_id ?? ''}
+                      onChange={e =>
+                        setIntegrationSettings({
+                          ...integrationSettings,
+                          whatsapp_phone_number_id: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wsp-key">API Key</Label>
+                    <Input
+                      id="wsp-key"
+                      type="password"
+                      placeholder={
+                        integrationSettings.whatsapp_api_key ? '••••••••' : 'Sin configurar'
+                      }
+                      onChange={e =>
+                        setIntegrationSettings({
+                          ...integrationSettings,
+                          whatsapp_api_key: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Pagos</h4>
+              <p className="text-sm text-muted-foreground">
+                Sin pasarela conectada todavía (issue #10) — elegir proveedor implica costo y
+                compliance, es una decisión de negocio pendiente.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Proveedor</Label>
+                  <Select
+                    value={integrationSettings.payment_provider}
+                    onValueChange={value =>
+                      setIntegrationSettings({
+                        ...integrationSettings,
+                        payment_provider: value as IntegrationSettings['payment_provider'],
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ninguno</SelectItem>
+                      <SelectItem value="stripe">Stripe</SelectItem>
+                      <SelectItem value="mercadopago">MercadoPago</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {integrationSettings.payment_provider !== 'none' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pay-key">API Key</Label>
+                    <Input
+                      id="pay-key"
+                      type="password"
+                      placeholder={
+                        integrationSettings.payment_api_key ? '••••••••' : 'Sin configurar'
+                      }
+                      onChange={e =>
+                        setIntegrationSettings({
+                          ...integrationSettings,
+                          payment_api_key: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Correos masivos</h4>
+              <p className="text-sm text-muted-foreground">
+                Sin proveedor conectado todavía (issue #9).
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Proveedor</Label>
+                  <Select
+                    value={integrationSettings.email_provider}
+                    onValueChange={value =>
+                      setIntegrationSettings({
+                        ...integrationSettings,
+                        email_provider: value as IntegrationSettings['email_provider'],
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ninguno</SelectItem>
+                      <SelectItem value="resend">Resend</SelectItem>
+                      <SelectItem value="sendgrid">SendGrid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {integrationSettings.email_provider !== 'none' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="email-key">API Key</Label>
+                    <Input
+                      id="email-key"
+                      type="password"
+                      placeholder={
+                        integrationSettings.email_api_key ? '••••••••' : 'Sin configurar'
+                      }
+                      onChange={e =>
+                        setIntegrationSettings({
+                          ...integrationSettings,
+                          email_api_key: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="crm-webhook">Webhook de CRM externo</Label>
+              <p className="text-sm text-muted-foreground">
+                Sin CRM identificado todavía (issue #11) — dejá esto vacío hasta tener uno concreto
+                para integrar.
+              </p>
+              <Input
+                id="crm-webhook"
+                placeholder="https://..."
+                value={integrationSettings.crm_webhook_url ?? ''}
+                onChange={e =>
+                  setIntegrationSettings({
+                    ...integrationSettings,
+                    crm_webhook_url: e.target.value,
+                  })
+                }
+              />
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSaveIntegrationSettings} disabled={isSaving}>
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {isSaving ? 'Guardando...' : 'Guardar integraciones'}
+              </Button>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -953,26 +1334,80 @@ const SettingsPage = () => {
       <CardContent
         className={isMobileApp ? 'space-y-4 p-0' : 'space-y-3 sm:space-y-6 p-2 sm:p-3 md:p-6'}
       >
-        <div className="rounded-lg border border-dashed p-6 text-center space-y-3">
-          <Database className="w-10 h-10 mx-auto text-muted-foreground/50" />
-          <div>
-            <h4 className="font-medium">Respaldos en desarrollo</h4>
-            <p className="text-sm text-muted-foreground mt-1">
-              La exportación e importación de datos estará disponible en una próxima versión. Por
-              ahora, Supabase realiza respaldos automáticos diariamente.
-            </p>
+        <div className="rounded-lg border p-4 sm:p-6 space-y-3">
+          <div className="flex items-center gap-3">
+            <Database className="w-8 h-8 text-emerald-600" />
+            <div>
+              <h4 className="font-medium">Respaldo automático diario</h4>
+              <p className="text-sm text-muted-foreground">
+                Corre solo, todos los días, sin intervención manual.
+              </p>
+            </div>
           </div>
-          <Badge variant="outline">Supabase Backup: Activo</Badge>
+          <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+            Activo — GitHub Actions + Backblaze B2
+          </Badge>
         </div>
 
         <div className="p-4 bg-muted rounded-lg space-y-2">
-          <h4 className="font-medium text-sm">Información de respaldo</h4>
+          <h4 className="font-medium text-sm">Cómo funciona</h4>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Respaldo automático cada 24 horas vía Supabase</li>
-            <li>Retención de 7 días en plan gratuito</li>
-            <li>Restauración disponible desde el panel de Supabase</li>
+            <li>Dump completo de la base todos los días a las 6:17 UTC</li>
+            <li>Verificado: se chequea que el archivo sea un dump válido antes de subirlo</li>
+            <li>Se sube a Backblaze B2 junto a su checksum, y se verifica la subida</li>
+            <li>Restauración: a pedido, desde el archivo más reciente en B2</li>
           </ul>
         </div>
+
+        {backupSettings && (
+          <>
+            <Separator />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="bkp-retention">Retención (días)</Label>
+                <Input
+                  id="bkp-retention"
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={backupSettings.retention_days}
+                  onChange={e =>
+                    setBackupSettings({
+                      ...backupSettings,
+                      retention_days: parseInt(e.target.value) || 30,
+                    })
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Referencia para configurar a mano la regla de retención en B2 — no la cambia
+                  automáticamente.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bkp-email">Avisar por email si falla un respaldo</Label>
+                <Input
+                  id="bkp-email"
+                  type="email"
+                  placeholder="tu@iglesia.com"
+                  value={backupSettings.notify_email ?? ''}
+                  onChange={e =>
+                    setBackupSettings({ ...backupSettings, notify_email: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSaveBackupSettings} disabled={isSaving}>
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {isSaving ? 'Guardando...' : 'Guardar política de respaldo'}
+              </Button>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -983,6 +1418,7 @@ const SettingsPage = () => {
     zones: zonesContent,
     notifications: notificationsContent,
     security: securityContent,
+    integrations: integrationsContent,
     backup: backupContent,
   };
 

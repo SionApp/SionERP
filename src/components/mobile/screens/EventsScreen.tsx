@@ -43,8 +43,14 @@ function MobileEventCard({
   const going = event.myStatus === 'going';
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className={cn('relative flex h-20 items-center justify-center', cat.banner)}>
-        <cat.Icon className="h-8 w-8 text-white/80" />
+      <div
+        className={cn(
+          'relative flex h-20 items-center justify-center bg-cover bg-center',
+          !event.imageUrl && cat.banner
+        )}
+        style={event.imageUrl ? { backgroundImage: `url(${event.imageUrl})` } : undefined}
+      >
+        {!event.imageUrl && <cat.Icon className="h-8 w-8 text-white/80" />}
         <Badge className={cn('absolute right-3 top-3 border-0 text-xs', cat.chip)}>
           {cat.label}
         </Badge>

@@ -387,5 +387,267 @@ func (h *SettingsHandler) UpdateNotificationConfig(c echo.Context) error {
 	return h.GetNotificationConfig(c)
 }
 
+// ─── Seguridad ──────────────────────────────────────────────────────────────
+
+// GetSecuritySettings obtiene la política de seguridad de la iglesia,
+// creándola con valores por defecto si todavía no existe.
+func (h *SettingsHandler) GetSecuritySettings(c echo.Context) error {
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	var s models.SecuritySettings
+	scanErr := q.QueryRow(`
+		SELECT id, min_password_length, require_uppercase, require_number, require_special_char,
+			password_expiry_days, max_login_attempts, lockout_duration_minutes, created_at, updated_at
+		FROM security_settings WHERE church_id = $1
+	`, churchID).Scan(
+		&s.ID, &s.MinPasswordLength, &s.RequireUppercase, &s.RequireNumber, &s.RequireSpecialChar,
+		&s.PasswordExpiryDays, &s.MaxLoginAttempts, &s.LockoutDurationMinutes, &s.CreatedAt, &s.UpdatedAt,
+	)
+	if scanErr == sql.ErrNoRows {
+		_, err = q.Exec("INSERT INTO security_settings (church_id) VALUES ($1)", churchID)
+		if err != nil {
+			c.Logger().Error("Error creating default security settings:", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get security settings"})
+		}
+		return h.GetSecuritySettings(c)
+	} else if scanErr != nil {
+		c.Logger().Error("Error fetching security settings:", scanErr)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get security settings"})
+	}
+
+	return c.JSON(http.StatusOK, s)
+}
+
+type UpdateSecuritySettingsRequest struct {
+	MinPasswordLength      int  `json:"min_password_length" validate:"required,min=6,max=64"`
+	RequireUppercase       bool `json:"require_uppercase"`
+	RequireNumber          bool `json:"require_number"`
+	RequireSpecialChar     bool `json:"require_special_char"`
+	PasswordExpiryDays     *int `json:"password_expiry_days"`
+	MaxLoginAttempts       int  `json:"max_login_attempts" validate:"required,min=3,max=20"`
+	LockoutDurationMinutes int  `json:"lockout_duration_minutes" validate:"required,min=1,max=1440"`
+}
+
+// UpdateSecuritySettings actualiza la política de seguridad.
+func (h *SettingsHandler) UpdateSecuritySettings(c echo.Context) error {
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	var req UpdateSecuritySettingsRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+	if err := validate.Struct(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Validación fallida: " + err.Error()})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	_, err = q.Exec(`
+		INSERT INTO security_settings (
+			church_id, min_password_length, require_uppercase, require_number, require_special_char,
+			password_expiry_days, max_login_attempts, lockout_duration_minutes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (church_id) DO UPDATE SET
+			min_password_length = EXCLUDED.min_password_length,
+			require_uppercase = EXCLUDED.require_uppercase,
+			require_number = EXCLUDED.require_number,
+			require_special_char = EXCLUDED.require_special_char,
+			password_expiry_days = EXCLUDED.password_expiry_days,
+			max_login_attempts = EXCLUDED.max_login_attempts,
+			lockout_duration_minutes = EXCLUDED.lockout_duration_minutes
+	`, churchID, req.MinPasswordLength, req.RequireUppercase, req.RequireNumber, req.RequireSpecialChar,
+		req.PasswordExpiryDays, req.MaxLoginAttempts, req.LockoutDurationMinutes)
+	if err != nil {
+		c.Logger().Error("Error updating security settings:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update security settings"})
+	}
+
+	return h.GetSecuritySettings(c)
+}
+
+// ─── Integraciones ──────────────────────────────────────────────────────────
+
+// GetIntegrationSettings obtiene la config de integraciones, sin exponer
+// nunca las API keys guardadas (write-only) — solo si están seteadas o no.
+func (h *SettingsHandler) GetIntegrationSettings(c echo.Context) error {
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	var s models.IntegrationSettings
+	scanErr := q.QueryRow(`
+		SELECT id, whatsapp_enabled, whatsapp_phone_number_id, whatsapp_api_key,
+			payment_provider, payment_api_key, email_provider, email_api_key,
+			crm_webhook_url, created_at, updated_at
+		FROM integration_settings WHERE church_id = $1
+	`, churchID).Scan(
+		&s.ID, &s.WhatsappEnabled, &s.WhatsappPhoneNumberID, &s.WhatsappAPIKey,
+		&s.PaymentProvider, &s.PaymentAPIKey, &s.EmailProvider, &s.EmailAPIKey,
+		&s.CRMWebhookURL, &s.CreatedAt, &s.UpdatedAt,
+	)
+	if scanErr == sql.ErrNoRows {
+		_, err = q.Exec("INSERT INTO integration_settings (church_id) VALUES ($1)", churchID)
+		if err != nil {
+			c.Logger().Error("Error creating default integration settings:", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get integration settings"})
+		}
+		return h.GetIntegrationSettings(c)
+	} else if scanErr != nil {
+		c.Logger().Error("Error fetching integration settings:", scanErr)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get integration settings"})
+	}
+
+	// Write-only: nunca devolver las keys guardadas, solo si hay una seteada.
+	s.WhatsappAPIKey = models.NullString{}
+	s.PaymentAPIKey = models.NullString{}
+	s.EmailAPIKey = models.NullString{}
+
+	return c.JSON(http.StatusOK, s)
+}
+
+type UpdateIntegrationSettingsRequest struct {
+	WhatsappEnabled       bool   `json:"whatsapp_enabled"`
+	WhatsappPhoneNumberID string `json:"whatsapp_phone_number_id"`
+	WhatsappAPIKey        string `json:"whatsapp_api_key"`
+	PaymentProvider       string `json:"payment_provider" validate:"required,oneof=none stripe mercadopago"`
+	PaymentAPIKey         string `json:"payment_api_key"`
+	EmailProvider         string `json:"email_provider" validate:"required,oneof=none resend sendgrid"`
+	EmailAPIKey           string `json:"email_api_key"`
+	CRMWebhookURL         string `json:"crm_webhook_url"`
+}
+
+// UpdateIntegrationSettings actualiza la config de integraciones. Los campos
+// *_api_key solo se sobreescriben si vienen no vacíos — mandar "" preserva
+// la key ya guardada en vez de borrarla (el cliente nunca la ve para poder
+// reenviarla intacta).
+func (h *SettingsHandler) UpdateIntegrationSettings(c echo.Context) error {
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	var req UpdateIntegrationSettingsRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+	if err := validate.Struct(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Validación fallida: " + err.Error()})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	_, err = q.Exec(`
+		INSERT INTO integration_settings (
+			church_id, whatsapp_enabled, whatsapp_phone_number_id, whatsapp_api_key,
+			payment_provider, payment_api_key, email_provider, email_api_key, crm_webhook_url
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (church_id) DO UPDATE SET
+			whatsapp_enabled = EXCLUDED.whatsapp_enabled,
+			whatsapp_phone_number_id = COALESCE(NULLIF(EXCLUDED.whatsapp_phone_number_id, ''), integration_settings.whatsapp_phone_number_id),
+			whatsapp_api_key = COALESCE(NULLIF(EXCLUDED.whatsapp_api_key, ''), integration_settings.whatsapp_api_key),
+			payment_provider = EXCLUDED.payment_provider,
+			payment_api_key = COALESCE(NULLIF(EXCLUDED.payment_api_key, ''), integration_settings.payment_api_key),
+			email_provider = EXCLUDED.email_provider,
+			email_api_key = COALESCE(NULLIF(EXCLUDED.email_api_key, ''), integration_settings.email_api_key),
+			crm_webhook_url = COALESCE(NULLIF(EXCLUDED.crm_webhook_url, ''), integration_settings.crm_webhook_url)
+	`, churchID, req.WhatsappEnabled, nullIfEmpty(req.WhatsappPhoneNumberID), nullIfEmpty(req.WhatsappAPIKey),
+		req.PaymentProvider, nullIfEmpty(req.PaymentAPIKey), req.EmailProvider, nullIfEmpty(req.EmailAPIKey),
+		nullIfEmpty(req.CRMWebhookURL))
+	if err != nil {
+		c.Logger().Error("Error updating integration settings:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update integration settings"})
+	}
+
+	return h.GetIntegrationSettings(c)
+}
+
+// ─── Respaldos ──────────────────────────────────────────────────────────────
+
+// GetBackupSettings obtiene la política de respaldo declarada por la iglesia.
+func (h *SettingsHandler) GetBackupSettings(c echo.Context) error {
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	var s models.BackupSettings
+	scanErr := q.QueryRow(`
+		SELECT id, retention_days, notify_email, created_at, updated_at
+		FROM backup_settings WHERE church_id = $1
+	`, churchID).Scan(&s.ID, &s.RetentionDays, &s.NotifyEmail, &s.CreatedAt, &s.UpdatedAt)
+	if scanErr == sql.ErrNoRows {
+		_, err = q.Exec("INSERT INTO backup_settings (church_id) VALUES ($1)", churchID)
+		if err != nil {
+			c.Logger().Error("Error creating default backup settings:", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get backup settings"})
+		}
+		return h.GetBackupSettings(c)
+	} else if scanErr != nil {
+		c.Logger().Error("Error fetching backup settings:", scanErr)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get backup settings"})
+	}
+
+	return c.JSON(http.StatusOK, s)
+}
+
+type UpdateBackupSettingsRequest struct {
+	RetentionDays int    `json:"retention_days" validate:"required,min=1,max=3650"`
+	NotifyEmail   string `json:"notify_email"`
+}
+
+// UpdateBackupSettings actualiza la política de respaldo declarada.
+func (h *SettingsHandler) UpdateBackupSettings(c echo.Context) error {
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	var req UpdateBackupSettingsRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+	if err := validate.Struct(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Validación fallida: " + err.Error()})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	_, err = q.Exec(`
+		INSERT INTO backup_settings (church_id, retention_days, notify_email)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (church_id) DO UPDATE SET
+			retention_days = EXCLUDED.retention_days,
+			notify_email = EXCLUDED.notify_email
+	`, churchID, req.RetentionDays, nullIfEmpty(req.NotifyEmail))
+	if err != nil {
+		c.Logger().Error("Error updating backup settings:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update backup settings"})
+	}
+
+	return h.GetBackupSettings(c)
+}
+
 // ensure config is used (imported for GetDB usage in goroutines elsewhere)
 var _ = config.GetDB

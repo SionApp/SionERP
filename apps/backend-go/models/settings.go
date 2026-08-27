@@ -89,85 +89,131 @@ func (ni *NullInt64) UnmarshalJSON(data []byte) error {
 
 // SystemSettings representa la configuración del sistema
 type SystemSettings struct {
-	ID                    string    `json:"id" db:"id"`
-	SiteName              string    `json:"site_name" db:"site_name"`
+	ID                    string     `json:"id" db:"id"`
+	SiteName              string     `json:"site_name" db:"site_name"`
 	SiteVersion           NullString `json:"site_version" db:"site_version"`
-	MaintenanceMode       bool      `json:"maintenance_mode" db:"maintenance_mode"`
-	AllowRegistrations    bool      `json:"allow_registrations" db:"allow_registrations"`
-	MaxUsersPerGroup      NullInt64 `json:"max_users_per_group" db:"max_users_per_group"`
-	SessionTimeoutMinutes NullInt64 `json:"session_timeout_minutes" db:"session_timeout_minutes"`
+	MaintenanceMode       bool       `json:"maintenance_mode" db:"maintenance_mode"`
+	AllowRegistrations    bool       `json:"allow_registrations" db:"allow_registrations"`
+	MaxUsersPerGroup      NullInt64  `json:"max_users_per_group" db:"max_users_per_group"`
+	SessionTimeoutMinutes NullInt64  `json:"session_timeout_minutes" db:"session_timeout_minutes"`
 	DefaultTheme          NullString `json:"default_theme" db:"default_theme"`
 	DefaultLanguage       NullString `json:"default_language" db:"default_language"`
 	Timezone              NullString `json:"timezone" db:"timezone"`
-	AnimationsEnabled     bool      `json:"animations_enabled" db:"animations_enabled"`
-	SidebarCollapsed      bool      `json:"sidebar_collapsed" db:"sidebar_collapsed"`
-	CreatedAt             time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at" db:"updated_at"`
+	AnimationsEnabled     bool       `json:"animations_enabled" db:"animations_enabled"`
+	SidebarCollapsed      bool       `json:"sidebar_collapsed" db:"sidebar_collapsed"`
+	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // ChurchInfo representa la información de la iglesia
 type ChurchInfo struct {
-	ID             string         `json:"id" db:"id"`
-	Name           string         `json:"name" db:"name"`
-	PastorName     NullString `json:"pastor_name" db:"pastor_name"`
-	Description    NullString `json:"description" db:"description"`
-	Mission        NullString `json:"mission" db:"mission"`
-	Vision         NullString `json:"vision" db:"vision"`
-	Address        NullString `json:"address" db:"address"`
-	Phone          NullString `json:"phone" db:"phone"`
-	Email          NullString `json:"email" db:"email"`
-	Website        NullString `json:"website" db:"website"`
-	LogoURL        NullString `json:"logo_url" db:"logo_url"`
-	BannerURL      NullString `json:"banner_url" db:"banner_url"`
-	PrimaryColor   NullString `json:"primary_color" db:"primary_color"`
-	SecondaryColor NullString `json:"secondary_color" db:"secondary_color"`
-	SocialFacebook NullString `json:"social_facebook" db:"social_facebook"`
+	ID              string     `json:"id" db:"id"`
+	Name            string     `json:"name" db:"name"`
+	PastorName      NullString `json:"pastor_name" db:"pastor_name"`
+	Description     NullString `json:"description" db:"description"`
+	Mission         NullString `json:"mission" db:"mission"`
+	Vision          NullString `json:"vision" db:"vision"`
+	Address         NullString `json:"address" db:"address"`
+	Phone           NullString `json:"phone" db:"phone"`
+	Email           NullString `json:"email" db:"email"`
+	Website         NullString `json:"website" db:"website"`
+	LogoURL         NullString `json:"logo_url" db:"logo_url"`
+	BannerURL       NullString `json:"banner_url" db:"banner_url"`
+	PrimaryColor    NullString `json:"primary_color" db:"primary_color"`
+	SecondaryColor  NullString `json:"secondary_color" db:"secondary_color"`
+	SocialFacebook  NullString `json:"social_facebook" db:"social_facebook"`
 	SocialInstagram NullString `json:"social_instagram" db:"social_instagram"`
-	SocialYoutube  NullString `json:"social_youtube" db:"social_youtube"`
-	SocialTwitter  NullString `json:"social_twitter" db:"social_twitter"`
-	ServiceTimes   NullString `json:"service_times" db:"service_times"` // JSON string
-	CreatedAt      time.Time      `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at" db:"updated_at"`
+	SocialYoutube   NullString `json:"social_youtube" db:"social_youtube"`
+	SocialTwitter   NullString `json:"social_twitter" db:"social_twitter"`
+	ServiceTimes    NullString `json:"service_times" db:"service_times"` // JSON string
+	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // NotificationConfig representa la configuración de notificaciones
 type NotificationConfig struct {
-	ID                      string    `json:"id" db:"id"`
-	EmailEnabled            bool      `json:"email_enabled" db:"email_enabled"`
-	SMSEnabled              bool      `json:"sms_enabled" db:"sms_enabled"`
-	PushEnabled             bool      `json:"push_enabled" db:"push_enabled"`
-	NewUserNotifications    bool      `json:"new_user_notifications" db:"new_user_notifications"`
-	RoleChangeNotifications bool      `json:"role_change_notifications" db:"role_change_notifications"`
-	WeeklyReports           bool      `json:"weekly_reports" db:"weekly_reports"`
-	EventReminders          bool      `json:"event_reminders" db:"event_reminders"`
-	ImportantMessages       bool      `json:"important_messages" db:"important_messages"`
+	ID                      string     `json:"id" db:"id"`
+	EmailEnabled            bool       `json:"email_enabled" db:"email_enabled"`
+	SMSEnabled              bool       `json:"sms_enabled" db:"sms_enabled"`
+	PushEnabled             bool       `json:"push_enabled" db:"push_enabled"`
+	NewUserNotifications    bool       `json:"new_user_notifications" db:"new_user_notifications"`
+	RoleChangeNotifications bool       `json:"role_change_notifications" db:"role_change_notifications"`
+	WeeklyReports           bool       `json:"weekly_reports" db:"weekly_reports"`
+	EventReminders          bool       `json:"event_reminders" db:"event_reminders"`
+	ImportantMessages       bool       `json:"important_messages" db:"important_messages"`
 	SMTPHost                NullString `json:"smtp_host" db:"smtp_host"`
 	SMTPPort                NullInt64  `json:"smtp_port" db:"smtp_port"`
 	SMTPUser                NullString `json:"smtp_user" db:"smtp_user"`
 	SMTPPassword            NullString `json:"smtp_password" db:"smtp_password"`
 	SMTPFromEmail           NullString `json:"smtp_from_email" db:"smtp_from_email"`
 	SMTPFromName            NullString `json:"smtp_from_name" db:"smtp_from_name"`
-	CreatedAt               time.Time      `json:"created_at" db:"created_at"`
-	UpdatedAt               time.Time      `json:"updated_at" db:"updated_at"`
+	CreatedAt               time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt               time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// SecuritySettings representa la política de seguridad de la iglesia.
+// Nota: min_password_length/require_*/max_login_attempts/lockout_duration_minutes
+// se guardan para referencia, pero el login pasa por Supabase Auth (GoTrue)
+// directo desde el navegador — el backend Go nunca ve la contraseña, así que
+// estos valores todavía NO se aplican automáticamente en el flujo de login.
+type SecuritySettings struct {
+	ID                     string    `json:"id" db:"id"`
+	MinPasswordLength      int       `json:"min_password_length" db:"min_password_length"`
+	RequireUppercase       bool      `json:"require_uppercase" db:"require_uppercase"`
+	RequireNumber          bool      `json:"require_number" db:"require_number"`
+	RequireSpecialChar     bool      `json:"require_special_char" db:"require_special_char"`
+	PasswordExpiryDays     NullInt64 `json:"password_expiry_days" db:"password_expiry_days"`
+	MaxLoginAttempts       int       `json:"max_login_attempts" db:"max_login_attempts"`
+	LockoutDurationMinutes int       `json:"lockout_duration_minutes" db:"lockout_duration_minutes"`
+	CreatedAt              time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// IntegrationSettings representa las credenciales de integraciones externas.
+// Los campos *_api_key son write-only: nunca se devuelven al cliente una vez
+// guardados (mismo criterio que SMTPPassword en NotificationConfig).
+type IntegrationSettings struct {
+	ID                    string     `json:"id" db:"id"`
+	WhatsappEnabled       bool       `json:"whatsapp_enabled" db:"whatsapp_enabled"`
+	WhatsappPhoneNumberID NullString `json:"whatsapp_phone_number_id" db:"whatsapp_phone_number_id"`
+	WhatsappAPIKey        NullString `json:"whatsapp_api_key" db:"whatsapp_api_key"`
+	PaymentProvider       string     `json:"payment_provider" db:"payment_provider"`
+	PaymentAPIKey         NullString `json:"payment_api_key" db:"payment_api_key"`
+	EmailProvider         string     `json:"email_provider" db:"email_provider"`
+	EmailAPIKey           NullString `json:"email_api_key" db:"email_api_key"`
+	CRMWebhookURL         NullString `json:"crm_webhook_url" db:"crm_webhook_url"`
+	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// BackupSettings representa la política de respaldo declarada por la iglesia.
+// El respaldo automático diario corre por GitHub Actions (.github/workflows/
+// db-backup.yml) independientemente de esta tabla — retention_days es la
+// referencia para configurar a mano la lifecycle rule del bucket de B2.
+type BackupSettings struct {
+	ID            string     `json:"id" db:"id"`
+	RetentionDays int        `json:"retention_days" db:"retention_days"`
+	NotifyEmail   NullString `json:"notify_email" db:"notify_email"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // UserPreferences representa las preferencias del usuario
 type UserPreferences struct {
-	ID                  string         `json:"id" db:"id"`
-	UserID              string         `json:"user_id" db:"user_id"`
-	Theme               NullString `json:"theme" db:"theme"`
-	Language            NullString `json:"language" db:"language"`
-	Timezone            NullString `json:"timezone" db:"timezone"`
-	ProfileVisibility   NullString `json:"profile_visibility" db:"profile_visibility"`
-	EmailNotifications  bool           `json:"email_notifications" db:"email_notifications"`
-	PushNotifications   bool           `json:"push_notifications" db:"push_notifications"`
-	SMSNotifications    bool           `json:"sms_notifications" db:"sms_notifications"`
-	WhatsAppNotifications bool         `json:"whatsapp_notifications" db:"whatsapp_notifications"`
-	EventReminders      bool           `json:"event_reminders" db:"event_reminders"`
-	WeeklyNewsletter    bool           `json:"weekly_newsletter" db:"weekly_newsletter"`
-	ShowEmail           bool           `json:"show_email" db:"show_email"`
-	ShowPhone           bool           `json:"show_phone" db:"show_phone"`
-	CreatedAt           time.Time      `json:"created_at" db:"created_at"`
-	UpdatedAt           time.Time      `json:"updated_at" db:"updated_at"`
+	ID                    string     `json:"id" db:"id"`
+	UserID                string     `json:"user_id" db:"user_id"`
+	Theme                 NullString `json:"theme" db:"theme"`
+	Language              NullString `json:"language" db:"language"`
+	Timezone              NullString `json:"timezone" db:"timezone"`
+	ProfileVisibility     NullString `json:"profile_visibility" db:"profile_visibility"`
+	EmailNotifications    bool       `json:"email_notifications" db:"email_notifications"`
+	PushNotifications     bool       `json:"push_notifications" db:"push_notifications"`
+	SMSNotifications      bool       `json:"sms_notifications" db:"sms_notifications"`
+	WhatsAppNotifications bool       `json:"whatsapp_notifications" db:"whatsapp_notifications"`
+	EventReminders        bool       `json:"event_reminders" db:"event_reminders"`
+	WeeklyNewsletter      bool       `json:"weekly_newsletter" db:"weekly_newsletter"`
+	ShowEmail             bool       `json:"show_email" db:"show_email"`
+	ShowPhone             bool       `json:"show_phone" db:"show_phone"`
+	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
 }
-
