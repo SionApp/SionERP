@@ -349,12 +349,20 @@ function EventCard({
     <Card className="group overflow-hidden transition-shadow hover:shadow-lg">
       <div
         className={cn(
-          'relative flex h-28 items-center justify-center bg-cover bg-center',
+          'relative flex h-28 items-center justify-center overflow-hidden',
           !event.imageUrl && cat.banner
         )}
-        style={event.imageUrl ? { backgroundImage: `url(${event.imageUrl})` } : undefined}
       >
-        {!event.imageUrl && <cat.Icon className="h-10 w-10 text-white/80" />}
+        {event.imageUrl ? (
+          <img
+            src={event.imageUrl}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <cat.Icon className="h-10 w-10 text-white/80" />
+        )}
         <Badge className={cn('absolute right-3 top-3 border-0', cat.chip)}>{cat.label}</Badge>
         {!event.isPublished && (
           <Badge variant="secondary" className="absolute left-3 top-3">
