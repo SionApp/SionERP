@@ -89,12 +89,12 @@ func (s *EmailService) SendInvitationEmail(data InvitationEmailData) error {
 
 	// Preparar datos para el template
 	templateData := struct {
-		FirstName  string
-		LastName   string
-		Email      string
-		Role       string
-		MagicLink  string
-		ExpiresIn  string
+		FirstName string
+		LastName  string
+		Email     string
+		Role      string
+		MagicLink string
+		ExpiresIn string
 	}{
 		FirstName: data.FirstName,
 		LastName:  data.LastName,
@@ -134,4 +134,24 @@ func (s *EmailService) SendInvitationEmailSimple(data InvitationEmailData) (stri
 	// Generar el link completo
 	magicLink := fmt.Sprintf("%s/?token=%s", s.frontendURL, data.MagicLink)
 	return magicLink, nil
+}
+
+// SendPlainNotification manda un email de texto simple (sin template HTML
+// elaborado) — usado por la cola de notificaciones (notification_queue) para
+// avisar por email cosas que ya existen como alerta in-app, empezando por el
+// escalamiento de incumplimiento de reportes.
+func (s *EmailService) SendPlainNotification(to, subject, body string) error {
+	params := &resend.SendEmailRequest{
+		From:    s.fromEmail,
+		To:      []string{to},
+		Subject: subject,
+		Html:    "<p>" + strings.ReplaceAll(template.HTMLEscapeString(body), "\n", "<br>") + "</p>",
+	}
+	result, err := s.client.Emails.Send(params)
+	if err != nil {
+		log.Printf("Error sending notification email to %s: %v", to, err)
+		return fmt.Errorf("error sending notification email: %w", err)
+	}
+	log.Printf("Notification email sent to %s, ID: %s", to, result.Id)
+	return nil
 }

@@ -278,6 +278,8 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.DELETE("/alerts/:id", alertsHandler.DeleteAlert)
 		discipleship.POST("/alerts/generate", alertsHandler.GenerateAutomaticAlerts)
 		discipleship.POST("/alerts/check-missing-reports", schedulerHandler.TriggerMissingReportsCheck)
+		discipleship.POST("/alerts/check-reminders", schedulerHandler.TriggerReminderCheck)
+		discipleship.POST("/alerts/process-notification-queue", schedulerHandler.TriggerNotificationQueueProcess)
 
 		// Tendencias y estadísticas
 		discipleship.GET("/weekly-trends", discipleshipHandler.GetWeeklyTrends)

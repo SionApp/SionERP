@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"backend-sion/config"
+	"backend-sion/emails"
 	"database/sql"
 	"fmt"
 	"log"
@@ -34,6 +35,234 @@ func StartWeeklyReportScheduler() {
 			}
 		}
 	}()
+}
+
+// StartReportReminderScheduler lanza la goroutine que fira todos los viernes
+// a las 12:00 hora local del servidor y avisa PREVENTIVAMENTE a quien todavía
+// no envió el reporte de la semana en curso — antes de que se cumpla el
+// vencimiento (sábado 23:00), no después. Issue #34.
+func StartReportReminderScheduler() {
+	go func() {
+		for {
+			next := nextFridayAt12(time.Now())
+			log.Printf("[scheduler] próximo recordatorio preventivo: %s", next.Format("Mon 02/01 15:04"))
+			time.Sleep(time.Until(next))
+
+			db := config.GetDB()
+			if db == nil || db.DB == nil {
+				log.Println("[scheduler] DB no disponible, omitiendo recordatorio")
+				continue
+			}
+
+			count, err := runReminderSweep(db.DB, time.Now())
+			if err != nil {
+				log.Printf("[scheduler] error en sweep de recordatorios: %v", err)
+			} else {
+				log.Printf("[scheduler] recordatorios preventivos creados: %d", count)
+			}
+		}
+	}()
+}
+
+// nextFridayAt12 — mismo patrón que nextSaturdayAt23, un día antes del
+// vencimiento (sábado) para dar tiempo real a reaccionar.
+func nextFridayAt12(from time.Time) time.Time {
+	const fri = time.Friday
+	days := (int(fri) - int(from.Weekday()) + 7) % 7
+	if days == 0 && (from.Hour() > 12 || (from.Hour() == 12 && from.Minute() >= 1)) {
+		days = 7
+	}
+	t := from.AddDate(0, 0, days)
+	return time.Date(t.Year(), t.Month(), t.Day(), 12, 0, 0, 0, from.Location())
+}
+
+// runReminderSweep recorre todas las iglesias y avisa a los usuarios de
+// jerarquía 1-4 que todavía no enviaron el reporte de la semana EN CURSO
+// (la que todavía no venció). Devuelve la cantidad de recordatorios creados.
+func runReminderSweep(db *sql.DB, now time.Time) (int, error) {
+	monday, saturday, week := justEndedWeekBounds(now) // misma semana, todavía no vencida un viernes
+
+	rows, err := db.Query(`SELECT id FROM churches`)
+	if err != nil {
+		return 0, fmt.Errorf("runReminderSweep: fetching churches: %w", err)
+	}
+	defer rows.Close()
+
+	var churchIDs []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			churchIDs = append(churchIDs, id)
+		}
+	}
+	rows.Close()
+
+	total := 0
+	for _, cid := range churchIDs {
+		n, err := sweepChurchReminders(db, cid, monday, saturday, week)
+		if err != nil {
+			log.Printf("[scheduler] church %s reminder sweep error: %v", cid, err)
+			continue
+		}
+		total += n
+	}
+	return total, nil
+}
+
+// sweepChurchReminders recorre los usuarios activos de jerarquía 1-4 de una
+// iglesia y, para quien todavía no reportó esta semana y no fue avisado
+// todavía, crea una alerta 'report_reminder' + una fila report_compliance en
+// 'pending' con reminder_sent=true. Cuando corra sweepChurch el sábado, esa
+// fila 'pending' se transiciona normalmente a on_time/late/missed (el guard
+// de status solo protege on_time/late, no pending).
+func sweepChurchReminders(db *sql.DB, churchID string, monday, saturday time.Time, week string) (int, error) {
+	due := saturday
+
+	rows, err := db.Query(`
+		SELECT h.user_id, h.hierarchy_level
+		FROM discipleship_hierarchy h
+		JOIN users u ON u.id = h.user_id AND u.church_id = $1
+		WHERE h.church_id = $1
+		  AND u.is_active = true
+		  AND h.hierarchy_level BETWEEN 1 AND 4
+	`, churchID)
+	if err != nil {
+		return 0, fmt.Errorf("sweepChurchReminders(%s): fetching hierarchy: %w", churchID, err)
+	}
+	defer rows.Close()
+
+	type hierarchyUser struct {
+		uid   string
+		level int
+	}
+	var users []hierarchyUser
+	for rows.Next() {
+		var u hierarchyUser
+		if rows.Scan(&u.uid, &u.level) == nil {
+			users = append(users, u)
+		}
+	}
+	rows.Close()
+
+	created := 0
+	for _, u := range users {
+		var alreadySubmitted bool
+		_ = db.QueryRow(`
+			SELECT EXISTS(
+				SELECT 1 FROM discipleship_reports
+				WHERE church_id = $1 AND reporter_id = $2 AND report_level = $3
+				  AND status IN ('submitted', 'approved')
+				  AND period_start = $4 AND period_end = $5
+			)
+		`, churchID, u.uid, u.level, monday, saturday).Scan(&alreadySubmitted)
+		if alreadySubmitted {
+			continue
+		}
+
+		var alreadyReminded bool
+		_ = db.QueryRow(`
+			SELECT reminder_sent FROM report_compliance
+			WHERE church_id = $1 AND user_id = $2 AND iso_week = $3
+		`, churchID, u.uid, week).Scan(&alreadyReminded)
+		if alreadyReminded {
+			continue
+		}
+
+		_, _ = db.Exec(`
+			INSERT INTO report_compliance
+				(church_id, user_id, iso_week, period_start, period_end, due_date, status, reminder_sent)
+			VALUES ($1, $2, $3, $4, $5, $6, 'pending', true)
+			ON CONFLICT (church_id, user_id, iso_week) DO UPDATE
+			SET reminder_sent = true, updated_at = now()
+		`, churchID, u.uid, week, monday, saturday, due)
+
+		_, _ = db.Exec(`
+			INSERT INTO discipleship_alerts
+				(alert_type, title, message, priority,
+				 related_user_id, addressed_to, action_required, church_id)
+			VALUES ('report_reminder', $1, $2, 4, $3, $3, true, $4)
+		`,
+			"Tu reporte semanal vence mañana",
+			fmt.Sprintf("Todavía no enviaste el reporte de la semana %s. Vence el sábado.", week),
+			u.uid,
+			churchID,
+		)
+		created++
+	}
+
+	return created, nil
+}
+
+// notificationQueueInterval: cada cuánto se procesa notification_queue.
+// 5 minutos alcanza — el único productor hoy (escalamiento semanal) no es
+// urgente al segundo, y evita golpear la API de Resend en un loop ajustado.
+const notificationQueueInterval = 5 * time.Minute
+
+// StartNotificationQueueWorker lanza la goroutine que procesa
+// notification_queue cada 5 minutos: toma las filas 'pending' de canal
+// 'email' y las manda con el EmailService (Resend) ya usado para invitaciones.
+// Si el email no está configurado (mismo IsEmailEnabled() que usa invite.go),
+// no hace nada — no falla, solo espera a que se configure.
+func StartNotificationQueueWorker() {
+	go func() {
+		for {
+			db := config.GetDB()
+			if db != nil && db.DB != nil {
+				if err := processNotificationQueue(db.DB); err != nil {
+					log.Printf("[scheduler] error procesando notification_queue: %v", err)
+				}
+			}
+			time.Sleep(notificationQueueInterval)
+		}
+	}()
+}
+
+func processNotificationQueue(db *sql.DB) error {
+	emailConfig := config.GetEmailConfig()
+	if !emailConfig.IsEmailEnabled() {
+		return nil // sin proveedor configurado, nada que hacer todavía
+	}
+	emailService := emails.NewEmailService(emailConfig.APIKey, emailConfig.FromEmail, emailConfig.FrontendURL)
+
+	rows, err := db.Query(`
+		SELECT nq.id, u.email, nq.subject, nq.body
+		FROM notification_queue nq
+		JOIN users u ON u.id = nq.user_id
+		WHERE nq.status = 'pending' AND nq.channel = 'email'
+		ORDER BY nq.created_at
+		LIMIT 50
+	`)
+	if err != nil {
+		return fmt.Errorf("processNotificationQueue: querying pending: %w", err)
+	}
+	defer rows.Close()
+
+	type pending struct {
+		id, email, subject, body string
+	}
+	var items []pending
+	for rows.Next() {
+		var p pending
+		if rows.Scan(&p.id, &p.email, &p.subject, &p.body) == nil {
+			items = append(items, p)
+		}
+	}
+	rows.Close()
+
+	for _, p := range items {
+		sendErr := emailService.SendPlainNotification(p.email, p.subject, p.body)
+		if sendErr != nil {
+			_, _ = db.Exec(
+				"UPDATE notification_queue SET status = 'failed', error = $1 WHERE id = $2",
+				sendErr.Error(), p.id,
+			)
+			continue
+		}
+		_, _ = db.Exec(
+			"UPDATE notification_queue SET status = 'sent', sent_at = now() WHERE id = $1", p.id,
+		)
+	}
+	return nil
 }
 
 // TenantPurgeGraceDays: días desde que un tenant queda status='cancelled'
@@ -380,6 +609,23 @@ func sweepChurch(db *sql.DB, churchID string, monday, saturday time.Time, week s
 					u.sup.String,
 					churchID,
 				)
+
+				// Además de la alerta in-app, encolar un email al supervisor —
+				// esto puede pasar desapercibido si no abre la app seguido.
+				var supEmail string
+				if err := db.QueryRow(
+					"SELECT email FROM users WHERE id = $1 AND church_id = $2", u.sup.String, churchID,
+				).Scan(&supEmail); err == nil && supEmail != "" {
+					_, _ = db.Exec(`
+						INSERT INTO notification_queue (church_id, user_id, channel, subject, body)
+						VALUES ($1, $2, 'email', $3, $4)
+					`,
+						churchID, u.sup.String,
+						"Incumplimiento de reportes (3+ semanas)",
+						fmt.Sprintf("%s acumula %d semanas sin enviar su reporte semanal. Requiere seguimiento.", u.name, missed),
+					)
+				}
+
 				_, _ = db.Exec(`
 					UPDATE report_compliance
 					SET escalation_sent = true, updated_at = now()
@@ -423,5 +669,50 @@ func (h *SchedulerHandler) TriggerMissingReportsCheck(c echo.Context) error {
 		"alerts_created": count,
 		"message":        fmt.Sprintf("Sweep completado. %d alertas nuevas creadas.", count),
 		"checked_at":     time.Now().Format(time.RFC3339),
+	})
+}
+
+// TriggerReminderCheck fuerza manualmente el sweep de recordatorios
+// preventivos (issue #34), sin esperar al viernes 12:00.
+func (h *SchedulerHandler) TriggerReminderCheck(c echo.Context) error {
+	db := config.GetDB()
+	if db == nil || db.DB == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{
+			"error": "Base de datos no disponible",
+		})
+	}
+
+	count, err := runReminderSweep(db.DB, time.Now())
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": fmt.Sprintf("Error en sweep de recordatorios: %v", err),
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"reminders_created": count,
+		"message":           fmt.Sprintf("Sweep completado. %d recordatorios nuevos creados.", count),
+		"checked_at":        time.Now().Format(time.RFC3339),
+	})
+}
+
+// TriggerNotificationQueueProcess fuerza manualmente el procesamiento de
+// notification_queue (issue #52), sin esperar los 5 minutos del worker.
+func (h *SchedulerHandler) TriggerNotificationQueueProcess(c echo.Context) error {
+	db := config.GetDB()
+	if db == nil || db.DB == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{
+			"error": "Base de datos no disponible",
+		})
+	}
+
+	if err := processNotificationQueue(db.DB); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": fmt.Sprintf("Error procesando cola de notificaciones: %v", err),
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Cola de notificaciones procesada",
 	})
 }
