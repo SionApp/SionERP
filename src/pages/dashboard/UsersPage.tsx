@@ -22,6 +22,7 @@ import { UserService } from '@/services/user.service';
 import { User } from '@/types/user.types';
 import { buildUsersColumns } from './users/users-columns';
 import { UsersTable } from './users/users-table';
+import { BulkEmailDialog } from '@/components/users/BulkEmailDialog';
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -314,11 +315,20 @@ const UsersPage = () => {
               </Select>
             </div>
 
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {selectedCount > 0
-                ? `${selectedCount} seleccionado${selectedCount !== 1 ? 's' : ''}`
-                : ''}
-            </span>
+            {selectedCount > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  {selectedCount} seleccionado{selectedCount !== 1 ? 's' : ''}
+                </span>
+                <Can I={ROLE_LEVELS.staff}>
+                  <BulkEmailDialog
+                    recipientIds={Object.keys(rowSelection)}
+                    recipientCount={selectedCount}
+                    onSent={() => setRowSelection({})}
+                  />
+                </Can>
+              </div>
+            )}
           </div>
 
           {/* Table */}

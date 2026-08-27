@@ -162,6 +162,11 @@ func SetupRoutes(e *echo.Echo) {
 		invitations.POST("/:id/accept", handlers.NewInviteHandler().AcceptInvitation)
 	}
 
+	// Correos masivos (#9): staff+, mismo criterio que exportar usuarios.
+	communications := protected.Group("/communications")
+	communications.Use(middleware.RequireRole(utils.LevelStaff))
+	communications.POST("/bulk-email", handlers.NewCommunicationsHandler().SendBulkEmail)
+
 	// Subset seguro de settings para CUALQUIER usuario autenticado (tema/idioma
 	// por defecto, animaciones, mantenimiento, timeout) — sin gate de rol.
 	protected.GET("/settings/public", handlers.NewSettingsHandler().GetPublicSettings)
