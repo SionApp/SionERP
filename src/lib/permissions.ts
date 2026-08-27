@@ -29,8 +29,11 @@ export interface UserPermissions {
   role_level: number;
   has_admin_access: boolean;
   installed_modules: string[];
-  /** Acceso federado (BonDev, modo sólo lectura) — ver Can.tsx y FederatedBanner.tsx */
+  /** Acceso federado (BonDev) — ver Can.tsx y FederatedBanner.tsx.
+   *  "read" (I2 fase 1): sólo lectura. "edit" (I2 fase 2): el operador actúa
+   *  con `role`/`role_level`/`has_admin_access` reales de arriba. */
   is_federated?: boolean;
+  federated_mode?: 'read' | 'edit';
   federated_operator_name?: string;
   federated_expires_at?: string;
 }

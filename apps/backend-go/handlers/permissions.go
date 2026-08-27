@@ -64,25 +64,43 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 	// Acceso federado (BonDev): no hay fila en `users` para una sesión
 	// federada — devolvemos permisos sintetizados en vez de fallar el
 	// lookup por PK con 404 (ver middleware/federated.go, que setea estos
-	// mismos valores en el contexto). role_level = LevelStaff a propósito:
+	// mismos valores en el contexto).
+	//
+	// Modo read (I2 fase 1): role_level = LevelStaff a propósito —
 	// suficiente para navegar la mayoría de las páginas de datos, pero sin
 	// has_admin_access (paneles de configuración quedan afuera) — las
 	// escrituras están bloqueadas de todas formas server-side
 	// (FederatedReadOnly), esto es sólo de qué VE, no de qué puede tocar.
+	//
+	// Modo edit (I2 fase 2): el rol/has_admin_access YA son los reales
+	// (seteados por FederatedSessionAuth con claims.Role) — se devuelven tal
+	// cual, el operador actúa como un usuario real de ese rol.
 	if isFederated, _ := c.Get("is_federated").(bool); isFederated {
 		modules, err := installedModulesForChurch(c)
 		if err != nil {
 			log.Printf("❌ Error querying modules table: %v", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch installed modules"})
 		}
+		mode, _ := c.Get("federated_mode").(string)
+		role := middleware.FederatedRole
+		roleLevel := utils.LevelStaff
+		hasAdminAccess := false
+		if mode == "edit" {
+			if r, ok := c.Get("role").(string); ok {
+				role = r
+				roleLevel = utils.GetRoleLevel(r)
+			}
+			hasAdminAccess, _ = c.Get("has_admin_access").(bool)
+		}
 		expiresAt, _ := c.Get("federated_expires_at").(time.Time)
 		operatorName, _ := c.Get("federated_operator_name").(string)
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"role":                    middleware.FederatedRole,
-			"role_level":              utils.LevelStaff,
-			"has_admin_access":        false,
+			"role":                    role,
+			"role_level":              roleLevel,
+			"has_admin_access":        hasAdminAccess,
 			"installed_modules":       modules,
 			"is_federated":            true,
+			"federated_mode":          mode,
 			"federated_operator_name": operatorName,
 			"federated_expires_at":    expiresAt,
 		})
