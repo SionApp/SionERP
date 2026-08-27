@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DiscipleshipService } from '@/services/discipleship.service';
+import { UserDocumentsTab } from '@/components/UserDocumentsTab';
 import {
   DiscipleshipGroup,
   DiscipleshipHierarchy,
@@ -173,11 +174,12 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
 
         {/* Tabs con toda la información */}
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="flex w-full overflow-x-auto justify-start sm:grid sm:grid-cols-4">
+          <TabsList className="flex w-full overflow-x-auto justify-start sm:grid sm:grid-cols-5">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="discipleship">Discipulado</TabsTrigger>
             <TabsTrigger value="metrics">Métricas</TabsTrigger>
             <TabsTrigger value="reports">Reportes</TabsTrigger>
+            <TabsTrigger value="documents">Documentos</TabsTrigger>
           </TabsList>
 
           {/* TAB: GENERAL */}
@@ -537,6 +539,10 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="documents" className="space-y-4 mt-4">
+            <UserDocumentsTab userId={user.id} />
           </TabsContent>
         </Tabs>
 
