@@ -192,6 +192,12 @@ func main() {
 	// Start background scheduler (weekly report check every Tuesday 8am)
 	handlers.StartWeeklyReportScheduler()
 
+	// Recordatorio preventivo antes del vencimiento del reporte semanal (viernes 12:00)
+	handlers.StartReportReminderScheduler()
+
+	// Cola de notificaciones por email (Resend) — no-op si no hay API key configurada
+	handlers.StartNotificationQueueWorker()
+
 	// Borrado automático de datos de tenants cancelados (30 días de gracia)
 	handlers.StartTenantPurgeScheduler()
 
