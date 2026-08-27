@@ -1,4 +1,5 @@
 import LogoUploader from '@/components/LogoUploader';
+import { SecurityEventsList } from './settings/SecurityEventsList';
 import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
 import ZoneManagement from '@/components/discipleship/ZoneManagement';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
@@ -1108,6 +1109,16 @@ const SettingsPage = () => {
                 )}
                 {isSaving ? 'Guardando...' : 'Guardar política de seguridad'}
               </Button>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <h4 className="font-medium">Eventos recientes</h4>
+              <p className="text-sm text-muted-foreground">
+                Cambios de rol, suspensiones y exportaciones de datos.
+              </p>
+              <SecurityEventsList />
             </div>
           </>
         )}

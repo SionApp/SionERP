@@ -4,6 +4,7 @@ import type {
   ChurchInfo,
   IntegrationSettings,
   NotificationConfig,
+  SecurityEvent,
   SecuritySettings,
   SettingsAuditLog,
   SystemSettings,
@@ -173,6 +174,15 @@ export class SettingsService {
     } catch (error) {
       console.error('Error updating security settings:', error);
       throw new Error('Error al actualizar configuración de seguridad');
+    }
+  }
+
+  static async getSecurityEvents(): Promise<SecurityEvent[]> {
+    try {
+      return await ApiService.get<SecurityEvent[]>('/settings/security/events');
+    } catch (error) {
+      console.error('Error fetching security events:', error);
+      throw new Error('Error al cargar eventos de seguridad');
     }
   }
 

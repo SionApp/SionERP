@@ -56,6 +56,41 @@ func LogAccessDenied(c echo.Context, entry AccessDeniedLog) {
 	}
 }
 
+// LogSecurityEvent persists a security_events row — issue #53. eventType
+// must be one of the values in the CHECK constraint (role_changed,
+// user_suspended, user_reactivated, user_data_exported). details is
+// marshaled to JSON as-is; pass nil for no extra context.
+func LogSecurityEvent(c echo.Context, eventType, userID, actorID string, details map[string]any) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("⚠️  Cannot log security event (recovered): type=%s user=%s", eventType, userID)
+		}
+	}()
+	churchID, _ := c.Get("church_id").(string)
+	if churchID == "" {
+		return
+	}
+	db := config.GetDB()
+	if db == nil || db.DB == nil {
+		log.Printf("⚠️  Cannot log security event: DB not available — type=%s user=%s", eventType, userID)
+		return
+	}
+
+	var detailsJSON []byte
+	if details != nil {
+		detailsJSON, _ = json.Marshal(details)
+	}
+
+	_, err := db.DB.Exec(`
+		INSERT INTO security_events
+			(church_id, event_type, user_id, actor_id, ip_address, user_agent, details)
+		VALUES ($1, $2, NULLIF($3,'')::uuid, NULLIF($4,'')::uuid, $5, $6, $7)
+	`, churchID, eventType, userID, actorID, c.RealIP(), c.Request().UserAgent(), detailsJSON)
+	if err != nil {
+		log.Printf("⚠️  Failed to persist security event: %v", err)
+	}
+}
+
 // LogAccessDeniedSimple is a convenience wrapper for common cases
 func LogAccessDeniedSimple(c echo.Context, userID, email, role string, roleLevel, requiredLevel int, reason, details string) {
 	detailsJSON := ""

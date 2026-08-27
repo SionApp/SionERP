@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"backend-sion/config"
+	"backend-sion/middleware"
 	"backend-sion/utils"
 	"database/sql"
 	"encoding/csv"
@@ -182,6 +183,8 @@ func (h *UserHandler) ExportUsers(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "no se pudo exportar usuarios"})
 	}
 	defer rows.Close()
+
+	middleware.LogSecurityEvent(c, "user_data_exported", "", requestingUserID, nil)
 
 	c.Response().Header().Set(echo.HeaderContentType, "text/csv; charset=utf-8")
 	c.Response().Header().Set("Content-Disposition", `attachment; filename="usuarios.csv"`)
