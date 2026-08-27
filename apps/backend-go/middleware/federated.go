@@ -34,14 +34,16 @@ var ErrInvalidFederatedKey = errors.New("middleware: invalid federated Ed25519 p
 var ErrInvalidFederatedToken = errors.New("middleware: invalid or expired federated token")
 
 // FederatedClaims — shape EXACTO del JWT que firma BonDev (ver
-// federatedClaims en bondev/apps/api/internal/auth/federated.go). Reason y
-// TicketID sólo se usan en modo edit (I2 fase 2, no implementado todavía en
-// SionERP) — van igual acá para no tener que re-parsear el token cuando se
-// implemente.
+// federatedClaims en bondev/apps/api/internal/auth/federated.go). Role,
+// Reason y TicketID sólo se usan en modo edit (I2 fase 2): el operador actúa
+// con ESE rol real de SionERP (utils.AllRoles()), y Reason/TicketID quedan
+// como trazabilidad obligatoria de por qué alguien externo está editando
+// datos de un cliente — ver handlers/federated.go Redeem.
 type FederatedClaims struct {
 	OperatorName string `json:"operator_name"`
 	Tenant       string `json:"tenant"` // = churches.id
-	Mode         string `json:"mode"`   // "read" (v1) | "edit" (futuro)
+	Mode         string `json:"mode"`   // "read" (v1) | "edit" (I2 fase 2)
+	Role         string `json:"role,omitempty"`
 	Reason       string `json:"reason,omitempty"`
 	TicketID     string `json:"ticket_id,omitempty"`
 	jwt.RegisteredClaims
@@ -110,11 +112,17 @@ const FederatedSessionTTLDefault = 10 * time.Minute
 // FederatedSessionClaims son los claims de la sesión propia de SionERP.
 // ChurchID se setea igual que SupabaseAuth setea church_id — así TenantTx
 // scopea esta sesión con el mismo mecanismo (RLS real) que a un usuario
-// autenticado normal, sin lógica de scoping nueva.
+// autenticado normal, sin lógica de scoping nueva. Mode/Role/UserID viajan
+// acá (copiados/provistos por Redeem, que ya validó el token de BonDev y —
+// en modo edit — upserteó la fila shadow en users) para que
+// FederatedSessionAuth no tenga que volver a tocar la DB en cada request.
 type FederatedSessionClaims struct {
 	OperatorID   string `json:"operator_id"`
 	OperatorName string `json:"operator_name"`
 	ChurchID     string `json:"church_id"`
+	Mode         string `json:"mode"`
+	Role         string `json:"role,omitempty"`
+	UserID       string `json:"user_id,omitempty"` // sólo en modo edit — fila shadow en users
 	jwt.RegisteredClaims
 }
 
@@ -126,10 +134,12 @@ func federatedSessionSecret() ([]byte, error) {
 	return []byte(secret), nil
 }
 
-// SignFederatedSession emite la sesión efímera de sólo lectura. expiresAt
-// normalmente es el `exp` del token de BonDev ya canjeado (la sesión no dura
-// más que la autorización original).
-func SignFederatedSession(operatorID, operatorName, churchID string, expiresAt time.Time) (string, error) {
+// SignFederatedSession emite la sesión efímera de SionERP (modo read o
+// edit, según mode/role/userID ya validados/provistos por el caller).
+// userID es el UUID de la fila shadow en users (sólo modo edit; vacío en
+// modo read). expiresAt normalmente es el `exp` del token de BonDev ya
+// canjeado (la sesión no dura más que la autorización original).
+func SignFederatedSession(operatorID, operatorName, churchID, mode, role, userID string, expiresAt time.Time) (string, error) {
 	secret, err := federatedSessionSecret()
 	if err != nil {
 		return "", err
@@ -138,6 +148,9 @@ func SignFederatedSession(operatorID, operatorName, churchID string, expiresAt t
 		OperatorID:   operatorID,
 		OperatorName: operatorName,
 		ChurchID:     churchID,
+		Mode:         mode,
+		Role:         role,
+		UserID:       userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "sionerp-federated",
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -186,6 +199,12 @@ const FederatedCookieName = "sionerp_federated_session"
 // deja que SupabaseAuth corra normal. Nunca devuelve 401 por su cuenta: no
 // tener una sesión federada NO es un error, es el camino normal para el
 // 99.9% de las requests.
+//
+// Modo edit (I2 fase 2): el operador actúa con claims.Role real — mismo
+// role/db_role/has_admin_access que tendría un usuario real con ese rol, así
+// que RequireRole/RequireModuleLevel lo tratan exactamente igual, sin código
+// especial. FederatedReadOnly (abajo) es lo único que distingue modo — y en
+// edit, lo deja pasar.
 func FederatedSessionAuth() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -208,13 +227,23 @@ func FederatedSessionAuth() echo.MiddlewareFunc {
 				return next(c) // no es una sesión federada — seguí como venías
 			}
 
-			c.Set("user_id", "federated:"+claims.OperatorID)
+			role := FederatedRole
+			hasAdminAccess := false
+			userID := "federated:" + claims.OperatorID
+			if claims.Mode == "edit" && claims.Role != "" && claims.UserID != "" {
+				role = claims.Role
+				hasAdminAccess = HasAdminAccess(claims.Role, false)
+				userID = claims.UserID // UUID real de la fila shadow — necesario para cualquier FK
+			}
+
+			c.Set("user_id", userID)
 			c.Set("email", "")
-			c.Set("role", FederatedRole)
-			c.Set("db_role", FederatedRole)
-			c.Set("has_admin_access", false)
+			c.Set("role", role)
+			c.Set("db_role", role)
+			c.Set("has_admin_access", hasAdminAccess)
 			c.Set("church_id", claims.ChurchID)
 			c.Set("is_federated", true)
+			c.Set("federated_mode", claims.Mode)
 			c.Set("federated_operator_name", claims.OperatorName)
 			c.Set("federated_expires_at", claims.ExpiresAt.Time)
 
@@ -224,15 +253,19 @@ func FederatedSessionAuth() echo.MiddlewareFunc {
 }
 
 // FederatedReadOnly bloquea cualquier método distinto de GET cuando la
-// request viene de una sesión federada (R3: enforced server-side, no sólo
-// ocultando botones en el frontend — un curl directo también se rechaza).
-// Se monta GLOBAL en el grupo protegido, DESPUÉS de FederatedSessionAuth,
-// así cubre cualquier endpoint sin que cada handler lo tenga que recordar.
+// request viene de una sesión federada EN MODO READ (R3: enforced
+// server-side, no sólo ocultando botones en el frontend — un curl directo
+// también se rechaza). En modo edit (I2 fase 2) deja pasar: el operador
+// actúa con su rol real, y los mismos RequireRole/RequireModuleLevel de
+// siempre son el gate, igual que para un usuario real. Se monta GLOBAL en
+// el grupo protegido, DESPUÉS de FederatedSessionAuth, así cubre cualquier
+// endpoint sin que cada handler lo tenga que recordar.
 func FederatedReadOnly() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			isFederated, _ := c.Get("is_federated").(bool)
-			if isFederated && c.Request().Method != http.MethodGet {
+			mode, _ := c.Get("federated_mode").(string)
+			if isFederated && mode != "edit" && c.Request().Method != http.MethodGet {
 				return c.JSON(http.StatusForbidden, map[string]string{
 					"error": "read-only access — this is a federated support session",
 				})

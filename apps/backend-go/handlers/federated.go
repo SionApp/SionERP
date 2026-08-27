@@ -8,10 +8,12 @@ package handlers
 import (
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"backend-sion/config"
 	"backend-sion/middleware"
+	"backend-sion/utils"
 
 	"github.com/labstack/echo/v4"
 )
@@ -52,11 +54,25 @@ func (h *FederatedHandler) Redeem(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid or expired token"})
 	}
 
-	// R6 (spec): edit NO se trata como read silenciosamente — I2 fase 2, sin
-	// implementar todavía. Rechazo explícito, no un 401 genérico: no es que
-	// el token sea inválido, es que el modo no está soportado.
-	if claims.Mode != "read" {
+	// R6 (spec): rechazo explícito de cualquier modo desconocido, no un 401
+	// genérico — no es que el token sea inválido, es que el modo no está
+	// soportado. "read" (I2 fase 1) y "edit" (I2 fase 2) son los únicos
+	// válidos hoy.
+	if claims.Mode != "read" && claims.Mode != "edit" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "federated mode not supported yet: " + claims.Mode})
+	}
+
+	// Modo edit: el operador actúa con un rol real de SionERP — tiene que
+	// ser uno válido, y Reason/TicketID son trazabilidad obligatoria (alguien
+	// externo va a escribir datos de un cliente, tiene que quedar registrado
+	// por qué y con qué ticket de soporte).
+	if claims.Mode == "edit" {
+		if !slices.Contains(utils.AllRoles(), claims.Role) {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid role for edit mode"})
+		}
+		if claims.Reason == "" || claims.TicketID == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "reason and ticket_id are required for edit mode"})
+		}
 	}
 
 	db := config.GetDB()
@@ -92,10 +108,10 @@ func (h *FederatedHandler) Redeem(c echo.Context) error {
 	// no hace falta un SELECT previo para eso tampoco.
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO public.federated_sessions_log
-			(jti, operator_id, operator_name, church_id, mode, origin_ip, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+			(jti, operator_id, operator_name, church_id, mode, role, reason, ticket_id, origin_ip, expires_at)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6,''), NULLIF($7,''), NULLIF($8,''), $9, $10)
 	`, claims.ID, claims.Subject, claims.OperatorName, claims.Tenant, claims.Mode,
-		c.RealIP(), claims.ExpiresAt.Time)
+		claims.Role, claims.Reason, claims.TicketID, c.RealIP(), claims.ExpiresAt.Time)
 
 	if err != nil {
 		rollback()
@@ -110,12 +126,38 @@ func (h *FederatedHandler) Redeem(c echo.Context) error {
 		}
 	}
 
+	// Modo edit: cualquier created_by/user_id que un handler persista es una
+	// FK a users(id) — el string "federated:<operator_id>" que basta para
+	// modo read (nunca se escribe) no sirve acá. Se upsertea una fila real
+	// por (church_id, bondev_operator_id): mismo operador + misma iglesia
+	// reutiliza siempre el mismo UUID entre sesiones, así el rastro de
+	// auditoría (quién creó/editó qué) es consistente en el tiempo.
+	// is_support_operator=true la excluye de listados/reportes de membresía;
+	// is_active=false por la misma razón, en cualquier query que ya filtre así.
+	shadowUserID := ""
+	if claims.Mode == "edit" {
+		idNumber := "BONDEV-" + claims.Subject + "-" + claims.Tenant[:8]
+		email := "bondev+" + claims.Subject + "@support.sionerp.internal"
+		err = tx.QueryRowContext(ctx, `
+			INSERT INTO public.users
+				(church_id, id_number, first_name, last_name, phone, address, email, role, is_active, is_support_operator, bondev_operator_id)
+			VALUES ($1, $2, $3, 'BonDev', 'N/A', 'N/A', $4, $5::user_role, false, true, $6)
+			ON CONFLICT (church_id, bondev_operator_id) WHERE bondev_operator_id IS NOT NULL
+			DO UPDATE SET role = EXCLUDED.role, first_name = EXCLUDED.first_name, updated_at = now()
+			RETURNING id
+		`, claims.Tenant, idNumber, claims.OperatorName, email, claims.Role, claims.Subject).Scan(&shadowUserID)
+		if err != nil {
+			rollback()
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to provision support operator"})
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to commit"})
 	}
 
 	sessionToken, err := middleware.SignFederatedSession(
-		claims.Subject, claims.OperatorName, claims.Tenant, claims.ExpiresAt.Time,
+		claims.Subject, claims.OperatorName, claims.Tenant, claims.Mode, claims.Role, shadowUserID, claims.ExpiresAt.Time,
 	)
 	if err != nil {
 		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "federated access is not configured"})

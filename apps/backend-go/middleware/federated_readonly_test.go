@@ -46,6 +46,23 @@ func TestFederatedReadOnly_AllowsGetForFederatedSession(t *testing.T) {
 	}
 }
 
+func TestFederatedReadOnly_AllowsWritesInEditMode(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("is_federated", true)
+	c.Set("federated_mode", "edit")
+
+	handler := FederatedReadOnly()(okHandler)
+	if err := handler(c); err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for a federated POST in edit mode, got %d", rec.Code)
+	}
+}
+
 func TestFederatedReadOnly_NonFederatedSession_AllowsWrites(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/test", nil)
@@ -108,7 +125,7 @@ func TestFederatedSessionAuth_GarbageBearerToken_PassesThroughUntouched(t *testi
 func TestFederatedSessionAuth_ValidSessionToken_SetsContextAndBypassesRest(t *testing.T) {
 	t.Setenv("FEDERATED_SESSION_SECRET", "test-secret-for-this-test-only")
 
-	signed, err := SignFederatedSession("op-1", "Admin Preview", "00000000-0000-0000-0000-00000000515e", time.Now().Add(5*time.Minute))
+	signed, err := SignFederatedSession("op-1", "Admin Preview", "00000000-0000-0000-0000-00000000515e", "read", "", "", time.Now().Add(5*time.Minute))
 	if err != nil {
 		t.Fatalf("SignFederatedSession returned error: %v", err)
 	}
@@ -133,6 +150,39 @@ func TestFederatedSessionAuth_ValidSessionToken_SetsContextAndBypassesRest(t *te
 		t.Fatal("expected is_federated=true")
 	}
 	if hasAdmin, _ := c.Get("has_admin_access").(bool); hasAdmin {
-		t.Fatal("a federated session must never have admin access")
+		t.Fatal("a read-mode federated session must never have admin access")
+	}
+}
+
+func TestFederatedSessionAuth_EditMode_UsesRealRole(t *testing.T) {
+	t.Setenv("FEDERATED_SESSION_SECRET", "test-secret-for-this-test-only")
+
+	shadowUserID := "11111111-1111-1111-1111-111111111111"
+	signed, err := SignFederatedSession("op-1", "Support Operator", "00000000-0000-0000-0000-00000000515e", "edit", "staff", shadowUserID, time.Now().Add(5*time.Minute))
+	if err != nil {
+		t.Fatalf("SignFederatedSession returned error: %v", err)
+	}
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+signed)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	handler := FederatedSessionAuth()(okHandler)
+	if err := handler(c); err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if role, _ := c.Get("role").(string); role != "staff" {
+		t.Fatalf("expected role=staff in edit mode, got %v", c.Get("role"))
+	}
+	if mode, _ := c.Get("federated_mode").(string); mode != "edit" {
+		t.Fatalf("expected federated_mode=edit, got %v", c.Get("federated_mode"))
+	}
+	if hasAdmin, _ := c.Get("has_admin_access").(bool); !hasAdmin {
+		t.Fatal("expected has_admin_access=true for role=staff in edit mode")
+	}
+	if userID, _ := c.Get("user_id").(string); userID != shadowUserID {
+		t.Fatalf("expected user_id to be the shadow row's real UUID (%s), got %v", shadowUserID, c.Get("user_id"))
 	}
 }

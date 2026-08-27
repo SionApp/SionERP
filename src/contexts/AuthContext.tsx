@@ -5,11 +5,12 @@ import { AuthError, Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { fetchPermissions, invalidatePermissionsCache } from '@/lib/permissions';
 
-/** Info de una sesión federada activa (acceso BonDev, sólo lectura) — ver
+/** Info de una sesión federada activa (acceso BonDev) — ver
  *  FederatedBanner.tsx y Can.tsx, que la usan para el banner y el gating. */
 export interface FederatedInfo {
   operatorName: string;
   expiresAt: Date;
+  mode: 'read' | 'edit';
 }
 
 interface AuthContextType {
@@ -65,6 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setFederatedInfo({
           operatorName: perms.federated_operator_name || 'BonDev',
           expiresAt: perms.federated_expires_at ? new Date(perms.federated_expires_at) : new Date(),
+          mode: perms.federated_mode === 'edit' ? 'edit' : 'read',
         });
       }
     } catch {
