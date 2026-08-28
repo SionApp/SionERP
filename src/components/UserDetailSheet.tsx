@@ -26,6 +26,7 @@ import {
   MapPin,
   Phone,
   User,
+  UserCheck,
   Users,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -36,6 +37,8 @@ interface UserDetailSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onEdit?: (user: UserType) => void;
+  /** Issue #72: valida un visitante (abre el modal de invitar/crear directo). */
+  onValidateVisitor?: (user: UserType) => void;
 }
 
 const LEVEL_NAMES: Record<number, string> = {
@@ -46,7 +49,13 @@ const LEVEL_NAMES: Record<number, string> = {
   5: 'Pastoral',
 };
 
-export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailSheetProps) => {
+export const UserDetailSheet = ({
+  user,
+  isOpen,
+  onClose,
+  onEdit,
+  onValidateVisitor,
+}: UserDetailSheetProps) => {
   const navigate = useNavigate();
   const [hierarchy, setHierarchy] = useState<DiscipleshipHierarchy | null>(null);
   const [groups, setGroups] = useState<DiscipleshipGroup[]>([]);
@@ -150,6 +159,11 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
                 ) : (
                   <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
                     Miembro Inactivo
+                  </Badge>
+                )}
+                {user.is_visitor && (
+                  <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">
+                    Visitante
                   </Badge>
                 )}
               </div>
@@ -552,10 +566,17 @@ export const UserDetailSheet = ({ user, isOpen, onClose, onEdit }: UserDetailShe
             <History className="h-4 w-4 mr-2" />
             Ver Auditoría
           </Button>
-          <Button variant="default" className="flex-1" onClick={() => onEdit?.(user)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Editar Usuario
-          </Button>
+          {user.is_visitor && onValidateVisitor ? (
+            <Button variant="default" className="flex-1" onClick={() => onValidateVisitor(user)}>
+              <UserCheck className="h-4 w-4 mr-2" />
+              Validar como miembro
+            </Button>
+          ) : (
+            <Button variant="default" className="flex-1" onClick={() => onEdit?.(user)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Editar Usuario
+            </Button>
+          )}
         </div>
       </SheetContent>
     </Sheet>

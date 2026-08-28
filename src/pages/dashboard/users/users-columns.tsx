@@ -47,6 +47,11 @@ const STATUS_META: Record<string, { label: string; dotClass: string; badgeClass:
     dotClass: 'bg-amber-400',
     badgeClass: 'border-amber-200 bg-amber-50 text-amber-700',
   },
+  visitor: {
+    label: 'Visitante',
+    dotClass: 'bg-sky-400',
+    badgeClass: 'border-sky-200 bg-sky-50 text-sky-700',
+  },
   inactive: {
     label: 'Inactivo',
     dotClass: 'bg-muted-foreground',
@@ -57,6 +62,7 @@ const STATUS_META: Record<string, { label: string; dotClass: string; badgeClass:
 function getUserStatus(user: User): keyof typeof STATUS_META {
   if (user.last_sign_in_at) return 'active';
   if (user.invitation_status === 'pending' || user.invitation_status === 'resent') return 'invited';
+  if (user.is_visitor) return 'visitor';
   return 'inactive';
 }
 
@@ -215,7 +221,7 @@ export function buildUsersColumns(meta: UsersColumnMeta): ColumnDef<User>[] {
                   )}
                   {!u.last_sign_in_at && !canResend && meta.canEdit && (
                     <DropdownMenuItem onClick={() => meta.onInvite(u)}>
-                      Invitar usuario
+                      {u.is_visitor ? 'Validar como miembro' : 'Invitar usuario'}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuGroup>

@@ -52,6 +52,10 @@ type User struct {
 
 	// Onboarding
 	OnboardingCompleted *bool `json:"onboarding_completed" db:"onboarding_completed"`
+
+	// Issue #72: registro público desde sion-website (register_visitor()) —
+	// existe en users pero sin cuenta de auth hasta que un staff+ lo valide.
+	IsVisitor bool `json:"is_visitor" db:"is_visitor"`
 }
 
 type UpdateUserRequest struct {
