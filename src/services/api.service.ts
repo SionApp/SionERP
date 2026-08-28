@@ -27,7 +27,31 @@ export class ApiService {
       headers.set('Authorization', `Bearer ${session.access_token}`);
     }
 
+    // Sesión única activa (ver lib/session.ts): el backend (SessionGuard) usa
+    // este id para saber si esta sesión sigue siendo la vigente del usuario.
+    // Se lee localStorage directo — NO importar session.ts acá (crearía un
+    // ciclo, ya que session.ts importa ApiService).
+    const sessionId = localStorage.getItem('sion_session_id');
+    if (sessionId) {
+      headers.set('X-Session-Id', sessionId);
+    }
+
     return headers;
+  }
+
+  // Ante un 401 con code SESSION_* (sesión tomada por otro dispositivo o
+  // vencida por inactividad), avisa a useSessionGuard para desloguear con un
+  // mensaje claro. Mismo nombre de evento que lib/session.ts SESSION_INVALID_EVENT.
+  private static notifyIfSessionInvalid(status: number, errorData: { code?: string }): void {
+    if (
+      status === 401 &&
+      typeof errorData.code === 'string' &&
+      errorData.code.startsWith('SESSION_')
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('sion:session-invalid', { detail: { code: errorData.code } })
+      );
+    }
   }
 
   /**
@@ -45,6 +69,7 @@ export class ApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        this.notifyIfSessionInvalid(response.status, errorData);
         const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
         const errorDetails = errorData.details ? ` - ${errorData.details}` : '';
 
@@ -110,6 +135,7 @@ export class ApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        this.notifyIfSessionInvalid(response.status, errorData);
         const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
         const errorDetails = errorData.details ? ` - ${errorData.details}` : '';
 
@@ -148,6 +174,7 @@ export class ApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        this.notifyIfSessionInvalid(response.status, errorData);
         const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
         const errorDetails = errorData.details ? ` - ${errorData.details}` : '';
 
@@ -185,6 +212,7 @@ export class ApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        this.notifyIfSessionInvalid(response.status, errorData);
         const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
         const errorDetails = errorData.details ? ` - ${errorData.details}` : '';
 

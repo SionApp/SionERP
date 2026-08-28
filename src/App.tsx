@@ -20,6 +20,7 @@ import { ApiService } from './services/api.service';
 import { setLoadingCallbacks } from './services/api.service';
 import { setDashboardLoadingCallbacks } from './services/dashboard.service';
 import { useMagicLinkCallback } from './hooks/useMagicLinkCallback';
+import { useSessionGuard } from './hooks/useSessionGuard';
 import { ROLE_LEVELS } from './lib/permissions';
 
 // Páginas del dashboard: carga perezosa — cada una es su propio chunk, así
@@ -150,10 +151,20 @@ const AppContent = () => {
   // Manejar callback del magic link de Supabase
   useMagicLinkCallback();
 
+  // Sesión única activa + vencimiento por inactividad + reacción en vivo a
+  // cambios críticos del propio usuario (ver hooks/useSessionGuard.ts).
+  useSessionGuard();
+
   useEffect(() => {
     // Configurar callbacks de loading para los servicios
     setLoadingCallbacks({ setFetching, setSubmitting });
     setDashboardLoadingCallbacks({ setFetching });
+    // Registrar el service worker (PWA + Web Push #24). Antes solo se
+    // registraba desde la landing legacy (Index.tsx), que no está ruteada —
+    // sin esto el push nunca tenía SW en el dashboard.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array - only run once on mount
 

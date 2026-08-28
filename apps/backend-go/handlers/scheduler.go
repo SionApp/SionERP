@@ -210,7 +210,10 @@ func StartNotificationQueueWorker() {
 			db := config.GetDB()
 			if db != nil && db.DB != nil {
 				if err := processNotificationQueue(db.DB); err != nil {
-					log.Printf("[scheduler] error procesando notification_queue: %v", err)
+					log.Printf("[scheduler] error procesando notification_queue (email): %v", err)
+				}
+				if err := processPushQueue(db.DB); err != nil {
+					log.Printf("[scheduler] error procesando notification_queue (push): %v", err)
 				}
 			}
 			time.Sleep(notificationQueueInterval)
@@ -252,6 +255,54 @@ func processNotificationQueue(db *sql.DB) error {
 
 	for _, p := range items {
 		sendErr := emailService.SendPlainNotification(p.email, p.subject, p.body)
+		if sendErr != nil {
+			_, _ = db.Exec(
+				"UPDATE notification_queue SET status = 'failed', error = $1 WHERE id = $2",
+				sendErr.Error(), p.id,
+			)
+			continue
+		}
+		_, _ = db.Exec(
+			"UPDATE notification_queue SET status = 'sent', sent_at = now() WHERE id = $1", p.id,
+		)
+	}
+	return nil
+}
+
+// processPushQueue toma las filas 'pending' de canal 'push' y las empuja a los
+// navegadores suscritos del usuario (sendWebPushToUser). Si el push no está
+// configurado (sin llaves VAPID) no hace nada — igual que el email sin Resend.
+// Una fila cuyo usuario no tiene ninguna suscripción viva se marca 'sent'
+// igual: la cola cumplió su parte, no hay a quién entregar y no es un error.
+func processPushQueue(db *sql.DB) error {
+	if !config.GetPushConfig().IsPushEnabled() {
+		return nil
+	}
+
+	rows, err := db.Query(`
+		SELECT id, user_id, subject, body
+		FROM notification_queue
+		WHERE status = 'pending' AND channel = 'push'
+		ORDER BY created_at
+		LIMIT 50
+	`)
+	if err != nil {
+		return fmt.Errorf("processPushQueue: querying pending: %w", err)
+	}
+	type pending struct {
+		id, userID, subject, body string
+	}
+	var items []pending
+	for rows.Next() {
+		var p pending
+		if rows.Scan(&p.id, &p.userID, &p.subject, &p.body) == nil {
+			items = append(items, p)
+		}
+	}
+	rows.Close()
+
+	for _, p := range items {
+		_, sendErr := sendWebPushToUser(db, p.userID, p.subject, p.body, "/")
 		if sendErr != nil {
 			_, _ = db.Exec(
 				"UPDATE notification_queue SET status = 'failed', error = $1 WHERE id = $2",
