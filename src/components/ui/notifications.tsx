@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AlertCircle, AlertTriangle, CheckCircle, Info, CheckCheck } from 'lucide-react';
+import { PushNotificationToggle } from '@/components/PushNotificationToggle';
 
 export interface Notification {
   id: string;
@@ -198,13 +199,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       </div>
 
       {/* Footer */}
-      {notifications.length > 0 && (
-        <div className="border-t px-4 py-2.5 text-center">
-          <button className="text-[13px] text-muted-foreground hover:text-foreground transition-colors">
-            Ver todas las notificaciones
-          </button>
-        </div>
-      )}
+      <div className="border-t px-4 py-2.5 flex items-center justify-center">
+        <PushNotificationToggle />
+      </div>
     </div>
   );
 };

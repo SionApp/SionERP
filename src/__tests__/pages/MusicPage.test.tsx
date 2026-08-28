@@ -26,11 +26,17 @@ vi.mock('@/services/music.service', () => ({
   },
 }));
 
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
-  },
-}));
+vi.mock('@/integrations/supabase/client', () => {
+  // Canal Realtime encadenable (useRealtimeTable lo monta al abrir MusicPage).
+  const channel = { on: vi.fn(() => channel), subscribe: vi.fn(() => channel) };
+  return {
+    supabase: {
+      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+      channel: vi.fn(() => channel),
+      removeChannel: vi.fn(),
+    },
+  };
+});
 
 import { usePermissions } from '@/hooks/usePermissions';
 

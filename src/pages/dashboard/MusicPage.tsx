@@ -33,6 +33,7 @@ import {
 import { cn } from '@/lib/utils';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { useMobileMode } from '@/hooks/useMobileMode';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { MusicService } from '@/services/music.service';
 import { AssignmentStates, MusicEventTypes } from '@/types/music.types';
 import type {
@@ -265,9 +266,7 @@ function EventListRow({
           <div className="min-w-0">
             <p className="text-sm font-semibold capitalize">{formatEventDate(event.eventDate)}</p>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <span className="music-tag music-tag-tone">
-                {EVENT_TYPE_LABEL[event.eventType]}
-              </span>
+              <span className="music-tag music-tag-tone">{EVENT_TYPE_LABEL[event.eventType]}</span>
               {event.published && <span className="music-tag music-tag-ok">Publicado</span>}
               {event.title && (
                 <span className="truncate text-xs text-muted-foreground">{event.title}</span>
@@ -374,7 +373,10 @@ function CronogramaCalendar({
           const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
           if (!inMonth)
             return (
-              <div key={i} className="min-h-[3.5rem] rounded-lg bg-white/[0.015] sm:aspect-square" />
+              <div
+                key={i}
+                className="min-h-[3.5rem] rounded-lg bg-white/[0.015] sm:aspect-square"
+              />
             );
           const iso = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
           const dayEvents = eventsByDate.get(iso) ?? [];
@@ -590,7 +592,12 @@ function CultosTab({
       action={
         isDirector && (
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setBatchOpen(true)} className="gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setBatchOpen(true)}
+              className="gap-1"
+            >
               <CalendarIcon className="h-4 w-4" />
               Trimestre
             </Button>
@@ -626,9 +633,7 @@ function CultosTab({
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="music-num text-sm font-semibold">{ev.eventDate}</span>
-                  <span className="music-tag music-tag-tone">
-                    {EVENT_TYPE_LABEL[ev.eventType]}
-                  </span>
+                  <span className="music-tag music-tag-tone">{EVENT_TYPE_LABEL[ev.eventType]}</span>
                   {ev.title && (
                     <span className="truncate text-sm text-muted-foreground">{ev.title}</span>
                   )}
@@ -665,9 +670,7 @@ function CultosTab({
       <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
         <DialogContent className="music-shell">
           <DialogHeader>
-            <DialogTitle className="music-heading text-2xl">
-              Generar trimestre
-            </DialogTitle>
+            <DialogTitle className="music-heading text-2xl">Generar trimestre</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleBatch} className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -905,7 +908,9 @@ function ServidorView({ embedExtras = true }: { embedExtras?: boolean }) {
                         )}
                       </div>
                     </div>
-                    <span className={cn('shrink-0', STATE_TAG[a.state])}>{STATE_LABEL[a.state]}</span>
+                    <span className={cn('shrink-0', STATE_TAG[a.state])}>
+                      {STATE_LABEL[a.state]}
+                    </span>
                   </div>
                   {a.state !== AssignmentStates.no_puedo && (
                     <div className="mt-3 flex gap-2">
@@ -997,9 +1002,7 @@ function ServidorView({ embedExtras = true }: { embedExtras?: boolean }) {
       <Dialog open={unavailOpen} onOpenChange={setUnavailOpen}>
         <DialogContent className="music-shell">
           <DialogHeader>
-            <DialogTitle className="music-heading text-2xl">
-              Registrar indisponibilidad
-            </DialogTitle>
+            <DialogTitle className="music-heading text-2xl">Registrar indisponibilidad</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleUnavailSubmit} className="space-y-4">
             <div className="space-y-1">
@@ -1176,6 +1179,10 @@ export default function MusicPage() {
   const navigate = useNavigate();
   const { isDirector, hasAccess, loadingAccess } = useMusicAccess();
   const [createEventOpen, setCreateEventOpen] = useState(false);
+
+  // Realtime de pantalla actual: si otro del equipo crea/mueve un culto, la
+  // agenda se refresca sola (invalida ['music-events']). Ver useRealtimeTable.
+  useRealtimeTable('music_events', [['music-events']]);
 
   const openEvent = (e: MusicEvent) => navigate(`/dashboard/music/eventos/${e.id}`);
 

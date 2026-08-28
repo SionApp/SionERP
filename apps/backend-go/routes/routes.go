@@ -86,6 +86,11 @@ func SetupRoutes(e *echo.Echo) {
 	// federada, este middleware es un no-op total.
 	protected.Use(middleware.FederatedSessionAuth())
 	protected.Use(middleware.SupabaseAuth())
+	// Sesión única activa + vencimiento por inactividad. Corre después de
+	// SupabaseAuth (necesita user_id) y antes de abrir tx. Rechaza requests de
+	// un dispositivo cuya sesión fue tomada por otro (X-Session-Id no coincide)
+	// o quedó inactiva. Ver middleware/session.go.
+	protected.Use(middleware.SessionGuard())
 	// Bloquea cualquier escritura de una sesión federada ANTES de que la
 	// request llegue a abrir transacción — fail-fast, no sólo gating de UI.
 	protected.Use(middleware.FederatedReadOnly())
@@ -308,6 +313,18 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.GET("/compliance/me", complianceHandler.GetMyCompliance)
 		discipleship.GET("/compliance/subordinates", complianceHandler.GetSubordinatesCompliance)
 	}
+
+	// Sesión activa (cualquier usuario autenticado): el frontend reclama la
+	// sesión apenas se loguea. Exento del SessionGuard (ver session.go).
+	protected.POST("/auth/session/claim", handlers.NewSessionHandler().ClaimSession)
+
+	// Web Push (#24) — cualquier usuario autenticado registra/borra su
+	// suscripción de navegador y consulta la clave VAPID pública.
+	pushHandler := handlers.NewPushHandler()
+	push := protected.Group("/push")
+	push.GET("/vapid-public-key", pushHandler.GetVAPIDPublicKey)
+	push.POST("/subscribe", pushHandler.Subscribe)
+	push.POST("/unsubscribe", pushHandler.Unsubscribe)
 
 	// Notifications routes (any authenticated user)
 	notificationsHandler := handlers.NewNotificationsHandler()
