@@ -180,6 +180,10 @@ const UsersPage = () => {
         isOpen={!!selectedUserId}
         onClose={() => setSelectedUserId(null)}
         onEdit={u => navigate('/dashboard/register-user', { state: { userId: u.id } })}
+        onValidateVisitor={u => {
+          setSelectedUserId(null);
+          setShowInviteModalUser(u);
+        }}
       />
 
       <DeleteUserDialog

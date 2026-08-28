@@ -80,7 +80,8 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			COALESCE(u.zone_id::text, '') as zone_id,
 			COALESCE(z.name, '') as zone_name,
 			u.onboarding_completed,
-			NULL::timestamptz AS last_sign_in_at
+			NULL::timestamptz AS last_sign_in_at,
+			u.is_visitor
 		FROM users u
 		LEFT JOIN user_invitations i ON u.email = i.email AND i.church_id = u.church_id
 		LEFT JOIN zones z ON u.zone_id = z.id AND z.church_id = u.church_id
@@ -207,6 +208,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 			&user.ZoneName,
 			&user.OnboardingCompleted,
 			&user.LastSignInAt,
+			&user.IsVisitor,
 		)
 		if err != nil {
 			c.Logger().Error("Row scan error in GetUsers: ", err)
@@ -286,7 +288,7 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 			   how_found_church, ministry_interest, first_visit_date,
 			   baptized, baptism_date, is_active_member, membership_date,
 			   cell_group, cell_leader_id, role, pastoral_notes, is_active,
-			   whatsapp, created_at, updated_at
+			   whatsapp, created_at, updated_at, is_visitor
 		FROM users
 		WHERE id = $1
 	`
@@ -298,7 +300,7 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 		&user.MinistryInterest, &user.FirstVisitDate, &user.Baptized,
 		&user.BaptismDate, &user.IsActiveMember, &user.MembershipDate,
 		&user.CellGroup, &user.CellLeaderID, &user.Role, &user.PastoralNotes,
-		&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt,
+		&user.IsActive, &user.WhatsApp, &user.CreatedAt, &user.UpdatedAt, &user.IsVisitor,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -902,11 +904,14 @@ func (h *UserHandler) CreateUserDirect(c echo.Context) error {
 			})
 		}
 
-		// Update existing profile
+		// Update existing profile — is_visitor=false acá específicamente: este
+		// branch es "existía en users sin auth, se le da acceso ahora", que
+		// es exactamente el caso de validar un visitante registrado desde
+		// sion-website (issue #72).
 		_, err = q.Exec(
 			`UPDATE users SET role = $1, first_name = $2, last_name = $3,
 			 phone = COALESCE(NULLIF($4, ''), phone), id_number = COALESCE(NULLIF($5, ''), id_number),
-			 onboarding_completed = true, updated_at = NOW()
+			 onboarding_completed = true, is_visitor = false, updated_at = NOW()
 			 WHERE id = $6`,
 			req.Role, req.FirstName, req.LastName, req.Phone, req.IdNumber, existingUserID,
 		)

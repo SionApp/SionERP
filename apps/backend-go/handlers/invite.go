@@ -353,6 +353,10 @@ func (h *InviteHandler) AcceptInvitation(c echo.Context) error {
 		})
 	}
 
+	// Issue #72: si quien acepta era un visitante registrado desde
+	// sion-website, ya validó su email vía este flujo — deja de serlo.
+	_, _ = q.Exec("UPDATE users SET is_visitor = false WHERE id = $1", userID)
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Invitation accepted successfully",
 		"invitation": map[string]interface{}{

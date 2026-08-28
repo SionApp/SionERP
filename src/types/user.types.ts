@@ -38,6 +38,8 @@ export interface User {
   invitation_expires_at?: string;
   invitation_id?: string;
   last_sign_in_at?: string;
+  /** Issue #72: registrado desde sion-website, sin cuenta de auth todavía. */
+  is_visitor?: boolean;
 
   // Campos de discipulado
   zone_id?: string;
