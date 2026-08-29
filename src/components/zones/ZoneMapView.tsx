@@ -166,7 +166,7 @@ export default function ZoneMapView() {
 
   if (loading) {
     return (
-      <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+      <Card className="rounded-md3-xl border-outline-variant bg-surface-white shadow-none">
         <CardHeader>
           <CardTitle>Cargando zonas...</CardTitle>
         </CardHeader>
@@ -198,7 +198,7 @@ export default function ZoneMapView() {
   const validZones = zones.filter(z => z.center_lat && z.center_lng);
 
   return (
-    <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] overflow-hidden">
+    <Card className="rounded-md3-xl border-outline-variant bg-surface-white shadow-none overflow-hidden">
       <div className="flex h-[600px]">
         {/* Sidebar */}
         {showSidebar && (

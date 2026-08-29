@@ -509,7 +509,7 @@ const DashboardHome = () => {
 
             {/* Roles */}
             <Card
-              className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] cursor-pointer hover:shadow-md transition-shadow"
+              className="cursor-pointer rounded-md3-lg border-0 bg-surface-container shadow-none transition-colors hover:bg-surface-container-high"
               onClick={() => navigate('/dashboard/roles')}
             >
               <CardContent className="p-4 flex items-center justify-between gap-3">
