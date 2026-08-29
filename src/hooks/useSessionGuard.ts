@@ -32,7 +32,11 @@ export function useSessionGuard() {
       done = true;
       toast.error(message);
       clearSessionId();
-      logout();
+      // scope:'local' — este dispositivo fue reemplazado por otro, que YA
+      // tiene una sesión válida. Un signOut 'global' (default) revocaría
+      // también ese token recién emitido, dejando al dispositivo nuevo
+      // deslogueado un instante después de entrar (bug real, visto en prod).
+      logout({ scope: 'local' });
     };
 
     // 1) Reclamar la sesión para este dispositivo (pisa la del dispositivo previo).

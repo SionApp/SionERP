@@ -19,7 +19,7 @@ interface AuthContextType {
   session: Session | null;
   login: (email: string, password: string) => Promise<{ error?: AuthError }>;
   signUp: (email: string, password: string, userData?: UserType) => Promise<{ error?: AuthError }>;
-  logout: () => Promise<void>;
+  logout: (opts?: { scope?: 'global' | 'local' }) => Promise<void>;
   isLoading: boolean;
   isLoadingCurrentUser: boolean;
   currentUserLoaded: boolean;
@@ -199,9 +199,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { error };
   };
 
-  const logout = async () => {
+  const logout = async (opts?: { scope?: 'global' | 'local' }) => {
     try {
-      await supabase.auth.signOut();
+      // 'global' (default): revoca la sesión del usuario EN TODOS los
+      // dispositivos — correcto para el botón "Cerrar sesión" que el usuario
+      // clickea a propósito. 'local' es el que necesita useSessionGuard: si
+      // un dispositivo se desconecta porque OTRO le reemplazó la sesión,
+      // 'global' revocaría también el token recién emitido de ese otro
+      // dispositivo — lo dejaría deslogueado un instante después de entrar.
+      await supabase.auth.signOut({ scope: opts?.scope ?? 'global' });
     } catch {
       // Session may already be invalid server-side (e.g. after db reset)
     }
