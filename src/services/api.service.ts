@@ -13,6 +13,17 @@ export const setLoadingCallbacks = (callbacks: typeof loadingCallbacks) => {
 export class ApiService {
   private static baseUrl = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8181'}/api/v1`;
 
+  // Sesión única activa: el X-Session-Id NO se manda hasta que useSessionGuard
+  // confirmó el claim (markSessionClaimed). Si lo mandáramos antes, un request
+  // que sale ANTES de que el claim termine (ej. permissions/me en el login)
+  // llevaría un session_id que todavía no coincide con la fila activa → 401
+  // SESSION_SUPERSEDED espurio → el usuario "no entra". Antes del claim no hay
+  // enforcement (el backend no bloquea sin header); después sí.
+  private static sessionClaimed = false;
+  static markSessionClaimed() {
+    this.sessionClaimed = true;
+  }
+
   /**
    * Get authorization header with current user token
    */
@@ -27,13 +38,13 @@ export class ApiService {
       headers.set('Authorization', `Bearer ${session.access_token}`);
     }
 
-    // Sesión única activa (ver lib/session.ts): el backend (SessionGuard) usa
-    // este id para saber si esta sesión sigue siendo la vigente del usuario.
-    // Se lee localStorage directo — NO importar session.ts acá (crearía un
-    // ciclo, ya que session.ts importa ApiService).
-    const sessionId = localStorage.getItem('sion_session_id');
-    if (sessionId) {
-      headers.set('X-Session-Id', sessionId);
+    // Solo tras confirmar el claim. Se lee localStorage directo — NO importar
+    // session.ts acá (crearía un ciclo, session.ts importa ApiService).
+    if (this.sessionClaimed) {
+      const sessionId = localStorage.getItem('sion_session_id');
+      if (sessionId) {
+        headers.set('X-Session-Id', sessionId);
+      }
     }
 
     return headers;

@@ -18,6 +18,7 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"backend-sion/config"
@@ -33,8 +34,16 @@ import (
 const sessionIdleGraceMin = 35
 
 func SessionGuard() echo.MiddlewareFunc {
+	// Escape hatch de dev: DISABLE_SESSION_GUARD=true apaga la sesión única.
+	// Necesario en local donde varias superficies (preview Electron + panel de
+	// Browser, distintos navegadores) comparten la misma cuenta y se pisan la
+	// sesión entre sí. NO se setea en producción, donde la feature sigue activa.
+	disabled := os.Getenv("DISABLE_SESSION_GUARD") == "true"
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			if disabled {
+				return next(c)
+			}
 			// Sesión federada (BonDev): no tiene active_sessions, saltear.
 			if isFederated, _ := c.Get("is_federated").(bool); isFederated {
 				return next(c)

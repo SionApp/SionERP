@@ -58,11 +58,38 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Material Design 3 tonal surfaces (theme-aware via CSS vars).
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          white: "hsl(var(--surface-white))",
+          container: "hsl(var(--surface-container))",
+          "container-high": "hsl(var(--surface-container-high))",
+          variant: "hsl(var(--surface-variant))",
+        },
+        // Flat (no DEFAULT) para no generar una clase `outline` que colisione
+        // con la utility de outline-style de Tailwind core.
+        outline: "hsl(var(--outline))",
+        "outline-variant": "hsl(var(--outline-variant))",
+        "divider-soft": "hsl(var(--divider-soft))",
+        "map-bg": "hsl(var(--map-bg))",
+        "primary-container": "hsl(var(--primary-container))",
+        "on-primary-container": "hsl(var(--on-primary-container))",
+        "secondary-container": "hsl(var(--secondary-container))",
+        "on-secondary-container": "hsl(var(--on-secondary-container))",
+        "nav-bg": "hsl(var(--nav-bg))",
+        "md-success": "hsl(var(--success))",
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        // MD3 shape scale.
+        md3: "16px",
+        "md3-lg": "22px",
+        "md3-xl": "26px",
+      },
+      fontFamily: {
+        sans: ["Roboto", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {
@@ -85,6 +112,12 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.3" },
         },
+        // MD3: pulso del punto "EN VIVO" (badge del mapa) — handoff.
+        "live-pulse": {
+          "0%": { boxShadow: "0 0 0 0 rgba(34,197,94,.5)" },
+          "70%": { boxShadow: "0 0 0 7px rgba(34,197,94,0)" },
+          "100%": { boxShadow: "0 0 0 0 rgba(34,197,94,0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -92,6 +125,7 @@ export default {
         "fade-in": "fade-in 0.3s ease-out",
         "slide-up": "slide-up 0.4s ease-out",
         "pulse-dot": "pulse-dot 1.4s ease-in-out infinite",
+        "live-pulse": "live-pulse 2s infinite",
       },
     },
   },

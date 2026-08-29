@@ -22,10 +22,10 @@ import { useMobileMode } from '@/hooks/useMobileMode';
 import { useNotificationsData } from '@/hooks/useNotificationsData';
 import { useSetupShortcut } from '@/hooks/useSetupShortcut';
 import { useSystemPublicSettings } from '@/hooks/useSystemPublicSettings';
-import { coBrand, PLATFORM_NAME } from '@/lib/branding';
+import { coBrand } from '@/lib/branding';
 import { invalidatePermissionsCache } from '@/lib/permissions';
 import { UserService } from '@/services/user.service';
-import { Bell, LogOut, Palette, UserCircle, Wrench } from 'lucide-react';
+import { Bell, LogOut, Palette, Search, UserCircle, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -167,7 +167,7 @@ const DashboardLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className="h-[100dvh] flex flex-col w-full bg-gradient-to-br from-background via-background to-accent/5 overflow-hidden fixed inset-0">
+      <div className="fixed inset-0 flex h-[100dvh] w-full flex-col overflow-hidden bg-surface">
         <FederatedBanner />
         {/* Aviso para staff+: mantenimiento activo (los demás ven la pantalla de mantenimiento) */}
         {systemSettings?.maintenance_mode && isStaffPlus && (
@@ -177,119 +177,108 @@ const DashboardLayout = () => {
           </div>
         )}
 
-        {/* Header Glass Morphism */}
-        <header className="h-14 sm:h-16 flex items-center justify-between bg-[var(--glass-background)] backdrop-blur-lg border-b border-border/30 px-2 sm:px-4 md:px-6 shadow-[var(--shadow-glass)] gap-2 shrink-0 z-50">
-          <div className="flex items-center gap-4">
-            <SidebarTrigger className="p-2 rounded-xl hover:bg-accent/50 transition-colors" />
-            <div className="flex items-center gap-3">
-              {systemSettings?.logo_url ? (
-                <div className="w-9 h-9 rounded-xl bg-white shadow-lg p-1 shrink-0">
-                  <img
-                    src={systemSettings.logo_url}
-                    alt={churchName}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
-                  <span className="text-primary-foreground font-bold text-sm">
-                    {churchName.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
-              <div>
-                <h1 className="text-base sm:text-lg font-bold text-foreground">{churchName}</h1>
-                <p className="hidden sm:block text-xs text-muted-foreground">
-                  {PLATFORM_NAME} · Panel de Administración
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-accent/30 backdrop-blur-sm border border-border/30 hover:bg-accent/50 transition-colors cursor-pointer">
-                  <Avatar className="w-8 h-8 shrink-0">
-                    <AvatarImage src={avatarUrl} alt="Avatar" />
-                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/70 text-primary-foreground font-semibold text-xs">
-                      {user?.user_metadata?.first_name?.[0] || user?.email?.[0] || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="text-left">
-                    <p className="text-sm font-medium leading-tight">
-                      {user?.user_metadata?.first_name || user?.email?.split('@')[0]}
-                    </p>
-                    <p className="text-xs text-muted-foreground leading-tight">
-                      {userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : ''}
-                    </p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={() => navigate('/dashboard/profile')}
-                  className="cursor-pointer"
-                >
-                  <UserCircle className="h-4 w-4 mr-2" /> Mi Perfil
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate('/dashboard/settings')}
-                  className="cursor-pointer"
-                >
-                  <Palette className="h-4 w-4 mr-2" /> Colores del sistema
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleLogout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
-                >
-                  <LogOut className="h-4 w-4 mr-2" /> Salir
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <ThemeToggle />
-
-            <PreferencesPanel />
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative rounded-xl">
-                  <Bell className="h-4 w-4" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[360px] p-0" align="end">
-                <NotificationCenter
-                  notifications={notifications}
-                  onMarkAsRead={markAsRead}
-                  onMarkAllAsRead={markAllAsRead}
-                  onDismiss={dismiss}
-                />
-              </PopoverContent>
-            </Popover>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              className="md:hidden flex items-center justify-center rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </header>
-
-        <div className="flex flex-1 w-full overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar full-height (con la marca arriba, MD3 handoff) */}
           <AppSidebar churchName={churchName} logoUrl={systemSettings?.logo_url} />
-          <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-20 md:pb-8">
-            <Outlet />
-          </main>
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            {/* Topbar MD3 — sobre el contenido, no sobre el sidebar */}
+            <header className="flex h-16 shrink-0 items-center gap-3.5 border-b border-outline-variant bg-surface px-2 sm:px-6">
+              <SidebarTrigger className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/10" />
+
+              {/* Search pill */}
+              <div className="hidden items-center gap-2.5 rounded-full bg-surface-variant px-4 py-2.5 md:flex md:w-full md:max-w-[400px]">
+                <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Buscar usuarios, grupos, zonas…"
+                  className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                />
+              </div>
+
+              <div className="flex-1" />
+
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                <ThemeToggle />
+                <PreferencesPanel />
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" className="relative rounded-full">
+                      <Bell className="h-5 w-5" />
+                      {unreadCount > 0 && (
+                        <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive ring-2 ring-surface" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[360px] p-0" align="end">
+                    <NotificationCenter
+                      notifications={notifications}
+                      onMarkAsRead={markAsRead}
+                      onMarkAllAsRead={markAllAsRead}
+                      onDismiss={dismiss}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {/* User chip (primary-container, MD3 handoff) */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="hidden items-center gap-2.5 rounded-full bg-primary-container py-1 pl-1.5 pr-3.5 transition-opacity hover:opacity-90 md:flex">
+                      <Avatar className="h-[34px] w-[34px] shrink-0">
+                        <AvatarImage src={avatarUrl} alt="Avatar" />
+                        <AvatarFallback className="bg-primary text-sm font-semibold text-primary-foreground">
+                          {user?.user_metadata?.first_name?.[0] || user?.email?.[0] || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="text-left leading-tight">
+                        <p className="text-[13px] font-semibold uppercase text-on-primary-container">
+                          {user?.user_metadata?.first_name || user?.email?.split('@')[0]}
+                        </p>
+                        <p className="text-[11px] text-primary">
+                          {userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : ''}
+                        </p>
+                      </div>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => navigate('/dashboard/profile')}
+                      className="cursor-pointer"
+                    >
+                      <UserCircle className="mr-2 h-4 w-4" /> Mi Perfil
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => navigate('/dashboard/settings')}
+                      className="cursor-pointer"
+                    >
+                      <Palette className="mr-2 h-4 w-4" /> Colores del sistema
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleLogout}
+                      className="cursor-pointer text-destructive focus:text-destructive"
+                    >
+                      <LogOut className="mr-2 h-4 w-4" /> Salir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleLogout}
+                  className="flex items-center justify-center rounded-full transition-colors hover:bg-destructive/10 hover:text-destructive md:hidden"
+                >
+                  <LogOut className="h-5 w-5" />
+                </Button>
+              </div>
+            </header>
+
+            <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-20 md:pb-8">
+              <Outlet />
+            </main>
+          </div>
         </div>
 
         <MobileBottomNav />

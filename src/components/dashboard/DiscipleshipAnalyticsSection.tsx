@@ -137,9 +137,7 @@ export const DiscipleshipAnalyticsSection = ({
     <div className="space-y-6 md:space-y-8">
       {/* Header con resumen ejecutivo */}
       <div className="text-center space-y-1 px-2">
-        <h2 className="text-2xl md:text-3xl font-bold text-foreground">
-          Analytics de Discipulado
-        </h2>
+        <h2 className="text-2xl md:text-3xl font-bold text-foreground">Analytics de Discipulado</h2>
         <p className="text-sm md:text-base text-muted-foreground">
           Trazabilidad completa del ministerio de células
         </p>
@@ -219,7 +217,7 @@ export const DiscipleshipAnalyticsSection = ({
       {/* Grid principal de gráficas - Mobile: 1 col, Desktop: 2 cols */}
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {/* Tendencias semanales */}
-        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+        <Card className="rounded-md3-xl border-outline-variant bg-surface-white shadow-none">
           <CardHeader className="p-3 sm:p-4 lg:p-6 pb-2">
             <CardTitle className="text-base md:text-xl font-bold flex items-center gap-2">
               <TrendingUp className="h-4 md:h-5 w-4 md:w-5 text-primary flex-shrink-0" />
@@ -257,7 +255,11 @@ export const DiscipleshipAnalyticsSection = ({
                       <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    strokeOpacity={0.4}
+                  />
                   <XAxis
                     dataKey="weekLabel"
                     stroke="hsl(var(--muted-foreground))"
@@ -313,7 +315,7 @@ export const DiscipleshipAnalyticsSection = ({
         </Card>
 
         {/* Radar de salud espiritual por zona */}
-        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+        <Card className="rounded-md3-xl border-outline-variant bg-surface-white shadow-none">
           <CardHeader className="p-3 sm:p-4 lg:p-6 pb-2">
             <CardTitle className="text-base md:text-xl font-bold flex items-center gap-2">
               <Heart className="h-4 md:h-5 w-4 md:w-5 text-red-500 flex-shrink-0" />
@@ -376,7 +378,7 @@ export const DiscipleshipAnalyticsSection = ({
         </Card>
 
         {/* Performance por zona - Bar Chart */}
-        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+        <Card className="rounded-md3-xl border-outline-variant bg-surface-white shadow-none">
           <CardHeader className="p-3 sm:p-4 lg:p-6 pb-2">
             <CardTitle className="text-base md:text-xl font-bold flex items-center gap-2">
               <BarChart3 className="h-4 md:h-5 w-4 md:w-5 text-blue-500 flex-shrink-0" />
@@ -412,7 +414,12 @@ export const DiscipleshipAnalyticsSection = ({
                       <stop offset="100%" stopColor="#67e8f9" />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} horizontal={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    strokeOpacity={0.4}
+                    horizontal={false}
+                  />
                   <XAxis
                     type="number"
                     stroke="hsl(var(--muted-foreground))"
@@ -434,10 +441,29 @@ export const DiscipleshipAnalyticsSection = ({
                       value.length > 10 ? value.substring(0, 10) + '…' : value
                     }
                   />
-                  <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
-                  <Bar dataKey="totalGroups" fill="url(#gradGroups)" name="Grupos" radius={[0, 4, 4, 0]} maxBarSize={14} />
-                  <Bar dataKey="totalMembers" fill="url(#gradMembers)" name="Miembros" radius={[0, 4, 4, 0]} maxBarSize={14} />
-                  <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} iconType="circle" iconSize={8} />
+                  <ChartTooltip
+                    content={<ChartTooltipContent />}
+                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
+                  />
+                  <Bar
+                    dataKey="totalGroups"
+                    fill="url(#gradGroups)"
+                    name="Grupos"
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={14}
+                  />
+                  <Bar
+                    dataKey="totalMembers"
+                    fill="url(#gradMembers)"
+                    name="Miembros"
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={14}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }}
+                    iconType="circle"
+                    iconSize={8}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </ChartContainer>
@@ -445,7 +471,7 @@ export const DiscipleshipAnalyticsSection = ({
         </Card>
 
         {/* Alertas críticas y tracking de multiplicación */}
-        <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+        <Card className="rounded-md3-xl border-outline-variant bg-surface-white shadow-none">
           <CardHeader className="p-3 sm:p-4 lg:p-6 pb-2">
             <CardTitle className="text-base md:text-xl font-bold flex items-center gap-2">
               <AlertTriangle className="h-4 md:h-5 w-4 md:w-5 text-orange-500 flex-shrink-0" />
@@ -554,7 +580,7 @@ export const DiscipleshipAnalyticsSection = ({
       </div>
 
       {/* Tabla de performance de líderes - Solo top 6 */}
-      <Card className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
+      <Card className="rounded-md3-xl border-outline-variant bg-surface-white shadow-none">
         <CardHeader className="p-3 sm:p-4 lg:p-6 pb-2">
           <CardTitle className="text-base md:text-xl font-bold flex items-center gap-2">
             <Target className="h-4 md:h-5 w-4 md:w-5 text-purple-500 flex-shrink-0" />

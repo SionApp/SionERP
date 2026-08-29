@@ -13,21 +13,24 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { supabase } from '@/integrations/supabase/client';
+import { DashboardService, type TraceabilityEntry } from '@/services/dashboard.service';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipReport } from '@/types/discipleship.types';
 import { cn, formatTimeAgo } from '@/lib/utils';
 import { ROLE_LEVELS } from '@/lib/permissions';
 import {
-  Activity,
   AlertTriangle,
   BookOpen,
-  CheckCircle2,
   ChevronRight,
-  ClipboardCheck,
+  Edit3,
   Map,
+  Network,
+  Send,
   Settings,
+  Shield,
   UserPlus,
   Users,
+  Zap,
 } from 'lucide-react';
 
 // ── Quick action config ──────────────────────────────────────────────────────
@@ -36,7 +39,8 @@ interface QuickAction {
   label: string;
   icon: React.ReactNode;
   to: string;
-  color: string;
+  tone: string; // categoría MD3 (desktop, ver ICON_TONE)
+  color: string; // gradiente (lo consume la pantalla mobile, sin migrar aún)
   roles: string[];
   module?: string;
 }
@@ -44,65 +48,82 @@ interface QuickAction {
 const QUICK_ACTIONS: QuickAction[] = [
   {
     label: 'Registrar usuario',
-    icon: <UserPlus className="h-5 w-5" />,
+    icon: <UserPlus className="h-[21px] w-[21px]" />,
     to: '/dashboard/register',
+    tone: 'blue',
     color: 'from-blue-500 to-cyan-500',
     roles: ['pastor', 'staff', 'admin'],
   },
   {
     label: 'Discipulado',
-    icon: <BookOpen className="h-5 w-5" />,
+    icon: <BookOpen className="h-[21px] w-[21px]" />,
     to: '/dashboard/discipleship',
+    tone: 'green',
     color: 'from-emerald-500 to-green-500',
     roles: ['pastor', 'staff', 'supervisor', 'server', 'admin'],
     module: 'discipleship',
   },
   {
     label: 'Zonas',
-    icon: <Map className="h-5 w-5" />,
+    icon: <Map className="h-[21px] w-[21px]" />,
     to: '/dashboard/zones',
+    tone: 'violet',
     color: 'from-violet-500 to-purple-500',
     roles: ['pastor', 'staff', 'admin'],
     module: 'zones',
   },
   {
     label: 'Configuración',
-    icon: <Settings className="h-5 w-5" />,
+    icon: <Settings className="h-[21px] w-[21px]" />,
     to: '/dashboard/settings',
+    tone: 'terracotta',
     color: 'from-orange-500 to-red-500',
     roles: ['pastor', 'staff', 'admin'],
   },
 ];
 
-// ── Stat card ────────────────────────────────────────────────────────────────
+// ── Pares de color por categoría (handoff MD3). Exactos en claro; en oscuro,
+// contenedor translúcido del color del icono + icono aclarado. ────────────────
+const ICON_TONE: Record<string, string> = {
+  blue: 'bg-[#DCE7FF] text-[#2A5AD0] dark:bg-[#2A5AD0]/25 dark:text-[#AFC6FF]',
+  green: 'bg-[#DDECE2] text-[#2E6C4C] dark:bg-[#2E6C4C]/30 dark:text-[#A6D9BC]',
+  violet: 'bg-[#E7DEF3] text-[#6E4CA6] dark:bg-[#6E4CA6]/30 dark:text-[#D6C2F0]',
+  terracotta: 'bg-[#FBE0D6] text-[#B3492A] dark:bg-[#B3492A]/30 dark:text-[#F0B49B]',
+};
+
+// ── KPI card (MD3 tonal — handoff variante 2a) ────────────────────────────────
 
 interface StatCardProps {
   title: string;
   value: number | string;
   sub: string;
   icon: React.ReactNode;
-  color: string;
+  tone: keyof typeof ICON_TONE;
   loading?: boolean;
 }
 
-const StatCard = ({ title, value, sub, icon, color, loading }: StatCardProps) => (
-  <Card className="relative overflow-hidden border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
-    <div className={cn('absolute inset-0 bg-gradient-to-br opacity-10', color)} />
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 relative z-10 p-3 sm:p-4">
-      <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-        {title}
-      </CardTitle>
-      <div className={cn('p-1.5 sm:p-2 rounded-lg bg-gradient-to-br shadow-md', color)}>{icon}</div>
-    </CardHeader>
-    <CardContent className="relative z-10 p-3 sm:p-4 pt-0">
-      {loading ? (
-        <Skeleton className="h-7 w-16" />
-      ) : (
-        <div className="text-2xl sm:text-3xl font-bold">{value}</div>
-      )}
-      <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
-    </CardContent>
-  </Card>
+const StatCard = ({ title, value, sub, icon, tone, loading }: StatCardProps) => (
+  <div className="rounded-md3-lg bg-surface-container p-5">
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-[13px] font-medium text-muted-foreground">{title}</span>
+      <div
+        className={cn(
+          'flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-md3',
+          ICON_TONE[tone]
+        )}
+      >
+        {icon}
+      </div>
+    </div>
+    {loading ? (
+      <Skeleton className="mb-0.5 mt-3.5 h-10 w-24" />
+    ) : (
+      <div className="mb-0.5 mt-3.5 text-[42px] font-medium leading-none tracking-tight text-foreground">
+        {value}
+      </div>
+    )}
+    <p className="text-[13px] text-outline">{sub}</p>
+  </div>
 );
 
 // ── Role badge label ─────────────────────────────────────────────────────────
@@ -115,12 +136,37 @@ const ROLE_LABELS: Record<string, string> = {
   server: 'Servidor',
 };
 
+// ── Actividad reciente: traduce una entrada de auditoría (trazabilidad) a una
+// fila legible (icono + título), según la tabla y la acción. ──────────────────
+function describeActivity(e: TraceabilityEntry): { icon: React.ReactNode; title: string } {
+  const t = e.table_name.toLowerCase();
+  const a = e.action.toUpperCase();
+  if (t.includes('report'))
+    return { icon: <Send className="h-[18px] w-[18px]" />, title: 'Reporte enviado' };
+  if (t.includes('group'))
+    return { icon: <Network className="h-[18px] w-[18px]" />, title: 'Nuevo grupo celular' };
+  if (t.includes('role') || t.includes('permission'))
+    return { icon: <Shield className="h-[18px] w-[18px]" />, title: 'Actualizó un rol' };
+  if (t.includes('user')) {
+    if (a === 'INSERT')
+      return { icon: <UserPlus className="h-[18px] w-[18px]" />, title: 'Registró usuario' };
+    if (a === 'DELETE')
+      return { icon: <Edit3 className="h-[18px] w-[18px]" />, title: 'Eliminó usuario' };
+    return { icon: <Edit3 className="h-[18px] w-[18px]" />, title: 'Actualizó usuario' };
+  }
+  const verb = a === 'INSERT' ? 'Creó' : a === 'DELETE' ? 'Eliminó' : 'Actualizó';
+  return { icon: <Zap className="h-[18px] w-[18px]" />, title: `${verb} un registro` };
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 const DashboardHome = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [zonesCount, setZonesCount] = useState<number | null>(null);
+  const [activity, setActivity] = useState<TraceabilityEntry[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  // Solo para la pantalla mobile (no rediseñada en esta tanda MD3).
   const [pendingReports, setPendingReports] = useState<DiscipleshipReport[]>([]);
   const [pendingReportsLoading, setPendingReportsLoading] = useState(true);
 
@@ -137,12 +183,31 @@ const DashboardHome = () => {
       .then(({ count }: { count: number | null }) => setZonesCount(count ?? 0));
   }, []);
 
-  // Reportes de discipulado con status='submitted' que este usuario supervisa.
-  // El backend ya scopea por supervisor_id=yo (o huérfanos, si es admin/pastor)
-  // — para alguien sin gente a cargo, esto simplemente devuelve [] sin que haga
-  // falta ningún chequeo de rol acá.
+  // Actividad reciente (auditoría/trazabilidad). Solo staff+ ve este endpoint
+  // (backend RequireRole staff); para el resto queda vacío sin romper nada.
   useEffect(() => {
-    if (!installedModules.includes('discipleship')) {
+    const staffPlus = ROLE_LEVELS[currentUserRole ?? ''] >= ROLE_LEVELS.staff;
+    if (!staffPlus) {
+      setActivityLoading(false);
+      return;
+    }
+    let cancelled = false;
+    DashboardService.getTraceability({ limit: 6 })
+      .then(res => {
+        if (!cancelled) setActivity(res.items || []);
+      })
+      .catch(err => console.error('Error loading activity:', err))
+      .finally(() => {
+        if (!cancelled) setActivityLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserRole]);
+
+  // Reportes pendientes — solo se consumen en la pantalla mobile.
+  useEffect(() => {
+    if (!isMobileApp || !installedModules.includes('discipleship')) {
       setPendingReportsLoading(false);
       return;
     }
@@ -158,7 +223,7 @@ const DashboardHome = () => {
     return () => {
       cancelled = true;
     };
-  }, [installedModules]);
+  }, [isMobileApp, installedModules]);
 
   const firstName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Admin';
   const lastLogin = user?.last_sign_in_at
@@ -239,90 +304,93 @@ const DashboardHome = () => {
     );
   }
 
+  const canRegister =
+    currentUserRole !== undefined && ['admin', 'pastor', 'staff'].includes(currentUserRole);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-b-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-lg bg-gradient-to-r from-primary/90 via-blue-600/80 to-purple-600/80 border border-primary/20">
-        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl md:text-4xl font-extrabold text-white drop-shadow-md">
-                Hola, {firstName}
-              </h1>
+    <div className="min-h-screen bg-surface">
+      <div className="flex flex-col gap-5 p-4 sm:p-6">
+        {/* ── Welcome banner (MD3 — handoff 2a) ─────────────────────────────── */}
+        <div
+          className="flex flex-col gap-4 rounded-md3-xl p-6 text-white sm:flex-row sm:items-center sm:justify-between sm:p-7"
+          style={{ backgroundImage: 'var(--gradient-banner)' }}
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-normal sm:text-[30px]">Hola, {firstName}</h1>
               {currentUserRole && (
-                <Badge className="bg-white/20 text-white border-white/30 text-xs shrink-0">
+                <span className="rounded-full bg-white/20 px-3.5 py-1.5 text-xs font-medium text-white">
                   {ROLE_LABELS[currentUserRole] ?? currentUserRole}
-                </Badge>
+                </span>
               )}
             </div>
-            <p className="text-white/70 text-xs sm:text-sm mt-1">Último acceso: {lastLogin}</p>
+            <p className="mt-2 text-sm text-white/85">Último acceso: {lastLogin}</p>
           </div>
-          <div className="hidden sm:flex w-14 h-14 rounded-full bg-white/10 backdrop-blur-md items-center justify-center border border-white/20 shrink-0">
-            <Activity className="h-7 w-7 text-white" />
-          </div>
+          {canRegister && (
+            <button
+              onClick={() => navigate('/dashboard/register')}
+              className="flex shrink-0 items-center justify-center gap-2.5 rounded-md3 bg-primary-container px-6 py-3.5 text-[15px] font-medium text-on-primary-container transition-opacity hover:opacity-90"
+            >
+              <UserPlus className="h-5 w-5" />
+              Registrar usuario
+            </button>
+          )}
         </div>
-      </div>
 
-      <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
-        {/* ── Stat cards ───────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+        {/* ── KPI cards ─────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4 lg:gap-4">
           <StatCard
             title="Usuarios activos"
             value={stats.totalUsers}
             sub="Registrados en el sistema"
-            icon={<Users className="h-4 w-4 text-white" />}
-            color="from-blue-500 to-cyan-500"
+            icon={<Users className="h-[22px] w-[22px]" />}
+            tone="blue"
             loading={loading}
           />
           <StatCard
             title="Grupos celulares"
             value={discipleshipStats.totalGroups}
             sub={`${discipleshipStats.totalMembers} miembros`}
-            icon={<BookOpen className="h-4 w-4 text-white" />}
-            color="from-emerald-500 to-green-500"
+            icon={<BookOpen className="h-[22px] w-[22px]" />}
+            tone="green"
             loading={loading}
           />
           <StatCard
             title="Nuevos este mes"
             value={stats.newRegistrations}
             sub="Últimos 30 días"
-            icon={<UserPlus className="h-4 w-4 text-white" />}
-            color="from-violet-500 to-purple-500"
+            icon={<UserPlus className="h-[22px] w-[22px]" />}
+            tone="violet"
             loading={loading}
           />
           <StatCard
             title="Alertas activas"
             value={discipleshipStats.alertsCount}
             sub="Requieren atención"
-            icon={<AlertTriangle className="h-4 w-4 text-white" />}
-            color={
-              discipleshipStats.alertsCount > 0
-                ? 'from-red-500 to-orange-500'
-                : 'from-slate-400 to-slate-500'
-            }
+            icon={<AlertTriangle className="h-[22px] w-[22px]" />}
+            tone="terracotta"
             loading={loading}
           />
         </div>
 
-        {/* ── Quick actions ─────────────────────────────────────────────────── */}
+        {/* ── Quick actions (MD3 — handoff) ─────────────────────────────────── */}
         {visibleActions.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
             {visibleActions.map(action => (
               <button
                 key={action.to}
                 onClick={() => navigate(action.to)}
-                className="flex items-center gap-3 p-3 sm:p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors cursor-pointer text-left"
+                className="flex items-center gap-3 rounded-md3 bg-surface-container px-4 py-3.5 text-left transition-colors hover:bg-surface-container-high"
               >
                 <div
                   className={cn(
-                    'p-2 rounded-lg bg-gradient-to-br text-white shrink-0',
-                    action.color
+                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                    ICON_TONE[action.tone] ?? ICON_TONE.blue
                   )}
                 >
                   {action.icon}
                 </div>
-                <span className="text-sm font-medium truncate">{action.label}</span>
+                <span className="truncate text-sm font-medium text-foreground">{action.label}</span>
               </button>
             ))}
           </div>
@@ -337,81 +405,66 @@ const DashboardHome = () => {
 
         {/* ── Two column grid ───────────────────────────────────────────────── */}
         <div className="grid gap-4 lg:grid-cols-3">
-          {/* Reportes pendientes de tu aprobación — takes 2/3. Solo si el módulo de
-              discipulado está instalado; el backend ya scopea por supervisor_id=yo,
-              así que para alguien sin gente a cargo esto simplemente sale vacío. */}
-          {installedModules.includes('discipleship') && (
-            <Card className="lg:col-span-2 border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)]">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <ClipboardCheck className="h-4 w-4 text-primary" />
-                  Reportes pendientes de tu aprobación
+          {/* Actividad reciente (MD3 — handoff). Feed de auditoría; solo staff+. */}
+          {isStaffPlus && (
+            <Card className="rounded-md3-xl border-outline-variant bg-surface-white shadow-none lg:col-span-2">
+              <CardHeader className="p-5 pb-2">
+                <CardTitle className="flex items-center gap-2.5 text-[17px] font-medium">
+                  <Zap className="h-[22px] w-[22px] text-primary" />
+                  Actividad reciente
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-2">
-                {pendingReportsLoading ? (
+              <CardContent className="px-5 pb-4 pt-1">
+                {activityLoading ? (
                   <div className="space-y-3">
-                    {[1, 2, 3].map(i => (
-                      <Skeleton key={i} className="h-12 w-full rounded-xl" />
+                    {[1, 2, 3, 4].map(i => (
+                      <Skeleton key={i} className="h-12 w-full rounded-md3" />
                     ))}
                   </div>
-                ) : pendingReports.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
-                    <CheckCircle2 className="h-8 w-8 opacity-20" />
-                    <p className="text-sm">Estás al día — sin reportes pendientes</p>
+                ) : activity.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+                    <Zap className="h-8 w-8 opacity-20" />
+                    <p className="text-sm">Sin actividad reciente</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {pendingReports.map(report => (
-                      <div
-                        key={report.id}
-                        onClick={() => navigate('/dashboard/discipleship')}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-accent/40 to-transparent border border-border/50 hover:from-accent/60 transition-colors cursor-pointer"
-                      >
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-amber-500" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {report.reporter_name || 'Reporte'}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {report.report_type}
-                          </p>
+                  <div>
+                    {activity.map((e, idx) => {
+                      const { icon, title } = describeActivity(e);
+                      return (
+                        <div
+                          key={e.id}
+                          className={cn(
+                            'flex items-center gap-3.5 py-3',
+                            idx < activity.length - 1 && 'border-b border-divider-soft'
+                          )}
+                        >
+                          <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-primary-container text-primary">
+                            {icon}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">{title}</p>
+                            <p className="truncate text-xs text-outline">
+                              por {e.user || 'Sistema'}
+                            </p>
+                          </div>
+                          <span className="shrink-0 whitespace-nowrap text-xs text-outline">
+                            {e.changed_at ? formatTimeAgo(e.changed_at) : ''}
+                          </span>
                         </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                          {report.submitted_at ? formatTimeAgo(report.submitted_at) : ''}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
-              {!pendingReportsLoading && pendingReports.length > 0 && (
-                <div className="px-4 pb-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-xs"
-                    onClick={() => navigate('/dashboard/discipleship')}
-                  >
-                    Ver todas en Discipulado
-                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                  </Button>
-                </div>
-              )}
             </Card>
           )}
 
-          {/* Module summary — takes 1/3, o el ancho completo si no hay card de reportes */}
-          <div
-            className={cn(
-              'space-y-3',
-              !installedModules.includes('discipleship') && 'lg:col-span-3'
-            )}
-          >
+          {/* Accesos laterales — 1/3, o ancho completo si no hay feed de actividad */}
+          <div className={cn('space-y-3.5', !isStaffPlus && 'lg:col-span-3')}>
             {/* Discipleship */}
             {installedModules.includes('discipleship') && (
               <Card
-                className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] cursor-pointer hover:shadow-md transition-shadow"
+                className="cursor-pointer rounded-md3-lg border-0 bg-surface-container shadow-none transition-colors hover:bg-surface-container-high"
                 onClick={() => navigate('/dashboard/discipleship')}
               >
                 <CardContent className="p-4 flex items-center justify-between gap-3">
@@ -437,7 +490,7 @@ const DashboardHome = () => {
             {/* Zones */}
             {installedModules.includes('zones') && (
               <Card
-                className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] cursor-pointer hover:shadow-md transition-shadow"
+                className="cursor-pointer rounded-md3-lg border-0 bg-surface-container shadow-none transition-colors hover:bg-surface-container-high"
                 onClick={() => navigate('/dashboard/zones')}
               >
                 <CardContent className="p-4 flex items-center justify-between gap-3">
@@ -456,7 +509,7 @@ const DashboardHome = () => {
 
             {/* Roles */}
             <Card
-              className="border-0 bg-[var(--glass-background)] backdrop-blur-lg shadow-[var(--shadow-glass)] cursor-pointer hover:shadow-md transition-shadow"
+              className="cursor-pointer rounded-md3-lg border-0 bg-surface-container shadow-none transition-colors hover:bg-surface-container-high"
               onClick={() => navigate('/dashboard/roles')}
             >
               <CardContent className="p-4 flex items-center justify-between gap-3">

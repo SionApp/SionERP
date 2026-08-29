@@ -8,122 +8,160 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* SION Church - Light Theme (Vibrant & Warm) */
-    --background: 220 15% 97%;
-    --foreground: 220 26% 14%;
+    /* SION Church — Material Design 3 tonal (light). Paleta EXACTA del handoff
+       de diseño (variante 2a aprobada): violeta MD3 #6750A4 como primario,
+       superficies tonales violáceas. Valores hex→HSL 1:1 (ver README handoff). */
+    --background: 292 100% 98%; /* surface #FEF7FF */
+    --foreground: 264 8% 12%; /* on-surface #1D1B20 */
 
-    --card: 220 15% 99%;
-    --card-foreground: 220 26% 14%;
+    --card: 0 0% 100%; /* paneles blancos #FFFFFF */
+    --card-foreground: 264 8% 12%;
 
-    --popover: 220 15% 99%;
-    --popover-foreground: 220 26% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 264 8% 12%;
 
-    --primary: 220 90% 30%;
+    --primary: 256 34% 48%; /* #6750A4 */
     --primary-foreground: 0 0% 100%;
-    --primary-light: 220 90% 85%;
+    --primary-light: 263 100% 93%; /* primary-container #EADDFF */
 
-    --secondary: 220 20% 88%;
-    --secondary-foreground: 220 26% 14%;
+    --secondary: 276 25% 92%; /* surface-variant #ECE6F0 */
+    --secondary-foreground: 264 8% 12%;
 
-    --muted: 220 15% 92%;
-    /* 40% (no 45%) para que text-muted-foreground sobre bg-muted llegue a 4.5:1 (WCAG AA) */
-    --muted-foreground: 220 15% 40%;
+    --muted: 278 44% 96%; /* surface-container #F7F2FA */
+    --muted-foreground: 264 7% 29%; /* on-surface-variant #49454F */
 
-    --accent: 45 93% 50%;
-    --accent-foreground: 220 26% 14%;
+    --accent: 263 65% 92%; /* secondary-container #E8DEF8 */
+    --accent-foreground: 253 26% 13%; /* on-secondary-container #1D192B */
 
-    --destructive: 0 84% 60%;
+    --destructive: 3 71% 41%; /* error #B3261E */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 85%;
-    --input: 220 15% 92%;
-    --ring: 220 90% 30%;
+    --border: 275 24% 90%; /* outline #E7E0EC */
+    --input: 276 25% 92%;
+    --ring: 256 34% 48%;
 
-    /* SION Church Gradients - Light & Vibrant */
-    --gradient-primary: linear-gradient(135deg, hsl(220 90% 30%), hsl(45 93% 50%));
-    --gradient-secondary: linear-gradient(135deg, hsl(220 20% 88%), hsl(220 15% 97%));
-    --gradient-accent: linear-gradient(135deg, hsl(220 90% 30% / 0.08), hsl(45 93% 50% / 0.05));
+    /* ── Material Design 3 tonal tokens (light) — handoff ───────────────── */
+    --surface: 292 100% 98%;
+    --surface-white: 0 0% 100%; /* paneles de mapa/actividad */
+    --surface-container: 278 44% 96%; /* #F7F2FA — KPIs/QuickActions/SideCards */
+    --surface-container-high: 276 25% 92%;
+    --surface-variant: 276 25% 92%; /* #ECE6F0 — buscador */
+    --outline: 270 4% 47%; /* #79747E — texto terciario/bordes toggle */
+    --outline-variant: 275 24% 90%; /* #E7E0EC — bordes/divisores */
+    --divider-soft: 277 27% 94%; /* #F1ECF4 — divisor filas actividad */
+    --map-bg: 210 21% 95%; /* #EEF1F4 — área del mapa */
+    --primary-container: 263 100% 93%; /* #EADDFF */
+    --on-primary-container: 261 100% 18%; /* #21005D */
+    --secondary-container: 263 65% 92%; /* #E8DEF8 — segmento activo toggle */
+    --on-secondary-container: 253 26% 13%; /* #1D192B */
+    --nav-bg: 276 38% 95%; /* #F3EDF7 — sidebar */
+    --success: 149 40% 30%; /* #2E6C4C — badge EN VIVO */
 
-    /* Glass Morphism - Light */
-    --glass-background: hsl(220 15% 99% / 0.8);
-    --glass-border: hsl(220 26% 14% / 0.1);
+    /* Gradiente del banner de bienvenida (handoff). */
+    --gradient-banner: linear-gradient(120deg, #6750a4 0%, #7f67be 55%, #9a82db 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(256 34% 48%), hsl(263 62% 63%));
+    --gradient-secondary: linear-gradient(135deg, hsl(276 25% 92%), hsl(292 100% 98%));
+    --gradient-accent: linear-gradient(135deg, hsl(256 34% 48% / 0.08), hsl(263 62% 63% / 0.05));
 
-    /* Shadows - Light & Colorful */
-    --shadow-primary: 0 25px 50px -12px hsl(220 90% 30% / 0.15);
-    --shadow-accent: 0 10px 40px -15px hsl(220 90% 30% / 0.2);
-    --shadow-glass: 0 8px 32px 0 hsl(220 26% 14% / 0.1);
-    --shadow-card: 0 8px 30px -8px hsl(220 90% 30% / 0.12);
+    /* Glass legacy (en retiro; los paneles migran a superficies MD3). */
+    --glass-background: hsl(0 0% 100% / 0.85);
+    --glass-border: hsl(264 8% 12% / 0.08);
 
-    --radius: 0.75rem;
+    --shadow-primary: 0 2px 8px hsl(256 34% 48% / 0.4);
+    --shadow-accent: 0 2px 8px hsl(256 34% 48% / 0.2);
+    --shadow-glass: 0 2px 8px 0 hsl(264 8% 12% / 0.08);
+    --shadow-card: 0 2px 8px -2px hsl(264 8% 12% / 0.1);
+
+    /* MD3 base shape: 16px. */
+    --radius: 1rem;
     --sion-gold: 45 93% 50%;
 
-    /* Fuente de sistema explícita — el registro "product" la permite (Inter, SF Pro,
-       system-ui), pero declararla evita que alguien la "corrija" sin querer. */
-    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-sans: 'Roboto', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-    --sidebar-background: 220 15% 99%;
-    --sidebar-foreground: 220 26% 14%;
-    --sidebar-primary: 220 90% 30%;
+    /* Sidebar = nav-bg MD3. Activo = primary-container / on-primary-container. */
+    --sidebar-background: 276 38% 95%;
+    --sidebar-foreground: 264 8% 12%;
+    --sidebar-primary: 256 34% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 88%;
-    --sidebar-accent-foreground: 220 26% 14%;
-    --sidebar-border: 220 15% 85%;
-    --sidebar-ring: 220 90% 30%;
+    --sidebar-accent: 263 100% 93%;
+    --sidebar-accent-foreground: 261 100% 18%;
+    --sidebar-border: 275 24% 90%;
+    --sidebar-ring: 256 34% 48%;
   }
 
   .dark {
-    /* SION Church - Dark Theme */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    /* SION Church — Material Design 3 tonal (dark). El handoff diseñó solo el
+       tema claro; acá se mapean sus tokens al baseline OFICIAL M3 dark (violeta):
+       primary #D0BCFF, surfaces #141218→#2B2930, etc. */
+    --background: 260 14% 8%; /* surface #141218 */
+    --foreground: 280 17% 90%; /* on-surface #E6E0E9 */
 
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 257 10% 14%; /* surface-container #211F26 */
+    --card-foreground: 280 17% 90%;
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 257 10% 14%;
+    --popover-foreground: 280 17% 90%;
 
-    --primary: 220 90% 30%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 258 100% 87%; /* #D0BCFF */
+    --primary-foreground: 259 58% 28%; /* on-primary #381E72 */
+    --primary-light: 257 43% 38%;
 
-    --secondary: 217 32.6% 17.5%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 264 7% 29%; /* surface-variant #49454F */
+    --secondary-foreground: 280 17% 90%;
 
-    --muted: 217 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 257 8% 17%; /* surface-container-high #2B2930 */
+    --muted-foreground: 270 11% 79%; /* on-surface-variant #CAC4D0 */
 
-    --accent: 45 93% 50%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 258 13% 31%; /* secondary-container #4A4458 */
+    --accent-foreground: 263 65% 92%; /* #E8DEF8 */
 
+    /* Destructive se mantiene rojo saturado (no el error-light de M3): la app lo
+       usa como fondo de botón con texto blanco, y el error-light rompería el contraste. */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 217 32.6% 17.5%;
-    --input: 217 32.6% 17.5%;
-    --ring: 220 90% 30%;
+    --border: 264 7% 29%; /* outline-variant #49454F */
+    --input: 264 7% 29%;
+    --ring: 258 100% 87%;
 
-    /* Dark mode gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(220 90% 30%), hsl(45 93% 50%));
-    --gradient-secondary: linear-gradient(135deg, hsl(217 32.6% 17.5%), hsl(240 10% 3.9%));
-    --gradient-accent: linear-gradient(135deg, hsl(220 90% 30% / 0.1), hsl(45 93% 50% / 0.05));
+    /* ── Material Design 3 tonal tokens (dark) ──────────────────────────── */
+    --surface: 260 14% 8%;
+    --surface-white: 257 10% 14%; /* "paneles blancos" → surface-container en dark */
+    --surface-container: 257 10% 14%;
+    --surface-container-high: 257 8% 17%;
+    --surface-variant: 264 7% 29%;
+    --outline: 264 5% 58%; /* #938F99 */
+    --outline-variant: 264 7% 29%;
+    --divider-soft: 257 8% 17%;
+    --map-bg: 266 13% 10%;
+    --primary-container: 257 43% 38%; /* #4F378B */
+    --on-primary-container: 263 100% 93%; /* #EADDFF */
+    --secondary-container: 258 13% 31%;
+    --on-secondary-container: 263 65% 92%;
+    --nav-bg: 264 8% 12%; /* #1D1B20 */
+    --success: 146 53% 67%; /* #7FD8A6 */
 
-    /* Dark glass morphism */
-    --glass-background: hsl(240 10% 3.9% / 0.8);
-    --glass-border: hsl(0 0% 98% / 0.1);
+    --gradient-banner: linear-gradient(120deg, #4f378b 0%, #6750a4 55%, #7f67be 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(258 100% 87%), hsl(263 65% 78%));
+    --gradient-secondary: linear-gradient(135deg, hsl(257 8% 17%), hsl(260 14% 8%));
+    --gradient-accent: linear-gradient(135deg, hsl(258 100% 87% / 0.1), hsl(263 65% 78% / 0.05));
 
-    /* Dark shadows */
-    --shadow-primary: 0 25px 50px -12px hsl(220 90% 30% / 0.25);
-    --shadow-accent: 0 10px 40px -15px hsl(220 90% 30% / 0.4);
-    --shadow-glass: 0 8px 32px 0 hsl(240 10% 3.9% / 0.37);
-    --shadow-card: 0 8px 30px -8px hsl(220 90% 30% / 0.15);
+    --glass-background: hsl(257 10% 14% / 0.85);
+    --glass-border: hsl(0 0% 98% / 0.08);
 
-    --sidebar-background: 240 10% 3.9%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 220 90% 30%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 217 32.6% 17.5%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 217 32.6% 17.5%;
-    --sidebar-ring: 220 90% 30%;
+    --shadow-primary: 0 2px 8px hsl(260 14% 3% / 0.5);
+    --shadow-accent: 0 2px 8px hsl(260 14% 3% / 0.4);
+    --shadow-glass: 0 2px 8px 0 hsl(260 14% 3% / 0.5);
+    --shadow-card: 0 2px 8px -2px hsl(260 14% 3% / 0.5);
+
+    --sidebar-background: 264 8% 12%;
+    --sidebar-foreground: 280 17% 90%;
+    --sidebar-primary: 258 100% 87%;
+    --sidebar-primary-foreground: 259 58% 28%;
+    --sidebar-accent: 257 43% 38%;
+    --sidebar-accent-foreground: 263 100% 93%;
+    --sidebar-border: 264 7% 29%;
+    --sidebar-ring: 258 100% 87%;
   }
 }
 

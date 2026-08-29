@@ -161,9 +161,13 @@ func main() {
 	// for the client's full 60s. Complements the DB statement_timeout.
 	e.Use(appMiddleware.RequestTimeout())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     corsAllowOrigins(), // CORS_ORIGINS (coma-separado); sin setear, mantiene "*" (comportamiento previo)
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
-		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With"},
+		AllowOrigins: corsAllowOrigins(), // CORS_ORIGINS (coma-separado); sin setear, mantiene "*" (comportamiento previo)
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		// X-Session-Id: sesión única activa (ver middleware/session.go). Sin
+		// declararlo acá el navegador bloquea en preflight TODA request que lo
+		// mande — el header viaja en cada llamada, así que omitirlo tumba la app
+		// entera desde el front (CORS), no solo la validación de sesión.
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Accept", "X-Requested-With", "X-Session-Id"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
 		AllowCredentials: true,
 		MaxAge:           3600,
