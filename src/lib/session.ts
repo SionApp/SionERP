@@ -22,9 +22,12 @@ export function clearSessionId(): void {
   localStorage.removeItem(SESSION_KEY);
 }
 
-/** Reclama la sesión activa para este dispositivo. Idempotente. */
+/** Reclama la sesión activa para este dispositivo. Idempotente. Recién tras
+ *  confirmar el claim se habilita el envío del X-Session-Id (evita 401 espurios
+ *  por requests que salen antes de que la fila active_sessions quede actualizada). */
 export async function claimSession(): Promise<void> {
   await ApiService.post('/auth/session/claim', { session_id: getSessionId() });
+  ApiService.markSessionClaimed();
 }
 
 // Evento interno: api.service lo dispara cuando el backend responde 401 con un
