@@ -1,4 +1,3 @@
-import { Sparkles } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import {
@@ -48,36 +47,32 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
   const adminItems = isSuperAdmin ? superAdminItems : [];
 
   return (
-    <Sidebar
-      collapsible="icon"
-      className="border-r border-border/50 backdrop-blur-lg bg-[var(--glass-background)]"
-    >
-      <SidebarContent className="bg-transparent">
-        <div className="p-3 sm:p-4 border-b border-border/30">
+    <Sidebar collapsible="icon" className="border-r border-outline-variant bg-nav-bg">
+      <SidebarContent className="bg-nav-bg">
+        {/* Cabecera de marca (MD3 — handoff): logo sólido primary + título. */}
+        <div className="px-3 pb-4 pt-2">
           <div className="flex items-center gap-3">
             {logoUrl ? (
-              <div className="w-8 h-8 rounded-lg bg-white shadow-lg p-1 shrink-0">
-                <img src={logoUrl} alt={churchName} className="w-full h-full object-contain" />
+              <div className="h-[42px] w-[42px] shrink-0 rounded-[14px] bg-surface-white p-1">
+                <img src={logoUrl} alt={churchName} className="h-full w-full object-contain" />
               </div>
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
+              <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] bg-primary text-[19px] font-bold text-primary-foreground">
+                {churchName.charAt(0).toUpperCase()}
               </div>
             )}
             {state !== 'collapsed' && (
-              <div>
-                <h3 className="font-bold text-sm text-foreground truncate max-w-[140px]">
-                  {churchName}
-                </h3>
-                <p className="text-xs text-muted-foreground">{PLATFORM_NAME} · Panel Admin</p>
+              <div className="min-w-0">
+                <h3 className="truncate text-[16px] font-semibold text-foreground">{churchName}</h3>
+                <p className="text-xs text-muted-foreground">{PLATFORM_NAME} · Administración</p>
               </div>
             )}
           </div>
         </div>
 
-        <SidebarGroup className="px-2 py-3 sm:py-4">
+        <SidebarGroup className="px-2 py-0">
           {state !== 'collapsed' && (
-            <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground mb-2 px-2">
+            <SidebarGroupLabel className="mb-1.5 px-3 text-[11px] font-semibold tracking-[0.09em] text-outline">
               NAVEGACIÓN
             </SidebarGroupLabel>
           )}
@@ -92,24 +87,15 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
                         to={item.url}
                         onClick={() => setOpenMobile(false)}
                         end={item.url === '/dashboard'}
-                        className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 group ${
+                        className={`flex items-center gap-3.5 rounded-full px-4 py-3 transition-colors ${
                           isCurrentActive
-                            ? 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-[var(--shadow-accent)] scale-[1.02]'
-                            : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
+                            ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                            : 'text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/[0.06]'
                         }`}
                       >
-                        <div
-                          className={`p-1 rounded-lg transition-all duration-200 ${
-                            isCurrentActive ? 'bg-white/20' : 'group-hover:bg-primary/10'
-                          }`}
-                        >
-                          <item.icon className="h-4 w-4" />
-                        </div>
+                        <item.icon className="h-[22px] w-[22px] shrink-0" />
                         {state !== 'collapsed' && (
-                          <span className="font-medium text-sm">{item.title}</span>
-                        )}
-                        {isCurrentActive && (
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-4 bg-primary-foreground rounded-full opacity-60" />
+                          <span className="text-sm font-medium">{item.title}</span>
                         )}
                       </NavLink>
                     </SidebarMenuButton>
@@ -120,7 +106,7 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
               {/* Admin Section */}
               {adminItems.length > 0 && (
                 <>
-                  <div className="my-2 border-t border-border/30" />
+                  <div className="my-2 border-t border-outline-variant" />
                   {adminItems.map(item => {
                     const isCurrentActive = isActive(item.url);
                     return (
@@ -129,17 +115,15 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
                           <NavLink
                             to={item.url}
                             onClick={() => setOpenMobile(false)}
-                            className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 group ${
+                            className={`flex items-center gap-3.5 rounded-full px-4 py-3 transition-colors ${
                               isCurrentActive
-                                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg scale-[1.02]'
-                                : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
+                                ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                                : 'text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/[0.06]'
                             }`}
                           >
-                            <div className="p-1 rounded-lg transition-all duration-200 group-hover:bg-primary/10">
-                              <item.icon className="h-4 w-4" />
-                            </div>
+                            <item.icon className="h-[22px] w-[22px] shrink-0" />
                             {state !== 'collapsed' && (
-                              <span className="font-medium text-sm">{item.title}</span>
+                              <span className="text-sm font-medium">{item.title}</span>
                             )}
                           </NavLink>
                         </SidebarMenuButton>
