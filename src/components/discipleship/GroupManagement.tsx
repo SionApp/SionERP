@@ -44,6 +44,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ChevronLeft, Loader2, Pencil, Plus, Search, Split, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { GroupMembers } from './GroupMembers';
@@ -83,6 +84,7 @@ const normalizeNullString = (value: unknown): string | null => {
 };
 
 const GroupManagement = () => {
+  const location = useLocation();
   const { zones } = useZones();
   const { hasAccess, isLoading: isLoadingPermissions } = usePermissions();
   const isMobileApp = useMobileMode();
@@ -102,8 +104,11 @@ const GroupManagement = () => {
     null
   );
 
-  // Filters
-  const [search, setSearch] = useState('');
+  // Filters. Sembrado desde la búsqueda global (ver GlobalSearch.tsx) cuando
+  // se llega acá eligiendo un grupo puntual.
+  const [search, setSearch] = useState(
+    (location.state as { presetSearch?: string } | null)?.presetSearch ?? ''
+  );
   const [filterZone, setFilterZone] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
 

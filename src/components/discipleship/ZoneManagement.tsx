@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,6 +79,7 @@ const normalizeNullString = (value: unknown): string | null => {
 };
 
 const ZoneManagement: React.FC = () => {
+  const location = useLocation();
   const isMobileApp = useMobileMode();
   const { hasAccess } = usePermissions();
   const { zones, zoneStats, loading, error, refetch, createZone, updateZone, deleteZone } =
@@ -85,7 +87,11 @@ const ZoneManagement: React.FC = () => {
 
   const { supervisors, loading: loadingSupervisors } = useAvailableSupervisors();
 
-  const [search, setSearch] = useState('');
+  // Sembrado desde la búsqueda global (ver GlobalSearch.tsx) cuando se llega
+  // acá eligiendo una zona puntual.
+  const [search, setSearch] = useState(
+    (location.state as { presetSearch?: string } | null)?.presetSearch ?? ''
+  );
   const [currentPage, setCurrentPage] = useState(1);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);

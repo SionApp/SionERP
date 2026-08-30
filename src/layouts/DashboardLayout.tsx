@@ -25,7 +25,8 @@ import { useSystemPublicSettings } from '@/hooks/useSystemPublicSettings';
 import { coBrand } from '@/lib/branding';
 import { invalidatePermissionsCache } from '@/lib/permissions';
 import { UserService } from '@/services/user.service';
-import { Bell, LogOut, Palette, Search, UserCircle, Wrench } from 'lucide-react';
+import { Bell, LogOut, Palette, UserCircle, Wrench } from 'lucide-react';
+import { GlobalSearch } from '@/components/GlobalSearch';
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -186,15 +187,7 @@ const DashboardLayout = () => {
             <header className="flex h-16 shrink-0 items-center gap-3.5 border-b border-outline-variant bg-surface px-2 sm:px-6">
               <SidebarTrigger className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/10" />
 
-              {/* Search pill */}
-              <div className="hidden items-center gap-2.5 rounded-full bg-surface-variant px-4 py-2.5 md:flex md:w-full md:max-w-[400px]">
-                <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Buscar usuarios, grupos, zonas…"
-                  className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                />
-              </div>
+              <GlobalSearch />
 
               <div className="flex-1" />
 
