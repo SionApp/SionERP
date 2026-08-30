@@ -43,25 +43,25 @@ export default function MobilePreviewPage() {
       label: 'Miembros',
       icon: <Users className="w-5 h-5" />,
       to: '/dashboard/users',
-      color: 'from-blue-500 to-cyan-500',
+      tone: 'blue' as const,
     },
     {
       label: 'Grupos',
       icon: <BarChart3 className="w-5 h-5" />,
       to: '/dashboard/discipleship',
-      color: 'from-emerald-500 to-green-500',
+      tone: 'green' as const,
     },
     {
       label: 'Zonas',
       icon: <MapPin className="w-5 h-5" />,
       to: '/dashboard/zones',
-      color: 'from-violet-500 to-purple-500',
+      tone: 'violet' as const,
     },
     {
       label: 'Nuevo',
       icon: <UserPlus className="w-5 h-5" />,
       to: '/dashboard/register-user',
-      color: 'from-orange-500 to-amber-500',
+      tone: 'terracotta' as const,
     },
   ];
 

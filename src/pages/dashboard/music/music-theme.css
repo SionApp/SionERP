@@ -5,16 +5,20 @@
  * Scoped bajo `.music-shell`, así re-skinea cada componente shadcn que viva
  * adentro (todos leen estas vars HSL) sin tocar un solo componente.
  *
- * Dirección de diseño: LIENZO CÁLIDO + ÁMBAR.
+ * Dirección de diseño: LA MISMA LÍNEA QUE TODA LA APP (MD3).
  *   · El lienzo (background/foreground/card/border/muted/...) NO se redefine
  *     acá: hereda los tokens reales del sistema (:root / .dark en index.css),
- *     así Música sigue el toggle claro/oscuro del resto del ERP en vez de
- *     tener su propia paleta fija. Lo único propio del módulo es el color de
- *     acción — el mismo dorado de la iglesia (--sion-gold) — y los tonos de
- *     tipo de culto, ambos con contraste ajustado por modo más abajo.
- *   · Una sola voz tipográfica: la grotesca del sistema, en dos pesos
- *     (heading semibold para títulos, texto normal para cuerpo) + mono
- *     tabular para datos (tonos, conteos, porcentajes, horas).
+ *     así Música sigue el toggle claro/oscuro del resto del ERP.
+ *   · El color de ACCIÓN tampoco: antes el módulo se pintaba con el dorado
+ *     (--sion-gold, 45 93% 50%) para tener "experiencia propia", pero contra
+ *     el violeta MD3 del rediseño (#159) ese mostaza desentonaba. Ahora hereda
+ *     --primary del sistema. Lo único propio que queda son los tonos por tipo
+ *     de culto (viernes/domingo/especial), que sí codifican información.
+ *   · Una sola voz tipográfica: la del sistema (Roboto), en dos pesos. Los
+ *     datos numéricos usan tabular-nums de la MISMA familia — antes iban en
+ *     monoespaciada, que era justamente lo que hacía ver a Música "de otra
+ *     app". Se conserva la alineación de columnas, se pierde el cambio de
+ *     tipografía.
  *
  * ponytail: un solo archivo re-tematiza todo el módulo; styling por componente
  * solo si alguna superficie necesita salirse de esta paleta.
@@ -25,28 +29,28 @@
  */
 
 .music-shell {
-  /* ── Ámbar: el color de acción del módulo ───────────────────────────
-   * Mismo dorado que --sion-gold / --accent del sistema (45 93% 50%) —
-   * ese token no cambia entre :root y .dark, así que el texto sobre dorado
-   * también se queda fijo en tinta oscura en los dos modos. */
-  --primary: 45 93% 50%;
-  --primary-foreground: 222 45% 12%;
+  /* Sin override de --primary: el módulo usa el violeta MD3 del sistema, igual
+   * que Usuarios, Zonas o Discipulado. (Antes acá vivía el dorado 45 93% 50%.) */
 
   /* ── Tokens propios del módulo ──────────────────────────── */
-  --music-brass: 45 93% 50%; /* = primary, para usarlo con alpha */
-  --music-brass-ink: 222 45% 12%; /* texto sobre superficies doradas, fijo en los 2 modos */
+  /* brass conserva el nombre por compatibilidad con los ~18 usos de este
+   * archivo, pero ya no es dorado: apunta al primary del sistema. */
+  --music-brass: var(--primary);
+  --music-brass-ink: var(--primary-foreground);
   --music-spot: 222 60% 50%; /* azul frío: acento secundario (viernes, info) */
   --music-ok: 152 55% 42%; /* confirmado */
   --music-ink: 222 45% 14%; /* texto fuerte / sombras */
 
   /* Tono de tipo de culto, con contraste calibrado para lienzo claro.
-   * Overrides más abajo en .dark .music-shell para lienzo oscuro. */
+   * Overrides más abajo en .dark .music-shell para lienzo oscuro.
+   * Domingo pasa de mostaza a violeta (la línea del sistema); viernes y
+   * especial se conservan porque son señal, no decoración. */
   --music-tone-viernes: 222 60% 48%;
-  --music-tone-domingo: 42 78% 44%;
+  --music-tone-domingo: 256 34% 48%;
   --music-tone-especial: 345 70% 46%;
 
-  --music-mono: ui-monospace, SFMono-Regular, 'SF Mono', 'JetBrains Mono', Menlo, Consolas,
-    monospace;
+  /* Numérico tabular en la MISMA familia de la app (Roboto la soporta). */
+  --music-mono: var(--font-sans);
 
   /* Las curvas nativas de CSS son flojas: no tienen el punch que hace que una
    * animación se sienta intencional. */
@@ -56,7 +60,7 @@
   --music-hairline: inset 0 1px 0 hsl(0 0% 100% / 0.7);
   --music-lift: 0 1px 2px hsl(30 20% 60% / 0.12), 0 20px 45px -25px hsl(30 30% 30% / 0.35);
 
-  --music-glyph-ink: 35 70% 38%;
+  --music-glyph-ink: 256 34% 48%;
   --music-surface-sunken: hsl(var(--muted) / 0.5);
 
   color: hsl(var(--foreground));
@@ -69,10 +73,10 @@
 .dark .music-shell {
   --music-spot: 222 75% 68%;
   --music-ok: 152 55% 55%;
-  --music-glyph-ink: 42 90% 68%;
+  --music-glyph-ink: 258 100% 87%;
 
   --music-tone-viernes: 222 75% 70%;
-  --music-tone-domingo: 42 88% 62%;
+  --music-tone-domingo: 258 100% 87%;
   --music-tone-especial: 345 80% 68%;
 
   --music-hairline: inset 0 1px 0 hsl(0 0% 100% / 0.06);
@@ -137,7 +141,9 @@
   border-radius: 1.1rem;
   border: 1px solid hsl(var(--border));
   background: hsl(var(--card));
-  box-shadow: var(--music-hairline), 0 1px 2px hsl(30 20% 60% / 0.08);
+  box-shadow:
+    var(--music-hairline),
+    0 1px 2px hsl(30 20% 60% / 0.08);
 }
 
 /* Panel hundido: para listas dentro de un panel (no card-dentro-de-card). */

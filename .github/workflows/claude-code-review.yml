@@ -21,7 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      # write: el review deja su resultado como comentario en el PR.
+      pull-requests: write
       issues: read
       id-token: write
 
@@ -29,16 +30,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # El review compara contra la base del PR: con depth=1 no existe el
+          # commit base en el clon y `git diff origin/<base>` no resuelve.
+          fetch-depth: 0
 
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+          # Antes esto invocaba el slash command `/code-review:code-review` de un
+          # plugin del marketplace. Fallaba en TODAS las corridas (2s, 1 turno,
+          # 0 tokens consumidos): el comando no se resolvía, así que el modelo
+          # nunca llegaba a correr. Un prompt directo no depende de que un
+          # marketplace externo cargue.
+          prompt: |
+            Revisá el pull request #${{ github.event.pull_request.number }} de este repositorio.
+
+            Para ver qué cambió, usá:
+              gh pr diff ${{ github.event.pull_request.number }}
+
+            Enfocate SOLO en el código que cambia este PR. Buscá, en este orden:
+              1. Bugs de correctitud (lógica equivocada, casos borde, null/undefined,
+                 condiciones de carrera, errores silenciados).
+              2. Problemas de seguridad: fugas entre tenants (este ERP es multi-tenant
+                 por church_id + RLS), datos expuestos, validación faltante en entradas
+                 que llegan del cliente.
+              3. Rendimiento cuando sea claramente medible (consultas N+1, renders en
+                 bucle, trabajo pesado en el render).
+
+            No comentes sobre estilo, formato ni preferencias personales — de eso ya se
+            encargan Prettier y ESLint. Si no encontrás nada que amerite bloquear, decilo
+            en una línea en vez de inventar observaciones.
+
+            Dejá el resultado como UN comentario en el PR:
+              gh pr comment ${{ github.event.pull_request.number }} --body "<hallazgos>"
+
+            Escribí en español.
+          claude_args: '--allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Read,Grep,Glob"'
 

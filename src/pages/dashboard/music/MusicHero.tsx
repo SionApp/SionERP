@@ -62,9 +62,7 @@ export function ConfirmationProgress({
   const declinedPct = total === 0 ? 0 : Math.round((declined / total) * 100);
 
   if (total === 0) {
-    return (
-      <p className={cn('music-eyebrow', className)}>Sin equipo asignado todavía</p>
-    );
+    return <p className={cn('music-eyebrow', className)}>Sin equipo asignado todavía</p>;
   }
 
   return (
@@ -151,13 +149,13 @@ export function StatTile({
 }) {
   const accents = {
     default: 'text-muted-foreground',
-    primary: 'text-amber-700 dark:text-amber-300',
+    primary: 'text-primary',
     warning: 'text-orange-700 dark:text-orange-300',
     success: 'text-emerald-700 dark:text-emerald-300',
   };
   const rules = {
     default: 'bg-border',
-    primary: 'bg-amber-400/70',
+    primary: 'bg-primary/70',
     warning: 'bg-orange-400/70',
     success: 'bg-emerald-400/70',
   };
@@ -207,9 +205,7 @@ function NextCultoHeroCard({
               {formatLongDate(event.eventDate)}
             </h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="music-tag music-tag-tone">
-                {EVENT_TYPE_LABEL[event.eventType]}
-              </span>
+              <span className="music-tag music-tag-tone">{EVENT_TYPE_LABEL[event.eventType]}</span>
               {event.published && <span className="music-tag music-tag-ok">Publicado</span>}
               {event.title && (
                 <span className="truncate text-sm text-muted-foreground">{event.title}</span>

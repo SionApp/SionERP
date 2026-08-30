@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MobileDashboardScreen } from '@/components/mobile/screens/DashboardScreen';
 
-// Mapa: pesado (Leaflet). El Inicio es la primera pantalla que carga, así que
-// lo bajamos por demanda para no meter Leaflet en el bundle crítico del dashboard.
-const DiscipleshipMap = lazy(() => import('@/components/discipleship/DiscipleshipMap'));
+// Panel de zonas del Inicio: vista "de un vistazo" (handoff MD3 #159), sin
+// Leaflet. El mapa geográfico real sigue en /discipulado — ver ZonesOverviewMap.
+import { ZonesOverviewMap } from '@/components/dashboard/ZonesOverviewMap';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useMobileMode } from '@/hooks/useMobileMode';
@@ -18,6 +18,7 @@ import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipReport } from '@/types/discipleship.types';
 import { cn, formatTimeAgo } from '@/lib/utils';
 import { ROLE_LEVELS } from '@/lib/permissions';
+import { MD3_ICON_TONE, MD3_TONE_FALLBACK, type MD3Tone } from '@/lib/md3-tones';
 import {
   AlertTriangle,
   BookOpen,
@@ -39,8 +40,7 @@ interface QuickAction {
   label: string;
   icon: React.ReactNode;
   to: string;
-  tone: string; // categoría MD3 (desktop, ver ICON_TONE)
-  color: string; // gradiente (lo consume la pantalla mobile, sin migrar aún)
+  tone: MD3Tone; // categoría MD3, compartida entre desktop y mobile
   roles: string[];
   module?: string;
 }
@@ -51,7 +51,6 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: <UserPlus className="h-[21px] w-[21px]" />,
     to: '/dashboard/register',
     tone: 'blue',
-    color: 'from-blue-500 to-cyan-500',
     roles: ['pastor', 'staff', 'admin'],
   },
   {
@@ -59,7 +58,6 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: <BookOpen className="h-[21px] w-[21px]" />,
     to: '/dashboard/discipleship',
     tone: 'green',
-    color: 'from-emerald-500 to-green-500',
     roles: ['pastor', 'staff', 'supervisor', 'server', 'admin'],
     module: 'discipleship',
   },
@@ -68,7 +66,6 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: <Map className="h-[21px] w-[21px]" />,
     to: '/dashboard/zones',
     tone: 'violet',
-    color: 'from-violet-500 to-purple-500',
     roles: ['pastor', 'staff', 'admin'],
     module: 'zones',
   },
@@ -77,19 +74,13 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: <Settings className="h-[21px] w-[21px]" />,
     to: '/dashboard/settings',
     tone: 'terracotta',
-    color: 'from-orange-500 to-red-500',
     roles: ['pastor', 'staff', 'admin'],
   },
 ];
 
-// ── Pares de color por categoría (handoff MD3). Exactos en claro; en oscuro,
-// contenedor translúcido del color del icono + icono aclarado. ────────────────
-const ICON_TONE: Record<string, string> = {
-  blue: 'bg-[#DCE7FF] text-[#2A5AD0] dark:bg-[#2A5AD0]/25 dark:text-[#AFC6FF]',
-  green: 'bg-[#DDECE2] text-[#2E6C4C] dark:bg-[#2E6C4C]/30 dark:text-[#A6D9BC]',
-  violet: 'bg-[#E7DEF3] text-[#6E4CA6] dark:bg-[#6E4CA6]/30 dark:text-[#D6C2F0]',
-  terracotta: 'bg-[#FBE0D6] text-[#B3492A] dark:bg-[#B3492A]/30 dark:text-[#F0B49B]',
-};
+// Pares de color por categoría del handoff MD3 — compartidos con la pantalla
+// mobile (ver lib/md3-tones.ts).
+const ICON_TONE = MD3_ICON_TONE;
 
 // ── KPI card (MD3 tonal — handoff variante 2a) ────────────────────────────────
 
@@ -397,11 +388,7 @@ const DashboardHome = () => {
         )}
 
         {/* ── Mapa de zonas y células (staff+/pastor, con módulo de zonas) ── */}
-        {isStaffPlus && installedModules.includes('zones') && (
-          <Suspense fallback={<Skeleton className="w-full h-[580px] rounded-2xl" />}>
-            <DiscipleshipMap title="Mapa de zonas y células" />
-          </Suspense>
-        )}
+        {isStaffPlus && installedModules.includes('zones') && <ZonesOverviewMap />}
 
         {/* ── Two column grid ───────────────────────────────────────────────── */}
         <div className="grid gap-4 lg:grid-cols-3">

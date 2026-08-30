@@ -16,7 +16,9 @@ export const EVENT_TYPE_LABEL: Record<MusicEventType, string> = {
 // viernes el periwinkle frío y el especial el rosa de función especial.
 export const EVENT_TYPE_COLOR: Record<MusicEventType, string> = {
   viernes: 'bg-indigo-400',
-  domingo: 'bg-amber-400',
+  // El culto central lleva el color de la app (violeta MD3), no el dorado:
+  // ese mostaza desentonaba contra el resto del sistema.
+  domingo: 'bg-primary',
   especial: 'bg-rose-400',
 };
 
