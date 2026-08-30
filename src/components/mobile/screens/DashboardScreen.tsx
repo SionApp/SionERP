@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { cn, formatTimeAgo } from '@/lib/utils';
+import { MD3_ICON_TONE, MD3_TONE_FALLBACK, type MD3Tone } from '@/lib/md3-tones';
 import type { DiscipleshipReport } from '@/types/discipleship.types';
 import {
   AlertTriangle,
@@ -19,7 +20,8 @@ interface QuickActionItem {
   label: string;
   icon: ReactNode;
   to: string;
-  color: string;
+  /** Categoría MD3 — misma paleta que el dashboard web (lib/md3-tones.ts). */
+  tone: MD3Tone;
 }
 
 interface ModuleLink {
@@ -118,7 +120,9 @@ export function MobileDashboardScreen({
     <MobileScreen header={<></>}>
       {/* ── Hero de bienvenida ── */}
       <div
-        className="relative overflow-hidden bg-gradient-to-br from-primary via-blue-700 to-indigo-800 px-4 pb-16 text-white"
+        // Mismo gradiente del banner de bienvenida del desktop (MD3, #159):
+        // antes iba a azul/índigo, que contra el violeta del sistema desentonaba.
+        className="relative overflow-hidden bg-[image:var(--gradient-banner)] px-4 pb-16 text-white"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)' }}
       >
         <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
@@ -185,8 +189,8 @@ export function MobileDashboardScreen({
             >
               <div
                 className={cn(
-                  'flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-sm transition-transform group-active:scale-95',
-                  action.color
+                  'flex h-12 w-12 items-center justify-center rounded-md3 transition-transform group-active:scale-95',
+                  MD3_ICON_TONE[action.tone] ?? MD3_ICON_TONE[MD3_TONE_FALLBACK]
                 )}
               >
                 {action.icon}
