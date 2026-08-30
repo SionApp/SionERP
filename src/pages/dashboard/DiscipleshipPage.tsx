@@ -37,6 +37,7 @@ import {
   Users,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { DiscipleshipService } from '@/services/discipleship.service';
 import type { DiscipleshipGroup } from '@/types/discipleship.types';
 import { toast } from 'sonner';
@@ -238,7 +239,12 @@ function NoAccessCard({ module, requiredLevel }: { module: string; requiredLevel
 
 const DiscipleshipPage = () => {
   const { user: authUser, isLoading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const location = useLocation();
+  // Sembrado desde la búsqueda global (ver GlobalSearch.tsx): al elegir un
+  // grupo, navega acá pidiendo el tab "manage" (Grupos) de una.
+  const [activeTab, setActiveTab] = useState(
+    (location.state as { tab?: string } | null)?.tab ?? 'overview'
+  );
   const [user, setUser] = useState<UserType | null>(null);
   const [discipleshipAccess, setDiscipleshipAccess] = useState<DiscipleshipAccess | null>(null);
   const [loading, setLoading] = useState(true);

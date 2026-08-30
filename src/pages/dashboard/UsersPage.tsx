@@ -32,7 +32,7 @@ import {
 } from '@tanstack/react-table';
 import { Download, Plus, Search, Upload } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const ROLE_OPTIONS = [
@@ -46,6 +46,7 @@ const ROLE_OPTIONS = [
 
 const UsersPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobileApp = useMobileMode();
   const { canManageUsers, canManageRoles, isLoading: isLoadingPermissions } = usePermissions();
 
@@ -54,8 +55,13 @@ const UsersPage = () => {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
 
-  // Filters
-  const [search, setSearch] = useState('');
+  // Filters. Si llegamos desde la búsqueda global con un usuario puntual,
+  // sembramos el filtro con su email para garantizar que la fila esté en la
+  // primera página cargada (si no, el sheet abriría sobre un usuario que
+  // `users` todavía no tiene, ver más abajo).
+  const [search, setSearch] = useState(
+    (location.state as { presetSearch?: string } | null)?.presetSearch ?? ''
+  );
   const [roleFilter, setRoleFilter] = useState('all');
 
   // Pagination
@@ -63,7 +69,9 @@ const UsersPage = () => {
   const [limit, setLimit] = useState(20);
 
   // Modals
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(
+    (location.state as { openUserId?: string } | null)?.openUserId ?? null
+  );
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showInviteModalUser, setShowInviteModalUser] = useState<User | null>(null);
