@@ -229,7 +229,8 @@ func processNotificationQueue(db *sql.DB) error {
 	emailService := emails.NewEmailService(emailConfig.APIKey, emailConfig.FromEmail, emailConfig.FrontendURL)
 
 	rows, err := db.Query(`
-		SELECT nq.id, u.email, nq.subject, nq.body
+		SELECT nq.id, nq.church_id, u.email, nq.subject, nq.body,
+		       nq.tone, COALESCE(nq.action_url, ''), COALESCE(nq.action_label, '')
 		FROM notification_queue nq
 		JOIN users u ON u.id = nq.user_id
 		WHERE nq.status = 'pending' AND nq.channel = 'email'
@@ -242,19 +243,45 @@ func processNotificationQueue(db *sql.DB) error {
 	defer rows.Close()
 
 	type pending struct {
-		id, email, subject, body string
+		id, churchID, email, subject, body string
+		tone, actionURL, actionLabel       string
 	}
 	var items []pending
 	for rows.Next() {
 		var p pending
-		if rows.Scan(&p.id, &p.email, &p.subject, &p.body) == nil {
+		if rows.Scan(&p.id, &p.churchID, &p.email, &p.subject, &p.body,
+			&p.tone, &p.actionURL, &p.actionLabel) == nil {
 			items = append(items, p)
 		}
 	}
 	rows.Close()
 
+	// Cache de marca por iglesia: un batch suele tener varias filas de la
+	// misma iglesia (ej. un escalamiento a varios supervisores), no tiene
+	// sentido repetir la misma consulta para cada una.
+	brandCache := map[string]emails.ChurchBranding{}
+	brandFor := func(churchID string) emails.ChurchBranding {
+		if b, ok := brandCache[churchID]; ok {
+			return b
+		}
+		var b emails.ChurchBranding
+		_ = db.QueryRow(
+			`SELECT COALESCE(name, ''), COALESCE(logo_url, ''), COALESCE(primary_color, '')
+			 FROM church_info WHERE church_id = $1`, churchID,
+		).Scan(&b.Name, &b.LogoURL, &b.PrimaryColor)
+		brandCache[churchID] = b
+		return b
+	}
+
 	for _, p := range items {
-		sendErr := emailService.SendPlainNotification(p.email, p.subject, p.body)
+		sendErr := emailService.SendQueuedNotification(p.email, emails.QueuedEmailData{
+			Church:      brandFor(p.churchID),
+			Subject:     p.subject,
+			Body:        p.body,
+			Tone:        p.tone,
+			ActionURL:   p.actionURL,
+			ActionLabel: p.actionLabel,
+		})
 		if sendErr != nil {
 			_, _ = db.Exec(
 				"UPDATE notification_queue SET status = 'failed', error = $1 WHERE id = $2",
@@ -365,6 +392,7 @@ func runReportScheduleSweep(db *sql.DB, now time.Time) (int, error) {
 	}
 	rows.Close()
 
+	frontendURL := config.GetEmailConfig().FrontendURL
 	dispatched := 0
 	for _, d := range items {
 		subject := fmt.Sprintf("Reporte programado listo: %s", d.title)
@@ -374,9 +402,9 @@ func runReportScheduleSweep(db *sql.DB, now time.Time) (int, error) {
 		)
 		for _, uid := range d.recipients {
 			_, _ = db.Exec(`
-				INSERT INTO notification_queue (church_id, user_id, channel, subject, body)
-				VALUES ($1, $2, 'email', $3, $4)
-			`, d.churchID, uid, subject, body)
+				INSERT INTO notification_queue (church_id, user_id, channel, subject, body, tone, action_url, action_label)
+				VALUES ($1, $2, 'email', $3, $4, 'success', $5, 'Ver reporte')
+			`, d.churchID, uid, subject, body, frontendURL+"/dashboard/reports")
 		}
 		_, _ = db.Exec(`
 			INSERT INTO report_generations (report_type, format, title, church_id)
@@ -742,12 +770,13 @@ func sweepChurch(db *sql.DB, churchID string, monday, saturday time.Time, week s
 					"SELECT email FROM users WHERE id = $1 AND church_id = $2", u.sup.String, churchID,
 				).Scan(&supEmail); err == nil && supEmail != "" {
 					_, _ = db.Exec(`
-						INSERT INTO notification_queue (church_id, user_id, channel, subject, body)
-						VALUES ($1, $2, 'email', $3, $4)
+						INSERT INTO notification_queue (church_id, user_id, channel, subject, body, tone, action_url, action_label)
+						VALUES ($1, $2, 'email', $3, $4, 'warning', $5, 'Ver seguimiento')
 					`,
 						churchID, u.sup.String,
 						"Incumplimiento de reportes (3+ semanas)",
 						fmt.Sprintf("%s acumula %d semanas sin enviar su reporte semanal. Requiere seguimiento.", u.name, missed),
+						config.GetEmailConfig().FrontendURL+"/dashboard/discipleship",
 					)
 				}
 
