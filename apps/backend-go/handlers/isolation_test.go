@@ -431,6 +431,8 @@ func TestIsolationNoNullChurchID(t *testing.T) {
 		"music_members",
 		"music_events",
 		"modules",
+		"education_curricula",
+		"education_assignments",
 		"church_info",
 		"system_settings",
 		"notification_config",
@@ -487,4 +489,92 @@ func TestIsolationChurchIDContextRequired(t *testing.T) {
 	// We annotate here for spec traceability and leave the cutover TODO.
 	t.Skip("Behaviour assertion deferred to middleware/tenant_test.go (TestTenantTxPassThroughWhenNoChurchID) " +
 		"and integration TenantTx tests — update expected status after pass-through guard removal")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 8 — TestIsolationModuleGateChurchScoped
+//
+// Education module design D1 / spec "Per-church divergence" scenario.
+// Proves the fixed `modules` lookup — church_id + key, matching the table's
+// (church_id, key) primary key — resolves independently per church, instead
+// of the old `SELECT is_installed FROM modules WHERE key = $1` which ignored
+// church_id and could return an arbitrary church's row.
+//
+// This exercises the exact SQL shape middleware.RequireModule now runs
+// (see apps/backend-go/middleware/module_check.go). It is a SQL-level
+// regression test, not an HTTP round trip through education routes — those
+// routes don't exist yet (PR2a). Route-level 403 coverage for the education
+// module itself belongs to PR2a once `routes/education.go` exists; this test
+// is the PR1-scope proof that the underlying data model is unambiguous.
+// ─────────────────────────────────────────────────────────────────────────────
+func TestIsolationModuleGateChurchScoped(t *testing.T) {
+	db := integrationDB(t)
+	defer db.Close()
+
+	churchA := "eeeeeeee-0000-0000-0000-000000000008"
+	churchB := "ffffffff-0000-0000-0000-000000000008"
+
+	setup, err := db.Begin()
+	if err != nil {
+		t.Fatalf("setup tx: %v", err)
+	}
+	for i, cid := range []string{churchA, churchB} {
+		_, err = setup.Exec(
+			`INSERT INTO public.churches (id, name, slug, created_at, updated_at)
+			 VALUES ($1, $2, $3, NOW(), NOW())
+			 ON CONFLICT (id) DO NOTHING`,
+			cid, fmt.Sprintf("Isolation Test Church %d", i), fmt.Sprintf("isolation-test-church-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed church %s: %v", cid, err)
+		}
+	}
+	// Church A: education installed. Church B: education explicitly NOT installed.
+	_, err = setup.Exec(
+		`INSERT INTO public.modules (church_id, key, name, description, is_installed)
+		 VALUES ($1, 'education', 'Educación', 'Pénsum, lecciones y progreso', true)
+		 ON CONFLICT (church_id, key) DO UPDATE SET is_installed = true`,
+		churchA,
+	)
+	if err != nil {
+		_ = setup.Rollback()
+		t.Fatalf("seed module row for church A: %v", err)
+	}
+	_, err = setup.Exec(
+		`INSERT INTO public.modules (church_id, key, name, description, is_installed)
+		 VALUES ($1, 'education', 'Educación', 'Pénsum, lecciones y progreso', false)
+		 ON CONFLICT (church_id, key) DO UPDATE SET is_installed = false`,
+		churchB,
+	)
+	if err != nil {
+		_ = setup.Rollback()
+		t.Fatalf("seed module row for church B: %v", err)
+	}
+	if err := setup.Commit(); err != nil {
+		t.Fatalf("seed commit: %v", err)
+	}
+	defer func() {
+		_, _ = db.Exec(`DELETE FROM public.modules WHERE church_id IN ($1, $2) AND key = 'education'`, churchA, churchB)
+		_, _ = db.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
+	}()
+
+	// This is the exact query middleware.RequireModule runs post-fix.
+	const gateQuery = `SELECT is_installed FROM modules WHERE church_id = $1 AND key = $2`
+
+	var installedA bool
+	if err := db.QueryRow(gateQuery, churchA, "education").Scan(&installedA); err != nil {
+		t.Fatalf("query church A: %v", err)
+	}
+	if !installedA {
+		t.Errorf("church A: expected education installed=true, got false")
+	}
+
+	var installedB bool
+	if err := db.QueryRow(gateQuery, churchB, "education").Scan(&installedB); err != nil {
+		t.Fatalf("query church B: %v", err)
+	}
+	if installedB {
+		t.Errorf("church B: expected education installed=false, got true — per-church divergence violated")
+	}
 }
