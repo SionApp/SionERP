@@ -121,6 +121,14 @@ func (h *InviteHandler) InviteUser(c echo.Context) error {
 			emailConfig.FrontendURL,
 		)
 
+		// Marca real de la iglesia que invita — antes el template decía
+		// "Iglesia Sion" fijo sin importar quién invitaba.
+		var church emails.ChurchBranding
+		_ = q.QueryRow(
+			`SELECT COALESCE(name, ''), COALESCE(logo_url, ''), COALESCE(primary_color, '')
+			 FROM church_info WHERE church_id = $1`, churchID,
+		).Scan(&church.Name, &church.LogoURL, &church.PrimaryColor)
+
 		// Enviar email
 		emailErr := emailService.SendInvitationEmail(emails.InvitationEmailData{
 			FirstName: req.FirstName,
@@ -129,6 +137,7 @@ func (h *InviteHandler) InviteUser(c echo.Context) error {
 			Role:      getRoleDisplayName(req.Role),
 			MagicLink: magicLink.HashedToken, // Usamos el token como parte del link
 			ExpiresIn: "7 días",
+			Church:    church,
 		})
 
 		if emailErr != nil {
