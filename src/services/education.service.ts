@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 import { ApiService } from './api.service';
 import type {
   EducationCadence,
@@ -5,7 +6,12 @@ import type {
   EducationCurriculumStatus,
   CreateCurriculumRequest,
   UpdateCurriculumRequest,
+  EducationLesson,
+  CreateLessonRequest,
+  UpdateLessonRequest,
 } from '@/types/education.types';
+
+const ATTACHMENT_BUCKET = 'church-documents';
 
 interface RawCurriculum {
   id: string;
@@ -28,6 +34,32 @@ function mapCurriculum(r: RawCurriculum): EducationCurriculum {
     status: r.status,
     lessonCount: r.lesson_count,
     createdBy: r.created_by,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+interface RawLesson {
+  id: string;
+  curriculum_id: string;
+  order_index: number;
+  title: string;
+  content: string | null;
+  attachment_path: string | null;
+  attachment_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapLesson(r: RawLesson): EducationLesson {
+  return {
+    id: r.id,
+    curriculumId: r.curriculum_id,
+    orderIndex: r.order_index,
+    title: r.title,
+    content: r.content,
+    attachmentPath: r.attachment_path,
+    attachmentName: r.attachment_name,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -90,5 +122,103 @@ export class EducationService {
 
   static async deleteCurriculum(id: string): Promise<void> {
     await ApiService.delete(`${this.base}/curricula/${id}`);
+  }
+
+  // ── Lecciones ──
+
+  static async getLessons(curriculumId: string): Promise<EducationLesson[]> {
+    const raw = await ApiService.get<RawLesson[]>(`${this.base}/curricula/${curriculumId}/lessons`);
+    return raw.map(mapLesson);
+  }
+
+  static async createLesson(
+    curriculumId: string,
+    data: CreateLessonRequest
+  ): Promise<{ id: string }> {
+    return ApiService.post<
+      { id: string; message: string },
+      {
+        title: string;
+        content?: string;
+        attachment_path?: string;
+        attachment_name?: string;
+        order_index?: number;
+      }
+    >(`${this.base}/curricula/${curriculumId}/lessons`, {
+      title: data.title,
+      content: data.content,
+      attachment_path: data.attachmentPath,
+      attachment_name: data.attachmentName,
+      order_index: data.orderIndex,
+    });
+  }
+
+  // PUT semantics: reemplaza content/attachment por completo (el backend NO
+  // hace COALESCE en esos campos, sólo en title) — siempre mandar el estado
+  // completo del formulario, nunca sólo el campo que cambió.
+  static async updateLesson(id: string, data: UpdateLessonRequest): Promise<void> {
+    await ApiService.put<
+      { message: string },
+      {
+        title?: string;
+        content?: string;
+        attachment_path?: string;
+        attachment_name?: string;
+      }
+    >(`${this.base}/lessons/${id}`, {
+      title: data.title,
+      content: data.content,
+      attachment_path: data.attachmentPath,
+      attachment_name: data.attachmentName,
+    });
+  }
+
+  static async deleteLesson(id: string): Promise<void> {
+    await ApiService.delete(`${this.base}/lessons/${id}`);
+  }
+
+  static async reorderLessons(
+    curriculumId: string,
+    order: { id: string; orderIndex: number }[]
+  ): Promise<void> {
+    await ApiService.put<{ message: string }, { lessons: { id: string; order_index: number }[] }>(
+      `${this.base}/curricula/${curriculumId}/lessons/reorder`,
+      {
+        lessons: order.map(o => ({ id: o.id, order_index: o.orderIndex })),
+      }
+    );
+  }
+
+  // ── Adjuntos de lección (bucket privado church-documents) ──
+  // Convención de ruta: education/{curriculum_id}/{archivo} — igual a la
+  // política de storage de la migración 20260901000001. Nunca getPublicUrl
+  // acá, sólo URLs firmadas temporales (mismo patrón que user.service.ts).
+
+  static async uploadLessonAttachment(
+    curriculumId: string,
+    file: File
+  ): Promise<{ path: string; name: string }> {
+    const path = `education/${curriculumId}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from(ATTACHMENT_BUCKET)
+      .upload(path, file, { cacheControl: '3600', upsert: false });
+    if (uploadError) {
+      throw new Error('Error al subir el adjunto');
+    }
+    return { path, name: file.name };
+  }
+
+  static async getLessonAttachmentSignedUrl(storagePath: string): Promise<string> {
+    const { data, error } = await supabase.storage
+      .from(ATTACHMENT_BUCKET)
+      .createSignedUrl(storagePath, 60);
+    if (error || !data) {
+      throw new Error('Error al generar el enlace del adjunto');
+    }
+    return data.signedUrl;
+  }
+
+  static async removeLessonAttachment(storagePath: string): Promise<void> {
+    await supabase.storage.from(ATTACHMENT_BUCKET).remove([storagePath]);
   }
 }
