@@ -1,4 +1,12 @@
-import { BarChart3, CalendarDays, Church, LucideIcon, Map, Package } from 'lucide-react';
+import {
+  BarChart3,
+  CalendarDays,
+  Church,
+  GraduationCap,
+  LucideIcon,
+  Map,
+  Package,
+} from 'lucide-react';
 
 export interface ModuleMeta {
   icon: LucideIcon;
@@ -55,6 +63,17 @@ const MODULE_META: Record<string, ModuleMeta> = {
       'Exportación de datos',
       'Análisis histórico y comparativo',
       'Métricas cruzadas entre módulos',
+    ],
+  },
+  education: {
+    icon: GraduationCap,
+    gradient: 'from-indigo-500 to-violet-600',
+    bg: 'bg-indigo-500/10',
+    text: 'text-indigo-600 dark:text-indigo-400',
+    features: [
+      'Currículos y lecciones por pénsum',
+      'Asignación de contenido a discípulos',
+      'Seguimiento de progreso',
     ],
   },
 };
