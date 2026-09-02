@@ -16,6 +16,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { PLATFORM_NAME } from '@/lib/branding';
 import { menuItems, superAdminItems, filterNavItems } from '@/lib/nav-items';
 import { useMusicAccess } from '@/pages/dashboard/music/use-music-access';
+import { useEducationAccess } from '@/pages/dashboard/education/use-education-access';
 
 interface AppSidebarProps {
   churchName?: string;
@@ -28,11 +29,16 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
   const { isModuleInstalled } = useSystem();
   const { permissions, hasAccess } = usePermissions();
   const { hasAccess: hasMusicAccess } = useMusicAccess();
+  const { hasAccess: hasEducationAccess } = useEducationAccess();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath === path;
 
-  const hasModuleAccess = (key: string) => (key === 'music' ? hasMusicAccess : true);
+  const hasModuleAccess = (key: string) => {
+    if (key === 'music') return hasMusicAccess;
+    if (key === 'education') return hasEducationAccess;
+    return true;
+  };
   const filteredItems = filterNavItems(menuItems, {
     permissions,
     hasAccess,

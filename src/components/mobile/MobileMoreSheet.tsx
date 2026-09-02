@@ -6,6 +6,7 @@ import { useSystem } from '@/contexts/SystemContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { menuItems, superAdminItems, filterNavItems } from '@/lib/nav-items';
 import { useMusicAccess } from '@/pages/dashboard/music/use-music-access';
+import { useEducationAccess } from '@/pages/dashboard/education/use-education-access';
 
 /**
  * Mobile "Más" sheet: every section/module the user can reach (driven by the
@@ -23,12 +24,17 @@ export function MobileMoreSheet({
   const { isModuleInstalled } = useSystem();
   const { permissions, hasAccess } = usePermissions();
   const { hasAccess: hasMusicAccess } = useMusicAccess();
+  const { hasAccess: hasEducationAccess } = useEducationAccess();
 
   const gate = {
     permissions,
     hasAccess,
     isModuleInstalled,
-    hasModuleAccess: (key: string) => (key === 'music' ? hasMusicAccess : true),
+    hasModuleAccess: (key: string) => {
+      if (key === 'music') return hasMusicAccess;
+      if (key === 'education') return hasEducationAccess;
+      return true;
+    },
   };
   // Exclude "Inicio" — it's always the first primary tab in the bottom bar.
   const items = filterNavItems(
