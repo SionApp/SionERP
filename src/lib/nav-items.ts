@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import {
   BarChart3,
   Calendar,
+  GraduationCap,
   Heart,
   History,
   Home,
@@ -66,6 +67,14 @@ export const menuItems: MenuItemConfig[] = [
     url: '/dashboard/music',
     icon: Music2,
     requiredModule: 'music',
+    minRole: ROLE_LEVELS.member,
+    requiresMembership: true,
+  },
+  {
+    title: 'Educación',
+    url: '/dashboard/education',
+    icon: GraduationCap,
+    requiredModule: 'education',
     minRole: ROLE_LEVELS.member,
     requiresMembership: true,
   },

@@ -209,6 +209,45 @@ export class ApiService {
   }
 
   /**
+   * Generic PATCH request
+   */
+  static async patch<T, U = unknown>(endpoint: string, data?: U): Promise<T> {
+    loadingCallbacks.setSubmitting?.(true);
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'PATCH',
+        headers,
+        credentials: 'include',
+        body: data ? JSON.stringify(data) : undefined,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        this.notifyIfSessionInvalid(response.status, errorData);
+        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+        const errorDetails = errorData.details ? ` - ${errorData.details}` : '';
+
+        console.error(`Error in PATCH ${endpoint}:`, {
+          status: response.status,
+          error: errorData.error,
+          message: errorData.message,
+          details: errorData.details,
+        });
+
+        throw new Error(`${errorMessage}${errorDetails}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error in PATCH ${endpoint}:`, error);
+      throw error;
+    } finally {
+      loadingCallbacks.setSubmitting?.(false);
+    }
+  }
+
+  /**
    * Generic DELETE request
    */
   static async delete<T>(endpoint: string): Promise<T> {

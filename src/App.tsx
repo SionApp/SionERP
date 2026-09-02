@@ -45,6 +45,8 @@ const UsersPage = lazy(() => import('./pages/dashboard/UsersPage'));
 const ZonesPage = lazy(() => import('./pages/dashboard/ZonesPage'));
 const MusicPage = lazy(() => import('./pages/dashboard/MusicPage'));
 const MusicEventDetailPage = lazy(() => import('./pages/dashboard/music/MusicEventDetailPage'));
+const EducationPage = lazy(() => import('./pages/dashboard/EducationPage'));
+const CurriculumEditorPage = lazy(() => import('./pages/dashboard/education/CurriculumEditor'));
 
 // Fallback mientras se descarga el chunk de la página — mismo spinner que
 // ya usa SetupGuard, para que no se sienta como un componente distinto.
@@ -329,6 +331,22 @@ const AppContent = () => {
                   element={
                     <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="music">
                       <MusicEventDetailPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="education"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="education">
+                      <EducationPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="education/curricula/:id"
+                  element={
+                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="education">
+                      <CurriculumEditorPage />
                     </ProtectedRoute>
                   }
                 />

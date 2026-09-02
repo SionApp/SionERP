@@ -337,6 +337,9 @@ func SetupRoutes(e *echo.Echo) {
 	// Music routes
 	SetupMusicRoutes(protected)
 
+	// Education routes
+	SetupEducationRoutes(protected)
+
 	// Zones routes
 	zonesHandler := handlers.NewZonesHandler()
 	zones := protected.Group("/zones")

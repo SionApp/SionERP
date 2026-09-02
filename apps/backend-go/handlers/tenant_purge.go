@@ -30,6 +30,10 @@ var tenantPurgeTables = [][]string{
 		"music_event_songs", "music_unavailability", "module_user_roles",
 		"notifications", "report_generations", "reports", "user_permissions",
 		"discipleship_alerts", "discipleship_hierarchy",
+		// education_lesson_progress depende de education_assignments Y
+		// education_lessons (grupo 2) — va en grupo 1 porque nada más lo
+		// referencia a él, y debe borrarse ANTES que sus dos padres.
+		"education_lesson_progress",
 		// Sin foreign key detectada hacia otra tabla de este tenant — se
 		// pueden borrar en cualquier momento, van acá por prolijidad.
 		"church_info", "modules", "system_settings", "notification_config",
@@ -43,9 +47,12 @@ var tenantPurgeTables = [][]string{
 	{
 		"goal_assignments", "events", "music_members", "music_events",
 		"music_songs", "discipleship_groups",
+		// education_assignments y education_lessons dependen de
+		// education_curricula (grupo 3) — deben borrarse antes que ella.
+		"education_assignments", "education_lessons",
 	},
 	// Grupo 3: dependen de algo del grupo 2 (y de zones, que se borra después).
-	{"discipleship_goals", "discipleship_reports"},
+	{"discipleship_goals", "discipleship_reports", "education_curricula"},
 }
 
 // purgeChurchData borra todos los datos de una iglesia dentro de una sola

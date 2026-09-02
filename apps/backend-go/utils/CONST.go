@@ -4,7 +4,7 @@ package utils
 // User Roles (must match the user_role enum in PostgreSQL)
 // ─────────────────────────────────────────────────────────────────────────────
 const (
-	RoleAdmin      = "admin"      // Legacy/Reserved for level 0 logic
+	RoleAdmin      = "admin" // Legacy/Reserved for level 0 logic
 	RolePastor     = "pastor"
 	RoleStaff      = "staff"
 	RoleSupervisor = "supervisor"
@@ -88,11 +88,12 @@ const (
 	ModuleEvents       = "events"
 	ModuleReports      = "reports"
 	ModuleMusic        = "music"
+	ModuleEducation    = "education"
 )
 
 // AllModules returns all valid module keys.
 func AllModules() []string {
-	return []string{ModuleBase, ModuleDiscipleship, ModuleZones, ModuleEvents, ModuleReports, ModuleMusic}
+	return []string{ModuleBase, ModuleDiscipleship, ModuleZones, ModuleEvents, ModuleReports, ModuleMusic, ModuleEducation}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,8 +137,8 @@ const (
 // Report Types
 // ─────────────────────────────────────────────────────────────────────────────
 const (
-	ReportTypeWeekly   = "weekly"
-	ReportTypeMonthly  = "monthly"
+	ReportTypeWeekly    = "weekly"
+	ReportTypeMonthly   = "monthly"
 	ReportTypeQuarterly = "quarterly"
 )
 
@@ -155,13 +156,13 @@ const (
 // Alert Types
 // ─────────────────────────────────────────────────────────────────────────────
 const (
-	AlertNoReports       = "no_reports"
-	AlertLowAttendance   = "low_attendance"
-	AlertDeclining       = "declining"
-	AlertStagnant        = "stagnant"
-	AlertCareDeficit     = "care_deficit"
+	AlertNoReports         = "no_reports"
+	AlertLowAttendance     = "low_attendance"
+	AlertDeclining         = "declining"
+	AlertStagnant          = "stagnant"
+	AlertCareDeficit       = "care_deficit"
 	AlertEvangelismDeficit = "evangelism_deficit"
-	AlertAttendanceDrop  = "attendance_drop"
+	AlertAttendanceDrop    = "attendance_drop"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
