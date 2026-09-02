@@ -62,3 +62,46 @@ export interface UpdateLessonRequest {
   attachmentPath?: string;
   attachmentName?: string;
 }
+
+// ── Asignaciones + progreso (PR3a backend, PR3c UI) ──
+
+export type EducationAssignmentStatus = 'pending' | 'in_progress' | 'completed' | 'overdue';
+export type EducationSourceModule = 'discipleship';
+
+/**
+ * Wire shape mirrors `models.EducationAssignment` (apps/backend-go/models/education.go).
+ * Status is derived server-side (design D3) — never computed on the client.
+ * assignedToName/assignedToEmail only come populated from the admin listing
+ * (GetCurriculumProgress); the student-facing endpoints never need them.
+ */
+export interface EducationAssignment {
+  id: string;
+  curriculumId: string;
+  curriculumName: string;
+  assignedTo: string;
+  assignedBy: string | null;
+  sourceModule: EducationSourceModule | null;
+  sourceRefId: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  completedLessons: number;
+  totalLessons: number;
+  status: EducationAssignmentStatus;
+  assignedToName: string | null;
+  assignedToEmail: string | null;
+}
+
+export interface CreateAssignmentsRequest {
+  curriculumId: string;
+  userIds: string[];
+  dueDate?: string;
+  sourceModule?: EducationSourceModule;
+  sourceRefId?: string;
+}
+
+export interface CreateAssignmentsResult {
+  created: number;
+  skipped: number;
+  message: string;
+}

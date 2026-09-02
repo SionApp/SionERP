@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { EducationService } from '@/services/education.service';
 import { useEducationAccess } from './use-education-access';
 import { LessonList } from './LessonList';
+import { AssignmentList } from './AssignmentList';
 import type { EducationCadence, EducationCurriculumStatus } from '@/types/education.types';
 
 const CADENCE_LABEL: Record<EducationCadence, string> = {
@@ -266,6 +267,12 @@ export default function CurriculumEditor() {
         <div className="border-t border-border pt-6">
           <LessonList curriculumId={id as string} canEdit={canEdit} />
         </div>
+
+        {canEdit && (
+          <div className="border-t border-border pt-6">
+            <AssignmentList curriculumId={id as string} canManage={canEdit} />
+          </div>
+        )}
       </div>
     );
 

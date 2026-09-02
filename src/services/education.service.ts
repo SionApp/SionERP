@@ -9,6 +9,11 @@ import type {
   EducationLesson,
   CreateLessonRequest,
   UpdateLessonRequest,
+  EducationAssignment,
+  EducationAssignmentStatus,
+  EducationSourceModule,
+  CreateAssignmentsRequest,
+  CreateAssignmentsResult,
 } from '@/types/education.types';
 
 const ATTACHMENT_BUCKET = 'church-documents';
@@ -36,6 +41,44 @@ function mapCurriculum(r: RawCurriculum): EducationCurriculum {
     createdBy: r.created_by,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+  };
+}
+
+interface RawAssignment {
+  id: string;
+  curriculum_id: string;
+  curriculum_name: string;
+  assigned_to: string;
+  assigned_by: string | null;
+  source_module: EducationSourceModule | null;
+  source_ref_id: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  completed_lessons: number;
+  total_lessons: number;
+  status: EducationAssignmentStatus;
+  assigned_to_name?: string | null;
+  assigned_to_email?: string | null;
+}
+
+function mapAssignment(r: RawAssignment): EducationAssignment {
+  return {
+    id: r.id,
+    curriculumId: r.curriculum_id,
+    curriculumName: r.curriculum_name,
+    assignedTo: r.assigned_to,
+    assignedBy: r.assigned_by,
+    sourceModule: r.source_module,
+    sourceRefId: r.source_ref_id,
+    dueDate: r.due_date,
+    completedAt: r.completed_at,
+    createdAt: r.created_at,
+    completedLessons: r.completed_lessons,
+    totalLessons: r.total_lessons,
+    status: r.status,
+    assignedToName: r.assigned_to_name ?? null,
+    assignedToEmail: r.assigned_to_email ?? null,
   };
 }
 
@@ -187,6 +230,38 @@ export class EducationService {
         lessons: order.map(o => ({ id: o.id, order_index: o.orderIndex })),
       }
     );
+  }
+
+  // ── Asignaciones + progreso (PR3a backend, admin view — level 3+) ──
+
+  static async getCurriculumProgress(curriculumId: string): Promise<EducationAssignment[]> {
+    const raw = await ApiService.get<RawAssignment[]>(
+      `${this.base}/curricula/${curriculumId}/progress`
+    );
+    return raw.map(mapAssignment);
+  }
+
+  static async createAssignments(data: CreateAssignmentsRequest): Promise<CreateAssignmentsResult> {
+    return ApiService.post<
+      CreateAssignmentsResult,
+      {
+        curriculum_id: string;
+        user_ids: string[];
+        due_date?: string;
+        source_module?: EducationSourceModule;
+        source_ref_id?: string;
+      }
+    >(`${this.base}/assignments`, {
+      curriculum_id: data.curriculumId,
+      user_ids: data.userIds,
+      due_date: data.dueDate,
+      source_module: data.sourceModule,
+      source_ref_id: data.sourceRefId,
+    });
+  }
+
+  static async deleteAssignment(id: string): Promise<void> {
+    await ApiService.delete(`${this.base}/assignments/${id}`);
   }
 
   // ── Adjuntos de lección (bucket privado church-documents) ──
