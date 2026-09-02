@@ -35,3 +35,27 @@ type EducationMember struct {
 	RoleLevel int     `json:"role_level"`
 	RoleName  string  `json:"role_name"`
 }
+
+// EducationAssignment is the wire shape for an assignment row plus its
+// derived progress rollup (PR3a). Status is computed server-side (design D3)
+// — never stored. AssignedToName/AssignedToEmail are populated only by the
+// admin-facing GetCurriculumProgress listing (nil on the student-facing
+// GetMyAssignments/GetMyAssignmentByID responses, which only ever return the
+// caller's own rows and have no reason to name the caller back to themself).
+type EducationAssignment struct {
+	ID               string  `json:"id"`
+	CurriculumID     string  `json:"curriculum_id"`
+	CurriculumName   string  `json:"curriculum_name"`
+	AssignedTo       string  `json:"assigned_to"`
+	AssignedBy       *string `json:"assigned_by"`
+	SourceModule     *string `json:"source_module"`
+	SourceRefID      *string `json:"source_ref_id"`
+	DueDate          *string `json:"due_date"`
+	CompletedAt      *string `json:"completed_at"`
+	CreatedAt        string  `json:"created_at"`
+	CompletedLessons int     `json:"completed_lessons"`
+	TotalLessons     int     `json:"total_lessons"`
+	Status           string  `json:"status"`
+	AssignedToName   *string `json:"assigned_to_name,omitempty"`
+	AssignedToEmail  *string `json:"assigned_to_email,omitempty"`
+}

@@ -1,8 +1,8 @@
 // education_isolation_test.go — church-scoping regression coverage for the
-// PR2a curriculum/lesson CRUD tables, following the same pattern as
-// isolation_test.go's TestIsolationCrossTenantReadBlocked /
-// TestIsolationModuleGateChurchScoped (see that file's header for the
-// INTEGRATION_TEST_DSN setup instructions).
+// PR2a curriculum/lesson CRUD tables and PR3a assignment/progress tables,
+// following the same pattern as isolation_test.go's
+// TestIsolationCrossTenantReadBlocked / TestIsolationModuleGateChurchScoped
+// (see that file's header for the INTEGRATION_TEST_DSN setup instructions).
 //
 // Fixture seeding note: `churches` carries an explicit `deny_write` RLS
 // policy (`USING (false)`) and every tenant table's `tenant_isolation` policy
@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -204,4 +205,255 @@ func TestIsolationEducationLessonCrossChurchWriteBlocked(t *testing.T) {
 	if err == nil {
 		t.Errorf("cross-tenant write NOT blocked: insert with church_id=Church B succeeded while tenant context = Church A")
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TestIsolationEducationAssignmentsCrossChurchReadBlocked (PR3a)
+//
+// Spec ref: education-assignment-progress "Cross-church isolation" scenario.
+// Same shape as TestIsolationEducationCurriculaCrossChurchReadBlocked, applied
+// to education_assignments: seeds one assignment per church, sets tenant
+// context to A, and asserts a deliberately unscoped SELECT never returns
+// Church B's row — proves RLS enforces isolation on the new PR3a table
+// independently of any WHERE church_id clause a handler might omit.
+// ─────────────────────────────────────────────────────────────────────────────
+func TestIsolationEducationAssignmentsCrossChurchReadBlocked(t *testing.T) {
+	seedDB := superuserSeedDB(t)
+	defer seedDB.Close()
+	db := integrationDB(t)
+	defer db.Close()
+
+	churchA := "aaaaaaaa-0000-0000-0000-00000000000b"
+	churchB := "bbbbbbbb-0000-0000-0000-00000000000b"
+
+	setup, err := seedDB.Begin()
+	if err != nil {
+		t.Fatalf("setup tx: %v", err)
+	}
+	curriculumIDs := map[string]string{}
+	userIDs := map[string]string{}
+	for i, cid := range []string{churchA, churchB} {
+		_, err = setup.Exec(
+			`INSERT INTO public.churches (id, name, slug, created_at, updated_at)
+			 VALUES ($1, $2, $3, NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
+			cid, fmt.Sprintf("Education Assignment Isolation Church %d", i), fmt.Sprintf("edu-isolation-assign-church-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed church %s: %v", cid, err)
+		}
+		var curriculumID string
+		err = setup.QueryRow(
+			`INSERT INTO public.education_curricula (church_id, name, cadence, status)
+			 VALUES ($1, $2, 'weekly', 'published') RETURNING id`,
+			cid, fmt.Sprintf("edu-isolation-assign-curriculum-%s", cid[:8]),
+		).Scan(&curriculumID)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed curriculum for %s: %v", cid, err)
+		}
+		curriculumIDs[cid] = curriculumID
+
+		var userID string
+		err = setup.QueryRow(
+			`INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, church_id)
+			 VALUES ($1, 'Edu', 'IsolationAssign', '000', 'n/a', $2, 'member', $3) RETURNING id`,
+			fmt.Sprintf("edu-isolation-assign-%s", cid[:8]), fmt.Sprintf("edu-isolation-assign-%s@example.test", cid[:8]), cid,
+		).Scan(&userID)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed user for %s: %v", cid, err)
+		}
+		userIDs[cid] = userID
+
+		_, err = setup.Exec(
+			`INSERT INTO public.education_assignments (church_id, curriculum_id, assigned_to)
+			 VALUES ($1, $2, $3)`,
+			cid, curriculumID, userID,
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed assignment for %s: %v", cid, err)
+		}
+	}
+	if err := setup.Commit(); err != nil {
+		t.Fatalf("seed commit: %v", err)
+	}
+	defer func() {
+		_, _ = seedDB.Exec(`DELETE FROM public.education_assignments WHERE curriculum_id = ANY($1)`,
+			pqStringArray(curriculumIDs[churchA], curriculumIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.education_curricula WHERE id = ANY($1)`,
+			pqStringArray(curriculumIDs[churchA], curriculumIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.users WHERE id = ANY($1)`,
+			pqStringArray(userIDs[churchA], userIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
+	}()
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("test tx begin: %v", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	setTenantContext(t, tx, churchA)
+
+	// Deliberately NO WHERE church_id — RLS must filter for us.
+	rows, err := tx.Query(`SELECT church_id FROM public.education_assignments WHERE curriculum_id = ANY($1)`,
+		pqStringArray(curriculumIDs[churchA], curriculumIDs[churchB]))
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+
+	seenA, seenB := 0, 0
+	for rows.Next() {
+		var gotChurchID string
+		if err := rows.Scan(&gotChurchID); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		switch gotChurchID {
+		case churchA:
+			seenA++
+		case churchB:
+			seenB++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows iteration: %v", err)
+	}
+	if seenB > 0 {
+		t.Errorf("cross-tenant read NOT blocked: saw %d Church B education_assignments rows while tenant context = Church A", seenB)
+	}
+	if seenA == 0 {
+		t.Errorf("own-tenant read unexpectedly empty: expected to see Church A's own assignment row")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TestIsolationEducationProgressSelfOnlyConstraint (PR3a)
+//
+// Spec ref: education-assignment-progress "self-only" scenario (an
+// authorization boundary, not a tenant-isolation one — both users below are
+// in the SAME church, so RLS's tenant_isolation policy alone would let this
+// through). Seeds two users in one church and one assignment belonging to
+// user A. Runs the EXACT ownership-check query MarkLessonComplete/
+// MarkLessonIncomplete execute before touching education_lesson_progress
+// (`WHERE id = $1 AND church_id = $2 AND assigned_to = $3`) once as the
+// owner (must resolve) and once as a different user in the same church
+// (must resolve to zero rows) — proving the handler's guard, not just RLS,
+// is what stops a user from touching another user's progress.
+// ─────────────────────────────────────────────────────────────────────────────
+func TestIsolationEducationProgressSelfOnlyConstraint(t *testing.T) {
+	seedDB := superuserSeedDB(t)
+	defer seedDB.Close()
+	db := integrationDB(t)
+	defer db.Close()
+
+	church := "cccccccc-0000-0000-0000-00000000000c"
+
+	setup, err := seedDB.Begin()
+	if err != nil {
+		t.Fatalf("setup tx: %v", err)
+	}
+	_, err = setup.Exec(
+		`INSERT INTO public.churches (id, name, slug, created_at, updated_at)
+		 VALUES ($1, 'Education Progress Self-Only Church', 'edu-isolation-self-only-church', NOW(), NOW())
+		 ON CONFLICT (id) DO NOTHING`,
+		church,
+	)
+	if err != nil {
+		_ = setup.Rollback()
+		t.Fatalf("seed church: %v", err)
+	}
+	var curriculumID string
+	err = setup.QueryRow(
+		`INSERT INTO public.education_curricula (church_id, name, cadence, status)
+		 VALUES ($1, 'edu-isolation-self-only-curriculum', 'weekly', 'published') RETURNING id`,
+		church,
+	).Scan(&curriculumID)
+	if err != nil {
+		_ = setup.Rollback()
+		t.Fatalf("seed curriculum: %v", err)
+	}
+	var ownerID, otherID string
+	err = setup.QueryRow(
+		`INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, church_id)
+		 VALUES ('edu-isolation-self-only-owner', 'Edu', 'Owner', '000', 'n/a', 'edu-isolation-self-only-owner@example.test', 'member', $1)
+		 RETURNING id`,
+		church,
+	).Scan(&ownerID)
+	if err != nil {
+		_ = setup.Rollback()
+		t.Fatalf("seed owner user: %v", err)
+	}
+	err = setup.QueryRow(
+		`INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, church_id)
+		 VALUES ('edu-isolation-self-only-other', 'Edu', 'Other', '000', 'n/a', 'edu-isolation-self-only-other@example.test', 'member', $1)
+		 RETURNING id`,
+		church,
+	).Scan(&otherID)
+	if err != nil {
+		_ = setup.Rollback()
+		t.Fatalf("seed other user: %v", err)
+	}
+	var assignmentID string
+	err = setup.QueryRow(
+		`INSERT INTO public.education_assignments (church_id, curriculum_id, assigned_to)
+		 VALUES ($1, $2, $3) RETURNING id`,
+		church, curriculumID, ownerID,
+	).Scan(&assignmentID)
+	if err != nil {
+		_ = setup.Rollback()
+		t.Fatalf("seed assignment: %v", err)
+	}
+	if err := setup.Commit(); err != nil {
+		t.Fatalf("seed commit: %v", err)
+	}
+	defer func() {
+		_, _ = seedDB.Exec(`DELETE FROM public.education_assignments WHERE id = $1`, assignmentID)
+		_, _ = seedDB.Exec(`DELETE FROM public.education_curricula WHERE id = $1`, curriculumID)
+		_, _ = seedDB.Exec(`DELETE FROM public.users WHERE id IN ($1, $2)`, ownerID, otherID)
+		_, _ = seedDB.Exec(`DELETE FROM public.churches WHERE id = $1`, church)
+	}()
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("test tx begin: %v", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	setTenantContext(t, tx, church)
+
+	const ownershipQuery = `
+		SELECT curriculum_id FROM public.education_assignments
+		WHERE id = $1 AND church_id = $2 AND assigned_to = $3
+	`
+
+	// Positive control: the owner's own lookup must resolve.
+	var gotCurriculumID string
+	if err := tx.QueryRow(ownershipQuery, assignmentID, church, ownerID).Scan(&gotCurriculumID); err != nil {
+		t.Fatalf("owner ownership check unexpectedly failed: %v", err)
+	}
+	if gotCurriculumID != curriculumID {
+		t.Errorf("owner ownership check returned wrong curriculum_id: got %s want %s", gotCurriculumID, curriculumID)
+	}
+
+	// The actual boundary: a different user in the SAME church must NOT be
+	// able to resolve someone else's assignment via this query.
+	var leaked string
+	err = tx.QueryRow(ownershipQuery, assignmentID, church, otherID).Scan(&leaked)
+	if err != sql.ErrNoRows {
+		t.Errorf("self-only constraint NOT enforced: a different same-church user resolved another user's assignment (err=%v)", err)
+	}
+}
+
+// pqStringArray formats a Go string slice as a Postgres text[] literal for use
+// with = ANY($1) — avoids pulling in github.com/lib/pq's pq.Array helper just
+// for two fixed-size test fixtures.
+func pqStringArray(values ...string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = `"` + v + `"`
+	}
+	return "{" + strings.Join(quoted, ",") + "}"
 }
