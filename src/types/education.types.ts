@@ -35,3 +35,30 @@ export const EducationCurriculumStatuses: Record<EducationCurriculumStatus, true
   published: true,
   archived: true,
 };
+
+export interface EducationLesson {
+  id: string;
+  curriculumId: string;
+  orderIndex: number;
+  title: string;
+  content: string | null;
+  attachmentPath: string | null;
+  attachmentName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLessonRequest {
+  title: string;
+  content?: string;
+  attachmentPath?: string;
+  attachmentName?: string;
+  orderIndex?: number;
+}
+
+export interface UpdateLessonRequest {
+  title?: string;
+  content?: string;
+  attachmentPath?: string;
+  attachmentName?: string;
+}

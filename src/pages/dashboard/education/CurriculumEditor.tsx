@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ChevronLeft, ListTree, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import { useMobileMode } from '@/hooks/useMobileMode';
 import { cn } from '@/lib/utils';
 import { EducationService } from '@/services/education.service';
 import { useEducationAccess } from './use-education-access';
+import { LessonList } from './LessonList';
 import type { EducationCadence, EducationCurriculumStatus } from '@/types/education.types';
 
 const CADENCE_LABEL: Record<EducationCadence, string> = {
@@ -262,21 +263,8 @@ export default function CurriculumEditor() {
           )}
         </form>
 
-        {/* Lecciones — el editor completo llega en PR2c; acá solo el conteo. */}
-        <div className="rounded-2xl border border-dashed border-border p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <ListTree className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">
-                {curriculum.lessonCount} {curriculum.lessonCount === 1 ? 'lección' : 'lecciones'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                El editor de lecciones llega próximamente.
-              </p>
-            </div>
-          </div>
+        <div className="border-t border-border pt-6">
+          <LessonList curriculumId={id as string} canEdit={canEdit} />
         </div>
       </div>
     );
