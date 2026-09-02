@@ -508,13 +508,23 @@ func TestIsolationChurchIDContextRequired(t *testing.T) {
 // is the PR1-scope proof that the underlying data model is unambiguous.
 // ─────────────────────────────────────────────────────────────────────────────
 func TestIsolationModuleGateChurchScoped(t *testing.T) {
-	db := integrationDB(t)
-	defer db.Close()
+	// middleware.RequireModule runs this query through config.GetDB(), a
+	// BYPASSRLS pool — module gating happens before any per-request tenant
+	// GUC is set, so RLS never applies to this specific query in production.
+	// The explicit WHERE church_id=$1 AND key=$2 is the only scoping that
+	// exists, which is exactly what this test proves. Mirror that reality
+	// with a superuser (bypass) connection throughout — running the
+	// assertion query as jetro_app would either trivially pass (if modules
+	// still had its old permissive SELECT-true policy) or, now that modules
+	// carries a real tenant_isolation RLS policy, return zero rows for
+	// every church regardless of church_id and prove nothing either way.
+	seedDB := superuserSeedDB(t)
+	defer seedDB.Close()
 
 	churchA := "eeeeeeee-0000-0000-0000-000000000008"
 	churchB := "ffffffff-0000-0000-0000-000000000008"
 
-	setup, err := db.Begin()
+	setup, err := seedDB.Begin()
 	if err != nil {
 		t.Fatalf("setup tx: %v", err)
 	}
@@ -555,15 +565,15 @@ func TestIsolationModuleGateChurchScoped(t *testing.T) {
 		t.Fatalf("seed commit: %v", err)
 	}
 	defer func() {
-		_, _ = db.Exec(`DELETE FROM public.modules WHERE church_id IN ($1, $2) AND key = 'education'`, churchA, churchB)
-		_, _ = db.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
+		_, _ = seedDB.Exec(`DELETE FROM public.modules WHERE church_id IN ($1, $2) AND key = 'education'`, churchA, churchB)
+		_, _ = seedDB.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
 	}()
 
 	// This is the exact query middleware.RequireModule runs post-fix.
 	const gateQuery = `SELECT is_installed FROM modules WHERE church_id = $1 AND key = $2`
 
 	var installedA bool
-	if err := db.QueryRow(gateQuery, churchA, "education").Scan(&installedA); err != nil {
+	if err := seedDB.QueryRow(gateQuery, churchA, "education").Scan(&installedA); err != nil {
 		t.Fatalf("query church A: %v", err)
 	}
 	if !installedA {
@@ -571,7 +581,7 @@ func TestIsolationModuleGateChurchScoped(t *testing.T) {
 	}
 
 	var installedB bool
-	if err := db.QueryRow(gateQuery, churchB, "education").Scan(&installedB); err != nil {
+	if err := seedDB.QueryRow(gateQuery, churchB, "education").Scan(&installedB); err != nil {
 		t.Fatalf("query church B: %v", err)
 	}
 	if installedB {
