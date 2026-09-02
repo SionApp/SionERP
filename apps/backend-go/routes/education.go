@@ -8,11 +8,12 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// SetupEducationRoutes registers all /api/v1/education endpoints (PR2a scope:
-// curriculum/lesson CRUD + module role management). The entire group is
-// gated by RequireModule(ModuleEducation); write operations additionally
-// require RequireModuleLevel(ModuleEducation, N) per the role ladder
-// (1=student, 3=author, 5=module admin — spec: education-module-roles).
+// SetupEducationRoutes registers all /api/v1/education endpoints (PR2a:
+// curriculum/lesson CRUD + module role management; PR3a: assignment/progress
+// tracking). The entire group is gated by RequireModule(ModuleEducation);
+// write operations additionally require RequireModuleLevel(ModuleEducation, N)
+// per the role ladder (1=student, 3=author, 5=module admin — spec:
+// education-module-roles).
 func SetupEducationRoutes(protected *echo.Group) {
 	h := handlers.NewEducationHandler()
 	education := protected.Group("/education")
@@ -45,4 +46,20 @@ func SetupEducationRoutes(protected *echo.Group) {
 	education.GET("/members", h.GetMembers, middleware.RequireModuleLevel(utils.ModuleEducation, 5))
 	education.PUT("/members/:userId/role", h.UpdateMemberRole, middleware.RequireModuleLevel(utils.ModuleEducation, 5))
 	education.POST("/members/bulk-leaders", h.BulkGrantLeaders, middleware.RequireModuleLevel(utils.ModuleEducation, 5))
+
+	// Assignments + progress (PR3a) — self-service ("me") endpoints require
+	// only level 1 (student); assign/unassign and the admin progress view
+	// require level 3 (author). Self-enroll is a level-1 action registered
+	// alongside /curricula/:id so a student can enroll in a published
+	// curriculum without author-level access.
+	education.POST("/curricula/:id/enroll", h.EnrollSelf, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/curricula/:id/progress", h.GetCurriculumProgress, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+
+	education.GET("/me/assignments", h.GetMyAssignments, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/me/assignments/:id", h.GetMyAssignmentByID, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.PUT("/me/assignments/:id/lessons/:lessonId", h.MarkLessonComplete, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.DELETE("/me/assignments/:id/lessons/:lessonId", h.MarkLessonIncomplete, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+
+	education.POST("/assignments", h.CreateAssignments, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.DELETE("/assignments/:id", h.DeleteAssignment, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
 }
