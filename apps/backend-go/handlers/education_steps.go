@@ -11,6 +11,7 @@ import (
 	"backend-sion/models"
 
 	"github.com/labstack/echo/v4"
+	"github.com/lib/pq"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,15 +148,36 @@ func (h *EducationHandler) GetLessonDetail(c echo.Context) error {
 	}
 
 	if info.level < educationAuthorLevel {
-		var assigned bool
+		var assignmentID sql.NullString
 		if err := q.QueryRow(`
-			SELECT EXISTS(SELECT 1 FROM education_assignments WHERE curriculum_id = $1 AND church_id = $2 AND assigned_to = $3)
-		`, l.CurriculumID, churchID, info.userID).Scan(&assigned); err != nil {
+			SELECT id FROM education_assignments WHERE curriculum_id = $1 AND church_id = $2 AND assigned_to = $3
+		`, l.CurriculumID, churchID, info.userID).Scan(&assignmentID); err != nil && err != sql.ErrNoRows {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al verificar inscripción"})
 		}
-		if !assigned {
+		if !assignmentID.Valid {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "Lección no encontrada"})
 		}
+
+		progress := &models.EducationLessonProgressPointer{
+			AssignmentID:   assignmentID.String,
+			VisitedStepIDs: []string{},
+		}
+		var currentStepID sql.NullString
+		var visited pq.StringArray
+		err = q.QueryRow(`
+			SELECT current_step_id::text, visited_step_ids FROM education_lesson_progress
+			WHERE assignment_id = $1 AND lesson_id = $2 AND church_id = $3
+		`, assignmentID.String, lessonID, churchID).Scan(&currentStepID, &visited)
+		if err != nil && err != sql.ErrNoRows {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener avance"})
+		}
+		if currentStepID.Valid {
+			progress.CurrentStepID = &currentStepID.String
+		}
+		if visited != nil {
+			progress.VisitedStepIDs = []string(visited)
+		}
+		l.Progress = progress
 	}
 
 	rows, err := q.Query(stepSelectSQL+` WHERE lesson_id = $1 AND church_id = $2 ORDER BY order_index ASC`, lessonID, churchID)

@@ -18,6 +18,10 @@ import type {
   EducationCatalogCourse,
   EducationSyllabusModule,
   EducationHomeAggregate,
+  EducationBlock,
+  EducationStep,
+  EducationLessonDetail,
+  EducationLessonProgress,
 } from '@/types/education.types';
 
 const ATTACHMENT_BUCKET = 'church-documents';
@@ -375,6 +379,119 @@ export class EducationService {
     );
   }
 
+  /**
+   * Marks a lesson complete for the CALLER's own assignment (idempotent —
+   * same self-only endpoint PR1-3c already used elsewhere). `LessonViewer`
+   * calls this on the last step's primary action ONLY when the lesson has
+   * no quiz — a quizzed lesson's completion is a PR-F/G concern (a quiz
+   * PASS, not merely reaching the last step).
+   */
+  static async markLessonComplete(assignmentId: string, lessonId: string): Promise<void> {
+    await ApiService.put<{ message: string }>(
+      `${this.base}/me/assignments/${assignmentId}/lessons/${lessonId}`
+    );
+  }
+
+  // ── Visor de lección: pasos + bloques + posición (PR-E) ──
+
+  /**
+   * The actual content-serving endpoint (title/steps/blocks/the caller's own
+   * step pointer). Same lesson id the syllabus already links to
+   * (`curso/:curriculumId/leccion/:lessonId`) — never the design's ordinal.
+   */
+  static async getLessonDetail(lessonId: string): Promise<EducationLessonDetail> {
+    const raw = await ApiService.get<{
+      id: string;
+      curriculum_id: string;
+      module_id: string | null;
+      order_index: number;
+      title: string;
+      duration_minutes: number | null;
+      steps: {
+        id: string;
+        lesson_id: string;
+        order_index: number;
+        label: string;
+        blocks: EducationBlock[];
+        created_at: string;
+        updated_at: string;
+      }[];
+      progress: {
+        assignment_id: string;
+        current_step_id: string | null;
+        visited_step_ids: string[];
+      } | null;
+    }>(`${this.base}/lessons/${lessonId}`);
+    return {
+      id: raw.id,
+      curriculumId: raw.curriculum_id,
+      moduleId: raw.module_id,
+      orderIndex: raw.order_index,
+      title: raw.title,
+      durationMinutes: raw.duration_minutes,
+      steps: raw.steps.map(
+        (s): EducationStep => ({
+          id: s.id,
+          lessonId: s.lesson_id,
+          orderIndex: s.order_index,
+          label: s.label,
+          blocks: s.blocks ?? [],
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+        })
+      ),
+      progress: raw.progress
+        ? ({
+            assignmentId: raw.progress.assignment_id,
+            currentStepId: raw.progress.current_step_id,
+            visitedStepIds: raw.progress.visited_step_ids ?? [],
+          } satisfies EducationLessonProgress)
+        : null,
+    };
+  }
+
+  /**
+   * Persists the CALLER's own step pointer on every step change — the
+   * server pointer this endpoint writes is what LessonViewer reads back via
+   * `getLessonDetail`'s `progress` field on the next mount (spec: "Resume
+   * after refresh"). Self-only, same PR-B endpoint the design names.
+   */
+  static async updateLessonPosition(
+    assignmentId: string,
+    lessonId: string,
+    stepId: string
+  ): Promise<void> {
+    await ApiService.put<{ message: string }, { step_id: string }>(
+      `${this.base}/me/assignments/${assignmentId}/lessons/${lessonId}/position`,
+      { step_id: stepId }
+    );
+  }
+
+  /**
+   * Reads the CALLER's own answer to a `question` block. `null` (not a
+   * thrown error) when no answer exists yet — a 404 from the backend is the
+   * expected "never answered" state, not a failure.
+   */
+  static async getReflection(lessonId: string, blockId: string): Promise<string | null> {
+    try {
+      const raw = await ApiService.get<{ answer: string }>(
+        `${this.base}/lessons/${lessonId}/reflections/${blockId}`
+      );
+      return raw.answer;
+    } catch (err) {
+      if ((err as { status?: number }).status === 404) return null;
+      throw err;
+    }
+  }
+
+  /** Writes (creates or updates) the CALLER's own reflection answer. */
+  static async upsertReflection(lessonId: string, blockId: string, answer: string): Promise<void> {
+    await ApiService.put<{ message: string }, { answer: string }>(
+      `${this.base}/lessons/${lessonId}/reflections/${blockId}`,
+      { answer }
+    );
+  }
+
   // ── Adjuntos de lección (bucket privado church-documents) ──
   // Convención de ruta: education/{curriculum_id}/{archivo} — igual a la
   // política de storage de la migración 20260901000001. Nunca getPublicUrl
@@ -406,5 +523,26 @@ export class EducationService {
 
   static async removeLessonAttachment(storagePath: string): Promise<void> {
     await supabase.storage.from(ATTACHMENT_BUCKET).remove([storagePath]);
+  }
+
+  /**
+   * Signed URL for an `image`/`pdf` block's asset (PR-E, `blocks/ImageBlock`
+   * and `blocks/PdfBlock` — spec: "Lesson assets are private ... served only
+   * by time-limited signed URL"). A DELIBERATELY longer TTL than
+   * `getLessonAttachmentSignedUrl`'s 60s: that helper backs a one-shot
+   * "open the attachment" download link, while this one backs an `<img>`/
+   * embed that must stay valid for as long as a student is reading the
+   * step — 60s would break mid-read. Same private bucket, same
+   * `education/{curriculum_id}/...` path convention, no behavior change to
+   * the existing helper.
+   */
+  static async getEducationAssetSignedUrl(storagePath: string): Promise<string> {
+    const { data, error } = await supabase.storage
+      .from(ATTACHMENT_BUCKET)
+      .createSignedUrl(storagePath, 3600);
+    if (error || !data) {
+      throw new Error('Error al generar el enlace del recurso');
+    }
+    return data.signedUrl;
   }
 }

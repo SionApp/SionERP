@@ -200,3 +200,56 @@ export interface EducationHomeAggregate {
   continueAssignment: EducationAssignment | null;
   assignments: EducationAssignment[];
 }
+
+// ── Pasos + bloques de lección (PR-E, education-content-model) ──
+
+/**
+ * Raw `{id,type,data}` block envelope — mirrors `models.EducationBlock`
+ * (education_content.go) exactly. `data`'s per-type shape is NOT narrowed
+ * here (the wire shape is closed server-side by `ValidateLessonBlocks`, not
+ * by this type) — `blocks/block.types.ts` narrows it into a discriminated
+ * union via `narrowEducationBlock`, matching
+ * `handlers/education_blocks_validate.go`'s per-type `data` shapes
+ * field-by-field (not guessed).
+ */
+export interface EducationBlock {
+  id: string;
+  type: string;
+  data: unknown;
+}
+
+/** Wire shape mirrors `models.EducationStep` (education_content.go). */
+export interface EducationStep {
+  id: string;
+  lessonId: string;
+  orderIndex: number;
+  label: string;
+  blocks: EducationBlock[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * The caller's own step-pointer for one lesson (design A2/A3:
+ * `current_step_id uuid` + `visited_step_ids uuid[]` — NOT an ordinal, so
+ * step identity survives reorder). `null` on `EducationLessonDetail.progress`
+ * for authors (level >= 3) — they have no personal progress on a lesson
+ * they're not enrolled in as a student.
+ */
+export interface EducationLessonProgress {
+  assignmentId: string;
+  currentStepId: string | null;
+  visitedStepIds: string[];
+}
+
+/** Wire shape mirrors `models.EducationLessonDetail` (GET /education/lessons/:id). */
+export interface EducationLessonDetail {
+  id: string;
+  curriculumId: string;
+  moduleId: string | null;
+  orderIndex: number;
+  title: string;
+  durationMinutes: number | null;
+  steps: EducationStep[];
+  progress: EducationLessonProgress | null;
+}
