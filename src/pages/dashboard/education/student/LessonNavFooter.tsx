@@ -45,10 +45,8 @@ export function LessonNavFooter({
         onClick={onPrev}
         disabled={disablePrev}
         className={cn(
-          'flex min-h-11 items-center gap-2 rounded-md3 border border-muted-foreground px-[22px] py-[13px] text-sm font-medium text-foreground',
-          disablePrev
-            ? 'cursor-not-allowed text-muted-foreground opacity-50'
-            : 'hover:bg-background'
+          'flex min-h-11 items-center gap-2 rounded-md3 border border-outline px-[22px] py-[13px] text-sm font-medium text-foreground',
+          disablePrev ? 'cursor-not-allowed text-outline opacity-50' : 'hover:bg-background'
         )}
       >
         <ArrowLeft className="h-[18px] w-[18px]" aria-hidden="true" />

@@ -61,9 +61,12 @@ func lessonReadAccess(q config.Querier, churchID, lessonID, callerID string, lev
 // against its OWN previous blocks doesn't self-collide) — feeds
 // ValidateLessonBlocks's lesson-wide uniqueness check.
 func blockIDsUsedElsewhereInLesson(q config.Querier, churchID, lessonID, excludeStepID string) (map[string]bool, error) {
+	// excludeStepID is "" on create (no step to exclude yet) — NULLIF turns
+	// that into a NULL uuid param instead of an empty string, which Postgres
+	// cannot cast to uuid ("invalid input syntax for type uuid: \"\"").
 	rows, err := q.Query(`
 		SELECT blocks FROM education_lesson_steps
-		WHERE lesson_id = $1 AND church_id = $2 AND id <> $3
+		WHERE lesson_id = $1 AND church_id = $2 AND id IS DISTINCT FROM NULLIF($3::text, '')::uuid
 	`, lessonID, churchID, excludeStepID)
 	if err != nil {
 		return nil, err
