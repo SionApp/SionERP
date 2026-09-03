@@ -65,8 +65,8 @@ export default function EducationShell() {
   }
 
   return (
-    <div className="education-shell space-y-0">
-      <div className="pt-0">
+    <div className="education-shell space-y-6 p-3 sm:p-4 md:p-6">
+      <div>
         {hasAccess && !loadingAccess && (
           <nav className="flex items-center gap-1.5 text-xs text-outline" aria-label="breadcrumb">
             <Home className="h-4 w-4" />
