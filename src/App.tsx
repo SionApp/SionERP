@@ -45,8 +45,31 @@ const UsersPage = lazy(() => import('./pages/dashboard/UsersPage'));
 const ZonesPage = lazy(() => import('./pages/dashboard/ZonesPage'));
 const MusicPage = lazy(() => import('./pages/dashboard/MusicPage'));
 const MusicEventDetailPage = lazy(() => import('./pages/dashboard/music/MusicEventDetailPage'));
-const EducationPage = lazy(() => import('./pages/dashboard/EducationPage'));
+
+// Educación: shell + nested route tree (PR-C). Each leaf is its own chunk so
+// the admin-only editor/quiz-builder work (lazy-loaded further, PR-I/J)
+// never ships to a student session.
+const EducationShell = lazy(() => import('./pages/dashboard/education/EducationShell'));
+const EducationAdminGate = lazy(() => import('./pages/dashboard/education/EducationAdminGate'));
+const LegacyCurriculumRedirect = lazy(
+  () => import('./pages/dashboard/education/LegacyCurriculumRedirect')
+);
+const LegacyCurriculumListRoute = lazy(
+  () => import('./pages/dashboard/education/LegacyCurriculumListRoute')
+);
 const CurriculumEditorPage = lazy(() => import('./pages/dashboard/education/CurriculumEditor'));
+
+const StudentHome = lazy(() => import('./pages/dashboard/education/student/StudentHome'));
+const CourseCatalog = lazy(() => import('./pages/dashboard/education/student/CourseCatalog'));
+const CourseDetail = lazy(() => import('./pages/dashboard/education/student/CourseDetail'));
+const LessonViewer = lazy(() => import('./pages/dashboard/education/student/LessonViewer'));
+const QuizRunner = lazy(() => import('./pages/dashboard/education/student/QuizRunner'));
+const QuizResult = lazy(() => import('./pages/dashboard/education/student/QuizResult'));
+
+const LessonEditor = lazy(() => import('./pages/dashboard/education/admin/LessonEditor'));
+const QuizBuilder = lazy(() => import('./pages/dashboard/education/admin/QuizBuilder'));
+const StudentProgress = lazy(() => import('./pages/dashboard/education/admin/StudentProgress'));
+const ReviewQueue = lazy(() => import('./pages/dashboard/education/admin/ReviewQueue'));
 
 // Fallback mientras se descarga el chunk de la página — mismo spinner que
 // ya usa SetupGuard, para que no se sienta como un componente distinto.
@@ -338,18 +361,42 @@ const AppContent = () => {
                   path="education"
                   element={
                     <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="education">
-                      <EducationPage />
+                      <EducationShell />
                     </ProtectedRoute>
                   }
-                />
-                <Route
-                  path="education/curricula/:id"
-                  element={
-                    <ProtectedRoute minRole={ROLE_LEVELS.member} requiredModule="education">
-                      <CurriculumEditorPage />
-                    </ProtectedRoute>
-                  }
-                />
+                >
+                  <Route index element={<StudentHome />} />
+                  <Route path="catalogo" element={<CourseCatalog />} />
+                  <Route path="curso/:curriculumId" element={<CourseDetail />} />
+                  <Route path="curso/:curriculumId/leccion/:lessonId" element={<LessonViewer />} />
+                  <Route
+                    path="curso/:curriculumId/leccion/:lessonId/quiz"
+                    element={<QuizRunner />}
+                  />
+                  <Route
+                    path="curso/:curriculumId/leccion/:lessonId/resultado/:attemptId"
+                    element={<QuizResult />}
+                  />
+                  {/* admin/* (education level >= 3) — EducationAdminGate is client UX only,
+                      RequireModuleLevel on the backend is authoritative (design A9). */}
+                  <Route path="admin" element={<EducationAdminGate />}>
+                    <Route index element={<Navigate to="cursos" replace />} />
+                    <Route path="cursos" element={<LegacyCurriculumListRoute />} />
+                    <Route path="cursos/:id" element={<CurriculumEditorPage />} />
+                    <Route
+                      path="cursos/:curriculumId/leccion/:lessonId"
+                      element={<LessonEditor />}
+                    />
+                    <Route
+                      path="cursos/:curriculumId/leccion/:lessonId/quiz"
+                      element={<QuizBuilder />}
+                    />
+                    <Route path="progreso" element={<StudentProgress />} />
+                    <Route path="revisiones" element={<ReviewQueue />} />
+                  </Route>
+                  {/* legacy bookmark survival: PR1-3c's flat curricula/:id route */}
+                  <Route path="curricula/:curriculumId" element={<LegacyCurriculumRedirect />} />
+                </Route>
               </Route>
             </Routes>
           </Suspense>

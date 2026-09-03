@@ -32,7 +32,9 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
   const { hasAccess: hasEducationAccess } = useEducationAccess();
   const currentPath = location.pathname;
 
-  const isActive = (path: string) => currentPath === path;
+  // Exact match, or a nested-route prefix match (e.g. Educación's PR-C route
+  // tree — /dashboard/education/catalogo must still highlight "Educación").
+  const isActive = (path: string) => currentPath === path || currentPath.startsWith(`${path}/`);
 
   const hasModuleAccess = (key: string) => {
     if (key === 'music') return hasMusicAccess;
@@ -86,6 +88,9 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
             <SidebarMenu className="space-y-1">
               {filteredItems.map(item => {
                 const isCurrentActive = isActive(item.url);
+                // Educación gets its own green pill (#CFEEDC/#0A2E1D) instead
+                // of the default violet — see design's sidebar spec.
+                const isEducation = item.url === '/dashboard/education';
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
@@ -95,7 +100,9 @@ export function AppSidebar({ churchName = 'Tu Iglesia', logoUrl }: AppSidebarPro
                         end={item.url === '/dashboard'}
                         className={`flex items-center gap-3.5 rounded-full px-4 py-3 transition-colors ${
                           isCurrentActive
-                            ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                            ? isEducation
+                              ? 'bg-sidebar-accent-education font-medium text-sidebar-accent-education-foreground'
+                              : 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
                             : 'text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/[0.06]'
                         }`}
                       >

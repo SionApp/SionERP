@@ -65,6 +65,7 @@ jobs:
       - name: Typecheck + build frontend
         run: |
           pnpm typecheck
+          pnpm run lint:education
           pnpm build
       - uses: actions/setup-go@v5
         with:

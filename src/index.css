@@ -87,6 +87,15 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 261 100% 18%;
     --sidebar-border: 275 24% 90%;
     --sidebar-ring: 256 34% 48%;
+
+    /* Educación's green sidebar pill (#CFEEDC/#0A2E1D per the design
+       handoff). The sidebar entry itself renders outside `.education-shell`,
+       so it can't read that scoped file's --edu-container/--on-edu-container
+       — these two tokens carry the identical HSL values so AppSidebar.tsx /
+       MobileMoreSheet.tsx can use them without duplicating hex by hand. Kept
+       in sync with education-theme.css's light `.education-shell` block. */
+    --sidebar-accent-education: 145 48% 87%; /* #CFEEDC */
+    --sidebar-accent-education-foreground: 152 64% 11%; /* #0A2E1D */
   }
 
   .dark {
@@ -162,6 +171,11 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 263 100% 93%;
     --sidebar-border: 264 7% 29%;
     --sidebar-ring: 258 100% 87%;
+
+    /* Dark mirror of the green sidebar pill — matches education-theme.css's
+       `.dark .education-shell` container/on-container pair (tone-30/tone-90). */
+    --sidebar-accent-education: 156 45% 22%;
+    --sidebar-accent-education-foreground: 145 48% 87%;
   }
 }
 
