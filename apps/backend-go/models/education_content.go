@@ -35,14 +35,35 @@ type EducationStep struct {
 // hold an assignment on the lesson's curriculum (level 1-2), not merely be
 // any level-1 user in the church. A published-but-unenrolled browsing user
 // sees the syllabus shell via GetLessons/GetSyllabus but not step content.
+//
+// Progress is a PR-E addition (design A2/A3, education-lesson-consumption
+// "Resume after refresh"): the endpoint every LessonViewer mount already
+// calls is the natural place to surface the caller's OWN step pointer —
+// there was no other read path into education_lesson_progress.current_step_id
+// / visited_step_ids at all before this. Populated only for level < 3 (self,
+// when an assignment exists); nil for authors, who have no personal
+// progress concept on a lesson they're not enrolled in.
 type EducationLessonDetail struct {
-	ID              string          `json:"id"`
-	CurriculumID    string          `json:"curriculum_id"`
-	ModuleID        *string         `json:"module_id"`
-	OrderIndex      int             `json:"order_index"`
-	Title           string          `json:"title"`
-	DurationMinutes *int            `json:"duration_minutes"`
-	Steps           []EducationStep `json:"steps"`
+	ID              string                          `json:"id"`
+	CurriculumID    string                          `json:"curriculum_id"`
+	ModuleID        *string                         `json:"module_id"`
+	OrderIndex      int                             `json:"order_index"`
+	Title           string                          `json:"title"`
+	DurationMinutes *int                            `json:"duration_minutes"`
+	Steps           []EducationStep                 `json:"steps"`
+	Progress        *EducationLessonProgressPointer `json:"progress"`
+}
+
+// EducationLessonProgressPointer is the caller's own step-pointer for one
+// lesson (design A2/A3: current_step_id uuid + visited_step_ids uuid[] on
+// education_lesson_progress — NOT an ordinal, so step identity survives
+// reorder). CurrentStepID is nil when the student has never advanced past
+// step 1 (no progress row written yet); VisitedStepIDs is always a
+// (possibly empty) array, never null.
+type EducationLessonProgressPointer struct {
+	AssignmentID   string   `json:"assignment_id"`
+	CurrentStepID  *string  `json:"current_step_id"`
+	VisitedStepIDs []string `json:"visited_step_ids"`
 }
 
 // EducationCourseModule is the wire shape for one education_course_modules

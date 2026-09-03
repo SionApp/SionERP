@@ -108,6 +108,13 @@ export default {
         // Fixed dark-on-white chip text — NOT theme-flipped, see
         // education-theme.css's comment on --edu-on-light-chip.
         "edu-on-light-chip": "hsl(var(--edu-on-light-chip))",
+        // PR-E — Alumno · Visor de lección block colors (see
+        // education-theme.css for the HSL conversion notes).
+        "edu-prose": "hsl(var(--edu-prose))",
+        "edu-callout-title": "hsl(var(--edu-callout-title))",
+        "edu-callout-text": "hsl(var(--edu-callout-text))",
+        "edu-image-frame": "hsl(var(--edu-image-frame))",
+        "edu-image-frame-border": "hsl(var(--edu-image-frame-border))",
       },
       borderRadius: {
         lg: "var(--radius)",

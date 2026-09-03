@@ -56,6 +56,23 @@
    * below, because the chip's background never changes with the theme. */
   --edu-on-light-chip: 264 8% 12%;
 
+  /* PR-E additions (Alumno · Visor de lección — README section 4, verbatim
+   * hex conversions). Prose is the paragraph/list-item body text (#3A3540 →
+   * verified 267 9% 23%) — distinct from `--edu-text-soft`'s green-family
+   * hue, this one is a warm near-black gray. Callout title/text (#5C1D0B /
+   * #7A3419) are two more shades of the same orange-brown family as
+   * `on-edu-orange-container` (#B3492A, already exact and reused for the
+   * callout icon) — kept separate because the mockup uses 3 distinct
+   * lightness steps, not a 2-tone container/on-container pair. Image-frame
+   * pair (#EDEFF1 / #C9CFD3) is the placeholder figure's neutral background
+   * + dashed border — deliberately its own tokens rather than reusing
+   * `--muted` (a violet-tinted system surface, visibly different hue). */
+  --edu-prose: 267 9% 23%; /* #3A3540 */
+  --edu-callout-title: 13 79% 20%; /* #5C1D0B */
+  --edu-callout-text: 17 66% 29%; /* #7A3419 */
+  --edu-image-frame: 210 13% 94%; /* #EDEFF1 */
+  --edu-image-frame-border: 204 10% 81%; /* #C9CFD3 */
+
   --edu-hero: linear-gradient(
     120deg,
     hsl(var(--edu-primary-dark)) 0%,
@@ -99,5 +116,35 @@
   --edu-orange-container: 14 40% 22%;
   --on-edu-orange-container: 16 82% 91%;
 
+  /* PR-E dark flip. Prose/image-frame follow the same tonal-flip magnitude
+   * as the 12 base tokens (light L ~94%/23% → dark L ~16%/85%, same
+   * hue/sat). Callout title/text are a deliberate simplification: rather
+   * than inventing two more hand-derived dark hues, both reuse
+   * `--on-edu-orange-container`'s dark value (the established
+   * "dark on-container reuses the light container HSL" pattern applied to
+   * a lighter-on-dark-container text role instead of an icon). */
+  --edu-prose: 267 9% 85%;
+  --edu-callout-title: 16 82% 91%;
+  --edu-callout-text: 16 82% 91%;
+  --edu-image-frame: 210 12% 16%;
+  --edu-image-frame-border: 204 10% 28%;
+
   --primary-foreground: 152 64% 13%; /* tone-20 deep green on tone-80 primary */
+}
+
+/* PR-E: step-indicator segment fill transition, scoped to this file (not
+ * the global `prefers-reduced-motion` rule in index.css, which only
+ * silences `animation-*` — this is a `transition`). Each step segment is a
+ * discrete flex:1 bar (design: "cada paso flex:1 ... barra de 6px"), not a
+ * continuous progress fill, so the only motion is its background-color
+ * flipping from unreached to reached. LessonViewer's step CONTENT swap uses
+ * no animation at all (content just replaces instantly) — this is the only
+ * motion anywhere in the lesson viewer / quiz progress bars. */
+.education-shell .edu-step-fill {
+  transition: background-color 200ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .education-shell .edu-step-fill {
+    transition: none;
+  }
 }
