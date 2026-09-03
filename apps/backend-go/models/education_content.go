@@ -1,0 +1,123 @@
+package models
+
+import "encoding/json"
+
+// EducationBlock is the wire shape of one block inside a step's `blocks`
+// jsonb array — `{id,type,data}` per spec (education-content-model, "Block
+// envelope and type whitelist"). Writes never go through this struct: the
+// raw request bytes are validated by handlers.ValidateLessonBlocks (the
+// ONLY write path into education_lesson_steps.blocks) and stored verbatim
+// once proven conformant. This struct is read-side only.
+type EducationBlock struct {
+	ID   string          `json:"id"`
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+// EducationStep is the wire shape for one education_lesson_steps row.
+type EducationStep struct {
+	ID         string           `json:"id"`
+	LessonID   string           `json:"lesson_id"`
+	OrderIndex int              `json:"order_index"`
+	Label      string           `json:"label"`
+	Blocks     []EducationBlock `json:"blocks"`
+	CreatedAt  string           `json:"created_at"`
+	UpdatedAt  string           `json:"updated_at"`
+}
+
+// EducationLessonDetail is the response shape for GET /education/lessons/:id
+// — lesson metadata plus its ordered steps (each with blocks). This is the
+// PR-B replacement for the pre-PR-A single `content`/`attachment_*` fields:
+// GetLessons (the list, PR-A) still returns lesson SHELLS only (title,
+// duration, no body) for the browsable syllabus; this endpoint is the one
+// that actually serves lesson content, and — per the explicit read-access
+// rule for this PR — requires the caller to be an author (level >= 3) OR
+// hold an assignment on the lesson's curriculum (level 1-2), not merely be
+// any level-1 user in the church. A published-but-unenrolled browsing user
+// sees the syllabus shell via GetLessons/GetSyllabus but not step content.
+type EducationLessonDetail struct {
+	ID              string          `json:"id"`
+	CurriculumID    string          `json:"curriculum_id"`
+	ModuleID        *string         `json:"module_id"`
+	OrderIndex      int             `json:"order_index"`
+	Title           string          `json:"title"`
+	DurationMinutes *int            `json:"duration_minutes"`
+	Steps           []EducationStep `json:"steps"`
+}
+
+// EducationCourseModule is the wire shape for one education_course_modules
+// row — the grouping level above lessons ("Módulo 1: Quién es Dios").
+type EducationCourseModule struct {
+	ID           string  `json:"id"`
+	CurriculumID string  `json:"curriculum_id"`
+	OrderIndex   int     `json:"order_index"`
+	Title        string  `json:"title"`
+	Description  *string `json:"description"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
+}
+
+// EducationSyllabusLesson is one lesson row inside a course's syllabus read,
+// with a server-computed `state`. Values in THIS PR are `completed` |
+// `in_progress` | `pending` only — the `locked` state (unlock derived from a
+// quiz pass, design A8) is stubbed out until PR-F wires the LEFT JOIN onto
+// quiz attempts; no lesson is ever locked yet.
+type EducationSyllabusLesson struct {
+	ID              string  `json:"id"`
+	ModuleID        *string `json:"module_id"`
+	OrderIndex      int     `json:"order_index"`
+	Title           string  `json:"title"`
+	DurationMinutes *int    `json:"duration_minutes"`
+	State           string  `json:"state"`
+}
+
+// EducationSyllabusModule groups EducationSyllabusLesson rows under a
+// course_modules row. `ID` is nil for the implicit "General" pseudo-module
+// that collects lessons with a NULL module_id (spec: education-catalog,
+// "Course modules group lessons without owning order").
+type EducationSyllabusModule struct {
+	ID      *string                   `json:"id"`
+	Title   string                    `json:"title"`
+	Lessons []EducationSyllabusLesson `json:"lessons"`
+}
+
+// EducationCatalogCourse is one row of the published-courses catalog list
+// (GET /education/catalog). Teacher display name is resolved from the user
+// row at read time (spec: "Teacher rename propagates" — no denormalized
+// name string is stored). `HasQuiz` is stubbed to false until PR-F ships the
+// quizzes table.
+type EducationCatalogCourse struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Description  *string  `json:"description"`
+	Track        *string  `json:"track"`
+	Level        *string  `json:"level"`
+	Hours        *float64 `json:"hours"`
+	TeacherName  *string  `json:"teacher_name"`
+	CoverPath    *string  `json:"cover_path"`
+	LessonCount  int      `json:"lesson_count"`
+	StudentCount int      `json:"student_count"`
+	HasQuiz      bool     `json:"has_quiz"`
+	CreatedAt    string   `json:"created_at"`
+}
+
+// EducationHomeAggregate is the response shape for GET /education/me/home —
+// the student home aggregate PR-D's StudentHome screen consumes.
+type EducationHomeAggregate struct {
+	InProgressCount int                   `json:"in_progress_count"`
+	CompletedCount  int                   `json:"completed_count"`
+	Continue        *EducationAssignment  `json:"continue"`
+	Assignments     []EducationAssignment `json:"assignments"`
+}
+
+// EducationReflection is the wire shape for one education_lesson_reflections
+// row.
+type EducationReflection struct {
+	ID        string `json:"id"`
+	LessonID  string `json:"lesson_id"`
+	BlockID   string `json:"block_id"`
+	UserID    string `json:"user_id"`
+	Answer    string `json:"answer"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
