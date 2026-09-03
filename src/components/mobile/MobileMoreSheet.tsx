@@ -1,5 +1,5 @@
 import { LogOut } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSystem } from '@/contexts/SystemContext';
@@ -20,6 +20,7 @@ export function MobileMoreSheet({
   onOpenChange: (o: boolean) => void;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useAuth();
   const { isModuleInstalled } = useSystem();
   const { permissions, hasAccess } = usePermissions();
@@ -61,17 +62,30 @@ export function MobileMoreSheet({
         </SheetHeader>
 
         <div className="grid grid-cols-3 gap-2 py-4">
-          {all.map(item => (
-            <NavLink
-              key={item.url}
-              to={item.url}
-              onClick={() => onOpenChange(false)}
-              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-card p-3 text-center transition-colors active:bg-muted"
-            >
-              <item.icon className="h-5 w-5 text-primary" />
-              <span className="text-xs font-medium leading-tight">{item.title}</span>
-            </NavLink>
-          ))}
+          {all.map(item => {
+            const isCurrentActive =
+              location.pathname === item.url || location.pathname.startsWith(`${item.url}/`);
+            // Educación gets its own green pill instead of the default
+            // violet — same variant AppSidebar.tsx uses on desktop.
+            const isEducation = item.url === '/dashboard/education';
+            return (
+              <NavLink
+                key={item.url}
+                to={item.url}
+                onClick={() => onOpenChange(false)}
+                className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3 text-center transition-colors active:bg-muted ${
+                  isCurrentActive
+                    ? isEducation
+                      ? 'border-transparent bg-sidebar-accent-education text-sidebar-accent-education-foreground'
+                      : 'border-transparent bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'border-border bg-card'
+                }`}
+              >
+                <item.icon className={`h-5 w-5 ${isCurrentActive ? '' : 'text-primary'}`} />
+                <span className="text-xs font-medium leading-tight">{item.title}</span>
+              </NavLink>
+            );
+          })}
         </div>
 
         <button

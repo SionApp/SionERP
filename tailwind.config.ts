@@ -57,6 +57,12 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+          // Education's global-chrome sidebar pill: the sidebar entry renders
+          // OUTSIDE `.education-shell`, so it can't read the scoped --edu-*
+          // tokens — these are separate, unscoped tokens with the exact same
+          // HSL values as education-theme.css's container/on-container pair.
+          "accent-education": "hsl(var(--sidebar-accent-education))",
+          "accent-education-foreground": "hsl(var(--sidebar-accent-education-foreground))",
         },
         // Material Design 3 tonal surfaces (theme-aware via CSS vars).
         surface: {
@@ -78,6 +84,20 @@ export default {
         "on-secondary-container": "hsl(var(--on-secondary-container))",
         "nav-bg": "hsl(var(--nav-bg))",
         "md-success": "hsl(var(--success))",
+        // Educación — green MD3 sub-brand (scoped under `.education-shell` in
+        // education-theme.css). See sdd/education-module/design part 1.
+        "edu-primary": "hsl(var(--edu-primary))",
+        "edu-primary-dark": "hsl(var(--edu-primary-dark))",
+        "edu-primary-light": "hsl(var(--edu-primary-light))",
+        "edu-container": "hsl(var(--edu-container))",
+        "on-edu-container": "hsl(var(--on-edu-container))",
+        "edu-surface": "hsl(var(--edu-surface))",
+        "edu-surface-alt": "hsl(var(--edu-surface-alt))",
+        "edu-outline": "hsl(var(--edu-outline))",
+        "edu-text": "hsl(var(--edu-text))",
+        "edu-text-soft": "hsl(var(--edu-text-soft))",
+        "edu-track": "hsl(var(--edu-track))",
+        "edu-progress-mid": "hsl(var(--edu-progress-mid))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -87,6 +107,10 @@ export default {
         md3: "16px",
         "md3-lg": "22px",
         "md3-xl": "26px",
+        // Educación shape additions (design part 1, Section 4).
+        "md3-sm": "14px",
+        "md3-option": "18px",
+        "md3-block": "20px",
       },
       fontFamily: {
         sans: ["Roboto", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
