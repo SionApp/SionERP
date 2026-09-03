@@ -147,7 +147,7 @@ func TestCompletionSemanticsRegressionGuard(t *testing.T) {
 	// ── The guarded, PRODUCTION query — the one that MUST get this right ──
 	row := tx.QueryRow(assignmentSelectSQL+`
 		WHERE ea.id = $1 AND ea.church_id = $2
-		GROUP BY ea.id, ec.name
+		GROUP BY ea.id, ec.name, ec.track, u.first_name, u.last_name
 	`, assignmentID, church)
 	a, err := scanAssignmentRow(row)
 	if err != nil {

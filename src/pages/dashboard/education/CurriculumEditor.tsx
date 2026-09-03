@@ -9,13 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { useMobileMode } from '@/hooks/useMobileMode';
@@ -24,21 +17,22 @@ import { EducationService } from '@/services/education.service';
 import { useEducationAccess } from './use-education-access';
 import { LessonList } from './LessonList';
 import { AssignmentList } from './AssignmentList';
-import type { EducationCadence, EducationCurriculumStatus } from '@/types/education.types';
+import type { EducationCurriculumStatus } from '@/types/education.types';
 
-const CADENCE_LABEL: Record<EducationCadence, string> = {
-  weekly: 'Semanal',
-  quarterly: 'Trimestral',
-};
-
+// `cadence` was DROPPED from the backend in the design-handoff migration
+// (PR-A) — same tracked exception as CurriculumList.tsx (tasks-v2 D.2):
+// this file is kept working as-is until PR-H deletes it, but the "Cadencia"
+// field can't keep shipping against a column that no longer exists.
 const STATUS_LABEL: Record<EducationCurriculumStatus, string> = {
   draft: 'Borrador',
+  review: 'Revisión',
   published: 'Publicado',
   archived: 'Archivado',
 };
 
 const STATUS_PILL: Record<EducationCurriculumStatus, string> = {
   draft: 'bg-muted text-muted-foreground',
+  review: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
   published: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   archived: 'bg-outline/10 text-outline',
 };
@@ -60,11 +54,10 @@ export default function CurriculumEditor() {
     enabled: !!id,
   });
 
-  const [form, setForm] = useState<{
-    name: string;
-    description: string;
-    cadence: EducationCadence;
-  }>({ name: '', description: '', cadence: 'weekly' });
+  const [form, setForm] = useState<{ name: string; description: string }>({
+    name: '',
+    description: '',
+  });
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -72,7 +65,6 @@ export default function CurriculumEditor() {
     setForm({
       name: curriculum.name,
       description: curriculum.description ?? '',
-      cadence: curriculum.cadence,
     });
     setDirty(false);
   }, [curriculum]);
@@ -82,7 +74,6 @@ export default function CurriculumEditor() {
       EducationService.updateCurriculum(id as string, {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
-        cadence: form.cadence,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['education-curriculum', id] });
@@ -231,25 +222,6 @@ export default function CurriculumEditor() {
               rows={4}
               disabled={!canEdit}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Cadencia</Label>
-            <Select
-              value={form.cadence}
-              onValueChange={v => {
-                setForm(p => ({ ...p, cadence: v as EducationCadence }));
-                setDirty(true);
-              }}
-              disabled={!canEdit}
-            >
-              <SelectTrigger className="w-full sm:w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="weekly">Semanal</SelectItem>
-                <SelectItem value="quarterly">Trimestral</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {canEdit && (

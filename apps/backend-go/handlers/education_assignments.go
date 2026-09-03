@@ -64,6 +64,14 @@ const deriveAssignmentStatusSQL = `
 // in deriveAssignmentStatusSQL above would count in-progress lessons as
 // completed — see handlers/education_progress_semantics_test.go for the RED
 // test that fails without it.
+// PR-D addition: `ec.track` + a teacher-name join, both selected off tables
+// already JOINed/joinable here — feeds StudentHome's "Continuar aprendiendo"
+// track caption and "Mis cursos" teacher meta line (design_handoff hero/
+// list content this endpoint family didn't need to expose before PR-D's
+// screens existed). Mirrors GetCatalog's existing teacher_name pattern
+// exactly (education_catalog.go). Purely additive columns — every existing
+// caller of this shared SQL (GetMyAssignments, GetMyAssignmentByID,
+// GetHome, GetCurriculumProgress) gets 2 new nullable fields it can ignore.
 const assignmentSelectSQL = `
 	SELECT ea.id, ea.curriculum_id, ec.name,
 	       ea.assigned_to::text, ea.assigned_by::text,
@@ -73,10 +81,13 @@ const assignmentSelectSQL = `
 	       to_char(ea.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 	       COUNT(elp.id) AS completed_lessons,
 	       (SELECT COUNT(*) FROM education_lessons el2 WHERE el2.curriculum_id = ea.curriculum_id) AS total_lessons,
-	       ` + deriveAssignmentStatusSQL + ` AS status
+	       ` + deriveAssignmentStatusSQL + ` AS status,
+	       ec.track,
+	       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher_name
 	FROM education_assignments ea
 	JOIN education_curricula ec ON ec.id = ea.curriculum_id
 	LEFT JOIN education_lesson_progress elp ON elp.assignment_id = ea.id AND elp.completed_at IS NOT NULL
+	LEFT JOIN users u ON u.id = ec.teacher_user_id
 `
 
 // scanAssignmentRow scans one row produced by assignmentSelectSQL.
@@ -84,11 +95,11 @@ func scanAssignmentRow(rows interface {
 	Scan(dest ...interface{}) error
 }) (models.EducationAssignment, error) {
 	var a models.EducationAssignment
-	var assignedBy, sourceModule, sourceRefID, dueDate, completedAt sql.NullString
+	var assignedBy, sourceModule, sourceRefID, dueDate, completedAt, track, teacherName sql.NullString
 	err := rows.Scan(&a.ID, &a.CurriculumID, &a.CurriculumName,
 		&a.AssignedTo, &assignedBy, &sourceModule, &sourceRefID,
 		&dueDate, &completedAt, &a.CreatedAt,
-		&a.CompletedLessons, &a.TotalLessons, &a.Status)
+		&a.CompletedLessons, &a.TotalLessons, &a.Status, &track, &teacherName)
 	if err != nil {
 		return a, err
 	}
@@ -106,6 +117,12 @@ func scanAssignmentRow(rows interface {
 	}
 	if completedAt.Valid {
 		a.CompletedAt = &completedAt.String
+	}
+	if track.Valid {
+		a.Track = &track.String
+	}
+	if teacherName.Valid && strings.TrimSpace(teacherName.String) != "" {
+		a.TeacherName = &teacherName.String
 	}
 	return a, nil
 }
@@ -309,7 +326,7 @@ func (h *EducationHandler) GetMyAssignments(c echo.Context) error {
 
 	rows, err := q.Query(assignmentSelectSQL+`
 		WHERE ea.church_id = $1 AND ea.assigned_to = $2
-		GROUP BY ea.id, ec.name
+		GROUP BY ea.id, ec.name, ec.track, u.first_name, u.last_name
 		ORDER BY ea.created_at DESC
 	`, churchID, userID)
 	if err != nil {
@@ -347,7 +364,7 @@ func (h *EducationHandler) GetMyAssignmentByID(c echo.Context) error {
 	id := c.Param("id")
 	row := q.QueryRow(assignmentSelectSQL+`
 		WHERE ea.id = $1 AND ea.church_id = $2 AND ea.assigned_to = $3
-		GROUP BY ea.id, ec.name
+		GROUP BY ea.id, ec.name, ec.track, u.first_name, u.last_name
 	`, id, churchID, userID)
 	a, err := scanAssignmentRow(row)
 	if err == sql.ErrNoRows {
