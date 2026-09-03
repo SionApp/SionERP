@@ -8,21 +8,30 @@ import "encoding/json"
 // was dropped in the same migration (spec: "Cadence is descriptive" — the
 // only deletion in the plan).
 type EducationCurriculum struct {
-	ID            string          `json:"id"`
-	Name          string          `json:"name"`
-	Description   *string         `json:"description"`
-	Status        string          `json:"status"`
-	Track         *string         `json:"track"`
-	Level         *string         `json:"level"`
-	Hours         *float64        `json:"hours"`
-	TeacherUserID *string         `json:"teacher_user_id"`
-	CoverPath     *string         `json:"cover_path"`
-	Objectives    json.RawMessage `json:"objectives"`
-	Requirements  *string         `json:"requirements"`
-	LessonCount   int             `json:"lesson_count"`
-	CreatedBy     *string         `json:"created_by"`
-	CreatedAt     string          `json:"created_at"`
-	UpdatedAt     string          `json:"updated_at"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Description   *string  `json:"description"`
+	Status        string   `json:"status"`
+	Track         *string  `json:"track"`
+	Level         *string  `json:"level"`
+	Hours         *float64 `json:"hours"`
+	TeacherUserID *string  `json:"teacher_user_id"`
+	// TeacherName is resolved at read time from the user row (spec: "Teacher
+	// rename propagates ... no backfill"). Populated only by
+	// GetCurriculumByID (PR-D's CourseDetail hero) — nil on GetCurricula/
+	// CreateCurriculum/UpdateCurriculum, which have no consumer that needs
+	// it yet. Additive, non-breaking for every existing caller.
+	TeacherName  *string         `json:"teacher_name,omitempty"`
+	CoverPath    *string         `json:"cover_path"`
+	Objectives   json.RawMessage `json:"objectives"`
+	Requirements *string         `json:"requirements"`
+	LessonCount  int             `json:"lesson_count"`
+	// StudentCount mirrors GetCatalog's COUNT(DISTINCT assignments) — same
+	// additive, GetCurriculumByID-only population as TeacherName above.
+	StudentCount int     `json:"student_count,omitempty"`
+	CreatedBy    *string `json:"created_by"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
 }
 
 // EducationLesson is the wire shape for a lesson row. `Content`/
@@ -73,4 +82,10 @@ type EducationAssignment struct {
 	Status           string  `json:"status"`
 	AssignedToName   *string `json:"assigned_to_name,omitempty"`
 	AssignedToEmail  *string `json:"assigned_to_email,omitempty"`
+	// Track/TeacherName are PR-D additions (assignmentSelectSQL) — populated
+	// on GetMyAssignments/GetMyAssignmentByID/GetHome; nil on
+	// GetCurriculumProgress (own separate query, doesn't need them since the
+	// admin already has the curriculum in context).
+	Track       *string `json:"track,omitempty"`
+	TeacherName *string `json:"teacher_name,omitempty"`
 }

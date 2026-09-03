@@ -98,6 +98,16 @@ export default {
         "edu-text-soft": "hsl(var(--edu-text-soft))",
         "edu-track": "hsl(var(--edu-track))",
         "edu-progress-mid": "hsl(var(--edu-progress-mid))",
+        // PR-D status-chip pairs (violet = Completado/Revisión, orange =
+        // Sin iniciar/Sin terminar) — see education-theme.css for the HSL
+        // conversion note.
+        "edu-violet-container": "hsl(var(--edu-violet-container))",
+        "on-edu-violet-container": "hsl(var(--on-edu-violet-container))",
+        "edu-orange-container": "hsl(var(--edu-orange-container))",
+        "on-edu-orange-container": "hsl(var(--on-edu-orange-container))",
+        // Fixed dark-on-white chip text — NOT theme-flipped, see
+        // education-theme.css's comment on --edu-on-light-chip.
+        "edu-on-light-chip": "hsl(var(--edu-on-light-chip))",
       },
       borderRadius: {
         lg: "var(--radius)",

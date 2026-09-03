@@ -11,6 +11,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { EducationTooltip, EducationTooltipContent, EducationTooltipTrigger } from './ui';
+import { useEducationHome } from './hooks/use-education-queries';
 
 interface TabDef {
   key: string;
@@ -29,22 +30,6 @@ interface TabDef {
 // this explicitly: "'Editor de contenido' and 'Constructor de quiz' MUST
 // NOT be top-level tabs — they are per-lesson destinations." Following the
 // authoritative spec/design revision, not the earlier README prose.
-const STUDENT_TABS: TabDef[] = [
-  { key: 'inicio', label: 'Inicio', icon: LayoutDashboard, to: '/dashboard/education', end: true },
-  { key: 'catalogo', label: 'Catálogo', icon: LayoutGrid, to: '/dashboard/education/catalogo' },
-  {
-    key: 'mi-curso',
-    label: 'Mi curso',
-    icon: BookOpen,
-    // No home-aggregate query exists yet in PR-C (no real data-fetching UI
-    // per scope) — always rendered in the spec's own "no enrollment" state:
-    // disabled with a tooltip pointing at the catalog. Becomes data-driven
-    // in PR-D once `use-education-queries.ts` lands.
-    to: '/dashboard/education/catalogo',
-    disabledHint: 'Explorá el catálogo para empezar un curso',
-  },
-];
-
 const ADMIN_TABS: TabDef[] = [
   { key: 'cursos', label: 'Cursos', icon: Library, to: '/dashboard/education/admin/cursos' },
   {
@@ -62,7 +47,40 @@ const ADMIN_TABS: TabDef[] = [
 ];
 
 export function ModuleTabs({ isAdmin }: { isAdmin: boolean }) {
-  const tabs = isAdmin ? ADMIN_TABS : STUDENT_TABS;
+  // "Mi curso" (PR-D task D.8): PR-C shipped this unconditionally disabled
+  // with a tooltip (the spec's own "no enrollment" state), since no
+  // data-fetching hook existed yet. Now wired to the real home aggregate —
+  // enabled and pointed at the student's own in-progress/most-recent course
+  // as soon as one resolves; still disabled+tooltip while there's none.
+  const { data: home } = useEducationHome(!isAdmin);
+  const myCourse = home?.continueAssignment ?? home?.assignments[0] ?? null;
+
+  const studentTabs: TabDef[] = [
+    {
+      key: 'inicio',
+      label: 'Inicio',
+      icon: LayoutDashboard,
+      to: '/dashboard/education',
+      end: true,
+    },
+    { key: 'catalogo', label: 'Catálogo', icon: LayoutGrid, to: '/dashboard/education/catalogo' },
+    myCourse
+      ? {
+          key: 'mi-curso',
+          label: 'Mi curso',
+          icon: BookOpen,
+          to: `/dashboard/education/curso/${myCourse.curriculumId}`,
+        }
+      : {
+          key: 'mi-curso',
+          label: 'Mi curso',
+          icon: BookOpen,
+          to: '/dashboard/education/catalogo',
+          disabledHint: 'Explorá el catálogo para empezar un curso',
+        },
+  ];
+
+  const tabs = isAdmin ? ADMIN_TABS : studentTabs;
 
   return (
     <div className="mt-[18px] flex gap-1 overflow-x-auto border-b border-border">

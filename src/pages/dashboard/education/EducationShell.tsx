@@ -1,12 +1,14 @@
-import { ChevronRight, GraduationCap, Home } from 'lucide-react';
-import { Outlet } from 'react-router-dom';
+import { ChevronRight, GraduationCap, Home, PlayCircle } from 'lucide-react';
+import { Link, Outlet } from 'react-router-dom';
 
+import { Button } from '@/components/ui/button';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import './education-theme.css';
 import { ModuleTabs } from './ModuleTabs';
 import { useEducationAccess } from './use-education-access';
+import { useEducationHome } from './hooks/use-education-queries';
 
 // Moved verbatim from the deleted EducationPage.tsx (PR2b) — same copy,
 // same shape, now living in the shell instead of the flat page.
@@ -37,6 +39,11 @@ function NoEducationAccess() {
 export default function EducationShell() {
   const isMobileApp = useMobileMode();
   const { isAuthor, hasAccess, loadingAccess } = useEducationAccess();
+  // Only students get a "continue" target — an admin's equivalent CTA
+  // ("Nueva lección") needs a specific curriculum context that doesn't
+  // exist at this top-level shell, so it stays omitted (no dead affordance).
+  const { data: home } = useEducationHome(hasAccess && !loadingAccess && !isAuthor);
+  const continueAssignment = home?.continueAssignment ?? null;
 
   const title = isAuthor ? 'Gestión de Educación' : 'Escuela de formación';
   const subtitle = isAuthor
@@ -66,21 +73,31 @@ export default function EducationShell() {
 
   return (
     <div className="education-shell space-y-6 p-3 sm:p-4 md:p-6">
-      <div>
-        {hasAccess && !loadingAccess && (
-          <nav className="flex items-center gap-1.5 text-xs text-outline" aria-label="breadcrumb">
-            <Home className="h-4 w-4" />
-            <span>Inicio</span>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <span className="font-medium text-edu-text">Educación</span>
-          </nav>
-        )}
-        <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <h1 className="text-[28px] font-normal leading-tight text-foreground">{title}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
           {hasAccess && !loadingAccess && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
+            <nav className="flex items-center gap-1.5 text-xs text-outline" aria-label="breadcrumb">
+              <Home className="h-4 w-4" />
+              <span>Inicio</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+              <span className="font-medium text-edu-text">Educación</span>
+            </nav>
           )}
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+            <h1 className="text-[28px] font-normal leading-tight text-foreground">{title}</h1>
+            {hasAccess && !loadingAccess && (
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
+            )}
+          </div>
         </div>
+        {continueAssignment && (
+          <Button asChild className="gap-2 shrink-0">
+            <Link to={`/dashboard/education/curso/${continueAssignment.curriculumId}`}>
+              <PlayCircle className="h-4 w-4" />
+              Continuar donde quedé
+            </Link>
+          </Button>
+        )}
       </div>
       {!hasAccess && !loadingAccess ? <div className="mt-6">{body}</div> : body}
     </div>

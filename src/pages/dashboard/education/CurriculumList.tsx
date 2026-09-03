@@ -10,13 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -38,24 +31,25 @@ import { cn } from '@/lib/utils';
 import { EducationService } from '@/services/education.service';
 import type {
   CreateCurriculumRequest,
-  EducationCadence,
   EducationCurriculum,
   EducationCurriculumStatus,
 } from '@/types/education.types';
 
-const CADENCE_LABEL: Record<EducationCadence, string> = {
-  weekly: 'Semanal',
-  quarterly: 'Trimestral',
-};
-
+// `cadence` was DROPPED from the backend in the design-handoff migration
+// (PR-A) — `CADENCE_LABEL`/the "Cadencia" column/the create-dialog select
+// are removed here (tasks-v2 D.2's tracked exception: this whole file is
+// kept working as-is until PR-H deletes it, but a column backed by a
+// column that no longer exists in the DB can't keep shipping regardless).
 const STATUS_LABEL: Record<EducationCurriculumStatus, string> = {
   draft: 'Borrador',
+  review: 'Revisión',
   published: 'Publicado',
   archived: 'Archivado',
 };
 
 const STATUS_PILL: Record<EducationCurriculumStatus, string> = {
   draft: 'bg-muted text-muted-foreground',
+  review: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
   published: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   archived: 'bg-outline/10 text-outline',
 };
@@ -94,17 +88,14 @@ function CreateCurriculumDialog({
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [form, setForm] = useState<{ name: string; cadence: EducationCadence }>({
-    name: '',
-    cadence: 'weekly',
-  });
+  const [form, setForm] = useState<{ name: string }>({ name: '' });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateCurriculumRequest) => EducationService.createCurriculum(data),
     onSuccess: ({ id }) => {
       qc.invalidateQueries({ queryKey: ['education-curricula'] });
       onOpenChange(false);
-      setForm({ name: '', cadence: 'weekly' });
+      setForm({ name: '' });
       toast.success('Currículo creado');
       navigate(`/dashboard/education/curricula/${id}`);
     },
@@ -118,7 +109,7 @@ function CreateCurriculumDialog({
       toast.error('El nombre es requerido');
       return;
     }
-    createMutation.mutate({ name: form.name.trim(), cadence: form.cadence });
+    createMutation.mutate({ name: form.name.trim() });
   }
 
   return (
@@ -138,24 +129,10 @@ function CreateCurriculumDialog({
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
-            <Label>Cadencia</Label>
-            <Select
-              value={form.cadence}
-              onValueChange={v => setForm(p => ({ ...p, cadence: v as EducationCadence }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="weekly">Semanal</SelectItem>
-                <SelectItem value="quarterly">Trimestral</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Podés agregar descripción y lecciones después, desde el detalle del currículo.
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Podés agregar track, nivel, descripción y lecciones después, desde el detalle del
+            currículo.
+          </p>
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
@@ -354,7 +331,7 @@ export function CurriculumList({ level }: { level: number }) {
               <MobileListItem
                 key={c.id}
                 title={c.name}
-                subtitle={`${CADENCE_LABEL[c.cadence]} · ${c.lessonCount} ${c.lessonCount === 1 ? 'lección' : 'lecciones'}`}
+                subtitle={`${c.lessonCount} ${c.lessonCount === 1 ? 'lección' : 'lecciones'}`}
                 trailing={<StatusPill status={c.status} />}
                 onClick={() => navigate(`/dashboard/education/curricula/${c.id}`)}
               />
@@ -395,7 +372,6 @@ export function CurriculumList({ level }: { level: number }) {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>Nombre</TableHead>
-                <TableHead>Cadencia</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Lecciones</TableHead>
                 <TableHead>Actualizado</TableHead>
@@ -410,9 +386,6 @@ export function CurriculumList({ level }: { level: number }) {
                   onClick={() => navigate(`/dashboard/education/curricula/${c.id}`)}
                 >
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {CADENCE_LABEL[c.cadence]}
-                  </TableCell>
                   <TableCell>
                     <StatusPill status={c.status} />
                   </TableCell>

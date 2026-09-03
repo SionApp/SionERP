@@ -225,7 +225,7 @@ func (h *EducationHandler) GetHome(c echo.Context) error {
 
 	rows, err := q.Query(assignmentSelectSQL+`
 		WHERE ea.church_id = $1 AND ea.assigned_to = $2
-		GROUP BY ea.id, ec.name
+		GROUP BY ea.id, ec.name, ec.track, u.first_name, u.last_name
 		ORDER BY ea.created_at DESC
 	`, churchID, userID)
 	if err != nil {

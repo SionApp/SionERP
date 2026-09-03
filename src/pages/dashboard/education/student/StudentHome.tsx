@@ -1,13 +1,152 @@
-import { LayoutDashboard } from 'lucide-react';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-import { PlaceholderScreen } from '../PlaceholderScreen';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useEducationHome } from '../hooks/use-education-queries';
+import { ContinueCard } from './ContinueCard';
+import { MyCoursesList } from './MyCoursesList';
+import { ProgressDonut } from './ProgressDonut';
 
 export default function StudentHome() {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const { data: home, isLoading, isError, refetch } = useEducationHome();
+
+  const continuing = useMemo(
+    () =>
+      (home?.assignments ?? []).filter(a => a.status === 'in_progress' || a.status === 'overdue'),
+    [home]
+  );
+
+  // Real derived rollup — sum of completed lessons over sum of total lessons
+  // across every one of the student's own assignments. Never fabricated: if
+  // there are zero assignments this is honestly 0%, rendered normally
+  // (spec: "Zero is not an error").
+  const overallPercent = useMemo(() => {
+    const assignments = home?.assignments ?? [];
+    const totalLessons = assignments.reduce((sum, a) => sum + a.totalLessons, 0);
+    const completedLessons = assignments.reduce((sum, a) => sum + a.completedLessons, 0);
+    return totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  }, [home]);
+
+  const initial = (currentUser?.first_name?.[0] ?? '?').toUpperCase();
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-md3-lg border border-destructive/30 bg-destructive/5 py-12 text-center">
+        <p className="text-sm font-medium text-destructive">No se pudo cargar tu panel.</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.75fr_1fr]">
+        <div className="space-y-5">
+          <Skeleton className="h-40 w-full rounded-md3-lg" />
+          <Skeleton className="h-64 w-full rounded-md3-lg" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-40 w-full rounded-md3-lg" />
+          <Skeleton className="h-40 w-full rounded-md3-lg" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <PlaceholderScreen
-      icon={LayoutDashboard}
-      title="Tu inicio está en camino"
-      description="Acá vas a ver tus cursos en curso, tu avance general y los quizzes pendientes."
-    />
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1.75fr_1fr]">
+      <div className="flex flex-col gap-5">
+        {continuing.length > 0 && (
+          <div>
+            <h2 className="mb-3 text-lg font-medium text-foreground">Continuar aprendiendo</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {continuing.map(a => (
+                <ContinueCard
+                  key={a.id}
+                  assignment={a}
+                  onClick={() => navigate(`/dashboard/education/curso/${a.curriculumId}`)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-medium text-foreground">Mis cursos</h2>
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/education/catalogo')}
+              className="text-[13px] font-medium text-edu-primary"
+            >
+              Ver catálogo
+            </button>
+          </div>
+          <MyCoursesList
+            assignments={home?.assignments ?? []}
+            onSelect={curriculumId => navigate(`/dashboard/education/curso/${curriculumId}`)}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {/* Profile card — 2-up mini-stats only (spec: education-copy-and-
+            omissions "Certificates are absent, not stubbed" — no 3rd stat,
+            no certificate string/icon anywhere). */}
+        <div className="rounded-md3-lg bg-edu-container p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-edu-primary text-lg font-semibold text-white">
+              {initial}
+            </span>
+            <div className="min-w-0">
+              <div className="truncate text-base font-medium text-on-edu-container">
+                {currentUser
+                  ? `${currentUser.first_name} ${currentUser.last_name}`.trim()
+                  : 'Alumno'}
+              </div>
+              <div className="truncate text-xs text-on-edu-container/80">
+                {currentUser?.zone_name ? `${currentUser.zone_name} · Miembro` : 'Miembro'}
+              </div>
+            </div>
+          </div>
+          <div data-testid="profile-stats" className="mt-[18px] flex gap-2.5">
+            <div className="flex-1 rounded-md3-sm bg-white/65 p-3.5 text-center">
+              <div className="text-2xl font-medium text-on-edu-container">
+                {home?.inProgressCount ?? 0}
+              </div>
+              <div className="mt-0.5 text-[11px] text-on-edu-container/85">En curso</div>
+            </div>
+            <div className="flex-1 rounded-md3-sm bg-white/65 p-3.5 text-center">
+              <div className="text-2xl font-medium text-on-edu-container">
+                {home?.completedCount ?? 0}
+              </div>
+              <div className="mt-0.5 text-[11px] text-on-edu-container/85">Completados</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-md3-lg border border-border bg-card p-5">
+          <h3 className="mb-3.5 text-[15px] font-medium text-foreground">Tu avance general</h3>
+          <div className="flex items-center gap-[18px]">
+            <ProgressDonut percent={overallPercent} />
+            <p className="text-xs text-muted-foreground">
+              Promedio de lecciones completadas sobre el total de tus cursos asignados.
+            </p>
+          </div>
+        </div>
+
+        {/* No "Próxima clase presencial" card (no data source, ruled out of
+            scope — spec: education-copy-and-omissions). No pending-quiz
+            alert either: no real quiz data exists yet (PR-F ships the quiz
+            backend), and this session's launch prompt explicitly says to
+            omit it rather than fake it — a PR-G follow-up once attempts
+            exist. */}
+      </div>
+    </div>
   );
 }

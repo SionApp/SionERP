@@ -199,21 +199,31 @@ func (h *EducationHandler) GetCurriculumByID(c echo.Context) error {
 
 	id := c.Param("id")
 	var r models.EducationCurriculum
-	var createdBy, teacherUserID sql.NullString
+	var createdBy, teacherUserID, teacherName sql.NullString
 	var objectives []byte
+	// LEFT JOIN users + a student_count subquery, mirroring GetCatalog's
+	// exact pattern (education_catalog.go) — PR-D's CourseDetail hero needs
+	// both (spec: "Teacher rename propagates", design hero "N miembros"),
+	// and neither was on this single-row endpoint yet (PR-B only wired them
+	// into the catalog LIST). Additive-only: existing callers (admin
+	// CurriculumEditor) get two new nullable fields they can ignore.
 	err = q.QueryRow(`
 		SELECT ec.id, ec.name, ec.description, ec.status,
-		       ec.track, ec.level, ec.hours, ec.teacher_user_id::text, ec.cover_path,
+		       ec.track, ec.level, ec.hours, ec.teacher_user_id::text,
+		       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher_name,
+		       ec.cover_path,
 		       ec.objectives, ec.requirements,
 		       (SELECT COUNT(*) FROM education_lessons el WHERE el.curriculum_id = ec.id) AS lesson_count,
+		       (SELECT COUNT(*) FROM education_assignments ea WHERE ea.curriculum_id = ec.id) AS student_count,
 		       ec.created_by::text,
 		       to_char(ec.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(ec.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM education_curricula ec
+		LEFT JOIN users u ON u.id = ec.teacher_user_id
 		WHERE ec.id = $1 AND ec.church_id = $2
 	`, id, churchID).Scan(&r.ID, &r.Name, &r.Description, &r.Status,
-		&r.Track, &r.Level, &r.Hours, &teacherUserID, &r.CoverPath,
-		&objectives, &r.Requirements, &r.LessonCount,
+		&r.Track, &r.Level, &r.Hours, &teacherUserID, &teacherName, &r.CoverPath,
+		&objectives, &r.Requirements, &r.LessonCount, &r.StudentCount,
 		&createdBy, &r.CreatedAt, &r.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Currículo no encontrado"})
@@ -229,6 +239,9 @@ func (h *EducationHandler) GetCurriculumByID(c echo.Context) error {
 	}
 	if teacherUserID.Valid {
 		r.TeacherUserID = &teacherUserID.String
+	}
+	if teacherName.Valid && strings.TrimSpace(teacherName.String) != "" {
+		r.TeacherName = &teacherName.String
 	}
 	r.Objectives = objectives
 	return c.JSON(http.StatusOK, r)

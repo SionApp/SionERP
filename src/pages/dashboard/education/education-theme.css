@@ -25,6 +25,37 @@
   --edu-progress-mid: 153 36% 63%; /* #7FC3A4 */
   --edu-donut-core: 157 56% 24%; /* #1B6046 */
 
+  /* PR-D additions (design_handoff_educacion — Inicio/Catálogo/Mi curso).
+   * These 2 status-chip pairs are NOT in the original 12-token list (that
+   * set is all-green); "Completado"/"Revisión" chips and "Sin
+   * iniciar"/"Sin terminar" chips use a violet and an orange family
+   * respectively, per the design doc's own literal hex (verified:
+   * #E7DEF3→266 47% 91%, #6E4CA6→263 37% 47%, #FBE0D6→16 82% 91%,
+   * #B3492A→14 62% 43%). Same MD3 container/on-container role as the green
+   * pair, just a different hue — kept in this scoped file per the
+   * no-raw-hex rule, not hardcoded in any component. */
+  --edu-violet-container: 266 47% 91%; /* #E7DEF3 */
+  --on-edu-violet-container: 263 37% 47%; /* #6E4CA6 */
+  --edu-orange-container: 16 82% 91%; /* #FBE0D6 */
+  --on-edu-orange-container: 14 62% 43%; /* #B3492A */
+
+  /* Deterministic cover-gradient palette (design: "the per-course cover
+   * gradient MUST be deterministic from curriculum id + track" — student/
+   * lib/course-gradient.ts picks one of these 5 by hashing id+track, never
+   * a random pick). Values are the design doc's own sample gradients. */
+  --edu-cover-1: linear-gradient(120deg, #14503a 0%, #1f6b4c 55%, #2f8c66 100%);
+  --edu-cover-2: linear-gradient(120deg, #2a5ad0 0%, #5b84e6 100%);
+  --edu-cover-3: linear-gradient(120deg, #6e4ca6 0%, #9a82db 100%);
+  --edu-cover-4: linear-gradient(120deg, #b3492a 0%, #e08a5f 100%);
+  --edu-cover-5: linear-gradient(120deg, #2a5ad0 0%, #2f8c66 100%);
+
+  /* Fixed (NOT theme-flipped): the level/cover chips sit on a permanently
+   * white/near-white pill (bg-white/90) over the colorful cover gradient in
+   * BOTH light and dark mode — this is index.css's own light-mode
+   * --foreground (264 8% 12%, #1D1B20) reused on purpose, not overridden
+   * below, because the chip's background never changes with the theme. */
+  --edu-on-light-chip: 264 8% 12%;
+
   --edu-hero: linear-gradient(
     120deg,
     hsl(var(--edu-primary-dark)) 0%,
@@ -59,6 +90,14 @@
   --edu-track: 156 8% 22%;
   --edu-progress-mid: 153 30% 46%;
   --edu-donut-core: 157 40% 18%;
+
+  /* Same MD3 tonal-flip rule as the 12 base tokens: dark container = tone-30
+   * at the same hue/sat, dark on-container reuses the LIGHT container HSL
+   * verbatim (the established pattern in this file, see the green pair). */
+  --edu-violet-container: 263 28% 24%;
+  --on-edu-violet-container: 266 47% 91%;
+  --edu-orange-container: 14 40% 22%;
+  --on-edu-orange-container: 16 82% 91%;
 
   --primary-foreground: 152 64% 13%; /* tone-20 deep green on tone-80 primary */
 }

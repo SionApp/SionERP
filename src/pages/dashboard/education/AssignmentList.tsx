@@ -16,11 +16,17 @@ import { UserSearchPicker } from '../music/UserSearchPicker';
 import type { EducationAssignment, EducationAssignmentStatus } from '@/types/education.types';
 import type { User } from '@/types/user.types';
 
+// `in_review`/`inactive` added by the design-handoff spec (education-
+// assignments DELTA) — no endpoint this component calls emits them yet
+// (PR-F/K wire the derivation), but `EducationAssignmentStatus` is now a
+// 6-value union so this Record must stay exhaustive.
 const STATUS_LABEL: Record<EducationAssignmentStatus, string> = {
   pending: 'Pendiente',
   in_progress: 'En progreso',
   completed: 'Completado',
   overdue: 'Atrasado',
+  in_review: 'En revisión',
+  inactive: 'Inactivo',
 };
 
 const STATUS_PILL: Record<EducationAssignmentStatus, string> = {
@@ -28,6 +34,8 @@ const STATUS_PILL: Record<EducationAssignmentStatus, string> = {
   in_progress: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
   completed: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   overdue: 'bg-destructive/10 text-destructive',
+  in_review: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  inactive: 'bg-muted text-muted-foreground/70',
 };
 
 const SOURCE_LABEL: Record<string, string> = {

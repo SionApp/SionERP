@@ -1,9 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ApiService } from './api.service';
 import type {
-  EducationCadence,
   EducationCurriculum,
   EducationCurriculumStatus,
+  EducationTrack,
+  EducationCourseLevel,
   CreateCurriculumRequest,
   UpdateCurriculumRequest,
   EducationLesson,
@@ -14,6 +15,9 @@ import type {
   EducationSourceModule,
   CreateAssignmentsRequest,
   CreateAssignmentsResult,
+  EducationCatalogCourse,
+  EducationSyllabusModule,
+  EducationHomeAggregate,
 } from '@/types/education.types';
 
 const ATTACHMENT_BUCKET = 'church-documents';
@@ -22,9 +26,17 @@ interface RawCurriculum {
   id: string;
   name: string;
   description: string | null;
-  cadence: EducationCadence;
   status: EducationCurriculumStatus;
+  track: EducationTrack | null;
+  level: EducationCourseLevel | null;
+  hours: number | null;
+  teacher_user_id: string | null;
+  teacher_name?: string | null;
+  cover_path: string | null;
+  objectives: string[] | null;
+  requirements: string | null;
   lesson_count: number;
+  student_count?: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -35,9 +47,17 @@ function mapCurriculum(r: RawCurriculum): EducationCurriculum {
     id: r.id,
     name: r.name,
     description: r.description,
-    cadence: r.cadence,
     status: r.status,
+    track: r.track,
+    level: r.level,
+    hours: r.hours,
+    teacherUserId: r.teacher_user_id,
+    teacherName: r.teacher_name ?? null,
+    coverPath: r.cover_path,
+    objectives: r.objectives ?? [],
+    requirements: r.requirements,
     lessonCount: r.lesson_count,
+    studentCount: r.student_count ?? 0,
     createdBy: r.created_by,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -60,6 +80,8 @@ interface RawAssignment {
   status: EducationAssignmentStatus;
   assigned_to_name?: string | null;
   assigned_to_email?: string | null;
+  track?: EducationTrack | null;
+  teacher_name?: string | null;
 }
 
 function mapAssignment(r: RawAssignment): EducationAssignment {
@@ -79,6 +101,8 @@ function mapAssignment(r: RawAssignment): EducationAssignment {
     status: r.status,
     assignedToName: r.assigned_to_name ?? null,
     assignedToEmail: r.assigned_to_email ?? null,
+    track: r.track ?? null,
+    teacherName: r.teacher_name ?? null,
   };
 }
 
@@ -262,6 +286,93 @@ export class EducationService {
 
   static async deleteAssignment(id: string): Promise<void> {
     await ApiService.delete(`${this.base}/assignments/${id}`);
+  }
+
+  // ── Catálogo, temario y panel del alumno (PR-D) ──
+
+  static async getCatalog(track?: EducationTrack): Promise<EducationCatalogCourse[]> {
+    const query = track ? `?track=${encodeURIComponent(track)}` : '';
+    const raw = await ApiService.get<
+      {
+        id: string;
+        name: string;
+        description: string | null;
+        track: EducationTrack | null;
+        level: EducationCourseLevel | null;
+        hours: number | null;
+        teacher_name: string | null;
+        cover_path: string | null;
+        lesson_count: number;
+        student_count: number;
+        has_quiz: boolean;
+        created_at: string;
+      }[]
+    >(`${this.base}/catalog${query}`);
+    return raw.map(c => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      track: c.track,
+      level: c.level,
+      hours: c.hours,
+      teacherName: c.teacher_name,
+      coverPath: c.cover_path,
+      lessonCount: c.lesson_count,
+      studentCount: c.student_count,
+      hasQuiz: c.has_quiz,
+      createdAt: c.created_at,
+    }));
+  }
+
+  static async getSyllabus(curriculumId: string): Promise<EducationSyllabusModule[]> {
+    const raw = await ApiService.get<
+      {
+        id: string | null;
+        title: string;
+        lessons: {
+          id: string;
+          module_id: string | null;
+          order_index: number;
+          title: string;
+          duration_minutes: number | null;
+          state: 'completed' | 'in_progress' | 'pending';
+        }[];
+      }[]
+    >(`${this.base}/curricula/${curriculumId}/syllabus`);
+    return raw.map(m => ({
+      id: m.id,
+      title: m.title,
+      lessons: m.lessons.map(l => ({
+        id: l.id,
+        moduleId: l.module_id,
+        orderIndex: l.order_index,
+        title: l.title,
+        durationMinutes: l.duration_minutes,
+        state: l.state,
+      })),
+    }));
+  }
+
+  static async getHome(): Promise<EducationHomeAggregate> {
+    const raw = await ApiService.get<{
+      in_progress_count: number;
+      completed_count: number;
+      continue: RawAssignment | null;
+      assignments: RawAssignment[];
+    }>(`${this.base}/me/home`);
+    return {
+      inProgressCount: raw.in_progress_count,
+      completedCount: raw.completed_count,
+      continueAssignment: raw.continue ? mapAssignment(raw.continue) : null,
+      assignments: raw.assignments.map(mapAssignment),
+    };
+  }
+
+  /** Self-serve enroll — idempotent (backend returns the existing assignment id if already enrolled). */
+  static async enrollSelf(curriculumId: string): Promise<{ id: string; message: string }> {
+    return ApiService.post<{ id: string; message: string }>(
+      `${this.base}/curricula/${curriculumId}/enroll`
+    );
   }
 
   // ── Adjuntos de lección (bucket privado church-documents) ──
