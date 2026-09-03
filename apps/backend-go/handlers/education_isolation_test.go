@@ -78,8 +78,8 @@ func TestIsolationEducationCurriculaCrossChurchReadBlocked(t *testing.T) {
 			t.Fatalf("seed church %s: %v", cid, err)
 		}
 		_, err = setup.Exec(
-			`INSERT INTO public.education_curricula (id, church_id, name, cadence, status)
-			 VALUES (gen_random_uuid(), $1, $2, 'weekly', 'published')
+			`INSERT INTO public.education_curricula (id, church_id, name, status)
+			 VALUES (gen_random_uuid(), $1, $2, 'published')
 			 ON CONFLICT DO NOTHING`,
 			cid, fmt.Sprintf("edu-isolation-curriculum-%s", cid[:8]),
 		)
@@ -170,8 +170,8 @@ func TestIsolationEducationLessonCrossChurchWriteBlocked(t *testing.T) {
 	}
 	var curriculumBID string
 	err = setup.QueryRow(
-		`INSERT INTO public.education_curricula (church_id, name, cadence, status)
-		 VALUES ($1, $2, 'weekly', 'published') RETURNING id`,
+		`INSERT INTO public.education_curricula (church_id, name, status)
+		 VALUES ($1, $2, 'published') RETURNING id`,
 		churchB, "edu-isolation-write-curriculum-b",
 	).Scan(&curriculumBID)
 	if err != nil {
@@ -198,8 +198,8 @@ func TestIsolationEducationLessonCrossChurchWriteBlocked(t *testing.T) {
 	// tenant context is Church A. RLS's tenant_isolation WITH CHECK must
 	// reject this regardless of what the application layer intended.
 	_, err = tx.Exec(
-		`INSERT INTO public.education_lessons (church_id, curriculum_id, order_index, title, content)
-		 VALUES ($1, $2, 1, 'cross-church lesson', 'should never land')`,
+		`INSERT INTO public.education_lessons (church_id, curriculum_id, order_index, title)
+		 VALUES ($1, $2, 1, 'cross-church lesson')`,
 		churchB, curriculumBID,
 	)
 	if err == nil {
@@ -244,8 +244,8 @@ func TestIsolationEducationAssignmentsCrossChurchReadBlocked(t *testing.T) {
 		}
 		var curriculumID string
 		err = setup.QueryRow(
-			`INSERT INTO public.education_curricula (church_id, name, cadence, status)
-			 VALUES ($1, $2, 'weekly', 'published') RETURNING id`,
+			`INSERT INTO public.education_curricula (church_id, name, status)
+			 VALUES ($1, $2, 'published') RETURNING id`,
 			cid, fmt.Sprintf("edu-isolation-assign-curriculum-%s", cid[:8]),
 		).Scan(&curriculumID)
 		if err != nil {
@@ -367,8 +367,8 @@ func TestIsolationEducationProgressSelfOnlyConstraint(t *testing.T) {
 	}
 	var curriculumID string
 	err = setup.QueryRow(
-		`INSERT INTO public.education_curricula (church_id, name, cadence, status)
-		 VALUES ($1, 'edu-isolation-self-only-curriculum', 'weekly', 'published') RETURNING id`,
+		`INSERT INTO public.education_curricula (church_id, name, status)
+		 VALUES ($1, 'edu-isolation-self-only-curriculum', 'published') RETURNING id`,
 		church,
 	).Scan(&curriculumID)
 	if err != nil {
@@ -444,6 +444,354 @@ func TestIsolationEducationProgressSelfOnlyConstraint(t *testing.T) {
 	err = tx.QueryRow(ownershipQuery, assignmentID, church, otherID).Scan(&leaked)
 	if err != sql.ErrNoRows {
 		t.Errorf("self-only constraint NOT enforced: a different same-church user resolved another user's assignment (err=%v)", err)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TestIsolationEducationCourseModulesCrossChurchReadBlocked (PR-A)
+//
+// Spec ref: education-catalog "Course modules group lessons" + the tenant
+// isolation carried unchanged from rev 2 for every education_* table. Same
+// shape as TestIsolationEducationCurriculaCrossChurchReadBlocked, applied to
+// the new education_course_modules table.
+// ─────────────────────────────────────────────────────────────────────────────
+func TestIsolationEducationCourseModulesCrossChurchReadBlocked(t *testing.T) {
+	seedDB := superuserSeedDB(t)
+	defer seedDB.Close()
+	db := integrationDB(t)
+	defer db.Close()
+
+	churchA := "aaaaaaaa-0000-0000-0000-00000000000e"
+	churchB := "bbbbbbbb-0000-0000-0000-00000000000e"
+
+	setup, err := seedDB.Begin()
+	if err != nil {
+		t.Fatalf("setup tx: %v", err)
+	}
+	curriculumIDs := map[string]string{}
+	for i, cid := range []string{churchA, churchB} {
+		_, err = setup.Exec(
+			`INSERT INTO public.churches (id, name, slug, created_at, updated_at)
+			 VALUES ($1, $2, $3, NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
+			cid, fmt.Sprintf("Education Modules Isolation Church %d", i), fmt.Sprintf("edu-isolation-modules-church-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed church %s: %v", cid, err)
+		}
+		var curriculumID string
+		err = setup.QueryRow(
+			`INSERT INTO public.education_curricula (church_id, name, status)
+			 VALUES ($1, $2, 'published') RETURNING id`,
+			cid, fmt.Sprintf("edu-isolation-modules-curriculum-%s", cid[:8]),
+		).Scan(&curriculumID)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed curriculum for %s: %v", cid, err)
+		}
+		curriculumIDs[cid] = curriculumID
+
+		_, err = setup.Exec(
+			`INSERT INTO public.education_course_modules (church_id, curriculum_id, order_index, title)
+			 VALUES ($1, $2, 1, $3)`,
+			cid, curriculumID, fmt.Sprintf("edu-isolation-modules-module-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed module for %s: %v", cid, err)
+		}
+	}
+	if err := setup.Commit(); err != nil {
+		t.Fatalf("seed commit: %v", err)
+	}
+	defer func() {
+		_, _ = seedDB.Exec(`DELETE FROM public.education_course_modules WHERE title LIKE 'edu-isolation-modules-module-%'`)
+		_, _ = seedDB.Exec(`DELETE FROM public.education_curricula WHERE id = ANY($1)`,
+			pqStringArray(curriculumIDs[churchA], curriculumIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
+	}()
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("test tx begin: %v", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+	setTenantContext(t, tx, churchA)
+
+	rows, err := tx.Query(`SELECT church_id FROM public.education_course_modules WHERE title LIKE 'edu-isolation-modules-module-%'`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+
+	seenA, seenB := 0, 0
+	for rows.Next() {
+		var gotChurchID string
+		if err := rows.Scan(&gotChurchID); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		switch gotChurchID {
+		case churchA:
+			seenA++
+		case churchB:
+			seenB++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows iteration: %v", err)
+	}
+	if seenB > 0 {
+		t.Errorf("cross-tenant read NOT blocked: saw %d Church B education_course_modules rows while tenant context = Church A", seenB)
+	}
+	if seenA == 0 {
+		t.Errorf("own-tenant read unexpectedly empty: expected to see Church A's own module row")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TestIsolationEducationLessonStepsCrossChurchReadBlocked (PR-A)
+//
+// Spec ref: education-content-model "Lessons are composed of ordered steps".
+// Same shape, applied to the new education_lesson_steps table (the table
+// that now carries all lesson content, replacing the dropped
+// content/attachment_* columns).
+// ─────────────────────────────────────────────────────────────────────────────
+func TestIsolationEducationLessonStepsCrossChurchReadBlocked(t *testing.T) {
+	seedDB := superuserSeedDB(t)
+	defer seedDB.Close()
+	db := integrationDB(t)
+	defer db.Close()
+
+	churchA := "aaaaaaaa-0000-0000-0000-00000000000f"
+	churchB := "bbbbbbbb-0000-0000-0000-00000000000f"
+
+	setup, err := seedDB.Begin()
+	if err != nil {
+		t.Fatalf("setup tx: %v", err)
+	}
+	lessonIDs := map[string]string{}
+	curriculumIDs := map[string]string{}
+	for i, cid := range []string{churchA, churchB} {
+		_, err = setup.Exec(
+			`INSERT INTO public.churches (id, name, slug, created_at, updated_at)
+			 VALUES ($1, $2, $3, NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
+			cid, fmt.Sprintf("Education Steps Isolation Church %d", i), fmt.Sprintf("edu-isolation-steps-church-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed church %s: %v", cid, err)
+		}
+		var curriculumID string
+		err = setup.QueryRow(
+			`INSERT INTO public.education_curricula (church_id, name, status)
+			 VALUES ($1, $2, 'published') RETURNING id`,
+			cid, fmt.Sprintf("edu-isolation-steps-curriculum-%s", cid[:8]),
+		).Scan(&curriculumID)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed curriculum for %s: %v", cid, err)
+		}
+		curriculumIDs[cid] = curriculumID
+
+		var lessonID string
+		err = setup.QueryRow(
+			`INSERT INTO public.education_lessons (church_id, curriculum_id, order_index, title)
+			 VALUES ($1, $2, 1, $3) RETURNING id`,
+			cid, curriculumID, fmt.Sprintf("edu-isolation-steps-lesson-%s", cid[:8]),
+		).Scan(&lessonID)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed lesson for %s: %v", cid, err)
+		}
+		lessonIDs[cid] = lessonID
+
+		_, err = setup.Exec(
+			`INSERT INTO public.education_lesson_steps (church_id, lesson_id, order_index, label)
+			 VALUES ($1, $2, 1, $3)`,
+			cid, lessonID, fmt.Sprintf("edu-isolation-steps-step-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed step for %s: %v", cid, err)
+		}
+	}
+	if err := setup.Commit(); err != nil {
+		t.Fatalf("seed commit: %v", err)
+	}
+	defer func() {
+		_, _ = seedDB.Exec(`DELETE FROM public.education_lesson_steps WHERE label LIKE 'edu-isolation-steps-step-%'`)
+		_, _ = seedDB.Exec(`DELETE FROM public.education_lessons WHERE id = ANY($1)`,
+			pqStringArray(lessonIDs[churchA], lessonIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.education_curricula WHERE id = ANY($1)`,
+			pqStringArray(curriculumIDs[churchA], curriculumIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
+	}()
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("test tx begin: %v", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+	setTenantContext(t, tx, churchA)
+
+	rows, err := tx.Query(`SELECT church_id FROM public.education_lesson_steps WHERE label LIKE 'edu-isolation-steps-step-%'`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+
+	seenA, seenB := 0, 0
+	for rows.Next() {
+		var gotChurchID string
+		if err := rows.Scan(&gotChurchID); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		switch gotChurchID {
+		case churchA:
+			seenA++
+		case churchB:
+			seenB++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows iteration: %v", err)
+	}
+	if seenB > 0 {
+		t.Errorf("cross-tenant read NOT blocked: saw %d Church B education_lesson_steps rows while tenant context = Church A", seenB)
+	}
+	if seenA == 0 {
+		t.Errorf("own-tenant read unexpectedly empty: expected to see Church A's own step row")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TestIsolationEducationLessonReflectionsCrossChurchReadBlocked (PR-A)
+//
+// Spec ref: education-content-model "Reflection answers are private, ungraded
+// journal entries" — the tenant-isolation half of that requirement (the
+// owner/level-3 read-access boundary itself is PR-B's
+// TestReflectionReadAccessBoundary, once the reflections handler exists).
+// ─────────────────────────────────────────────────────────────────────────────
+func TestIsolationEducationLessonReflectionsCrossChurchReadBlocked(t *testing.T) {
+	seedDB := superuserSeedDB(t)
+	defer seedDB.Close()
+	db := integrationDB(t)
+	defer db.Close()
+
+	churchA := "aaaaaaaa-0000-0000-0000-000000000010"
+	churchB := "bbbbbbbb-0000-0000-0000-000000000010"
+
+	setup, err := seedDB.Begin()
+	if err != nil {
+		t.Fatalf("setup tx: %v", err)
+	}
+	lessonIDs := map[string]string{}
+	curriculumIDs := map[string]string{}
+	userIDs := map[string]string{}
+	for i, cid := range []string{churchA, churchB} {
+		_, err = setup.Exec(
+			`INSERT INTO public.churches (id, name, slug, created_at, updated_at)
+			 VALUES ($1, $2, $3, NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
+			cid, fmt.Sprintf("Education Reflections Isolation Church %d", i), fmt.Sprintf("edu-isolation-reflect-church-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed church %s: %v", cid, err)
+		}
+		var curriculumID string
+		err = setup.QueryRow(
+			`INSERT INTO public.education_curricula (church_id, name, status)
+			 VALUES ($1, $2, 'published') RETURNING id`,
+			cid, fmt.Sprintf("edu-isolation-reflect-curriculum-%s", cid[:8]),
+		).Scan(&curriculumID)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed curriculum for %s: %v", cid, err)
+		}
+		curriculumIDs[cid] = curriculumID
+
+		var lessonID string
+		err = setup.QueryRow(
+			`INSERT INTO public.education_lessons (church_id, curriculum_id, order_index, title)
+			 VALUES ($1, $2, 1, $3) RETURNING id`,
+			cid, curriculumID, fmt.Sprintf("edu-isolation-reflect-lesson-%s", cid[:8]),
+		).Scan(&lessonID)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed lesson for %s: %v", cid, err)
+		}
+		lessonIDs[cid] = lessonID
+
+		var userID string
+		err = setup.QueryRow(
+			`INSERT INTO public.users (id_number, first_name, last_name, phone, address, email, role, church_id)
+			 VALUES ($1, 'Edu', 'IsolationReflect', '000', 'n/a', $2, 'member', $3) RETURNING id`,
+			fmt.Sprintf("edu-isolation-reflect-%s", cid[:8]), fmt.Sprintf("edu-isolation-reflect-%s@example.test", cid[:8]), cid,
+		).Scan(&userID)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed user for %s: %v", cid, err)
+		}
+		userIDs[cid] = userID
+
+		_, err = setup.Exec(
+			`INSERT INTO public.education_lesson_reflections (church_id, lesson_id, block_id, user_id, answer)
+			 VALUES ($1, $2, 'edu-isolation-reflect-block', $3, $4)`,
+			cid, lessonID, userID, fmt.Sprintf("edu-isolation-reflect-answer-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed reflection for %s: %v", cid, err)
+		}
+	}
+	if err := setup.Commit(); err != nil {
+		t.Fatalf("seed commit: %v", err)
+	}
+	defer func() {
+		_, _ = seedDB.Exec(`DELETE FROM public.education_lesson_reflections WHERE answer LIKE 'edu-isolation-reflect-answer-%'`)
+		_, _ = seedDB.Exec(`DELETE FROM public.education_lessons WHERE id = ANY($1)`,
+			pqStringArray(lessonIDs[churchA], lessonIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.education_curricula WHERE id = ANY($1)`,
+			pqStringArray(curriculumIDs[churchA], curriculumIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.users WHERE id = ANY($1)`,
+			pqStringArray(userIDs[churchA], userIDs[churchB]))
+		_, _ = seedDB.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
+	}()
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("test tx begin: %v", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+	setTenantContext(t, tx, churchA)
+
+	rows, err := tx.Query(`SELECT church_id FROM public.education_lesson_reflections WHERE answer LIKE 'edu-isolation-reflect-answer-%'`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+
+	seenA, seenB := 0, 0
+	for rows.Next() {
+		var gotChurchID string
+		if err := rows.Scan(&gotChurchID); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		switch gotChurchID {
+		case churchA:
+			seenA++
+		case churchB:
+			seenB++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows iteration: %v", err)
+	}
+	if seenB > 0 {
+		t.Errorf("cross-tenant read NOT blocked: saw %d Church B education_lesson_reflections rows while tenant context = Church A", seenB)
+	}
+	if seenA == 0 {
+		t.Errorf("own-tenant read unexpectedly empty: expected to see Church A's own reflection row")
 	}
 }
 

@@ -33,13 +33,9 @@ const (
 	educationAdminLevel   = 5
 )
 
-var validEducationCadences = map[string]bool{
-	"weekly":    true,
-	"quarterly": true,
-}
-
 var validEducationStatuses = map[string]bool{
 	"draft":     true,
+	"review":    true,
 	"published": true,
 	"archived":  true,
 }
@@ -118,16 +114,6 @@ func upsertEducationModuleRole(db *sql.DB, userID string, level int, roleName, a
 	return err
 }
 
-func hasLessonBody(content, attachmentPath *string) bool {
-	if content != nil && strings.TrimSpace(*content) != "" {
-		return true
-	}
-	if attachmentPath != nil && strings.TrimSpace(*attachmentPath) != "" {
-		return true
-	}
-	return false
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // CURRICULA — CRUD
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,7 +135,9 @@ func (h *EducationHandler) GetCurricula(c echo.Context) error {
 	}
 
 	query := `
-		SELECT ec.id, ec.name, ec.description, ec.cadence, ec.status,
+		SELECT ec.id, ec.name, ec.description, ec.status,
+		       ec.track, ec.level, ec.hours, ec.teacher_user_id::text, ec.cover_path,
+		       ec.objectives, ec.requirements,
 		       COUNT(el.id) AS lesson_count,
 		       ec.created_by::text,
 		       to_char(ec.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
@@ -175,14 +163,21 @@ func (h *EducationHandler) GetCurricula(c echo.Context) error {
 	curricula := []models.EducationCurriculum{}
 	for rows.Next() {
 		var r models.EducationCurriculum
-		var createdBy sql.NullString
-		if err := rows.Scan(&r.ID, &r.Name, &r.Description, &r.Cadence, &r.Status, &r.LessonCount,
+		var createdBy, teacherUserID sql.NullString
+		var objectives []byte
+		if err := rows.Scan(&r.ID, &r.Name, &r.Description, &r.Status,
+			&r.Track, &r.Level, &r.Hours, &teacherUserID, &r.CoverPath,
+			&objectives, &r.Requirements, &r.LessonCount,
 			&createdBy, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			continue
 		}
 		if createdBy.Valid {
 			r.CreatedBy = &createdBy.String
 		}
+		if teacherUserID.Valid {
+			r.TeacherUserID = &teacherUserID.String
+		}
+		r.Objectives = objectives
 		curricula = append(curricula, r)
 	}
 	return c.JSON(http.StatusOK, curricula)
@@ -204,16 +199,21 @@ func (h *EducationHandler) GetCurriculumByID(c echo.Context) error {
 
 	id := c.Param("id")
 	var r models.EducationCurriculum
-	var createdBy sql.NullString
+	var createdBy, teacherUserID sql.NullString
+	var objectives []byte
 	err = q.QueryRow(`
-		SELECT ec.id, ec.name, ec.description, ec.cadence, ec.status,
+		SELECT ec.id, ec.name, ec.description, ec.status,
+		       ec.track, ec.level, ec.hours, ec.teacher_user_id::text, ec.cover_path,
+		       ec.objectives, ec.requirements,
 		       (SELECT COUNT(*) FROM education_lessons el WHERE el.curriculum_id = ec.id) AS lesson_count,
 		       ec.created_by::text,
 		       to_char(ec.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(ec.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM education_curricula ec
 		WHERE ec.id = $1 AND ec.church_id = $2
-	`, id, churchID).Scan(&r.ID, &r.Name, &r.Description, &r.Cadence, &r.Status, &r.LessonCount,
+	`, id, churchID).Scan(&r.ID, &r.Name, &r.Description, &r.Status,
+		&r.Track, &r.Level, &r.Hours, &teacherUserID, &r.CoverPath,
+		&objectives, &r.Requirements, &r.LessonCount,
 		&createdBy, &r.CreatedAt, &r.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Currículo no encontrado"})
@@ -227,6 +227,10 @@ func (h *EducationHandler) GetCurriculumByID(c echo.Context) error {
 	if createdBy.Valid {
 		r.CreatedBy = &createdBy.String
 	}
+	if teacherUserID.Valid {
+		r.TeacherUserID = &teacherUserID.String
+	}
+	r.Objectives = objectives
 	return c.JSON(http.StatusOK, r)
 }
 
@@ -244,19 +248,12 @@ func (h *EducationHandler) CreateCurriculum(c echo.Context) error {
 	var req struct {
 		Name        string  `json:"name"`
 		Description *string `json:"description"`
-		Cadence     string  `json:"cadence"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
 	}
 	if strings.TrimSpace(req.Name) == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name es requerido"})
-	}
-	if req.Cadence == "" {
-		req.Cadence = "weekly"
-	}
-	if !validEducationCadences[req.Cadence] {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "cadence inválida — valores: weekly, quarterly"})
 	}
 
 	var createdBy interface{}
@@ -266,10 +263,10 @@ func (h *EducationHandler) CreateCurriculum(c echo.Context) error {
 
 	var id string
 	err = q.QueryRow(`
-		INSERT INTO education_curricula (name, description, cadence, church_id, created_by)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO education_curricula (name, description, church_id, created_by)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id
-	`, strings.TrimSpace(req.Name), req.Description, req.Cadence, churchID, createdBy).Scan(&id)
+	`, strings.TrimSpace(req.Name), req.Description, churchID, createdBy).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "Ya existe un currículo con ese nombre"})
@@ -293,7 +290,6 @@ func (h *EducationHandler) UpdateCurriculum(c echo.Context) error {
 	var req struct {
 		Name        *string `json:"name"`
 		Description *string `json:"description"`
-		Cadence     *string `json:"cadence"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
@@ -301,18 +297,14 @@ func (h *EducationHandler) UpdateCurriculum(c echo.Context) error {
 	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name no puede estar vacío"})
 	}
-	if req.Cadence != nil && !validEducationCadences[*req.Cadence] {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "cadence inválida — valores: weekly, quarterly"})
-	}
 
 	res, err := q.Exec(`
 		UPDATE education_curricula
 		SET name        = COALESCE($3, name),
 		    description = COALESCE($4, description),
-		    cadence     = COALESCE($5, cadence),
 		    updated_at  = now()
 		WHERE id = $1 AND church_id = $2
-	`, id, churchID, req.Name, req.Description, req.Cadence)
+	`, id, churchID, req.Name, req.Description)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "Ya existe un currículo con ese nombre"})
@@ -348,7 +340,7 @@ func (h *EducationHandler) UpdateCurriculumStatus(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
 	}
 	if !validEducationStatuses[req.Status] {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "status inválido — valores: draft, published, archived"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "status inválido — valores: draft, review, published, archived"})
 	}
 
 	moduleLevel, _ := c.Get("module_role_level").(int)
@@ -429,7 +421,7 @@ func (h *EducationHandler) GetLessons(c echo.Context) error {
 	}
 
 	rows, err := q.Query(`
-		SELECT id, curriculum_id, order_index, title, content, attachment_path, attachment_name,
+		SELECT id, curriculum_id, module_id::text, order_index, title, duration_minutes,
 		       to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM education_lessons
@@ -444,15 +436,23 @@ func (h *EducationHandler) GetLessons(c echo.Context) error {
 	lessons := []models.EducationLesson{}
 	for rows.Next() {
 		var l models.EducationLesson
-		if err := rows.Scan(&l.ID, &l.CurriculumID, &l.OrderIndex, &l.Title, &l.Content,
-			&l.AttachmentPath, &l.AttachmentName, &l.CreatedAt, &l.UpdatedAt); err != nil {
+		var moduleID sql.NullString
+		if err := rows.Scan(&l.ID, &l.CurriculumID, &moduleID, &l.OrderIndex, &l.Title,
+			&l.DurationMinutes, &l.CreatedAt, &l.UpdatedAt); err != nil {
 			continue
+		}
+		if moduleID.Valid {
+			l.ModuleID = &moduleID.String
 		}
 		lessons = append(lessons, l)
 	}
 	return c.JSON(http.StatusOK, lessons)
 }
 
+// CreateLesson creates a lesson shell (title + position). Step/block content
+// authoring lives in PR-B (education_lesson_steps) — a lesson with zero steps
+// is now a valid draft (spec: "Empty lesson is a valid draft"), so this
+// handler no longer requires a content/attachment body up front.
 func (h *EducationHandler) CreateLesson(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -465,23 +465,16 @@ func (h *EducationHandler) CreateLesson(c echo.Context) error {
 
 	curriculumID := c.Param("id")
 	var req struct {
-		Title          string  `json:"title"`
-		Content        *string `json:"content"`
-		AttachmentPath *string `json:"attachment_path"`
-		AttachmentName *string `json:"attachment_name"`
-		OrderIndex     *int    `json:"order_index"`
+		Title           string  `json:"title"`
+		ModuleID        *string `json:"module_id"`
+		DurationMinutes *int    `json:"duration_minutes"`
+		OrderIndex      *int    `json:"order_index"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
 	}
 	if strings.TrimSpace(req.Title) == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "title es requerido"})
-	}
-	if !hasLessonBody(req.Content, req.AttachmentPath) {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "La lección debe tener contenido, un adjunto, o ambos"})
-	}
-	if (req.AttachmentPath == nil) != (req.AttachmentName == nil) {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "attachment_path y attachment_name deben venir juntos"})
 	}
 
 	var exists bool
@@ -507,10 +500,10 @@ func (h *EducationHandler) CreateLesson(c echo.Context) error {
 
 	var id string
 	err = q.QueryRow(`
-		INSERT INTO education_lessons (curriculum_id, church_id, order_index, title, content, attachment_path, attachment_name)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO education_lessons (curriculum_id, church_id, order_index, title, module_id, duration_minutes)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
-	`, curriculumID, churchID, orderIndex, strings.TrimSpace(req.Title), req.Content, req.AttachmentPath, req.AttachmentName).Scan(&id)
+	`, curriculumID, churchID, orderIndex, strings.TrimSpace(req.Title), req.ModuleID, req.DurationMinutes).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "Ya existe una lección en esa posición"})
@@ -520,8 +513,9 @@ func (h *EducationHandler) CreateLesson(c echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]string{"id": id, "message": "Lección creada exitosamente"})
 }
 
-// UpdateLesson replaces title/content/attachment — PUT semantics (full
-// replacement), matching UpdateEvent's convention in music.go.
+// UpdateLesson replaces title/module/duration — PUT semantics (full
+// replacement), matching UpdateEvent's convention in music.go. Step/block
+// content editing lives in PR-B.
 func (h *EducationHandler) UpdateLesson(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -534,10 +528,9 @@ func (h *EducationHandler) UpdateLesson(c echo.Context) error {
 
 	id := c.Param("id")
 	var req struct {
-		Title          *string `json:"title"`
-		Content        *string `json:"content"`
-		AttachmentPath *string `json:"attachment_path"`
-		AttachmentName *string `json:"attachment_name"`
+		Title           *string `json:"title"`
+		ModuleID        *string `json:"module_id"`
+		DurationMinutes *int    `json:"duration_minutes"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
@@ -545,22 +538,15 @@ func (h *EducationHandler) UpdateLesson(c echo.Context) error {
 	if req.Title != nil && strings.TrimSpace(*req.Title) == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "title no puede estar vacío"})
 	}
-	if !hasLessonBody(req.Content, req.AttachmentPath) {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "La lección debe tener contenido, un adjunto, o ambos"})
-	}
-	if (req.AttachmentPath == nil) != (req.AttachmentName == nil) {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "attachment_path y attachment_name deben venir juntos"})
-	}
 
 	res, err := q.Exec(`
 		UPDATE education_lessons
-		SET title           = COALESCE($3, title),
-		    content         = $4,
-		    attachment_path = $5,
-		    attachment_name = $6,
-		    updated_at      = now()
+		SET title            = COALESCE($3, title),
+		    module_id        = $4,
+		    duration_minutes = $5,
+		    updated_at       = now()
 		WHERE id = $1 AND church_id = $2
-	`, id, churchID, req.Title, req.Content, req.AttachmentPath, req.AttachmentName)
+	`, id, churchID, req.Title, req.ModuleID, req.DurationMinutes)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al actualizar lección"})
 	}

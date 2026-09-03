@@ -40,6 +40,13 @@ var validEducationSourceModules = map[string]bool{
 // due_date in the past → overdue; else any progress → in_progress; else
 // pending. Used identically by every query that returns an assignment row so
 // the derivation logic lives in exactly one place.
+//
+// COUNT(elp.id) relies on the JOIN it is used against (assignmentSelectSQL /
+// GetCurriculumProgress's inline copy) restricting elp to
+// `elp.completed_at IS NOT NULL` rows — see the completion-semantics
+// regression guard note below. Without that guard a merely-started lesson
+// (row present, completed_at NULL under the started/completed lifecycle)
+// would incorrectly count toward "in_progress"/"completed_lessons".
 const deriveAssignmentStatusSQL = `
 	CASE
 	  WHEN ea.completed_at IS NOT NULL THEN 'completed'
@@ -49,6 +56,14 @@ const deriveAssignmentStatusSQL = `
 	END
 `
 
+// assignmentSelectSQL's LEFT JOIN carries `AND elp.completed_at IS NOT NULL`
+// — the completion-semantics regression guard (spec: "ADDED Requirement:
+// Completion-semantics regression guard"). Row presence in
+// education_lesson_progress now means STARTED, not completed (a row can
+// exist with completed_at NULL). Without this guard, COUNT(elp.id) here and
+// in deriveAssignmentStatusSQL above would count in-progress lessons as
+// completed — see handlers/education_progress_semantics_test.go for the RED
+// test that fails without it.
 const assignmentSelectSQL = `
 	SELECT ea.id, ea.curriculum_id, ec.name,
 	       ea.assigned_to::text, ea.assigned_by::text,
@@ -61,7 +76,7 @@ const assignmentSelectSQL = `
 	       ` + deriveAssignmentStatusSQL + ` AS status
 	FROM education_assignments ea
 	JOIN education_curricula ec ON ec.id = ea.curriculum_id
-	LEFT JOIN education_lesson_progress elp ON elp.assignment_id = ea.id
+	LEFT JOIN education_lesson_progress elp ON elp.assignment_id = ea.id AND elp.completed_at IS NOT NULL
 `
 
 // scanAssignmentRow scans one row produced by assignmentSelectSQL.
@@ -352,7 +367,7 @@ func recomputeAssignmentCompletion(q config.Querier, assignmentID string) error 
 	var completedCount, totalCount int
 	err := q.QueryRow(`
 		SELECT
-			(SELECT COUNT(*) FROM education_lesson_progress WHERE assignment_id = $1),
+			(SELECT COUNT(*) FROM education_lesson_progress WHERE assignment_id = $1 AND completed_at IS NOT NULL),
 			(SELECT COUNT(*) FROM education_lessons el
 			   JOIN education_assignments ea ON ea.curriculum_id = el.curriculum_id
 			  WHERE ea.id = $1)
@@ -411,10 +426,16 @@ func (h *EducationHandler) MarkLessonComplete(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Lección no encontrada en este currículo"})
 	}
 
+	// completed_at is set explicitly (the column no longer defaults to now() —
+	// row presence alone now means STARTED, per the started/completed
+	// lifecycle). ON CONFLICT DO UPDATE (not DO NOTHING) so re-completing an
+	// already-started-but-not-completed row (current_step_id/visited_step_ids
+	// preserved by not touching them) actually marks it complete — idempotent
+	// either way.
 	if _, err := q.Exec(`
-		INSERT INTO education_lesson_progress (church_id, assignment_id, lesson_id)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (assignment_id, lesson_id) DO NOTHING
+		INSERT INTO education_lesson_progress (church_id, assignment_id, lesson_id, completed_at)
+		VALUES ($1, $2, $3, now())
+		ON CONFLICT (assignment_id, lesson_id) DO UPDATE SET completed_at = now(), updated_at = now()
 	`, churchID, assignmentID, lessonID); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al marcar lección completa"})
 	}
@@ -454,8 +475,14 @@ func (h *EducationHandler) MarkLessonIncomplete(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Asignación no encontrada"})
 	}
 
+	// UPDATE, not DELETE (design/spec: "Mark incomplete clears rather than
+	// deletes semantics") — the row (and any current_step_id/visited_step_ids
+	// step pointer on it) is preserved; only completed_at is cleared, which
+	// the completion-semantics guard above already excludes from the
+	// completed count.
 	if _, err := q.Exec(`
-		DELETE FROM education_lesson_progress WHERE assignment_id = $1 AND lesson_id = $2 AND church_id = $3
+		UPDATE education_lesson_progress SET completed_at = NULL, updated_at = now()
+		WHERE assignment_id = $1 AND lesson_id = $2 AND church_id = $3
 	`, assignmentID, lessonID, churchID); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al desmarcar lección"})
 	}
@@ -506,7 +533,7 @@ func (h *EducationHandler) GetCurriculumProgress(c echo.Context) error {
 		FROM education_assignments ea
 		JOIN education_curricula ec ON ec.id = ea.curriculum_id
 		JOIN users u ON u.id = ea.assigned_to
-		LEFT JOIN education_lesson_progress elp ON elp.assignment_id = ea.id
+		LEFT JOIN education_lesson_progress elp ON elp.assignment_id = ea.id AND elp.completed_at IS NOT NULL
 		WHERE ea.curriculum_id = $1 AND ea.church_id = $2
 		GROUP BY ea.id, ec.name, u.first_name, u.last_name, u.email
 		ORDER BY assigned_to_name ASC
