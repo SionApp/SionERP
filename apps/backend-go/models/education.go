@@ -1,29 +1,44 @@
 package models
 
-// EducationCurriculum is the wire shape for a curriculum row.
+import "encoding/json"
+
+// EducationCurriculum is the wire shape for a curriculum row. Catalog
+// metadata (Track/Level/Hours/TeacherUserID/CoverPath/Objectives/
+// Requirements) was added in the design-handoff expansion (PR-A); `Cadence`
+// was dropped in the same migration (spec: "Cadence is descriptive" — the
+// only deletion in the plan).
 type EducationCurriculum struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	Cadence     string  `json:"cadence"`
-	Status      string  `json:"status"`
-	LessonCount int     `json:"lesson_count"`
-	CreatedBy   *string `json:"created_by"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	Description   *string         `json:"description"`
+	Status        string          `json:"status"`
+	Track         *string         `json:"track"`
+	Level         *string         `json:"level"`
+	Hours         *float64        `json:"hours"`
+	TeacherUserID *string         `json:"teacher_user_id"`
+	CoverPath     *string         `json:"cover_path"`
+	Objectives    json.RawMessage `json:"objectives"`
+	Requirements  *string         `json:"requirements"`
+	LessonCount   int             `json:"lesson_count"`
+	CreatedBy     *string         `json:"created_by"`
+	CreatedAt     string          `json:"created_at"`
+	UpdatedAt     string          `json:"updated_at"`
 }
 
-// EducationLesson is the wire shape for a lesson row.
+// EducationLesson is the wire shape for a lesson row. `Content`/
+// `AttachmentPath`/`AttachmentName` were dropped in the design-handoff
+// expansion (PR-A) — content now lives in `education_lesson_steps.blocks`,
+// authored/read via PR-B's step endpoints, not this struct. `ModuleID`/
+// `DurationMinutes` were added in the same migration.
 type EducationLesson struct {
-	ID             string  `json:"id"`
-	CurriculumID   string  `json:"curriculum_id"`
-	OrderIndex     int     `json:"order_index"`
-	Title          string  `json:"title"`
-	Content        *string `json:"content"`
-	AttachmentPath *string `json:"attachment_path"`
-	AttachmentName *string `json:"attachment_name"`
-	CreatedAt      string  `json:"created_at"`
-	UpdatedAt      string  `json:"updated_at"`
+	ID              string  `json:"id"`
+	CurriculumID    string  `json:"curriculum_id"`
+	ModuleID        *string `json:"module_id"`
+	OrderIndex      int     `json:"order_index"`
+	Title           string  `json:"title"`
+	DurationMinutes *int    `json:"duration_minutes"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
 }
 
 // EducationMember is the wire shape for a user's education module role row,
