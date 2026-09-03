@@ -62,4 +62,41 @@ func SetupEducationRoutes(protected *echo.Group) {
 
 	education.POST("/assignments", h.CreateAssignments, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
 	education.DELETE("/assignments/:id", h.DeleteAssignment, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+
+	// Lesson content — steps + blocks (PR-B, education-content-model). GET
+	// routes are gated at module level only (level < 3 additionally needs an
+	// assignment on the lesson's curriculum — enforced inside the handler,
+	// see lessonReadAccess in education_steps.go); writes require level 3.
+	education.GET("/lessons/:id", h.GetLessonDetail, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/lessons/:lessonId/steps", h.GetLessonSteps, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/lessons/:lessonId/steps/:stepId", h.GetStepByID, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.POST("/lessons/:lessonId/steps", h.CreateStep, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.PUT("/lessons/:lessonId/steps/reorder", h.ReorderSteps, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.PUT("/lessons/:lessonId/steps/:stepId", h.UpdateStep, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.DELETE("/lessons/:lessonId/steps/:stepId", h.DeleteStep, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+
+	// Step-pointer persistence (design A2/A3) — self-only, level 1, same
+	// route family as MarkLessonComplete/MarkLessonIncomplete.
+	education.PUT("/me/assignments/:id/lessons/:lessonId/position", h.UpdateLessonPosition, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+
+	// Course modules (PR-B, education-catalog) — same GET/write split as
+	// lessons/curricula.
+	education.GET("/curricula/:id/modules", h.GetCourseModules, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.POST("/curricula/:id/modules", h.CreateCourseModule, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.PUT("/curricula/:id/modules/reorder", h.ReorderCourseModules, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.PUT("/modules/:id", h.UpdateCourseModule, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.DELETE("/modules/:id", h.DeleteCourseModule, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+
+	// Catalog + syllabus + home aggregate (PR-B, education-catalog /
+	// education-lesson-consumption) — level 1, backend for PR-D's student
+	// read path.
+	education.GET("/catalog", h.GetCatalog, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/curricula/:id/syllabus", h.GetSyllabus, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/me/home", h.GetHome, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.PUT("/curricula/:id/lesson-order", h.SetLessonOrder, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+
+	// Reflections (PR-B, education-content-model) — self-only write,
+	// owner-or-author (level >= 3) read (gate enforced inside the handler).
+	education.PUT("/lessons/:id/reflections/:blockId", h.UpsertReflection, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/lessons/:id/reflections/:blockId", h.GetReflection, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
 }
