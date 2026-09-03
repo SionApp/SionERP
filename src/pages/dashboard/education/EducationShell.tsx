@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMobileMode } from '@/hooks/useMobileMode';
+import { cn } from '@/lib/utils';
 import './education-theme.css';
 import { ModuleTabs } from './ModuleTabs';
 import { useEducationAccess } from './use-education-access';
@@ -73,7 +74,10 @@ export default function EducationShell() {
 
   return (
     <div className="education-shell space-y-6 p-3 sm:p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* items-end: the design aligns the CTA's bottom edge with the
+          subtitle's bottom edge (verified 172px == 172px against the real
+          prototype), not vertically centered against the whole row. */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           {hasAccess && !loadingAccess && (
             <nav className="flex items-center gap-1.5 text-xs text-outline" aria-label="breadcrumb">
@@ -83,19 +87,40 @@ export default function EducationShell() {
               <span className="font-medium text-edu-text">Educación</span>
             </nav>
           )}
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+          <div className="mt-1">
             <h1 className="text-[28px] font-normal leading-tight text-foreground">{title}</h1>
             {hasAccess && !loadingAccess && (
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
             )}
           </div>
         </div>
-        {continueAssignment && (
-          <Button asChild className="gap-2 shrink-0">
-            <Link to={`/dashboard/education/curso/${continueAssignment.curriculumId}`}>
-              <PlayCircle className="h-4 w-4" />
-              Continuar donde quedé
-            </Link>
+        {/* `invisible` (not conditional mounting) so the button's own box
+            keeps reserving its layout slot — the title/subtitle block must
+            not reflow to fill the gap when there's nothing to continue yet. */}
+        {hasAccess && !loadingAccess && !isAuthor && (
+          <Button
+            asChild={!!continueAssignment}
+            disabled={!continueAssignment}
+            className={cn(
+              // Exact design measurements (verified against the real
+              // prototype): h-12 (48px), px-[22px] py-[14px], text-[15px],
+              // rounded-[16px] — none of shadcn's built-in size variants
+              // (h-9/10/11) match, so they're overridden explicitly here.
+              'h-12 gap-2 rounded-[16px] px-[22px] py-[14px] text-[15px] shrink-0',
+              !continueAssignment && 'invisible'
+            )}
+          >
+            {continueAssignment ? (
+              <Link to={`/dashboard/education/curso/${continueAssignment.curriculumId}`}>
+                <PlayCircle className="h-4 w-4" />
+                Continuar donde quedé
+              </Link>
+            ) : (
+              <>
+                <PlayCircle className="h-4 w-4" />
+                Continuar donde quedé
+              </>
+            )}
           </Button>
         )}
       </div>
