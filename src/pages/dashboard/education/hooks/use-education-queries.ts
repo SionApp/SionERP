@@ -77,6 +77,38 @@ export function useMyPendingReviews() {
   });
 }
 
+/**
+ * The caller's own bookmarked lessons — `BookmarksCard`'s data source on
+ * StudentHome, and `LessonViewer`'s source for the pill's initial state.
+ */
+export function useMyBookmarks() {
+  return useQuery({
+    queryKey: ['education-bookmarks'],
+    queryFn: () => EducationService.getMyBookmarks(),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Toggles one lesson's bookmark (idempotent backend either way). The pill's
+ * OWN instant flip/rollback is local component state in `LessonViewer`
+ * (spec: "Optimistic UI update is fine") — this mutation only owns the
+ * network call and invalidates the shared `education-bookmarks` list on
+ * success so `BookmarksCard` reflects the change on its next mount/refetch.
+ */
+export function useToggleLessonBookmark() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { lessonId: string; bookmarked: boolean }) =>
+      args.bookmarked
+        ? EducationService.unbookmarkLesson(args.lessonId)
+        : EducationService.bookmarkLesson(args.lessonId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['education-bookmarks'] });
+    },
+  });
+}
+
 // ── PR-H: admin course management ──
 
 /** Author-visible curricula list (level >= 3 sees draft/review/archived too). */

@@ -325,6 +325,31 @@ export interface StepOrderEntry {
   orderIndex: number;
 }
 
+// ── Lesson bookmarks (small follow-up closing the design-handoff's undefined
+// "Guardar" pill, README.md line 247) ──
+//
+// A personal "save for later" list — entirely independent of
+// `EducationLessonProgress`/`EducationAssignment` (completion tracking).
+// Server-persisted (NOT client-local localStorage like `use-lesson-font-
+// size.ts`'s reading-size preference) so the SAME bookmark is visible from
+// `StudentHome`'s "Lecciones guardadas" card regardless of device/browser.
+
+/**
+ * Mirrors `models.EducationLessonBookmark` (`GET /education/me/bookmarks`).
+ * Carries enough joined lesson/curriculum/module data for the home card to
+ * render without a second round trip. `moduleTitle` is `null` when the
+ * lesson has no course module assigned.
+ */
+export interface LessonBookmark {
+  id: string;
+  lessonId: string;
+  lessonTitle: string;
+  curriculumId: string;
+  curriculumName: string;
+  moduleTitle: string | null;
+  createdAt: string;
+}
+
 // ── Quiz — runtime del alumno (PR-G, education-quiz-runtime) ──
 //
 // Mirrors `models.QuizRunnerView`/`QuizRunnerQuestion`/`QuizRunnerOption`

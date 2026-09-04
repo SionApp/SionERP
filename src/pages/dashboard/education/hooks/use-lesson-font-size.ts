@@ -5,8 +5,17 @@ import { useCallback, useState } from 'react';
  * column (README §4 "Visor de lección": `text_increase` "Texto" pill in the
  * top bar). Explicitly NOT synced to the server — this is a per-device
  * reading comfort setting, distinct from `current_step_id`/
- * `visited_step_ids` progress (design: "Bookmark and font size are
- * client-local localStorage — a reading preference, not progress").
+ * `visited_step_ids` progress.
+ *
+ * NOTE: PR-E's original design assumed the adjacent "Guardar" bookmark pill
+ * would follow this SAME client-local localStorage pattern ("Bookmark and
+ * font size are client-local localStorage — a reading preference, not
+ * progress"). That assumption is superseded — per an explicit user decision
+ * (see the `education_lesson_bookmarks` migration's header comment),
+ * bookmarks are server-persisted so the same saved lesson is visible from
+ * `StudentHome` on any device. Font size alone stays client-local; see
+ * `use-education-queries.ts`'s `useMyBookmarks`/`useToggleLessonBookmark`
+ * for the bookmark data path.
  *
  * Applied as a `font-size: N%` override on the content wrapper, which
  * cascades to every text-bearing block's `size="full"` classes — those are
