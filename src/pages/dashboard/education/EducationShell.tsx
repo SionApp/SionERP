@@ -1,5 +1,5 @@
 import { ChevronRight, GraduationCap, Home, PlayCircle } from 'lucide-react';
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Navigate, Outlet } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
@@ -10,6 +10,26 @@ import './education-theme.css';
 import { ModuleTabs } from './ModuleTabs';
 import { useEducationAccess } from './use-education-access';
 import { useEducationHome } from './hooks/use-education-queries';
+import StudentHome from './student/StudentHome';
+
+// The shell's tabs are role-exclusive (ADMIN_TABS vs studentTabs in
+// ModuleTabs) and none of the admin tabs point at the bare `/education`
+// index — so an author landing there via the sidebar link must be sent to
+// their own index (`admin/cursos`) instead of falling through to the
+// student's StudentHome.
+export function EducationIndexRoute() {
+  const { isAuthor, loadingAccess } = useEducationAccess();
+
+  if (loadingAccess) {
+    return <Skeleton className="h-48 w-full rounded-2xl" />;
+  }
+
+  if (isAuthor) {
+    return <Navigate to="admin/cursos" replace />;
+  }
+
+  return <StudentHome />;
+}
 
 // Moved verbatim from the deleted EducationPage.tsx (PR2b) — same copy,
 // same shape, now living in the shell instead of the flat page.

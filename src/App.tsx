@@ -50,6 +50,11 @@ const MusicEventDetailPage = lazy(() => import('./pages/dashboard/music/MusicEve
 // the admin-only editor/quiz-builder work (lazy-loaded further, PR-I/J)
 // never ships to a student session.
 const EducationShell = lazy(() => import('./pages/dashboard/education/EducationShell'));
+const EducationIndexRoute = lazy(() =>
+  import('./pages/dashboard/education/EducationShell').then(m => ({
+    default: m.EducationIndexRoute,
+  }))
+);
 const EducationAdminGate = lazy(() => import('./pages/dashboard/education/EducationAdminGate'));
 const LegacyCurriculumRedirect = lazy(
   () => import('./pages/dashboard/education/LegacyCurriculumRedirect')
@@ -57,7 +62,6 @@ const LegacyCurriculumRedirect = lazy(
 const AdminCourseList = lazy(() => import('./pages/dashboard/education/admin/AdminCourseList'));
 const AdminCourseDetail = lazy(() => import('./pages/dashboard/education/admin/AdminCourseDetail'));
 
-const StudentHome = lazy(() => import('./pages/dashboard/education/student/StudentHome'));
 const CourseCatalog = lazy(() => import('./pages/dashboard/education/student/CourseCatalog'));
 const CourseDetail = lazy(() => import('./pages/dashboard/education/student/CourseDetail'));
 const LessonViewer = lazy(() => import('./pages/dashboard/education/student/LessonViewer'));
@@ -363,7 +367,7 @@ const AppContent = () => {
                     </ProtectedRoute>
                   }
                 >
-                  <Route index element={<StudentHome />} />
+                  <Route index element={<EducationIndexRoute />} />
                   <Route path="catalogo" element={<CourseCatalog />} />
                   <Route path="curso/:curriculumId" element={<CourseDetail />} />
                   <Route path="curso/:curriculumId/leccion/:lessonId" element={<LessonViewer />} />
