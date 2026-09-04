@@ -39,33 +39,43 @@ export function useAutosave<T>(
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const snapshot = JSON.stringify(value);
-  const savedSnapshotRef = useRef(snapshot);
-  const lastResetKeyRef = useRef(resetKey);
-  const valueRef = useRef(value);
-  valueRef.current = value;
-  const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
 
-  // Ref mutation during render — the documented React pattern for
-  // "adjusting state (here: a ref baseline) when a prop changes" without an
-  // extra effect round-trip. `resetKeyChanged` is only used to gate effect
-  // scheduling below, never to compute this render's own output.
-  const resetKeyChanged = lastResetKeyRef.current !== resetKey;
+  // React's own sanctioned "adjust state while rendering" pattern (state,
+  // not a ref — react-doctor/no-ref-current-in-render correctly flagged the
+  // previous ref-mutating version of this same bookkeeping): comparing
+  // against a previous-render value and conditionally calling a setter
+  // during render is safe because React immediately re-renders with the
+  // new state before anything commits, so an interrupted/replayed render
+  // never leaves stale bookkeeping behind the way a ref write would.
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  const [savedSnapshot, setSavedSnapshot] = useState(snapshot);
+  const resetKeyChanged = resetKey !== prevResetKey;
   if (resetKeyChanged) {
-    lastResetKeyRef.current = resetKey;
-    savedSnapshotRef.current = snapshot;
+    setPrevResetKey(resetKey);
+    setSavedSnapshot(snapshot);
   }
+
+  // The latest value/onSave, reachable from the debounce timeout's callback
+  // below without re-scheduling the timer on every keystroke. Written from
+  // an effect (after commit), never during render — the timeout only ever
+  // fires well after commit, so effect-timing latency here doesn't matter.
+  const valueRef = useRef(value);
+  const onSaveRef = useRef(onSave);
+  useEffect(() => {
+    valueRef.current = value;
+    onSaveRef.current = onSave;
+  });
 
   useEffect(() => {
     if (!enabled || resetKeyChanged) return;
-    if (snapshot === savedSnapshotRef.current) return;
+    if (snapshot === savedSnapshot) return;
 
     setStatus('saving');
     const timer = setTimeout(() => {
       onSaveRef
         .current(valueRef.current)
         .then(() => {
-          savedSnapshotRef.current = snapshot;
+          setSavedSnapshot(snapshot);
           setStatus('saved');
           setLastSavedAt(new Date());
         })
@@ -73,7 +83,7 @@ export function useAutosave<T>(
     }, delayMs);
 
     return () => clearTimeout(timer);
-  }, [snapshot, enabled, delayMs, resetKeyChanged]);
+  }, [snapshot, enabled, delayMs, resetKeyChanged, savedSnapshot]);
 
   return { status, lastSavedAt };
 }
