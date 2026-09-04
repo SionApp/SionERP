@@ -35,8 +35,8 @@ describe('QuizOption — client-side half of the answer-leak boundary (G.2)', ()
     // below existing AND being load-bearing (removing it makes `tsc` fail
     // with "Unused '@ts-expect-error' directive") IS the assertion — same
     // class of guarantee as the Go leak boundary, one layer up the stack.
-    // @ts-expect-error — no correctness prop exists on QuizOptionProps
     const elementWithLeak = (
+      // @ts-expect-error — no correctness prop exists on QuizOptionProps
       <QuizOption option={option()} index={0} selected={false} onSelect={() => {}} isCorrect />
     );
     expect(elementWithLeak).toBeTruthy();
