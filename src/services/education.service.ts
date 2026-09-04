@@ -39,6 +39,10 @@ import type {
   QuizResultVerdict,
   QuizPendingReviewItem,
   QuizReviewQueueItem,
+  QuizAuthorView,
+  QuizAuthorQuestion,
+  QuizAuthorOption,
+  UpsertQuizRequest,
 } from '@/types/education.types';
 
 const ATTACHMENT_BUCKET = 'church-documents';
@@ -964,5 +968,122 @@ export class EducationService {
       lessonTitle: r.lesson_title,
       submittedAt: r.submitted_at,
     }));
+  }
+
+  // ── Quiz — admin authoring (PR-J, education-quiz-authoring) ──
+  // Wire shapes mirror `models.QuizAuthorView`/`QuizAuthorQuestion`/
+  // `QuizAuthorOption` (education_quiz.go) field-for-field — see that Go
+  // file's header for why this is the ONLY family that ever carries
+  // `is_correct`/`feedback_ok`/`feedback_bad`. Never imported by any
+  // `student/*` file.
+
+  private static mapQuizAuthorOption(o: {
+    id: string;
+    order_index: number;
+    text: string;
+    is_correct: boolean;
+  }): QuizAuthorOption {
+    return { id: o.id, orderIndex: o.order_index, text: o.text, isCorrect: o.is_correct };
+  }
+
+  private static mapQuizAuthorQuestion(q: {
+    id: string;
+    order_index: number;
+    type: QuizAuthorQuestion['type'];
+    prompt: string;
+    points: number;
+    feedback_ok: string | null;
+    feedback_bad: string | null;
+    answer_count: number;
+    options: Parameters<typeof EducationService.mapQuizAuthorOption>[0][];
+  }): QuizAuthorQuestion {
+    return {
+      id: q.id,
+      orderIndex: q.order_index,
+      type: q.type,
+      prompt: q.prompt,
+      points: q.points,
+      feedbackOk: q.feedback_ok,
+      feedbackBad: q.feedback_bad,
+      answerCount: q.answer_count,
+      options: (q.options ?? []).map(EducationService.mapQuizAuthorOption),
+    };
+  }
+
+  private static mapQuizAuthorView(raw: {
+    id: string;
+    lesson_id: string;
+    pass_score: number;
+    time_limit_minutes: number | null;
+    shuffle_options: boolean;
+    allow_retry: boolean;
+    show_result: boolean;
+    questions: Parameters<typeof EducationService.mapQuizAuthorQuestion>[0][];
+  }): QuizAuthorView {
+    return {
+      id: raw.id,
+      lessonId: raw.lesson_id,
+      passScore: raw.pass_score,
+      timeLimitMinutes: raw.time_limit_minutes,
+      shuffleOptions: raw.shuffle_options,
+      allowRetry: raw.allow_retry,
+      showResult: raw.show_result,
+      questions: (raw.questions ?? []).map(EducationService.mapQuizAuthorQuestion),
+    };
+  }
+
+  /**
+   * The full answer-key-carrying quiz tree for one lesson (level >= 3).
+   * `null` (not a thrown error) when the lesson has no quiz yet — the
+   * backend's 404 ("Esta lección todavía no tiene quiz") is the expected
+   * "not authored yet" state, not a failure, same convention as
+   * `getReflection`'s 404-as-null handling above.
+   */
+  static async getQuizAuthor(lessonId: string): Promise<QuizAuthorView | null> {
+    try {
+      const raw = await ApiService.get(`${this.base}/lessons/${lessonId}/quiz`);
+      return EducationService.mapQuizAuthorView(
+        raw as Parameters<typeof EducationService.mapQuizAuthorView>[0]
+      );
+    } catch (err) {
+      if ((err as { status?: number }).status === 404) return null;
+      throw err;
+    }
+  }
+
+  /**
+   * Saves the FULL quiz tree in one request (`UpsertQuiz` — no separate
+   * per-question/per-option route). A question absent from `payload.
+   * questions` is deleted server-side; `payload.force` must be `true` when
+   * deleting a question that already has student answers, or the backend
+   * refuses with 409 naming the real answer count.
+   */
+  static async upsertQuiz(lessonId: string, payload: UpsertQuizRequest): Promise<QuizAuthorView> {
+    const raw = await ApiService.put(`${this.base}/lessons/${lessonId}/quiz`, {
+      pass_score: payload.passScore,
+      time_limit_minutes: payload.timeLimitMinutes,
+      shuffle_options: payload.shuffleOptions,
+      allow_retry: payload.allowRetry,
+      show_result: payload.showResult,
+      force: payload.force ?? false,
+      questions: payload.questions.map(q => ({
+        id: q.id,
+        order_index: q.orderIndex,
+        type: q.type,
+        prompt: q.prompt,
+        points: q.points,
+        feedback_ok: q.feedbackOk,
+        feedback_bad: q.feedbackBad,
+        options: q.options.map(o => ({
+          id: o.id,
+          order_index: o.orderIndex,
+          text: o.text,
+          is_correct: o.isCorrect,
+        })),
+      })),
+    });
+    return EducationService.mapQuizAuthorView(
+      raw as Parameters<typeof EducationService.mapQuizAuthorView>[0]
+    );
   }
 }
