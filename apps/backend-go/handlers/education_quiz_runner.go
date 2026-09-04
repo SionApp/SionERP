@@ -883,3 +883,84 @@ func (h *EducationHandler) respondAttemptResult(c echo.Context, q config.Querier
 
 	return c.JSON(http.StatusOK, view)
 }
+
+// QuizPendingReviewItem is one of the CALLER's OWN submitted attempts still
+// awaiting manual grading (education_quiz_attempts.review_pending = true).
+// PR-G addition: StudentHome's PendingQuizAlert needs a way to know "do I
+// have a quiz awaiting review, and does it have a deadline" without any new
+// answer-key surface — this struct carries none of the answer-leak-boundary
+// fields (no is_correct, no feedback, no correctness of any kind), only the
+// SAME review_pending boolean QuizResultView already exposes per-attempt,
+// aggregated into a small list. Self-only (WHERE user_id = caller), church-
+// scoped, level >= 1 — same access shape as every other handler in this file.
+//
+// PR-G's own launch prompt frames the whole slice as "frontend-only — no
+// backend/schema changes", but ALSO explicitly anticipates and permits this
+// exact gap in G.4's own text ("if nothing exists, the smallest addition is
+// a new lightweight backend read endpoint"). Confirmed nothing existing
+// covers this (GetReviewQueue is level >= 3, church-wide, not self-scoped;
+// GetHome/GetMyAssignments carry no quiz-level signal at all) before adding
+// this ~65-line, read-only, no-migration, no-schema-change handler+route —
+// documented here and in the apply-progress writeup as the one deliberate
+// exception to the "frontend-only" framing.
+type QuizPendingReviewItem struct {
+	AttemptID      string  `json:"attempt_id"`
+	LessonID       string  `json:"lesson_id"`
+	LessonTitle    string  `json:"lesson_title"`
+	CurriculumID   string  `json:"curriculum_id"`
+	CurriculumName string  `json:"curriculum_name"`
+	DueDate        *string `json:"due_date"`
+	SubmittedAt    string  `json:"submitted_at"`
+}
+
+// GetMyPendingReviews lists the caller's own submitted-but-not-yet-graded
+// short-answer attempts (PR-G, education-manual-review's student-facing
+// counterpart to GetReviewQueue). Deliberately NOT the same endpoint as
+// GetReviewQueue (level >= 3, every student's pending items, church-wide) —
+// this is level >= 1, self-only, and returns at most the caller's own rows.
+func (h *EducationHandler) GetMyPendingReviews(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	info, err := getEducationAccessInfo(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+
+	rows, err := q.Query(`
+		SELECT at.id, eq.lesson_id::text, el.title, el.curriculum_id::text, ec.name,
+		       to_char(ea.due_date, 'YYYY-MM-DD'),
+		       to_char(at.submitted_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+		FROM education_quiz_attempts at
+		JOIN education_quizzes eq ON eq.id = at.quiz_id AND eq.church_id = at.church_id
+		JOIN education_lessons el ON el.id = eq.lesson_id AND el.church_id = at.church_id
+		JOIN education_curricula ec ON ec.id = el.curriculum_id AND ec.church_id = at.church_id
+		LEFT JOIN education_assignments ea ON ea.id = at.assignment_id AND ea.church_id = at.church_id
+		WHERE at.church_id = $1 AND at.user_id = $2 AND at.review_pending = true
+		ORDER BY at.submitted_at ASC
+	`, churchID, info.userID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener quizzes en revisión"})
+	}
+	defer rows.Close()
+
+	items := []QuizPendingReviewItem{}
+	for rows.Next() {
+		var item QuizPendingReviewItem
+		var dueDate sql.NullString
+		if err := rows.Scan(&item.AttemptID, &item.LessonID, &item.LessonTitle, &item.CurriculumID,
+			&item.CurriculumName, &dueDate, &item.SubmittedAt); err != nil {
+			continue
+		}
+		if dueDate.Valid {
+			item.DueDate = &dueDate.String
+		}
+		items = append(items, item)
+	}
+	return c.JSON(http.StatusOK, items)
+}

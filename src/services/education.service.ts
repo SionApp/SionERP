@@ -22,6 +22,15 @@ import type {
   EducationStep,
   EducationLessonDetail,
   EducationLessonProgress,
+  EducationSyllabusLessonState,
+  QuizRunnerView,
+  QuizRunnerQuestion,
+  QuizRunnerOption,
+  SaveQuizAnswerRequest,
+  QuizResultView,
+  QuizResultQuestion,
+  QuizResultVerdict,
+  QuizPendingReviewItem,
 } from '@/types/education.types';
 
 const ATTACHMENT_BUCKET = 'church-documents';
@@ -339,7 +348,8 @@ export class EducationService {
           order_index: number;
           title: string;
           duration_minutes: number | null;
-          state: 'completed' | 'in_progress' | 'pending';
+          state: EducationSyllabusLessonState;
+          has_quiz: boolean;
         }[];
       }[]
     >(`${this.base}/curricula/${curriculumId}/syllabus`);
@@ -353,6 +363,7 @@ export class EducationService {
         title: l.title,
         durationMinutes: l.duration_minutes,
         state: l.state,
+        hasQuiz: l.has_quiz,
       })),
     }));
   }
@@ -544,5 +555,205 @@ export class EducationService {
       throw new Error('Error al generar el enlace del recurso');
     }
     return data.signedUrl;
+  }
+
+  // ── Quiz — runtime del alumno (PR-G) ──
+  // Wire shapes mirror models.QuizRunnerView / models.QuizResultView
+  // (education_quiz_runner.go / education_quiz.go) field-for-field — see
+  // that Go file's own header comment on why the runner shape structurally
+  // cannot carry a correctness flag. mapQuizRunnerView/mapQuizResultView
+  // below are the ONLY place snake_case → camelCase happens for these
+  // types; no other file in this module unmarshals raw quiz JSON.
+
+  private static mapQuizRunnerOption(o: { id: string; text: string }): QuizRunnerOption {
+    return { id: o.id, text: o.text };
+  }
+
+  private static mapQuizRunnerQuestion(q: {
+    id: string;
+    position: number;
+    type: QuizRunnerQuestion['type'];
+    prompt: string;
+    points: number;
+    selected_option_id: string | null;
+    text_answer: string | null;
+    options: { id: string; text: string }[];
+  }): QuizRunnerQuestion {
+    return {
+      id: q.id,
+      position: q.position,
+      type: q.type,
+      prompt: q.prompt,
+      points: q.points,
+      selectedOptionId: q.selected_option_id,
+      textAnswer: q.text_answer,
+      options: (q.options ?? []).map(EducationService.mapQuizRunnerOption),
+    };
+  }
+
+  private static mapQuizRunnerView(raw: {
+    id: string;
+    lesson_id: string;
+    attempt_id: string;
+    attempt_number: number;
+    attempts_left: number;
+    time_limit_minutes: number | null;
+    expires_at: string | null;
+    show_result: boolean;
+    max_score: number;
+    questions: Parameters<typeof EducationService.mapQuizRunnerQuestion>[0][];
+  }): QuizRunnerView {
+    return {
+      id: raw.id,
+      lessonId: raw.lesson_id,
+      attemptId: raw.attempt_id,
+      attemptNumber: raw.attempt_number,
+      attemptsLeft: raw.attempts_left,
+      timeLimitMinutes: raw.time_limit_minutes,
+      expiresAt: raw.expires_at,
+      showResult: raw.show_result,
+      maxScore: raw.max_score,
+      questions: (raw.questions ?? []).map(EducationService.mapQuizRunnerQuestion),
+    };
+  }
+
+  private static mapQuizResultView(raw: {
+    attempt_id: string;
+    attempt_number: number;
+    auto_score: number;
+    max_score: number;
+    pass_score: number;
+    passed: boolean | null;
+    review_pending: boolean;
+    can_retry: boolean;
+    next_lesson_id: string | null;
+    questions:
+      | {
+          id: string;
+          prompt: string;
+          verdict: QuizResultVerdict;
+          your_option_text: string | null;
+          your_text_answer: string | null;
+          correct_text: string | null;
+          feedback: string | null;
+        }[]
+      | null;
+  }): QuizResultView {
+    return {
+      attemptId: raw.attempt_id,
+      attemptNumber: raw.attempt_number,
+      autoScore: raw.auto_score,
+      maxScore: raw.max_score,
+      passScore: raw.pass_score,
+      passed: raw.passed,
+      reviewPending: raw.review_pending,
+      canRetry: raw.can_retry,
+      nextLessonId: raw.next_lesson_id,
+      questions: raw.questions
+        ? raw.questions.map(
+            (q): QuizResultQuestion => ({
+              id: q.id,
+              prompt: q.prompt,
+              verdict: q.verdict,
+              yourOptionText: q.your_option_text,
+              yourTextAnswer: q.your_text_answer,
+              correctText: q.correct_text,
+              feedback: q.feedback,
+            })
+          )
+        : null,
+    };
+  }
+
+  /**
+   * Pre-submit quiz view for the caller's own current OPEN attempt, if any
+   * (no side effect — does not create an attempt). `attemptId` comes back
+   * empty when the caller hasn't started yet; `QuizRunner` calls
+   * `startQuizAttempt` in that case, which is idempotent.
+   */
+  static async getQuizRunner(lessonId: string): Promise<QuizRunnerView> {
+    const raw = await ApiService.get(`${this.base}/me/lessons/${lessonId}/quiz`);
+    return EducationService.mapQuizRunnerView(
+      raw as Parameters<typeof EducationService.mapQuizRunnerView>[0]
+    );
+  }
+
+  /**
+   * Creates a new attempt OR returns the caller's existing OPEN one
+   * (backend-idempotent, PR-F's StartAttempt — safe to call again to
+   * resume, e.g. after a refresh). Always returns the full runner view.
+   */
+  static async startQuizAttempt(lessonId: string): Promise<QuizRunnerView> {
+    const raw = await ApiService.post(`${this.base}/me/lessons/${lessonId}/quiz/attempts`);
+    return EducationService.mapQuizRunnerView(
+      raw as Parameters<typeof EducationService.mapQuizRunnerView>[0]
+    );
+  }
+
+  /**
+   * Upserts a DRAFT answer pre-submission. Exactly one of
+   * `selectedOptionId`/`textAnswer` must be set (backend rejects both-or-
+   * neither) — `QuizRunner` never sends both.
+   */
+  static async saveQuizAnswer(
+    lessonId: string,
+    attemptId: string,
+    payload: SaveQuizAnswerRequest
+  ): Promise<void> {
+    await ApiService.put<
+      { message: string },
+      { question_id: string; selected_option_id?: string; text_answer?: string }
+    >(`${this.base}/me/lessons/${lessonId}/quiz/attempts/${attemptId}/answers`, {
+      question_id: payload.questionId,
+      selected_option_id: payload.selectedOptionId,
+      text_answer: payload.textAnswer,
+    });
+  }
+
+  /** Grades server-side and returns the QuizResultView — the only path that computes `passed`. */
+  static async submitQuizAttempt(lessonId: string, attemptId: string): Promise<QuizResultView> {
+    const raw = await ApiService.post(
+      `${this.base}/me/lessons/${lessonId}/quiz/attempts/${attemptId}/submit`
+    );
+    return EducationService.mapQuizResultView(
+      raw as Parameters<typeof EducationService.mapQuizResultView>[0]
+    );
+  }
+
+  /** Re-fetches a submitted attempt's result (resume/refresh on the result screen). */
+  static async getQuizAttemptResult(attemptId: string): Promise<QuizResultView> {
+    const raw = await ApiService.get(`${this.base}/me/quiz-attempts/${attemptId}`);
+    return EducationService.mapQuizResultView(
+      raw as Parameters<typeof EducationService.mapQuizResultView>[0]
+    );
+  }
+
+  /**
+   * The caller's OWN submitted-but-ungraded `short`-answer attempts — powers
+   * `PendingQuizAlert`. Self-only, church-scoped (PR-G addition to the quiz
+   * backend, see `handlers/education_quiz_runner.go`'s
+   * `GetMyPendingReviews`).
+   */
+  static async getMyPendingReviews(): Promise<QuizPendingReviewItem[]> {
+    const raw = await ApiService.get<
+      {
+        attempt_id: string;
+        lesson_id: string;
+        lesson_title: string;
+        curriculum_id: string;
+        curriculum_name: string;
+        due_date: string | null;
+        submitted_at: string;
+      }[]
+    >(`${this.base}/me/quiz-attempts/pending-review`);
+    return raw.map(r => ({
+      attemptId: r.attempt_id,
+      lessonId: r.lesson_id,
+      lessonTitle: r.lesson_title,
+      curriculumId: r.curriculum_id,
+      curriculumName: r.curriculum_name,
+      dueDate: r.due_date,
+      submittedAt: r.submitted_at,
+    }));
   }
 }

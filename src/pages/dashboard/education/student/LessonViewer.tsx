@@ -47,15 +47,13 @@ export default function LessonViewer() {
   );
 
   const flatLessons = useMemo(() => syllabus.flatMap(m => m.lessons), [syllabus]);
-  // No per-lesson quiz signal exists yet — `education_quizzes` doesn't ship
-  // until PR-F, and `EducationSyllabusLesson` carries no `hasQuiz` field
-  // (only the catalog-level `EducationCatalogCourse.hasQuiz`, itself stubbed
-  // `false` server-side). Per the established PR-D convention ("no real
-  // quiz data exists yet ... don't fake it"), the last-step primary action
-  // always advances to the next lesson in THIS PR; `LessonNavFooter`
-  // already accepts `hasQuiz` so PR-F/G only needs to wire a real value in.
-  const hasQuiz = false;
   const lessonIndexInCourse = flatLessons.findIndex(l => l.id === lessonId);
+  // PR-G: `EducationSyllabusLesson.hasQuiz` is now a real field (PR-F wired
+  // `has_quiz` into `GetSyllabus`) — the syllabus entry for THIS lesson is
+  // already in `flatLessons` (fetched via `useCourseDetail` above), so no
+  // extra request is needed to know whether the last step should route to
+  // the quiz.
+  const hasQuiz = flatLessons[lessonIndexInCourse]?.hasQuiz ?? false;
   const nextLessonId =
     lessonIndexInCourse >= 0 ? (flatLessons[lessonIndexInCourse + 1]?.id ?? null) : null;
   const moduleNumber = useMemo(() => {
@@ -154,8 +152,21 @@ export default function LessonViewer() {
       goToStep(steps[currentStepIndex + 1].id);
       return;
     }
+    // PR-G: a quizzed lesson's CONTENT completion (elp.completed_at) and its
+    // quiz PASS are two independent signals — `GetSyllabus`'s unlock query
+    // requires BOTH (the previous lesson completed AND, if it has a quiz,
+    // passed) before unlocking the next one. Nothing in the quiz backend
+    // (StartAttempt/SubmitAttempt/ReviewAnswer) ever writes
+    // education_lesson_progress, so skipping `completeMutation` here would
+    // leave `completed_at` permanently unset for every quizzed lesson —
+    // still mark the lesson's own content complete, THEN navigate to the
+    // quiz (never skip it).
     if (hasQuiz) {
-      navigate(`/dashboard/education/curso/${curriculumId}/leccion/${lessonId}/quiz`);
+      completeMutation.mutate(undefined, {
+        onSuccess: () => {
+          navigate(`/dashboard/education/curso/${curriculumId}/leccion/${lessonId}/quiz`);
+        },
+      });
       return;
     }
     completeMutation.mutate(undefined, {

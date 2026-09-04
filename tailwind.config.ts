@@ -115,6 +115,8 @@ export default {
         "edu-callout-text": "hsl(var(--edu-callout-text))",
         "edu-image-frame": "hsl(var(--edu-image-frame))",
         "edu-image-frame-border": "hsl(var(--edu-image-frame-border))",
+        // PR-G — PendingQuizAlert's detail line.
+        "edu-alert-detail": "hsl(var(--edu-alert-detail))",
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -4,15 +4,17 @@ import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEducationHome } from '../hooks/use-education-queries';
+import { useEducationHome, useMyPendingReviews } from '../hooks/use-education-queries';
 import { ContinueCard } from './ContinueCard';
 import { MyCoursesList } from './MyCoursesList';
 import { ProgressDonut } from './ProgressDonut';
+import { PendingQuizAlert } from './PendingQuizAlert';
 
 export default function StudentHome() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { data: home, isLoading, isError, refetch } = useEducationHome();
+  const { data: pendingReviews } = useMyPendingReviews();
 
   const continuing = useMemo(
     () =>
@@ -141,11 +143,8 @@ export default function StudentHome() {
         </div>
 
         {/* No "Próxima clase presencial" card (no data source, ruled out of
-            scope — spec: education-copy-and-omissions). No pending-quiz
-            alert either: no real quiz data exists yet (PR-F ships the quiz
-            backend), and this session's launch prompt explicitly says to
-            omit it rather than fake it — a PR-G follow-up once attempts
-            exist. */}
+            scope — spec: education-copy-and-omissions). */}
+        {pendingReviews && pendingReviews.length > 0 && <PendingQuizAlert items={pendingReviews} />}
       </div>
     </div>
   );
