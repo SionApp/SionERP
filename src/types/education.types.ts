@@ -563,3 +563,65 @@ export interface UpsertQuizRequest {
   force?: boolean;
   questions: UpsertQuizQuestionRequest[];
 }
+
+// ── Analytics + review queue (PR-K, education-manual-review /
+// education-assignments DELTA) ──
+//
+// `RosterStudentStatus` reuses `EducationAssignmentStatus` verbatim — the
+// roster's 6-value status is the SAME union `AssignmentList.tsx` already
+// carries (in_review/inactive included), now actually populated by a real
+// endpoint instead of only existing for forward-compat. `StudentProgress.tsx`
+// imports `AssignmentList`'s `STATUS_LABEL`/`STATUS_PILL` maps rather than
+// redefining them.
+
+/** Mirrors `models.RosterStudent` (education_analytics.go). */
+export interface RosterStudent {
+  assignmentId: string;
+  userId: string;
+  name: string;
+  email: string;
+  status: EducationAssignmentStatus;
+  completedLessons: number;
+  totalLessons: number;
+  progressPct: number;
+  dueDate: string | null;
+  lastQuizScore: number | null;
+  lastQuizMax: number | null;
+  lastQuizVerdict: 'passed' | 'failed' | 'in_review' | null;
+}
+
+/** Mirrors `models.RosterKPIs` — the 4 KPI cards atop `StudentProgress.tsx`. */
+export interface RosterKPIs {
+  activeStudents: number;
+  avgProgressPct: number;
+  quizPassRate: number;
+  inactiveCount: number;
+}
+
+/** Mirrors `models.StudentRosterResponse` (`GET /education/curricula/:id/roster`). */
+export interface StudentRoster {
+  curriculumId: string;
+  curriculumName: string;
+  kpis: RosterKPIs;
+  students: RosterStudent[];
+}
+
+/** Mirrors `models.LessonFunnelPoint` (`GET /education/curricula/:id/funnel`). */
+export interface LessonFunnelPoint {
+  lessonId: string;
+  title: string;
+  orderIndex: number;
+  reached: number;
+  completed: number;
+}
+
+/**
+ * Grade payload for `PUT /education/reviews/answers/:answerId` — the
+ * ALREADY-LIVE PR-F `ReviewAnswer` endpoint. `ReviewQueue.tsx` (PR-K) is the
+ * first frontend caller; the backend has accepted this shape since PR-F.
+ */
+export interface ReviewAnswerRequest {
+  isCorrect: boolean;
+  awardedPoints: number;
+  reviewNote?: string;
+}

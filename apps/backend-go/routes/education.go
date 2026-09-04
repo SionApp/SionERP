@@ -126,4 +126,15 @@ func SetupEducationRoutes(protected *echo.Group) {
 
 	education.GET("/reviews", h.GetReviewQueue, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
 	education.PUT("/reviews/answers/:answerId", h.ReviewAnswer, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+
+	// Analytics — student roster + per-lesson funnel + CSV export (PR-K,
+	// education-manual-review / education-assignments DELTA). Level >= 3,
+	// same sibling shape as the existing /curricula/:id/progress endpoint
+	// (PR3a) — NOT under an "admin/" path prefix, matching this route
+	// group's established convention (gate is RequireModuleLevel, not the
+	// URL). The review queue/grading routes above (PR-F) are reused
+	// as-is by K.4's frontend — no new review-specific route here.
+	education.GET("/curricula/:id/roster", h.GetStudentRoster, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.GET("/curricula/:id/funnel", h.GetLessonFunnel, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.GET("/curricula/:id/roster.csv", h.ExportRosterCSV, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
 }
