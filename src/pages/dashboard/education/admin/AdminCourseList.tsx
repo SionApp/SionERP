@@ -77,7 +77,7 @@ function StatusPill({ status }: { status: EducationCurriculumStatus }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold',
+        'inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-medium leading-none',
         STATUS_PILL[status]
       )}
     >
@@ -101,7 +101,11 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, foot, icon: Icon, containerClass, onClass }: KpiCardProps) {
   return (
-    <div className="rounded-md3-lg bg-edu-surface p-5">
+    // Design (README §7): "mismo patrón exacto que los KPIs del dashboard
+    // principal" — the app's own generic `--surface` token, deliberately NOT
+    // the green education tint (this card family matches the main app's
+    // dashboard, not the student-facing green sub-brand).
+    <div className="rounded-md3-lg bg-surface p-5">
       <div className="flex items-start justify-between">
         <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
         <div
