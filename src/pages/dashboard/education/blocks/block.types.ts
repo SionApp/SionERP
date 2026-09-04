@@ -258,6 +258,46 @@ export function narrowEducationBlock(block: {
   }
 }
 
+const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{6,32}$/;
+
+/**
+ * Mirrors `education_blocks_validate.go`'s per-type REQUIRED-field checks
+ * (not just the shape — the actual non-empty/format rules: `image.path`,
+ * `video.videoId`'s regex, `pdf.path`/`name`, `heading.text`,
+ * `question.prompt`). Used by PR-I's `LessonEditor` to hold a freshly
+ * inserted-but-not-yet-filled-in block (e.g. an image block before a file
+ * is chosen) in LOCAL state only, without sending it to `UpdateStep` and
+ * tripping the server's atomic "the whole write is rejected" validation for
+ * every OTHER already-valid block in the same step. `divider`/`list`
+ * (non-empty items already required, checked below) and a `paragraph`/
+ * `quote`/`callout` with an intentionally empty doc are all valid as-is —
+ * the server itself allows "an empty paragraph is valid, e.g. a blank
+ * line", so those never block autosave.
+ */
+export function isBlockDataComplete(block: AnyEducationBlock): boolean {
+  switch (block.type) {
+    case 'heading':
+      return block.data.text.trim().length > 0;
+    case 'image':
+      return block.data.path.trim().length > 0;
+    case 'video':
+      return VIDEO_ID_PATTERN.test(block.data.videoId);
+    case 'pdf':
+      return block.data.path.trim().length > 0 && block.data.name.trim().length > 0;
+    case 'question':
+      return block.data.prompt.trim().length > 0;
+    case 'list':
+      return block.data.items.length > 0 && block.data.items.every(i => i.trim().length > 0);
+    case 'paragraph':
+    case 'quote':
+    case 'callout':
+    case 'divider':
+      return true;
+    default:
+      return false;
+  }
+}
+
 function isPMDoc(v: unknown): v is PMDoc {
   if (!v || typeof v !== 'object') return false;
   const doc = v as { type?: unknown; content?: unknown };

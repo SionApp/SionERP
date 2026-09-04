@@ -27,6 +27,9 @@ import type {
   EducationLessonDetail,
   EducationLessonProgress,
   EducationSyllabusLessonState,
+  CreateStepRequest,
+  UpdateStepRequest,
+  StepOrderEntry,
   QuizRunnerView,
   QuizRunnerQuestion,
   QuizRunnerOption,
@@ -607,6 +610,51 @@ export class EducationService {
     );
   }
 
+  // ── Editor de bloques — CRUD de pasos (PR-I, tasks-v2-part2, author
+  // level >= 3). Wire request shapes mirror `CreateStep`/`UpdateStep`/
+  // `ReorderSteps` (handlers/education_steps.go) field-for-field — never
+  // guessed. Every write funnels through the server's `ValidateLessonBlocks`
+  // (the ONLY write path into `education_lesson_steps.blocks`); a malformed
+  // block shape comes back as a 400, surfaced by the caller (LessonEditor's
+  // autosave hook) rather than silently swallowed here. ──
+
+  static async createStep(lessonId: string, req: CreateStepRequest): Promise<{ id: string }> {
+    return ApiService.post<
+      { id: string; message: string },
+      { label: string; blocks?: EducationBlock[]; order_index?: number }
+    >(`${this.base}/lessons/${lessonId}/steps`, {
+      label: req.label,
+      blocks: req.blocks,
+      order_index: req.orderIndex,
+    });
+  }
+
+  static async updateStep(lessonId: string, stepId: string, req: UpdateStepRequest): Promise<void> {
+    await ApiService.put<{ message: string }, { label?: string; blocks?: EducationBlock[] }>(
+      `${this.base}/lessons/${lessonId}/steps/${stepId}`,
+      {
+        label: req.label,
+        blocks: req.blocks,
+      }
+    );
+  }
+
+  static async deleteStep(lessonId: string, stepId: string): Promise<void> {
+    await ApiService.delete<{ message: string }>(
+      `${this.base}/lessons/${lessonId}/steps/${stepId}`
+    );
+  }
+
+  /** Sends the FULL ordered set of the lesson's steps — same "bulk operation,
+   * never a partial PATCH" convention `ModuleLessonTree`'s lesson reorder
+   * already established (`SetLessonOrder`). */
+  static async reorderSteps(lessonId: string, entries: StepOrderEntry[]): Promise<void> {
+    await ApiService.put<{ message: string }, { steps: { id: string; order_index: number }[] }>(
+      `${this.base}/lessons/${lessonId}/steps/reorder`,
+      { steps: entries.map(e => ({ id: e.id, order_index: e.orderIndex })) }
+    );
+  }
+
   // ── Adjuntos de lección (bucket privado church-documents) ──
   // Convención de ruta: education/{curriculum_id}/{archivo} — igual a la
   // política de storage de la migración 20260901000001. Nunca getPublicUrl
@@ -632,6 +680,28 @@ export class EducationService {
       throw new Error('Error al generar el enlace del recurso');
     }
     return data.signedUrl;
+  }
+
+  /**
+   * Uploads an `image`/`pdf` block's asset from the block editor (PR-I,
+   * `BlockCardBody`'s media upload zone) to the SAME private bucket +
+   * `education/{curriculum_id}/...` path convention `getEducationAssetSignedUrl`
+   * above already reads from — never the public `church-assets` bucket
+   * `uploadCourseCover` uses (design threat matrix: "Private lesson media
+   * leaking publicly"). Returns only the storage PATH; the caller stores
+   * that path on the block's `data.path` and reads it back through the
+   * signed-URL helper, exactly like `CoverUpload`'s path/File separation.
+   */
+  static async uploadLessonAsset(curriculumId: string, file: File): Promise<{ path: string }> {
+    const ext = file.name.split('.').pop();
+    const path = `education/${curriculumId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage
+      .from(ATTACHMENT_BUCKET)
+      .upload(path, file, { cacheControl: '3600', upsert: false });
+    if (error) {
+      throw new Error('Error al subir el archivo');
+    }
+    return { path };
   }
 
   // ── Portada de curso (PR-H, bucket público church-assets) ──
