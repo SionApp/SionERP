@@ -4,7 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEducationHome, useMyPendingReviews } from '../hooks/use-education-queries';
+import {
+  useEducationHome,
+  useMyBookmarks,
+  useMyPendingReviews,
+} from '../hooks/use-education-queries';
+import { BookmarksCard } from './BookmarksCard';
 import { ContinueCard } from './ContinueCard';
 import { MyCoursesList } from './MyCoursesList';
 import { ProgressDonut } from './ProgressDonut';
@@ -15,6 +20,7 @@ export default function StudentHome() {
   const { currentUser } = useAuth();
   const { data: home, isLoading, isError, refetch } = useEducationHome();
   const { data: pendingReviews } = useMyPendingReviews();
+  const { data: bookmarks } = useMyBookmarks();
 
   const continuing = useMemo(
     () =>
@@ -145,6 +151,7 @@ export default function StudentHome() {
         {/* No "Próxima clase presencial" card (no data source, ruled out of
             scope — spec: education-copy-and-omissions). */}
         {pendingReviews && pendingReviews.length > 0 && <PendingQuizAlert items={pendingReviews} />}
+        {bookmarks && bookmarks.length > 0 && <BookmarksCard items={bookmarks} />}
       </div>
     </div>
   );

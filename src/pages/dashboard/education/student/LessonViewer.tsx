@@ -2,12 +2,17 @@ import { useLayoutEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Type } from 'lucide-react';
+import { ArrowLeft, Bookmark, BookmarkCheck, Type } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { EducationService } from '@/services/education.service';
-import { useCourseDetail, useEducationHome } from '../hooks/use-education-queries';
+import {
+  useCourseDetail,
+  useEducationHome,
+  useMyBookmarks,
+  useToggleLessonBookmark,
+} from '../hooks/use-education-queries';
 import { useLessonFontSize } from '../hooks/use-lesson-font-size';
 import { BlockRenderer } from '../blocks/BlockRenderer';
 import { StepIndicator } from './StepIndicator';
@@ -87,6 +92,44 @@ export default function LessonViewer() {
     // Only seed from the freshly loaded lesson — not on every searchParams change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson]);
+
+  // Bookmark pill state (design gap closed per explicit user decision — see
+  // the migration's header comment). Derived from the caller's own bookmark
+  // list (same `useMyBookmarks` StudentHome's card reads) rather than a new
+  // field on `getLessonDetail`, keeping this follow-up self-contained.
+  //
+  // `isBookmarked` is local state synced FROM the server value using React's
+  // sanctioned "adjust state during render" comparison (never a ref write
+  // during render) — this lets a click flip the pill instantly (spec:
+  // "Optimistic UI update is fine") while still converging back to the real
+  // server value once the invalidated query refetches.
+  const { data: bookmarks } = useMyBookmarks();
+  const serverBookmarked = useMemo(
+    () => (bookmarks ?? []).some(b => b.lessonId === lessonId),
+    [bookmarks, lessonId]
+  );
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [syncedServerBookmarked, setSyncedServerBookmarked] = useState<boolean | null>(null);
+  if (serverBookmarked !== syncedServerBookmarked) {
+    setSyncedServerBookmarked(serverBookmarked);
+    setIsBookmarked(serverBookmarked);
+  }
+  const toggleBookmark = useToggleLessonBookmark();
+
+  function handleToggleBookmark() {
+    if (!lessonId) return;
+    const wasBookmarked = isBookmarked;
+    setIsBookmarked(!wasBookmarked);
+    toggleBookmark.mutate(
+      { lessonId, bookmarked: wasBookmarked },
+      {
+        onError: () => {
+          setIsBookmarked(wasBookmarked);
+          toast.error('No se pudo actualizar la lección guardada');
+        },
+      }
+    );
+  }
 
   const positionMutation = useMutation({
     mutationFn: (stepId: string) => {
@@ -183,23 +226,38 @@ export default function LessonViewer() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
         <button
           type="button"
           onClick={() => navigate(`/dashboard/education/curso/${curriculumId}`)}
-          className="flex min-h-11 items-center gap-1.5 text-sm font-medium text-edu-primary"
+          className="flex min-h-11 min-w-0 items-center gap-1.5 text-sm font-medium text-edu-primary"
         >
-          <ArrowLeft className="h-[18px] w-[18px]" aria-hidden="true" />
-          {curriculum?.name ?? 'Volver al curso'}
+          <ArrowLeft className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+          <span className="truncate">{curriculum?.name ?? 'Volver al curso'}</span>
         </button>
-        <button
-          type="button"
-          onClick={cycleFontSize}
-          className="flex min-h-11 items-center gap-1.5 rounded-full border border-border px-3.5 text-xs font-medium text-foreground hover:bg-muted"
-        >
-          <Type className="h-4 w-4" aria-hidden="true" />
-          Texto
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={handleToggleBookmark}
+            aria-pressed={isBookmarked}
+            className="flex min-h-11 items-center gap-1.5 rounded-full border border-border px-3.5 text-xs font-medium text-foreground hover:bg-muted"
+          >
+            {isBookmarked ? (
+              <BookmarkCheck className="h-4 w-4 text-edu-primary" aria-hidden="true" />
+            ) : (
+              <Bookmark className="h-4 w-4" aria-hidden="true" />
+            )}
+            {isBookmarked ? 'Guardado' : 'Guardar'}
+          </button>
+          <button
+            type="button"
+            onClick={cycleFontSize}
+            className="flex min-h-11 items-center gap-1.5 rounded-full border border-border px-3.5 text-xs font-medium text-foreground hover:bg-muted"
+          >
+            <Type className="h-4 w-4" aria-hidden="true" />
+            Texto
+          </button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-md3-xl border border-border bg-card">

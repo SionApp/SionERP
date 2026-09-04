@@ -145,3 +145,19 @@ type EducationReflection struct {
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
 }
+
+// EducationLessonBookmark is the wire shape for GET /education/me/bookmarks —
+// one education_lesson_bookmarks row joined with enough lesson/curriculum
+// data for StudentHome's "Lecciones guardadas" card to render without a
+// second round trip (design: personal "save for later" list, unrelated to
+// education_lesson_progress/education_assignments completion tracking).
+// ModuleTitle is nil when the lesson has no course_module assigned.
+type EducationLessonBookmark struct {
+	ID             string  `json:"id"`
+	LessonID       string  `json:"lesson_id"`
+	LessonTitle    string  `json:"lesson_title"`
+	CurriculumID   string  `json:"curriculum_id"`
+	CurriculumName string  `json:"curriculum_name"`
+	ModuleTitle    *string `json:"module_title"`
+	CreatedAt      string  `json:"created_at"`
+}

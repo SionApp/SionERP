@@ -30,6 +30,7 @@ import type {
   CreateStepRequest,
   UpdateStepRequest,
   StepOrderEntry,
+  LessonBookmark,
   QuizRunnerView,
   QuizRunnerQuestion,
   QuizRunnerOption,
@@ -661,6 +662,47 @@ export class EducationService {
       `${this.base}/lessons/${lessonId}/steps/reorder`,
       { steps: entries.map(e => ({ id: e.id, order_index: e.orderIndex })) }
     );
+  }
+
+  // ── Marcadores de lección (bookmarks) — pequeño follow-up que cierra el
+  // gap del design handoff: la pill "Guardar" del visor (README §4) no
+  // tenía especificación de comportamiento más allá del ícono. Servidor,
+  // NO localStorage — visible desde `StudentHome` en cualquier dispositivo.
+  // Independiente de progreso/asignaciones. Ambos writes son idempotentes
+  // (el backend nunca falla al repetir la misma acción). ──
+
+  /** Idempotente — guardar una lección ya guardada simplemente succeeds. */
+  static async bookmarkLesson(lessonId: string): Promise<void> {
+    await ApiService.put<{ message: string }>(`${this.base}/me/lessons/${lessonId}/bookmark`);
+  }
+
+  /** Idempotente — quitar una lección ya no guardada simplemente succeeds. */
+  static async unbookmarkLesson(lessonId: string): Promise<void> {
+    await ApiService.delete<{ message: string }>(`${this.base}/me/lessons/${lessonId}/bookmark`);
+  }
+
+  /** La lista de lecciones guardadas del caller — alimenta `BookmarksCard` en StudentHome. */
+  static async getMyBookmarks(): Promise<LessonBookmark[]> {
+    const raw = await ApiService.get<
+      {
+        id: string;
+        lesson_id: string;
+        lesson_title: string;
+        curriculum_id: string;
+        curriculum_name: string;
+        module_title: string | null;
+        created_at: string;
+      }[]
+    >(`${this.base}/me/bookmarks`);
+    return raw.map(b => ({
+      id: b.id,
+      lessonId: b.lesson_id,
+      lessonTitle: b.lesson_title,
+      curriculumId: b.curriculum_id,
+      curriculumName: b.curriculum_name,
+      moduleTitle: b.module_title,
+      createdAt: b.created_at,
+    }));
   }
 
   // ── Adjuntos de lección (bucket privado church-documents) ──

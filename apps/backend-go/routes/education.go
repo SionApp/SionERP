@@ -100,6 +100,14 @@ func SetupEducationRoutes(protected *echo.Group) {
 	education.PUT("/lessons/:id/reflections/:blockId", h.UpsertReflection, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
 	education.GET("/lessons/:id/reflections/:blockId", h.GetReflection, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
 
+	// Lesson bookmarks — small follow-up closing the design-handoff's
+	// undefined "Guardar" pill (README.md line 247). Self-only, level 1, same
+	// route family as the other "/me/..." self-service endpoints above. Both
+	// writes are idempotent (create/remove twice both succeed cleanly).
+	education.PUT("/me/lessons/:id/bookmark", h.BookmarkLesson, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.DELETE("/me/lessons/:id/bookmark", h.UnbookmarkLesson, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/me/bookmarks", h.GetMyBookmarks, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+
 	// Quiz (PR-F, education-quiz-authoring / education-quiz-runtime /
 	// education-manual-review) — the answer-leak boundary. Author routes
 	// (level >= 3) are gated at BOTH the route level here AND again inside
