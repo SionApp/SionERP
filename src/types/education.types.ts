@@ -483,3 +483,83 @@ export interface QuizReviewQueueItem {
   lessonTitle: string;
   submittedAt: string;
 }
+
+// ── Quiz — admin authoring (PR-J, education-quiz-authoring) ──
+//
+// Mirrors `models.QuizAuthorView`/`QuizAuthorQuestion`/`QuizAuthorOption`
+// (education_quiz.go) field-for-field. Author-only (level >= 3) — the ONLY
+// place a correctness flag or feedback text is ever typed on the frontend.
+// NEVER import these types from `student/*`; the runner side has its own
+// separate, structurally-incapable-of-leaking `QuizRunner*` family above.
+
+export interface QuizAuthorOption {
+  id: string;
+  orderIndex: number;
+  text: string;
+  isCorrect: boolean;
+}
+
+/** `answerCount` powers the guarded-delete confirm (`DeleteQuestion`'s `force` guard). */
+export interface QuizAuthorQuestion {
+  id: string;
+  orderIndex: number;
+  type: QuizQuestionType;
+  prompt: string;
+  points: number;
+  feedbackOk: string | null;
+  feedbackBad: string | null;
+  answerCount: number;
+  options: QuizAuthorOption[];
+}
+
+/** The full quiz tree returned by `GET /education/lessons/:id/quiz`. */
+export interface QuizAuthorView {
+  id: string;
+  lessonId: string;
+  passScore: number;
+  timeLimitMinutes: number | null;
+  shuffleOptions: boolean;
+  allowRetry: boolean;
+  showResult: boolean;
+  questions: QuizAuthorQuestion[];
+}
+
+/**
+ * `UpsertQuiz`'s request DTOs (`PUT /education/lessons/:id/quiz`) — mirror
+ * `quizUpsertRequest`/`quizUpsertQuestion`/`quizUpsertOption`
+ * (handlers/education_quiz_admin.go) field-for-field. `id: ''` means "new",
+ * same create-or-update-in-one-payload convention as `UpdateStep`. The whole
+ * quiz tree is sent on every save — there is no separate per-question or
+ * per-option route; a question absent from `questions[]` is deleted
+ * server-side, refused with a 409 naming the real answer count unless
+ * `force: true`.
+ */
+export interface UpsertQuizOptionRequest {
+  id: string;
+  orderIndex: number;
+  text: string;
+  isCorrect: boolean;
+}
+
+export interface UpsertQuizQuestionRequest {
+  id: string;
+  orderIndex: number;
+  type: QuizQuestionType;
+  prompt: string;
+  points: number;
+  feedbackOk: string | null;
+  feedbackBad: string | null;
+  /** Server rejects any non-empty array on a `short` question — always `[]` for that type. */
+  options: UpsertQuizOptionRequest[];
+}
+
+export interface UpsertQuizRequest {
+  passScore: number;
+  timeLimitMinutes: number | null;
+  shuffleOptions: boolean;
+  allowRetry: boolean;
+  showResult: boolean;
+  /** Set true only when deleting a question that already has `answerCount > 0`. */
+  force?: boolean;
+  questions: UpsertQuizQuestionRequest[];
+}
