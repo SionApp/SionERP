@@ -79,10 +79,12 @@ type EducationCourseModule struct {
 }
 
 // EducationSyllabusLesson is one lesson row inside a course's syllabus read,
-// with a server-computed `state`. Values in THIS PR are `completed` |
-// `in_progress` | `pending` only — the `locked` state (unlock derived from a
-// quiz pass, design A8) is stubbed out until PR-F wires the LEFT JOIN onto
-// quiz attempts; no lesson is ever locked yet.
+// with a server-computed `state`: `completed` | `in_progress` | `locked` |
+// `pending`. `locked` (design A8, wired in PR-F) is derived purely at read
+// time from the previous lesson's completion + quiz-pass status — never a
+// stored flag. HasQuiz (PR-F addition) lets the frontend show "Ir al mini
+// quiz" instead of "Siguiente lección" on the last step without a second
+// request.
 type EducationSyllabusLesson struct {
 	ID              string  `json:"id"`
 	ModuleID        *string `json:"module_id"`
@@ -90,6 +92,7 @@ type EducationSyllabusLesson struct {
 	Title           string  `json:"title"`
 	DurationMinutes *int    `json:"duration_minutes"`
 	State           string  `json:"state"`
+	HasQuiz         bool    `json:"has_quiz"`
 }
 
 // EducationSyllabusModule groups EducationSyllabusLesson rows under a
