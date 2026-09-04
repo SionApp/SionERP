@@ -171,12 +171,13 @@ export interface EducationCatalogCourse {
 }
 
 /**
- * Values are `completed | in_progress | pending` only in this PR — `locked`
- * (derived from a quiz pass, design A8) doesn't exist server-side yet
- * (PR-F). PR-D derives its own CLIENT-side "next available vs. locked"
- * distinction on top of `pending` — see `student/lib/lesson-state.ts`.
+ * PR-G update: `locked` is now a REAL server-derived state (design A8, wired
+ * in PR-F's `GetSyllabus` via the quiz-pass `LAG(...)` window functions) —
+ * no client-side derivation needed anymore. `student/lib/lesson-state.ts`
+ * (PR-D's interim client fallback) is deleted in this PR; every consumer
+ * reads `lesson.state` directly.
  */
-export type EducationSyllabusLessonState = 'completed' | 'in_progress' | 'pending';
+export type EducationSyllabusLessonState = 'completed' | 'in_progress' | 'locked' | 'pending';
 
 export interface EducationSyllabusLesson {
   id: string;
@@ -185,6 +186,8 @@ export interface EducationSyllabusLesson {
   title: string;
   durationMinutes: number | null;
   state: EducationSyllabusLessonState;
+  /** PR-F addition — lets the UI show "Ir al mini quiz" without a 2nd request. */
+  hasQuiz: boolean;
 }
 
 export interface EducationSyllabusModule {
@@ -252,4 +255,119 @@ export interface EducationLessonDetail {
   durationMinutes: number | null;
   steps: EducationStep[];
   progress: EducationLessonProgress | null;
+}
+
+// ── Quiz — runtime del alumno (PR-G, education-quiz-runtime) ──
+//
+// Mirrors `models.QuizRunnerView`/`QuizRunnerQuestion`/`QuizRunnerOption`
+// (models/education_quiz_runner.go) field-for-field. That Go file is
+// structurally incapable of declaring an answer-key field (PR-F's own
+// enforcement test greps its raw source for the forbidden identifiers) —
+// these TS types mirror that same shape 1:1, so this file is equally
+// incapable of typing a correctness flag onto a runner option: there is no
+// `isCorrect`/`correctOptionId` field anywhere below by construction, not by
+// omission. Never add one — see design/education-quiz-runtime's answer-leak
+// boundary.
+
+export type QuizQuestionType = 'multiple' | 'true_false' | 'short';
+
+export interface QuizRunnerOption {
+  id: string;
+  text: string;
+}
+
+export interface QuizRunnerQuestion {
+  id: string;
+  position: number;
+  type: QuizQuestionType;
+  prompt: string;
+  points: number;
+  /** The CALLER's own previously-saved draft — never another student's. */
+  selectedOptionId: string | null;
+  textAnswer: string | null;
+  /** Empty for `type: 'short'`. */
+  options: QuizRunnerOption[];
+}
+
+/** The ONLY shape returned before submit (GetQuizRunner / StartAttempt). */
+export interface QuizRunnerView {
+  id: string;
+  lessonId: string;
+  /** Empty when the caller has no open attempt yet (GetQuizRunner before StartAttempt). */
+  attemptId: string;
+  attemptNumber: number;
+  attemptsLeft: number;
+  timeLimitMinutes: number | null;
+  /**
+   * Real server timestamp (`started_at + time_limit_minutes`) — the timer
+   * pill MUST count down from this, never from a client-computed
+   * `Date.now() + timeLimitMinutes*60` (that would ignore how long the
+   * attempt has already been open, e.g. after a refresh).
+   */
+  expiresAt: string | null;
+  showResult: boolean;
+  maxScore: number;
+  questions: QuizRunnerQuestion[];
+}
+
+export interface SaveQuizAnswerRequest {
+  questionId: string;
+  selectedOptionId?: string;
+  textAnswer?: string;
+}
+
+export type QuizResultVerdict = 'correct' | 'incorrect' | 'in_review';
+
+/**
+ * Mirrors `models.QuizResultQuestion` — a THIRD distinct DTO from both
+ * `QuizRunnerQuestion` (pre-submit, no verdict) and the author-only shape
+ * (never sent to the frontend at all). `correctText` is nil unless
+ * `verdict === 'incorrect'`.
+ */
+export interface QuizResultQuestion {
+  id: string;
+  prompt: string;
+  verdict: QuizResultVerdict;
+  yourOptionText: string | null;
+  yourTextAnswer: string | null;
+  correctText: string | null;
+  feedback: string | null;
+}
+
+/**
+ * Mirrors `models.QuizResultView`, released only after the caller's own
+ * attempt is submitted. `passed` is `null` while `reviewPending` is `true`
+ * (a `short` question is awaiting manual grading — no premature pass/fail
+ * claim, spec: education-manual-review). `questions` is `null` entirely when
+ * the quiz's `show_result=false` — the Go handler nils the slice before
+ * serializing, so this is a real absence on the wire, not a client filter.
+ */
+export interface QuizResultView {
+  attemptId: string;
+  attemptNumber: number;
+  autoScore: number;
+  maxScore: number;
+  passScore: number;
+  passed: boolean | null;
+  reviewPending: boolean;
+  canRetry: boolean;
+  nextLessonId: string | null;
+  questions: QuizResultQuestion[] | null;
+}
+
+/**
+ * Mirrors `handlers.QuizPendingReviewItem` (GET
+ * /education/me/quiz-attempts/pending-review, PR-G addition) — the caller's
+ * own submitted-but-ungraded `short`-answer attempts, powering
+ * `PendingQuizAlert`. `dueDate` is present only when the underlying
+ * assignment has one.
+ */
+export interface QuizPendingReviewItem {
+  attemptId: string;
+  lessonId: string;
+  lessonTitle: string;
+  curriculumId: string;
+  curriculumName: string;
+  dueDate: string | null;
+  submittedAt: string;
 }

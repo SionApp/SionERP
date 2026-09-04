@@ -63,3 +63,16 @@ export function useEnrollSelf() {
     },
   });
 }
+
+/**
+ * The caller's own submitted-but-ungraded `short`-answer attempts (PR-G,
+ * `PendingQuizAlert`'s data source). Same 30s staleTime as `useEducationHome`
+ * — both back the same StudentHome sidebar.
+ */
+export function useMyPendingReviews() {
+  return useQuery({
+    queryKey: ['education-pending-reviews'],
+    queryFn: () => EducationService.getMyPendingReviews(),
+    staleTime: 30_000,
+  });
+}

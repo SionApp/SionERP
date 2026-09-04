@@ -73,6 +73,14 @@
   --edu-image-frame: 210 13% 94%; /* #EDEFF1 */
   --edu-image-frame-border: 204 10% 81%; /* #C9CFD3 */
 
+  /* PR-G addition (README §1, "Aviso de quiz pendiente" — a FOURTH distinct
+   * lightness step of the same orange-brown family as `--edu-callout-title`/
+   * `--edu-callout-text`/`--on-edu-orange-container`, per this file's own
+   * established precedent of keeping each literal mockup shade as its own
+   * token rather than reusing a near-but-not-exact one). Used only by
+   * `PendingQuizAlert`'s detail line. */
+  --edu-alert-detail: 16 64% 33%; /* #8A3A1E */
+
   --edu-hero: linear-gradient(
     120deg,
     hsl(var(--edu-primary-dark)) 0%,
@@ -128,6 +136,9 @@
   --edu-callout-text: 16 82% 91%;
   --edu-image-frame: 210 12% 16%;
   --edu-image-frame-border: 204 10% 28%;
+  /* Same simplification as callout title/text above: reuse the dark
+   * on-container value rather than a 4th hand-derived hue. */
+  --edu-alert-detail: 16 82% 91%;
 
   --primary-foreground: 152 64% 13%; /* tone-20 deep green on tone-80 primary */
 }

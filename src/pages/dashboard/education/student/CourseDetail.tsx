@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { useCourseDetail, useEducationHome, useEnrollSelf } from '../hooks/use-education-queries';
 import { CourseHero } from './CourseHero';
 import { SyllabusModule } from './SyllabusModule';
-import { computeDisplayLessonStates } from './lib/lesson-state';
 
 export default function CourseDetail() {
   const { curriculumId } = useParams<{ curriculumId: string }>();
@@ -23,14 +22,15 @@ export default function CourseDetail() {
     [home, curriculumId]
   );
 
-  const lessonStates = useMemo(
-    () => computeDisplayLessonStates(syllabus, !!assignment),
-    [syllabus, assignment]
-  );
-
+  // PR-G: `locked` is now a real, distinct server state (was never possible
+  // before PR-F — the old `l.state !== 'completed'` check would have picked
+  // a locked lesson as "next up" once locked lessons started appearing in
+  // this same response). Prefer the in-progress lesson; otherwise the first
+  // unlocked-and-not-started (`pending`) one — never `locked`.
   const nextLesson = useMemo(() => {
     const flat = syllabus.flatMap(m => m.lessons);
-    const upNext = flat.find(l => l.state !== 'completed');
+    const upNext =
+      flat.find(l => l.state === 'in_progress') ?? flat.find(l => l.state === 'pending');
     return upNext ? { id: upNext.id, orderIndex: upNext.orderIndex } : null;
   }, [syllabus]);
 
@@ -117,7 +117,6 @@ export default function CourseDetail() {
                 key={module.id ?? 'general'}
                 module={module}
                 index={i + 1}
-                lessonStates={lessonStates}
                 onLessonClick={handleLessonClick}
               />
             ))

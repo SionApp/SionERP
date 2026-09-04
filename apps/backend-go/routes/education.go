@@ -115,6 +115,15 @@ func SetupEducationRoutes(protected *echo.Group) {
 	education.POST("/me/lessons/:id/quiz/attempts/:attemptId/submit", h.SubmitAttempt, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
 	education.GET("/me/quiz-attempts/:attemptId", h.GetAttemptResult, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
 
+	// PR-G addition (education_quiz_runner.go's own header comment explains
+	// why this one small backend route is the deliberate exception to
+	// PR-G's "frontend-only" framing — G.4's own task text anticipates it).
+	// Registered as a literal static segment ("pending-review"), which
+	// Echo's router matches before the sibling ":attemptId" param route
+	// regardless of registration order — verified via GetHome/GetMyAssignments-
+	// style self-only query, no new table, no migration.
+	education.GET("/me/quiz-attempts/pending-review", h.GetMyPendingReviews, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+
 	education.GET("/reviews", h.GetReviewQueue, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
 	education.PUT("/reviews/answers/:answerId", h.ReviewAnswer, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
 }

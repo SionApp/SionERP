@@ -1,29 +1,44 @@
-import { Check, Lock, Play } from 'lucide-react';
+import { Check, FileQuestion, Lock, Play } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import type { EducationSyllabusLesson } from '@/types/education.types';
-import type { DisplayLessonState } from './lib/lesson-state';
+import type {
+  EducationSyllabusLesson,
+  EducationSyllabusLessonState,
+} from '@/types/education.types';
 
-const STATE_ICON = { completed: Check, current: Play, available: Play, locked: Lock } as const;
+// PR-G: reads the syllabus lesson's real, server-derived `state` directly
+// (design A8, wired in PR-F's `GetSyllabus` via the quiz-pass `LAG(...)`
+// window functions) — no client-side `DisplayLessonState` remapping anymore
+// (that interim type/file, `student/lib/lesson-state.ts`, is deleted in this
+// PR). `in_progress` is the "current" lesson; `pending` is the design's
+// "Sin terminar"/available row (an unenrolled browsing visitor also sees
+// every lesson as `pending` — the backend already renders that state
+// correctly with no lock, see `GetSyllabus`'s own comment).
+const STATE_ICON = {
+  completed: Check,
+  in_progress: Play,
+  pending: Play,
+  locked: Lock,
+} as const;
 
-const STATE_ICON_CLASS: Record<DisplayLessonState, string> = {
+const STATE_ICON_CLASS: Record<EducationSyllabusLessonState, string> = {
   completed: 'bg-edu-container text-on-edu-container',
-  current: 'bg-edu-primary text-white',
-  available: 'bg-edu-orange-container text-on-edu-orange-container',
+  in_progress: 'bg-edu-primary text-white',
+  pending: 'bg-edu-orange-container text-on-edu-orange-container',
   locked: 'bg-muted text-muted-foreground',
 };
 
-const STATE_ROW_CLASS: Record<DisplayLessonState, string> = {
+const STATE_ROW_CLASS: Record<EducationSyllabusLessonState, string> = {
   completed: '',
-  current: 'bg-edu-surface-alt',
-  available: '',
+  in_progress: 'bg-edu-surface-alt',
+  pending: '',
   locked: 'cursor-default',
 };
 
-const STATE_TITLE_CLASS: Record<DisplayLessonState, string> = {
+const STATE_TITLE_CLASS: Record<EducationSyllabusLessonState, string> = {
   completed: 'text-foreground',
-  current: 'font-medium text-foreground',
-  available: 'text-foreground',
+  in_progress: 'font-medium text-foreground',
+  pending: 'text-foreground',
   locked: 'text-muted-foreground',
 };
 
@@ -33,7 +48,7 @@ export function LessonRow({
   onClick,
 }: {
   lesson: EducationSyllabusLesson;
-  state: DisplayLessonState;
+  state: EducationSyllabusLessonState;
   onClick: () => void;
 }) {
   const Icon = STATE_ICON[state];
@@ -67,10 +82,18 @@ export function LessonRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className={cn('text-sm', STATE_TITLE_CLASS[state])}>{lesson.title}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {state === 'locked'
-            ? 'Se desbloquea al completar la lección anterior'
-            : `Lección ${lesson.orderIndex}`}
+        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>
+            {state === 'locked'
+              ? 'Se desbloquea al completar la lección anterior'
+              : `Lección ${lesson.orderIndex}`}
+          </span>
+          {lesson.hasQuiz && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <FileQuestion className="h-3.5 w-3.5" aria-hidden="true" />
+              Quiz
+            </span>
+          )}
         </div>
       </div>
       {lesson.durationMinutes !== null && lesson.durationMinutes > 0 && (

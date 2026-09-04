@@ -1,17 +1,14 @@
 import type { EducationSyllabusModule as EducationSyllabusModuleType } from '@/types/education.types';
 import { LessonRow } from './LessonRow';
-import type { DisplayLessonState } from './lib/lesson-state';
 import { formatMinutes } from './lib/format';
 
 export function SyllabusModule({
   module,
   index,
-  lessonStates,
   onLessonClick,
 }: {
   module: EducationSyllabusModuleType;
   index: number;
-  lessonStates: Map<string, DisplayLessonState>;
   onLessonClick: (lessonId: string) => void;
 }) {
   const totalMinutes = module.lessons.reduce((sum, l) => sum + (l.durationMinutes ?? 0), 0);
@@ -34,7 +31,7 @@ export function SyllabusModule({
         <LessonRow
           key={lesson.id}
           lesson={lesson}
-          state={lessonStates.get(lesson.id) ?? 'locked'}
+          state={lesson.state}
           onClick={() => onLessonClick(lesson.id)}
         />
       ))}
