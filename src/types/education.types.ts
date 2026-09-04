@@ -302,6 +302,29 @@ export interface EducationLessonDetail {
   progress: EducationLessonProgress | null;
 }
 
+// ── Block editor — step CRUD (PR-I, tasks-v2-part2, author level >= 3) ──
+// Mirrors `CreateStep`/`UpdateStep`/`ReorderSteps` request shapes
+// (handlers/education_steps.go) field-for-field.
+
+export interface CreateStepRequest {
+  label: string;
+  blocks?: EducationBlock[];
+  orderIndex?: number;
+}
+
+export interface UpdateStepRequest {
+  label?: string;
+  blocks?: EducationBlock[];
+}
+
+/** One entry of the bulk `PUT /lessons/:lessonId/steps/reorder` payload
+ * (`ReorderSteps`) — same "send the full ordered set" convention as
+ * `LessonOrderEntry` above. */
+export interface StepOrderEntry {
+  id: string;
+  orderIndex: number;
+}
+
 // ── Quiz — runtime del alumno (PR-G, education-quiz-runtime) ──
 //
 // Mirrors `models.QuizRunnerView`/`QuizRunnerQuestion`/`QuizRunnerOption`
