@@ -1,10 +1,10 @@
 // `cadence` was DROPPED in the design-handoff migration (PR-A) — `track` +
 // `level` + `hours` replaced it (spec: "Cadence is descriptive", the only
 // deletion in the plan). `EducationCadence`/`EducationCadences` are gone
-// from this file; the 8 occurrences that lived here are closed (tasks-v2
-// D.2). The 18 remaining occurrences in `CurriculumList.tsx`/
-// `CurriculumEditor.tsx` are a deliberate, tracked exception — see this
-// PR's Deviations note — closed wholesale when PR-H deletes both files.
+// from this file; the 8 occurrences that lived here closed in PR-D (tasks-v2
+// D.2). The remaining 18 occurrences in `CurriculumList.tsx`/
+// `CurriculumEditor.tsx` closed in PR-H (tasks-v2 H.5) — both files deleted,
+// full 49/49-occurrence cadence blast radius now closed.
 export type EducationCurriculumStatus = 'draft' | 'review' | 'published' | 'archived';
 export type EducationTrack = 'discipulado' | 'servicio' | 'liderazgo' | 'familia' | 'formacion';
 export type EducationCourseLevel = 'I' | 'II' | 'III';
@@ -36,14 +36,40 @@ export interface EducationCurriculum {
   updatedAt: string;
 }
 
+/**
+ * PR-H addition: `CourseFormDialog` submits the full catalog-metadata set on
+ * create — `cadence` is NOT here, that field was dropped from the backend
+ * entirely in PR-A (see the file header note above). `coverPath` is set
+ * AFTER upload (`CoverUpload` calls `EducationService.uploadCourseCover`
+ * first, then passes the returned path here) — never a raw `File`.
+ */
 export interface CreateCurriculumRequest {
   name: string;
   description?: string;
+  track?: EducationTrack;
+  level?: EducationCourseLevel;
+  hours?: number;
+  teacherUserId?: string;
+  coverPath?: string;
+  objectives?: string[];
+  requirements?: string;
 }
 
+/**
+ * Sending `teacherUserId: ''` or `track: ''` explicitly CLEARS that field
+ * server-side (distinct from omitting the key, which leaves it unchanged) —
+ * mirrors `UpdateCurriculum`'s 3-way COALESCE in `handlers/education.go`.
+ */
 export interface UpdateCurriculumRequest {
   name?: string;
   description?: string;
+  track?: EducationTrack | '';
+  level?: EducationCourseLevel;
+  hours?: number;
+  teacherUserId?: string;
+  coverPath?: string;
+  objectives?: string[];
+  requirements?: string;
 }
 
 export const EducationCurriculumStatuses: Record<EducationCurriculumStatus, true> = {
@@ -61,31 +87,50 @@ export const EducationTracks: Record<EducationTrack, true> = {
   formacion: true,
 };
 
+/**
+ * Wire shape mirrors `models.EducationLesson` (education.go) — a lesson
+ * SHELL only (title/module/duration/position). `content`/`attachmentPath`/
+ * `attachmentName` were dropped from the backend entirely in the
+ * design-handoff migration (PR-A): lesson body now lives in
+ * `education_lesson_steps.blocks`, authored via the step endpoints
+ * (`EducationService.getLessonDetail`/PR-B), never through this type.
+ * `PlaceholderScreen`'s LessonEditor mounts real step-authoring UI in PR-I;
+ * `ModuleLessonTree` (PR-H) only manages the shell (title/module/position).
+ */
 export interface EducationLesson {
   id: string;
   curriculumId: string;
+  moduleId: string | null;
   orderIndex: number;
   title: string;
-  content: string | null;
-  attachmentPath: string | null;
-  attachmentName: string | null;
+  durationMinutes: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateLessonRequest {
   title: string;
-  content?: string;
-  attachmentPath?: string;
-  attachmentName?: string;
+  moduleId?: string | null;
+  durationMinutes?: number;
   orderIndex?: number;
 }
 
 export interface UpdateLessonRequest {
   title?: string;
-  content?: string;
-  attachmentPath?: string;
-  attachmentName?: string;
+  moduleId?: string | null;
+  durationMinutes?: number;
+}
+
+/**
+ * One entry of the bulk `PUT /curricula/:id/lesson-order` payload (PR-B's
+ * `SetLessonOrder`, spec: "Reordering and moving between modules MUST be one
+ * bulk operation"). `ModuleLessonTree` sends the FULL ordered set on every
+ * move/reorder — never a single-lesson patch.
+ */
+export interface LessonOrderEntry {
+  id: string;
+  moduleId: string | null;
+  orderIndex: number;
 }
 
 // ── Asignaciones + progreso (PR3a backend, PR3c UI) ──
@@ -369,5 +414,49 @@ export interface QuizPendingReviewItem {
   curriculumId: string;
   curriculumName: string;
   dueDate: string | null;
+  submittedAt: string;
+}
+
+// ── Admin course management (PR-H, education-catalog "Course modules group
+// lessons without owning order") ──
+
+/** Wire shape mirrors `models.EducationCourseModule` (education_content.go). */
+export interface EducationCourseModule {
+  id: string;
+  curriculumId: string;
+  orderIndex: number;
+  title: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCourseModuleRequest {
+  title: string;
+  description?: string;
+  orderIndex?: number;
+}
+
+export interface UpdateCourseModuleRequest {
+  title?: string;
+  description?: string;
+}
+
+/**
+ * Mirrors `handlers.QuizReviewQueueItem` (GET /education/reviews, PR-F,
+ * level >= 3, church-scoped). `AdminCourseList`'s "Por revisar" KPI reuses
+ * this endpoint read-only for a real count — the full review workflow UI is
+ * PR-K's `ReviewQueue.tsx`, not built here.
+ */
+export interface QuizReviewQueueItem {
+  answerId: string;
+  attemptId: string;
+  questionId: string;
+  prompt: string;
+  points: number;
+  textAnswer: string;
+  studentName: string;
+  lessonId: string;
+  lessonTitle: string;
   submittedAt: string;
 }

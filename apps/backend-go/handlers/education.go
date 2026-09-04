@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -120,6 +121,12 @@ func upsertEducationModuleRole(db *sql.DB, userID string, level int, roleName, a
 
 // GetCurricula lists curricula for the caller's church. Level < 3 (student /
 // no grant) only sees published curricula (spec: "Draft invisible").
+//
+// TeacherName/StudentCount are populated here too (PR-H addition) — same
+// additive, non-breaking pattern PR-D already established on
+// GetCurriculumByID (see that handler's own comment): `AdminCourseList`'s
+// table row ("Maestro · act. hoy") and its "Alumnos inscritos" KPI both need
+// real numbers, not a second per-row round trip.
 func (h *EducationHandler) GetCurricula(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -136,13 +143,17 @@ func (h *EducationHandler) GetCurricula(c echo.Context) error {
 
 	query := `
 		SELECT ec.id, ec.name, ec.description, ec.status,
-		       ec.track, ec.level, ec.hours, ec.teacher_user_id::text, ec.cover_path,
+		       ec.track, ec.level, ec.hours, ec.teacher_user_id::text,
+		       TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS teacher_name,
+		       ec.cover_path,
 		       ec.objectives, ec.requirements,
-		       COUNT(el.id) AS lesson_count,
+		       COUNT(DISTINCT el.id) AS lesson_count,
+		       (SELECT COUNT(*) FROM education_assignments ea WHERE ea.curriculum_id = ec.id) AS student_count,
 		       ec.created_by::text,
 		       to_char(ec.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 		       to_char(ec.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM education_curricula ec
+		LEFT JOIN users u ON u.id = ec.teacher_user_id
 		LEFT JOIN education_lessons el ON el.curriculum_id = ec.id
 		WHERE ec.church_id = $1
 	`
@@ -150,7 +161,7 @@ func (h *EducationHandler) GetCurricula(c echo.Context) error {
 		query += ` AND ec.status = 'published'`
 	}
 	query += `
-		GROUP BY ec.id
+		GROUP BY ec.id, u.first_name, u.last_name
 		ORDER BY ec.name ASC
 	`
 
@@ -163,11 +174,11 @@ func (h *EducationHandler) GetCurricula(c echo.Context) error {
 	curricula := []models.EducationCurriculum{}
 	for rows.Next() {
 		var r models.EducationCurriculum
-		var createdBy, teacherUserID sql.NullString
+		var createdBy, teacherUserID, teacherName sql.NullString
 		var objectives []byte
 		if err := rows.Scan(&r.ID, &r.Name, &r.Description, &r.Status,
-			&r.Track, &r.Level, &r.Hours, &teacherUserID, &r.CoverPath,
-			&objectives, &r.Requirements, &r.LessonCount,
+			&r.Track, &r.Level, &r.Hours, &teacherUserID, &teacherName, &r.CoverPath,
+			&objectives, &r.Requirements, &r.LessonCount, &r.StudentCount,
 			&createdBy, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			continue
 		}
@@ -176,6 +187,9 @@ func (h *EducationHandler) GetCurricula(c echo.Context) error {
 		}
 		if teacherUserID.Valid {
 			r.TeacherUserID = &teacherUserID.String
+		}
+		if teacherName.Valid && strings.TrimSpace(teacherName.String) != "" {
+			r.TeacherName = &teacherName.String
 		}
 		r.Objectives = objectives
 		curricula = append(curricula, r)
@@ -247,6 +261,36 @@ func (h *EducationHandler) GetCurriculumByID(c echo.Context) error {
 	return c.JSON(http.StatusOK, r)
 }
 
+var validEducationCourseLevels = map[string]bool{"I": true, "II": true, "III": true}
+
+// curriculumMetadataParams validates track/level/hours/objectives — shared by
+// CreateCurriculum/UpdateCurriculum (PR-H, `CourseFormDialog` submits
+// track/level/hours/teacher_user_id/cover_path/objectives/requirements; no
+// `cadence` question, that column was dropped in PR-A). Returns the
+// objectives param pre-marshalled to JSON text (nil when the field wasn't
+// sent at all) so callers can bind it straight into a `$n::jsonb`
+// placeholder — same pattern as education_steps.go's UpdateStep for jsonb
+// columns.
+func curriculumMetadataParams(track, level *string, hours *float64, objectives []string) (interface{}, error) {
+	if track != nil && strings.TrimSpace(*track) != "" && !validEducationTracks[*track] {
+		return nil, fmt.Errorf("track inválido")
+	}
+	if level != nil && strings.TrimSpace(*level) != "" && !validEducationCourseLevels[*level] {
+		return nil, fmt.Errorf("level inválido — valores: I, II, III")
+	}
+	if hours != nil && *hours < 0 {
+		return nil, fmt.Errorf("hours no puede ser negativo")
+	}
+	if objectives == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(objectives)
+	if err != nil {
+		return nil, fmt.Errorf("objectives inválido")
+	}
+	return string(b), nil
+}
+
 func (h *EducationHandler) CreateCurriculum(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -259,8 +303,15 @@ func (h *EducationHandler) CreateCurriculum(c echo.Context) error {
 	callerID, _ := c.Get("user_id").(string)
 
 	var req struct {
-		Name        string  `json:"name"`
-		Description *string `json:"description"`
+		Name          string   `json:"name"`
+		Description   *string  `json:"description"`
+		Track         *string  `json:"track"`
+		Level         *string  `json:"level"`
+		Hours         *float64 `json:"hours"`
+		TeacherUserID *string  `json:"teacher_user_id"`
+		CoverPath     *string  `json:"cover_path"`
+		Objectives    []string `json:"objectives"`
+		Requirements  *string  `json:"requirements"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
@@ -268,18 +319,37 @@ func (h *EducationHandler) CreateCurriculum(c echo.Context) error {
 	if strings.TrimSpace(req.Name) == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name es requerido"})
 	}
+	objectivesParam, err := curriculumMetadataParams(req.Track, req.Level, req.Hours, req.Objectives)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	if objectivesParam == nil {
+		objectivesParam = "[]"
+	}
 
 	var createdBy interface{}
 	if callerID != "" {
 		createdBy = callerID
 	}
+	var track, level, teacherUserID interface{}
+	if req.Track != nil && strings.TrimSpace(*req.Track) != "" {
+		track = *req.Track
+	}
+	if req.Level != nil && strings.TrimSpace(*req.Level) != "" {
+		level = *req.Level
+	}
+	if req.TeacherUserID != nil && strings.TrimSpace(*req.TeacherUserID) != "" {
+		teacherUserID = *req.TeacherUserID
+	}
 
 	var id string
 	err = q.QueryRow(`
-		INSERT INTO education_curricula (name, description, church_id, created_by)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO education_curricula
+			(name, description, church_id, created_by, track, level, hours, teacher_user_id, cover_path, objectives, requirements)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
 		RETURNING id
-	`, strings.TrimSpace(req.Name), req.Description, churchID, createdBy).Scan(&id)
+	`, strings.TrimSpace(req.Name), req.Description, churchID, createdBy,
+		track, level, req.Hours, teacherUserID, req.CoverPath, objectivesParam, req.Requirements).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "Ya existe un currículo con ese nombre"})
@@ -289,6 +359,12 @@ func (h *EducationHandler) CreateCurriculum(c echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]string{"id": id, "message": "Currículo creado exitosamente"})
 }
 
+// UpdateCurriculum replaces name/description plus catalog metadata — PUT
+// semantics for whichever fields the caller sends (PR-H's CourseFormDialog
+// reuses this same handler for edit). `objectives` is COALESCE'd as a whole
+// jsonb value: sending the key (even `[]`) replaces the full array, omitting
+// it keeps the existing one — same all-or-nothing semantics `education.
+// service.ts`'s doc comment already established for lesson content fields.
 func (h *EducationHandler) UpdateCurriculum(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -301,8 +377,15 @@ func (h *EducationHandler) UpdateCurriculum(c echo.Context) error {
 
 	id := c.Param("id")
 	var req struct {
-		Name        *string `json:"name"`
-		Description *string `json:"description"`
+		Name          *string  `json:"name"`
+		Description   *string  `json:"description"`
+		Track         *string  `json:"track"`
+		Level         *string  `json:"level"`
+		Hours         *float64 `json:"hours"`
+		TeacherUserID *string  `json:"teacher_user_id"`
+		CoverPath     *string  `json:"cover_path"`
+		Objectives    []string `json:"objectives"`
+		Requirements  *string  `json:"requirements"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Payload inválido"})
@@ -310,14 +393,49 @@ func (h *EducationHandler) UpdateCurriculum(c echo.Context) error {
 	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name no puede estar vacío"})
 	}
+	objectivesParam, err := curriculumMetadataParams(req.Track, req.Level, req.Hours, req.Objectives)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	// Track/teacher_user_id use a 3-way COALESCE(sentinel, value, column) so
+	// an explicitly-sent empty string ("clear the teacher") is distinguishable
+	// from "field omitted" (nil pointer) — plain COALESCE($n, col) can't tell
+	// those apart when $n is itself the empty-string clearing value.
+	var track, teacherUserID interface{}
+	clearTrack := false
+	if req.Track != nil {
+		if strings.TrimSpace(*req.Track) == "" {
+			clearTrack = true
+		} else {
+			track = *req.Track
+		}
+	}
+	clearTeacher := false
+	if req.TeacherUserID != nil {
+		if strings.TrimSpace(*req.TeacherUserID) == "" {
+			clearTeacher = true
+		} else {
+			teacherUserID = *req.TeacherUserID
+		}
+	}
 
 	res, err := q.Exec(`
 		UPDATE education_curricula
-		SET name        = COALESCE($3, name),
-		    description = COALESCE($4, description),
-		    updated_at  = now()
+		SET name             = COALESCE($3, name),
+		    description      = COALESCE($4, description),
+		    track            = CASE WHEN $5 THEN NULL ELSE COALESCE($6, track) END,
+		    level            = COALESCE($7, level),
+		    hours            = COALESCE($8, hours),
+		    teacher_user_id  = CASE WHEN $9 THEN NULL ELSE COALESCE($10, teacher_user_id) END,
+		    cover_path       = COALESCE($11, cover_path),
+		    objectives       = COALESCE($12::jsonb, objectives),
+		    requirements     = COALESCE($13, requirements),
+		    updated_at       = now()
 		WHERE id = $1 AND church_id = $2
-	`, id, churchID, req.Name, req.Description)
+	`, id, churchID, req.Name, req.Description,
+		clearTrack, track, req.Level, req.Hours,
+		clearTeacher, teacherUserID, req.CoverPath, objectivesParam, req.Requirements)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "Ya existe un currículo con ese nombre"})

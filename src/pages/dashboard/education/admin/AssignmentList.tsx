@@ -8,17 +8,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  EducationConfirmDialog,
+  EducationDialog,
+  EducationDialogContent,
+  EducationDialogHeader,
+  EducationDialogTitle,
+} from '../ui';
 import { cn } from '@/lib/utils';
 import { EducationService } from '@/services/education.service';
-import { UserSearchPicker } from '../music/UserSearchPicker';
+import { UserSearchPicker } from '../../music/UserSearchPicker';
 import type { EducationAssignment, EducationAssignmentStatus } from '@/types/education.types';
 import type { User } from '@/types/user.types';
 
-// `in_review`/`inactive` added by the design-handoff spec (education-
-// assignments DELTA) — no endpoint this component calls emits them yet
-// (PR-F/K wire the derivation), but `EducationAssignmentStatus` is now a
+// `in_review`/`inactive` were added by the design-handoff spec (education-
+// assignments DELTA) for a future server-side derivation (PR-K's analytics
+// slice owns wiring the actual queue-based/inactivity logic) — no endpoint
+// this component calls emits them yet, but `EducationAssignmentStatus` is a
 // 6-value union so this Record must stay exhaustive.
 const STATUS_LABEL: Record<EducationAssignmentStatus, string> = {
   pending: 'Pendiente',
@@ -32,9 +38,9 @@ const STATUS_LABEL: Record<EducationAssignmentStatus, string> = {
 const STATUS_PILL: Record<EducationAssignmentStatus, string> = {
   pending: 'bg-muted text-muted-foreground',
   in_progress: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  completed: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  completed: 'bg-edu-container text-on-edu-container',
   overdue: 'bg-destructive/10 text-destructive',
-  in_review: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  in_review: 'bg-edu-violet-container text-on-edu-violet-container',
   inactive: 'bg-muted text-muted-foreground/70',
 };
 
@@ -64,7 +70,7 @@ function StatusPill({ status }: { status: EducationAssignmentStatus }) {
 }
 
 // ─────────────────────────────────────────────
-// Diálogo "Asignar" — elegir a quién(es) asignar este currículo. Corto y
+// Diálogo "Asignar" — elegir a quién(es) asignar este curso. Corto y
 // enfocado: buscador de usuarios (reutiliza UserSearchPicker de music, no se
 // reinventa) + chips de los ya elegidos + fecha límite opcional. La lista con
 // progreso por persona vive afuera, inline en la página — nunca todo
@@ -110,7 +116,7 @@ function AssignDialog({
       toast.success(result.message);
     },
     onError: (err: unknown) =>
-      toast.error(err instanceof Error ? err.message : 'No se pudo asignar el currículo'),
+      toast.error(err instanceof Error ? err.message : 'No se pudo asignar el curso'),
   });
 
   function handleSubmit(e: React.FormEvent) {
@@ -123,17 +129,17 @@ function AssignDialog({
   }
 
   return (
-    <Dialog
+    <EducationDialog
       open={open}
       onOpenChange={o => {
         if (!o) reset();
         onOpenChange(o);
       }}
     >
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Asignar currículo</DialogTitle>
-        </DialogHeader>
+      <EducationDialogContent className="sm:max-w-lg">
+        <EducationDialogHeader>
+          <EducationDialogTitle>Asignar curso</EducationDialogTitle>
+        </EducationDialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label>Personas</Label>
@@ -190,27 +196,27 @@ function AssignDialog({
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </EducationDialogContent>
+    </EducationDialog>
   );
 }
 
 // ─────────────────────────────────────────────
 // Empty state — distinto del de lecciones: acá "vacío" significa que nadie
-// tiene este currículo asignado todavía.
+// tiene este curso asignado todavía.
 // ─────────────────────────────────────────────
 function EmptyAssignments({ canManage, onAssign }: { canManage: boolean; onAssign: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <div className="flex flex-col items-center gap-3 rounded-md3-lg border border-dashed border-edu-outline bg-edu-surface py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-edu-container text-on-edu-container">
         <Users className="h-6 w-6" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-semibold">Nadie tiene este currículo asignado</p>
+        <p className="text-sm font-semibold">Nadie tiene este curso asignado</p>
         <p className="max-w-xs text-sm text-muted-foreground">
           {canManage
-            ? 'Asigná este currículo a las personas que van a cursarlo.'
-            : 'Todavía no hay personas asignadas a este currículo.'}
+            ? 'Asigná este curso a las personas que van a cursarlo.'
+            : 'Todavía no hay personas asignadas a este curso.'}
         </p>
       </div>
       {canManage && (
@@ -224,11 +230,13 @@ function EmptyAssignments({ canManage, onAssign }: { canManage: boolean; onAssig
 }
 
 // ─────────────────────────────────────────────
-// AssignmentList — sección de asignaciones dentro de CurriculumEditor (PR3c).
-// Solo se monta cuando canManage=true (nivel ≥ 3): el endpoint que la
-// alimenta (GET /curricula/:id/progress) ya exige ese mismo nivel en el
-// backend, así que ocultarla para nivel 1 es coherente con la autoridad real,
-// no solo cosmético.
+// AssignmentList — sección de asignaciones dentro de AdminCourseDetail
+// (PR-H, moved from `education/AssignmentList.tsx`, migrated to the
+// education/ui/* portal wrappers as part of the move since this file is no
+// longer transitional). Solo se monta cuando canManage=true (nivel ≥ 3): el
+// endpoint que la alimenta (GET /curricula/:id/progress) ya exige ese mismo
+// nivel en el backend, así que ocultarla para nivel 1 es coherente con la
+// autoridad real, no solo cosmético.
 // ─────────────────────────────────────────────
 export function AssignmentList({
   curriculumId,
@@ -266,7 +274,7 @@ export function AssignmentList({
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 py-10 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-md3-lg border border-destructive/30 bg-destructive/5 py-10 text-center">
         <p className="text-sm font-medium text-destructive">
           No se pudieron cargar las asignaciones.
         </p>
@@ -303,7 +311,7 @@ export function AssignmentList({
       ) : assignments.length === 0 ? (
         <EmptyAssignments canManage={canManage} onAssign={() => setAssignOpen(true)} />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border divide-y divide-border bg-card">
+        <div className="overflow-hidden rounded-md3-lg border border-border divide-y divide-border bg-card">
           {assignments.map(a => {
             const percent = a.totalLessons > 0 ? (a.completedLessons / a.totalLessons) * 100 : 0;
             return (
@@ -336,7 +344,7 @@ export function AssignmentList({
                     </p>
                   )}
                 </div>
-                <ConfirmDialog
+                <EducationConfirmDialog
                   trigger={
                     <Button
                       size="icon"
@@ -349,7 +357,7 @@ export function AssignmentList({
                     </Button>
                   }
                   title="¿Quitar asignación?"
-                  description={`Se quita a "${a.assignedToName?.trim() || a.assignedToEmail || 'esta persona'}" de este currículo, junto con su progreso registrado. No se puede deshacer.`}
+                  description={`Se quita a "${a.assignedToName?.trim() || a.assignedToEmail || 'esta persona'}" de este curso, junto con su progreso registrado. No se puede deshacer.`}
                   confirmLabel="Quitar asignación"
                   onConfirm={() => unassignMutation.mutate(a.id)}
                 />

@@ -39,6 +39,17 @@
   --edu-orange-container: 16 82% 91%; /* #FBE0D6 */
   --on-edu-orange-container: 14 62% 43%; /* #B3492A */
 
+  /* PR-H addition (README §7, "Admin · Lista de cursos" — the "Cursos
+   * publicados" KPI is the ONE card of the 4 that isn't already covered by
+   * an existing token: "Alumnos inscritos" reuses the green
+   * edu-container/on-edu-container pair verbatim (#CFEEDC/#0A2E1D — an exact
+   * match, not a coincidence), "Lecciones" reuses edu-violet-container
+   * (#E7DEF3/#6E4CA6, same exact hex) and "Por revisar" reuses
+   * edu-orange-container (#FBE0D6/#B3492A, same exact hex). Verified hex→HSL:
+   * #DCE7FF→221 100% 93%, #2A5AD0→223 66% 49%. */
+  --edu-blue-container: 221 100% 93%; /* #DCE7FF */
+  --on-edu-blue-container: 223 66% 49%; /* #2A5AD0 */
+
   /* Deterministic cover-gradient palette (design: "the per-course cover
    * gradient MUST be deterministic from curriculum id + track" — student/
    * lib/course-gradient.ts picks one of these 5 by hashing id+track, never
@@ -123,6 +134,8 @@
   --on-edu-violet-container: 266 47% 91%;
   --edu-orange-container: 14 40% 22%;
   --on-edu-orange-container: 16 82% 91%;
+  --edu-blue-container: 221 45% 24%;
+  --on-edu-blue-container: 221 100% 93%;
 
   /* PR-E dark flip. Prose/image-frame follow the same tonal-flip magnitude
    * as the 12 base tokens (light L ~94%/23% → dark L ~16%/85%, same
