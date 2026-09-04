@@ -46,6 +46,11 @@ func (h *EducationHandler) GetCatalog(c echo.Context) error {
 		       ec.cover_path,
 		       COUNT(DISTINCT el.id) AS lesson_count,
 		       COUNT(DISTINCT ea.id) AS student_count,
+		       EXISTS(
+		         SELECT 1 FROM education_quizzes eq
+		         JOIN education_lessons el2 ON el2.id = eq.lesson_id
+		         WHERE el2.curriculum_id = ec.id AND eq.church_id = ec.church_id
+		       ) AS has_quiz,
 		       to_char(ec.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 		FROM education_curricula ec
 		LEFT JOIN users u ON u.id = ec.teacher_user_id
@@ -72,23 +77,31 @@ func (h *EducationHandler) GetCatalog(c echo.Context) error {
 		var teacherName sql.NullString
 		if err := rows.Scan(&course.ID, &course.Name, &course.Description, &course.Track, &course.Level,
 			&course.Hours, &teacherName, &course.CoverPath, &course.LessonCount, &course.StudentCount,
-			&course.CreatedAt); err != nil {
+			&course.HasQuiz, &course.CreatedAt); err != nil {
 			continue
 		}
 		if teacherName.Valid && strings.TrimSpace(teacherName.String) != "" {
 			course.TeacherName = &teacherName.String
 		}
-		// HasQuiz stays false — no education_quizzes table until PR-F.
 		courses = append(courses, course)
 	}
 	return c.JSON(http.StatusOK, courses)
 }
 
 // GetSyllabus returns the course's lessons grouped by module (NULL module_id
-// → implicit "General" group), each with a server-computed `state`. This PR
-// stubs the state to completed|in_progress|pending only — `locked` (derived
-// from a quiz pass) is wired in PR-F once education_quizzes exists (design:
-// "unlock stubbed until PR-F wires the quiz pass check").
+// → implicit "General" group), each with a server-computed `state`
+// (completed | in_progress | locked | pending) and a `has_quiz` flag.
+//
+// PR-F wires the real unlock derivation (design decision A8: "Unlock is
+// derived in the syllabus query ... Derivation is free at read time and
+// correct by definition", replacing PR-B's always-false `locked` stub): a
+// lesson is locked only when the caller HAS an assignment (a browsing,
+// unenrolled visitor never sees a lock — there is no personal progression
+// to gate) AND the immediately-previous lesson in course order is not yet
+// unlocked-worthy — i.e. not completed, OR completed but its own quiz (if
+// it has one) has not been passed by the caller. The first lesson in the
+// course is never locked. This mirrors the "se desbloquea al completar la
+// lección anterior" / quiz-pass copy PR-D's row component already ships.
 func (h *EducationHandler) GetSyllabus(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -125,18 +138,34 @@ func (h *EducationHandler) GetSyllabus(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al verificar inscripción"})
 	}
 
+	// The LAG(...) window functions below let one query compute "is the
+	// PREVIOUS lesson (in course order) unlock-worthy" without a second
+	// round trip. `w` orders identically to the final ORDER BY, so LAG at
+	// row N is exactly "row N-1's own value" — design supersession-free,
+	// no education_quiz_options.order_index involved (that constraint is
+	// specific to the quiz RUNNER's answer-leak boundary, not this query).
 	rows, err := q.Query(`
 		SELECT el.id, el.order_index, el.title, el.duration_minutes,
 		       cm.id::text, cm.title, cm.order_index,
 		       (elp.completed_at IS NOT NULL) AS is_completed,
-		       (elp.id IS NOT NULL AND elp.completed_at IS NULL) AS is_in_progress
+		       (elp.id IS NOT NULL AND elp.completed_at IS NULL) AS is_in_progress,
+		       EXISTS(SELECT 1 FROM education_quizzes eq WHERE eq.lesson_id = el.id AND eq.church_id = el.church_id) AS has_quiz,
+		       LAG(el.id::text) OVER w AS prev_lesson_id,
+		       LAG(elp.completed_at IS NOT NULL) OVER w AS prev_completed,
+		       LAG(EXISTS(SELECT 1 FROM education_quizzes eq2 WHERE eq2.lesson_id = el.id AND eq2.church_id = el.church_id)) OVER w AS prev_has_quiz,
+		       LAG(EXISTS(
+		         SELECT 1 FROM education_quiz_attempts qa
+		         JOIN education_quizzes pq ON pq.id = qa.quiz_id AND pq.lesson_id = el.id
+		         WHERE qa.user_id = $4 AND qa.passed = true AND qa.church_id = $3
+		       )) OVER w AS prev_quiz_passed
 		FROM education_lessons el
 		LEFT JOIN education_course_modules cm ON cm.id = el.module_id
 		LEFT JOIN education_lesson_progress elp
 		       ON elp.lesson_id = el.id AND elp.assignment_id = $2 AND elp.church_id = $3
 		WHERE el.curriculum_id = $1 AND el.church_id = $3
+		WINDOW w AS (ORDER BY (el.module_id IS NULL) ASC, cm.order_index ASC, el.order_index ASC)
 		ORDER BY (el.module_id IS NULL) ASC, cm.order_index ASC, el.order_index ASC
-	`, curriculumID, assignmentID, churchID)
+	`, curriculumID, assignmentID, churchID, info.userID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener temario"})
 	}
@@ -144,6 +173,7 @@ func (h *EducationHandler) GetSyllabus(c echo.Context) error {
 
 	order := []string{}
 	byModule := map[string]*models.EducationSyllabusModule{}
+	isEnrolled := assignmentID.Valid
 
 	for rows.Next() {
 		var lessonID, title string
@@ -151,9 +181,12 @@ func (h *EducationHandler) GetSyllabus(c echo.Context) error {
 		var moduleOrder sql.NullInt64
 		var orderIndex int
 		var durationMinutes sql.NullInt64
-		var isCompleted, isInProgress bool
+		var isCompleted, isInProgress, hasQuiz bool
+		var prevLessonID sql.NullString
+		var prevCompleted, prevHasQuiz, prevQuizPassed sql.NullBool
 		if err := rows.Scan(&lessonID, &orderIndex, &title, &durationMinutes,
-			&moduleID, &moduleTitle, &moduleOrder, &isCompleted, &isInProgress); err != nil {
+			&moduleID, &moduleTitle, &moduleOrder, &isCompleted, &isInProgress, &hasQuiz,
+			&prevLessonID, &prevCompleted, &prevHasQuiz, &prevQuizPassed); err != nil {
 			continue
 		}
 		key := "general"
@@ -173,10 +206,16 @@ func (h *EducationHandler) GetSyllabus(c echo.Context) error {
 		}
 
 		state := "pending"
-		if isCompleted {
+		switch {
+		case isCompleted:
 			state = "completed"
-		} else if isInProgress {
+		case isInProgress:
 			state = "in_progress"
+		case isEnrolled && prevLessonID.Valid:
+			prevUnlockedNext := prevCompleted.Bool && (!prevHasQuiz.Bool || prevQuizPassed.Bool)
+			if !prevUnlockedNext {
+				state = "locked"
+			}
 		}
 
 		var durPtr *int
@@ -192,7 +231,7 @@ func (h *EducationHandler) GetSyllabus(c echo.Context) error {
 
 		byModule[key].Lessons = append(byModule[key].Lessons, models.EducationSyllabusLesson{
 			ID: lessonID, ModuleID: lessonModuleID, OrderIndex: orderIndex, Title: title,
-			DurationMinutes: durPtr, State: state,
+			DurationMinutes: durPtr, State: state, HasQuiz: hasQuiz,
 		})
 	}
 

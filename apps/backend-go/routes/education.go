@@ -99,4 +99,22 @@ func SetupEducationRoutes(protected *echo.Group) {
 	// owner-or-author (level >= 3) read (gate enforced inside the handler).
 	education.PUT("/lessons/:id/reflections/:blockId", h.UpsertReflection, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
 	education.GET("/lessons/:id/reflections/:blockId", h.GetReflection, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+
+	// Quiz (PR-F, education-quiz-authoring / education-quiz-runtime /
+	// education-manual-review) — the answer-leak boundary. Author routes
+	// (level >= 3) are gated at BOTH the route level here AND again inside
+	// the handler (see education_quiz_admin.go's file header for why).
+	// Runner routes (level >= 1) are self-only by construction inside each
+	// handler. 9 routes total, matching design's exact route budget.
+	education.GET("/lessons/:id/quiz", h.GetQuizAuthor, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.PUT("/lessons/:id/quiz", h.UpsertQuiz, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+
+	education.GET("/me/lessons/:id/quiz", h.GetQuizRunner, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.POST("/me/lessons/:id/quiz/attempts", h.StartAttempt, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.PUT("/me/lessons/:id/quiz/attempts/:attemptId/answers", h.SaveAnswer, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.POST("/me/lessons/:id/quiz/attempts/:attemptId/submit", h.SubmitAttempt, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+	education.GET("/me/quiz-attempts/:attemptId", h.GetAttemptResult, middleware.RequireModuleLevel(utils.ModuleEducation, 1))
+
+	education.GET("/reviews", h.GetReviewQueue, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
+	education.PUT("/reviews/answers/:answerId", h.ReviewAnswer, middleware.RequireModuleLevel(utils.ModuleEducation, 3))
 }
