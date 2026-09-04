@@ -90,7 +90,10 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
 }
 
-interface KpiCardProps {
+// Exported so `StudentProgress.tsx` (PR-K) reuses the SAME 4-KPI-card
+// pattern instead of rebuilding it — design note: "same pattern exactly as
+// the KPIs of the main dashboard", not the green education tint.
+export interface KpiCardProps {
   label: string;
   value: number;
   foot: string;
@@ -99,7 +102,7 @@ interface KpiCardProps {
   onClass: string;
 }
 
-function KpiCard({ label, value, foot, icon: Icon, containerClass, onClass }: KpiCardProps) {
+export function KpiCard({ label, value, foot, icon: Icon, containerClass, onClass }: KpiCardProps) {
   return (
     // Design (README §7): "mismo patrón exacto que los KPIs del dashboard
     // principal" — the app's own generic `--surface` token, deliberately NOT

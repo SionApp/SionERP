@@ -43,6 +43,10 @@ import type {
   QuizAuthorQuestion,
   QuizAuthorOption,
   UpsertQuizRequest,
+  RosterStudent,
+  StudentRoster,
+  LessonFunnelPoint,
+  ReviewAnswerRequest,
 } from '@/types/education.types';
 
 const ATTACHMENT_BUCKET = 'church-documents';
@@ -1085,5 +1089,117 @@ export class EducationService {
     return EducationService.mapQuizAuthorView(
       raw as Parameters<typeof EducationService.mapQuizAuthorView>[0]
     );
+  }
+
+  // ── Analytics + review queue (PR-K, education-manual-review /
+  // education-assignments DELTA) ──
+
+  private static mapRosterStudent(r: {
+    assignment_id: string;
+    user_id: string;
+    name: string;
+    email: string;
+    status: EducationAssignmentStatus;
+    completed_lessons: number;
+    total_lessons: number;
+    progress_pct: number;
+    due_date: string | null;
+    last_quiz_score: number | null;
+    last_quiz_max: number | null;
+    last_quiz_verdict: 'passed' | 'failed' | 'in_review' | null;
+  }): RosterStudent {
+    return {
+      assignmentId: r.assignment_id,
+      userId: r.user_id,
+      name: r.name,
+      email: r.email,
+      status: r.status,
+      completedLessons: r.completed_lessons,
+      totalLessons: r.total_lessons,
+      progressPct: r.progress_pct,
+      dueDate: r.due_date,
+      lastQuizScore: r.last_quiz_score,
+      lastQuizMax: r.last_quiz_max,
+      lastQuizVerdict: r.last_quiz_verdict,
+    };
+  }
+
+  /** `GET /education/curricula/:id/roster` — StudentProgress.tsx's roster + 4 KPIs, one round trip. */
+  static async getStudentRoster(curriculumId: string): Promise<StudentRoster> {
+    const raw = await ApiService.get<{
+      curriculum_id: string;
+      curriculum_name: string;
+      kpis: {
+        active_students: number;
+        avg_progress_pct: number;
+        quiz_pass_rate: number;
+        inactive_count: number;
+      };
+      students: Parameters<typeof EducationService.mapRosterStudent>[0][];
+    }>(`${this.base}/curricula/${curriculumId}/roster`);
+    return {
+      curriculumId: raw.curriculum_id,
+      curriculumName: raw.curriculum_name,
+      kpis: {
+        activeStudents: raw.kpis.active_students,
+        avgProgressPct: raw.kpis.avg_progress_pct,
+        quizPassRate: raw.kpis.quiz_pass_rate,
+        inactiveCount: raw.kpis.inactive_count,
+      },
+      students: (raw.students ?? []).map(EducationService.mapRosterStudent),
+    };
+  }
+
+  /** `GET /education/curricula/:id/funnel` — LessonFunnel.tsx's per-lesson drop-off chart. */
+  static async getLessonFunnel(curriculumId: string): Promise<LessonFunnelPoint[]> {
+    const raw = await ApiService.get<
+      {
+        lesson_id: string;
+        title: string;
+        order_index: number;
+        reached: number;
+        completed: number;
+      }[]
+    >(`${this.base}/curricula/${curriculumId}/funnel`);
+    return raw.map(p => ({
+      lessonId: p.lesson_id,
+      title: p.title,
+      orderIndex: p.order_index,
+      reached: p.reached,
+      completed: p.completed,
+    }));
+  }
+
+  /** `GET /education/curricula/:id/roster.csv` — same roster data, CSV download (ExportUsers precedent). */
+  static async exportRosterCSV(curriculumId: string, curriculumName: string): Promise<void> {
+    const blob = await ApiService.getBlob(`${this.base}/curricula/${curriculumId}/roster.csv`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const slug = curriculumName
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    a.download = `progreso-${slug || curriculumId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Grades one short-answer response — calls the ALREADY-LIVE PR-F
+   * `ReviewAnswer` endpoint directly (`education_quiz_review.go`). PR-K adds
+   * no new grading route; `ReviewQueue.tsx` is simply this endpoint's first
+   * frontend caller.
+   */
+  static async reviewAnswer(answerId: string, payload: ReviewAnswerRequest): Promise<void> {
+    await ApiService.put(`${this.base}/reviews/answers/${answerId}`, {
+      is_correct: payload.isCorrect,
+      awarded_points: payload.awardedPoints,
+      review_note: payload.reviewNote ?? null,
+    });
   }
 }

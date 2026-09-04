@@ -104,3 +104,25 @@ export function useCourseModules(curriculumId: string | undefined) {
     enabled: !!curriculumId,
   });
 }
+
+// ── PR-K: analytics + review queue ──
+
+/** Roster + 4 KPIs for one curriculum (`StudentProgress.tsx`'s course selector target). */
+export function useStudentRoster(curriculumId: string | undefined) {
+  return useQuery({
+    queryKey: ['education-student-roster', curriculumId],
+    queryFn: () => EducationService.getStudentRoster(curriculumId as string),
+    enabled: !!curriculumId,
+    staleTime: 30_000,
+  });
+}
+
+/** Per-lesson reached/completed counts for `LessonFunnel.tsx`'s drop-off chart. */
+export function useLessonFunnel(curriculumId: string | undefined) {
+  return useQuery({
+    queryKey: ['education-lesson-funnel', curriculumId],
+    queryFn: () => EducationService.getLessonFunnel(curriculumId as string),
+    enabled: !!curriculumId,
+    staleTime: 30_000,
+  });
+}

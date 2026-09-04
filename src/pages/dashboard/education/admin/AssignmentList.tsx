@@ -22,11 +22,14 @@ import type { EducationAssignment, EducationAssignmentStatus } from '@/types/edu
 import type { User } from '@/types/user.types';
 
 // `in_review`/`inactive` were added by the design-handoff spec (education-
-// assignments DELTA) for a future server-side derivation (PR-K's analytics
-// slice owns wiring the actual queue-based/inactivity logic) — no endpoint
-// this component calls emits them yet, but `EducationAssignmentStatus` is a
-// 6-value union so this Record must stay exhaustive.
-const STATUS_LABEL: Record<EducationAssignmentStatus, string> = {
+// assignments DELTA). PR-K's GetStudentRoster now actually computes them
+// (education_analytics.go's deriveRosterStatus) — this component's own
+// GetCurriculumProgress source still only ever emits the original 4, but
+// `EducationAssignmentStatus` is a 6-value union so this Record stays
+// exhaustive either way. Exported so `StudentProgress.tsx` (PR-K, the first
+// screen that actually RECEIVES `in_review`/`inactive` from the backend)
+// imports these same maps instead of redefining the palette a second time.
+export const STATUS_LABEL: Record<EducationAssignmentStatus, string> = {
   pending: 'Pendiente',
   in_progress: 'En progreso',
   completed: 'Completado',
@@ -35,7 +38,7 @@ const STATUS_LABEL: Record<EducationAssignmentStatus, string> = {
   inactive: 'Inactivo',
 };
 
-const STATUS_PILL: Record<EducationAssignmentStatus, string> = {
+export const STATUS_PILL: Record<EducationAssignmentStatus, string> = {
   pending: 'bg-muted text-muted-foreground',
   in_progress: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
   completed: 'bg-edu-container text-on-edu-container',
