@@ -105,10 +105,12 @@ export interface KpiCardProps {
 export function KpiCard({ label, value, foot, icon: Icon, containerClass, onClass }: KpiCardProps) {
   return (
     // Design (README §7): "mismo patrón exacto que los KPIs del dashboard
-    // principal" — the app's own generic `--surface` token, deliberately NOT
-    // the green education tint (this card family matches the main app's
+    // principal" — DashboardHome.tsx's own KPI cards use `bg-surface-container`
+    // (not bare `bg-surface`, which resolves to the same value as the page
+    // background and renders with no visible frame), deliberately NOT the
+    // green education tint (this card family matches the main app's
     // dashboard, not the student-facing green sub-brand).
-    <div className="rounded-md3-lg bg-surface p-5">
+    <div className="rounded-md3-lg bg-surface-container p-5">
       <div className="flex items-start justify-between">
         <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
         <div

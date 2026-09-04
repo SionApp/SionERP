@@ -11,6 +11,7 @@ import { ModuleTabs } from './ModuleTabs';
 import { useEducationAccess } from './use-education-access';
 import { useEducationHome } from './hooks/use-education-queries';
 import StudentHome from './student/StudentHome';
+import { NewLessonButton } from './admin/NewLessonButton';
 
 // The shell's tabs are role-exclusive (ADMIN_TABS vs studentTabs in
 // ModuleTabs) and none of the admin tabs point at the bare `/education`
@@ -143,6 +144,7 @@ export default function EducationShell() {
             )}
           </Button>
         )}
+        {hasAccess && !loadingAccess && isAuthor && <NewLessonButton />}
       </div>
       {!hasAccess && !loadingAccess ? <div className="mt-6">{body}</div> : body}
     </div>

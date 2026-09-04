@@ -184,13 +184,14 @@ function ModuleFormDialog({
   );
 }
 
-function LessonFormDialog({
+export function LessonFormDialog({
   open,
   onOpenChange,
   curriculumId,
   modules,
   defaultModuleId,
   lesson,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -198,6 +199,10 @@ function LessonFormDialog({
   modules: EducationCourseModule[];
   defaultModuleId: string | null;
   lesson: EducationLesson | null;
+  /** Called with the new lesson's id right after a successful create (not edit) —
+   * lets a caller outside the course detail page (e.g. the global "Nueva lección"
+   * entry point) navigate straight into the editor. */
+  onCreated?: (lessonId: string) => void;
 }) {
   const qc = useQueryClient();
   const isEdit = !!lesson;
@@ -221,20 +226,22 @@ function LessonFormDialog({
           moduleId,
           durationMinutes,
         });
-      } else {
-        await EducationService.createLesson(curriculumId, {
-          title: title.trim(),
-          moduleId,
-          durationMinutes,
-        });
+        return null;
       }
+      const created = await EducationService.createLesson(curriculumId, {
+        title: title.trim(),
+        moduleId,
+        durationMinutes,
+      });
+      return created.id;
     },
-    onSuccess: () => {
+    onSuccess: createdId => {
       qc.invalidateQueries({ queryKey: ['education-lessons', curriculumId] });
       qc.invalidateQueries({ queryKey: ['education-curriculum', curriculumId] });
       qc.invalidateQueries({ queryKey: ['education-curricula'] });
       onOpenChange(false);
       toast.success(isEdit ? 'Lección actualizada' : 'Lección creada');
+      if (createdId) onCreated?.(createdId);
     },
     onError: (err: unknown) =>
       toast.error(err instanceof Error ? err.message : 'No se pudo guardar la lección'),
