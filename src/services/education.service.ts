@@ -10,6 +10,10 @@ import type {
   EducationLesson,
   CreateLessonRequest,
   UpdateLessonRequest,
+  LessonOrderEntry,
+  EducationCourseModule,
+  CreateCourseModuleRequest,
+  UpdateCourseModuleRequest,
   EducationAssignment,
   EducationAssignmentStatus,
   EducationSourceModule,
@@ -31,9 +35,15 @@ import type {
   QuizResultQuestion,
   QuizResultVerdict,
   QuizPendingReviewItem,
+  QuizReviewQueueItem,
 } from '@/types/education.types';
 
 const ATTACHMENT_BUCKET = 'church-documents';
+// Course covers live on the PUBLIC bucket (RLS-whitelisted for the
+// `education/%` prefix since PR-A's migration, section 7) — never the
+// private `church-documents` bucket lesson media uses. Same bucket/pattern
+// `EventsService.uploadImage` already established (events.service.ts).
+const COVER_BUCKET = 'church-assets';
 
 interface RawCurriculum {
   id: string;
@@ -122,11 +132,10 @@ function mapAssignment(r: RawAssignment): EducationAssignment {
 interface RawLesson {
   id: string;
   curriculum_id: string;
+  module_id: string | null;
   order_index: number;
   title: string;
-  content: string | null;
-  attachment_path: string | null;
-  attachment_name: string | null;
+  duration_minutes: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -135,11 +144,32 @@ function mapLesson(r: RawLesson): EducationLesson {
   return {
     id: r.id,
     curriculumId: r.curriculum_id,
+    moduleId: r.module_id,
     orderIndex: r.order_index,
     title: r.title,
-    content: r.content,
-    attachmentPath: r.attachment_path,
-    attachmentName: r.attachment_name,
+    durationMinutes: r.duration_minutes,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+interface RawCourseModule {
+  id: string;
+  curriculum_id: string;
+  order_index: number;
+  title: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapCourseModule(r: RawCourseModule): EducationCourseModule {
+  return {
+    id: r.id,
+    curriculumId: r.curriculum_id,
+    orderIndex: r.order_index,
+    title: r.title,
+    description: r.description,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -177,17 +207,57 @@ export class EducationService {
   }
 
   static async createCurriculum(data: CreateCurriculumRequest): Promise<{ id: string }> {
-    return ApiService.post<{ id: string; message: string }, CreateCurriculumRequest>(
-      `${this.base}/curricula`,
-      data
-    );
+    return ApiService.post<
+      { id: string; message: string },
+      {
+        name: string;
+        description?: string;
+        track?: EducationTrack;
+        level?: EducationCourseLevel;
+        hours?: number;
+        teacher_user_id?: string;
+        cover_path?: string;
+        objectives?: string[];
+        requirements?: string;
+      }
+    >(`${this.base}/curricula`, {
+      name: data.name,
+      description: data.description,
+      track: data.track,
+      level: data.level,
+      hours: data.hours,
+      teacher_user_id: data.teacherUserId,
+      cover_path: data.coverPath,
+      objectives: data.objectives,
+      requirements: data.requirements,
+    });
   }
 
   static async updateCurriculum(id: string, data: UpdateCurriculumRequest): Promise<void> {
-    await ApiService.put<{ message: string }, UpdateCurriculumRequest>(
-      `${this.base}/curricula/${id}`,
-      data
-    );
+    await ApiService.put<
+      { message: string },
+      {
+        name?: string;
+        description?: string;
+        track?: EducationTrack | '';
+        level?: EducationCourseLevel;
+        hours?: number;
+        teacher_user_id?: string;
+        cover_path?: string;
+        objectives?: string[];
+        requirements?: string;
+      }
+    >(`${this.base}/curricula/${id}`, {
+      name: data.name,
+      description: data.description,
+      track: data.track,
+      level: data.level,
+      hours: data.hours,
+      teacher_user_id: data.teacherUserId,
+      cover_path: data.coverPath,
+      objectives: data.objectives,
+      requirements: data.requirements,
+    });
   }
 
   static async updateCurriculumStatus(
@@ -204,7 +274,8 @@ export class EducationService {
     await ApiService.delete(`${this.base}/curricula/${id}`);
   }
 
-  // ── Lecciones ──
+  // ── Lecciones (shell: título/módulo/duración/posición — el contenido por
+  // pasos/bloques se maneja aparte, ver getLessonDetail más abajo) ──
 
   static async getLessons(curriculumId: string): Promise<EducationLesson[]> {
     const raw = await ApiService.get<RawLesson[]>(`${this.base}/curricula/${curriculumId}/lessons`);
@@ -217,39 +288,23 @@ export class EducationService {
   ): Promise<{ id: string }> {
     return ApiService.post<
       { id: string; message: string },
-      {
-        title: string;
-        content?: string;
-        attachment_path?: string;
-        attachment_name?: string;
-        order_index?: number;
-      }
+      { title: string; module_id?: string | null; duration_minutes?: number; order_index?: number }
     >(`${this.base}/curricula/${curriculumId}/lessons`, {
       title: data.title,
-      content: data.content,
-      attachment_path: data.attachmentPath,
-      attachment_name: data.attachmentName,
+      module_id: data.moduleId,
+      duration_minutes: data.durationMinutes,
       order_index: data.orderIndex,
     });
   }
 
-  // PUT semantics: reemplaza content/attachment por completo (el backend NO
-  // hace COALESCE en esos campos, sólo en title) — siempre mandar el estado
-  // completo del formulario, nunca sólo el campo que cambió.
   static async updateLesson(id: string, data: UpdateLessonRequest): Promise<void> {
     await ApiService.put<
       { message: string },
-      {
-        title?: string;
-        content?: string;
-        attachment_path?: string;
-        attachment_name?: string;
-      }
+      { title?: string; module_id?: string | null; duration_minutes?: number }
     >(`${this.base}/lessons/${id}`, {
       title: data.title,
-      content: data.content,
-      attachment_path: data.attachmentPath,
-      attachment_name: data.attachmentName,
+      module_id: data.moduleId,
+      duration_minutes: data.durationMinutes,
     });
   }
 
@@ -257,15 +312,64 @@ export class EducationService {
     await ApiService.delete(`${this.base}/lessons/${id}`);
   }
 
-  static async reorderLessons(
+  /**
+   * Bulk lesson-order/move-between-modules operation (PR-B's `SetLessonOrder`,
+   * spec: "Reordering and moving between modules MUST be one bulk operation").
+   * `ModuleLessonTree` always sends the FULL ordered set of the curriculum's
+   * lessons on every reorder or cross-module move — never a single-lesson
+   * PATCH — course-wide `order_index` stays unique regardless of module.
+   */
+  static async setLessonOrder(curriculumId: string, lessons: LessonOrderEntry[]): Promise<void> {
+    await ApiService.put<
+      { message: string },
+      { lessons: { id: string; module_id: string | null; order_index: number }[] }
+    >(`${this.base}/curricula/${curriculumId}/lesson-order`, {
+      lessons: lessons.map(l => ({ id: l.id, module_id: l.moduleId, order_index: l.orderIndex })),
+    });
+  }
+
+  // ── Módulos de curso (PR-B, education-catalog "Course modules group
+  // lessons without owning order") ──
+
+  static async getCourseModules(curriculumId: string): Promise<EducationCourseModule[]> {
+    const raw = await ApiService.get<RawCourseModule[]>(
+      `${this.base}/curricula/${curriculumId}/modules`
+    );
+    return raw.map(mapCourseModule);
+  }
+
+  static async createCourseModule(
     curriculumId: string,
-    order: { id: string; orderIndex: number }[]
+    data: CreateCourseModuleRequest
+  ): Promise<{ id: string }> {
+    return ApiService.post<
+      { id: string; message: string },
+      { title: string; description?: string; order_index?: number }
+    >(`${this.base}/curricula/${curriculumId}/modules`, {
+      title: data.title,
+      description: data.description,
+      order_index: data.orderIndex,
+    });
+  }
+
+  static async updateCourseModule(id: string, data: UpdateCourseModuleRequest): Promise<void> {
+    await ApiService.put<{ message: string }, { title?: string; description?: string }>(
+      `${this.base}/modules/${id}`,
+      { title: data.title, description: data.description }
+    );
+  }
+
+  static async deleteCourseModule(id: string): Promise<void> {
+    await ApiService.delete(`${this.base}/modules/${id}`);
+  }
+
+  static async reorderCourseModules(
+    curriculumId: string,
+    modules: { id: string; orderIndex: number }[]
   ): Promise<void> {
-    await ApiService.put<{ message: string }, { lessons: { id: string; order_index: number }[] }>(
-      `${this.base}/curricula/${curriculumId}/lessons/reorder`,
-      {
-        lessons: order.map(o => ({ id: o.id, order_index: o.orderIndex })),
-      }
+    await ApiService.put<{ message: string }, { modules: { id: string; order_index: number }[] }>(
+      `${this.base}/curricula/${curriculumId}/modules/reorder`,
+      { modules: modules.map(m => ({ id: m.id, order_index: m.orderIndex })) }
     );
   }
 
@@ -507,45 +611,18 @@ export class EducationService {
   // Convención de ruta: education/{curriculum_id}/{archivo} — igual a la
   // política de storage de la migración 20260901000001. Nunca getPublicUrl
   // acá, sólo URLs firmadas temporales (mismo patrón que user.service.ts).
-
-  static async uploadLessonAttachment(
-    curriculumId: string,
-    file: File
-  ): Promise<{ path: string; name: string }> {
-    const path = `education/${curriculumId}/${Date.now()}-${file.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from(ATTACHMENT_BUCKET)
-      .upload(path, file, { cacheControl: '3600', upsert: false });
-    if (uploadError) {
-      throw new Error('Error al subir el adjunto');
-    }
-    return { path, name: file.name };
-  }
-
-  static async getLessonAttachmentSignedUrl(storagePath: string): Promise<string> {
-    const { data, error } = await supabase.storage
-      .from(ATTACHMENT_BUCKET)
-      .createSignedUrl(storagePath, 60);
-    if (error || !data) {
-      throw new Error('Error al generar el enlace del adjunto');
-    }
-    return data.signedUrl;
-  }
-
-  static async removeLessonAttachment(storagePath: string): Promise<void> {
-    await supabase.storage.from(ATTACHMENT_BUCKET).remove([storagePath]);
-  }
+  // `uploadLessonAttachment`/`getLessonAttachmentSignedUrl` (PR2c's legacy
+  // one-shot attachment flow, consumed only by the now-deleted `LessonList.
+  // tsx`) were removed in PR-H — lesson media goes through step `blocks`
+  // (`image`/`pdf` block types) since PR-A/E, served by the signed-URL
+  // helper right below.
 
   /**
    * Signed URL for an `image`/`pdf` block's asset (PR-E, `blocks/ImageBlock`
    * and `blocks/PdfBlock` — spec: "Lesson assets are private ... served only
-   * by time-limited signed URL"). A DELIBERATELY longer TTL than
-   * `getLessonAttachmentSignedUrl`'s 60s: that helper backs a one-shot
-   * "open the attachment" download link, while this one backs an `<img>`/
-   * embed that must stay valid for as long as a student is reading the
-   * step — 60s would break mid-read. Same private bucket, same
-   * `education/{curriculum_id}/...` path convention, no behavior change to
-   * the existing helper.
+   * by time-limited signed URL"). A 1-hour TTL — long enough that an `<img>`/
+   * embed stays valid for as long as a student is reading the step. Private
+   * bucket, `education/{curriculum_id}/...` path convention.
    */
   static async getEducationAssetSignedUrl(storagePath: string): Promise<string> {
     const { data, error } = await supabase.storage
@@ -555,6 +632,34 @@ export class EducationService {
       throw new Error('Error al generar el enlace del recurso');
     }
     return data.signedUrl;
+  }
+
+  // ── Portada de curso (PR-H, bucket público church-assets) ──
+  // `education/covers/{path}` — RLS-whitelisted since PR-A's migration
+  // (section 7, storage.objects policies extended with `education/%`).
+  // PUBLIC bucket + `getPublicUrl` on purpose (unlike lesson media above):
+  // course covers render on the unauthenticated-looking catalog card grid
+  // the same way `EventsService.uploadImage` already treats event images —
+  // never a signed URL for this one.
+
+  static async uploadCourseCover(file: File): Promise<{ path: string; publicUrl: string }> {
+    const fileExt = file.name.split('.').pop();
+    const path = `education/covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const { error: uploadError } = await supabase.storage
+      .from(COVER_BUCKET)
+      .upload(path, file, { cacheControl: '3600', upsert: false });
+    if (uploadError) {
+      throw new Error('Error al subir la portada');
+    }
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(COVER_BUCKET).getPublicUrl(path);
+    return { path, publicUrl };
+  }
+
+  /** Derives the public URL for an already-uploaded cover path — no network call. */
+  static getCoverPublicUrl(coverPath: string): string {
+    return supabase.storage.from(COVER_BUCKET).getPublicUrl(coverPath).data.publicUrl;
   }
 
   // ── Quiz — runtime del alumno (PR-G) ──
@@ -753,6 +858,40 @@ export class EducationService {
       curriculumId: r.curriculum_id,
       curriculumName: r.curriculum_name,
       dueDate: r.due_date,
+      submittedAt: r.submitted_at,
+    }));
+  }
+
+  /**
+   * Every `short`-answer response still awaiting manual grading, church-wide
+   * (level >= 3). PR-H reuses this read-only for `AdminCourseList`'s "Por
+   * revisar" KPI count — the full grading workflow is PR-K's `ReviewQueue.tsx`.
+   */
+  static async getReviewQueue(): Promise<QuizReviewQueueItem[]> {
+    const raw = await ApiService.get<
+      {
+        answer_id: string;
+        attempt_id: string;
+        question_id: string;
+        prompt: string;
+        points: number;
+        text_answer: string;
+        student_name: string;
+        lesson_id: string;
+        lesson_title: string;
+        submitted_at: string;
+      }[]
+    >(`${this.base}/reviews`);
+    return raw.map(r => ({
+      answerId: r.answer_id,
+      attemptId: r.attempt_id,
+      questionId: r.question_id,
+      prompt: r.prompt,
+      points: r.points,
+      textAnswer: r.text_answer,
+      studentName: r.student_name,
+      lessonId: r.lesson_id,
+      lessonTitle: r.lesson_title,
       submittedAt: r.submitted_at,
     }));
   }

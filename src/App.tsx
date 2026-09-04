@@ -54,10 +54,8 @@ const EducationAdminGate = lazy(() => import('./pages/dashboard/education/Educat
 const LegacyCurriculumRedirect = lazy(
   () => import('./pages/dashboard/education/LegacyCurriculumRedirect')
 );
-const LegacyCurriculumListRoute = lazy(
-  () => import('./pages/dashboard/education/LegacyCurriculumListRoute')
-);
-const CurriculumEditorPage = lazy(() => import('./pages/dashboard/education/CurriculumEditor'));
+const AdminCourseList = lazy(() => import('./pages/dashboard/education/admin/AdminCourseList'));
+const AdminCourseDetail = lazy(() => import('./pages/dashboard/education/admin/AdminCourseDetail'));
 
 const StudentHome = lazy(() => import('./pages/dashboard/education/student/StudentHome'));
 const CourseCatalog = lazy(() => import('./pages/dashboard/education/student/CourseCatalog'));
@@ -381,8 +379,8 @@ const AppContent = () => {
                       RequireModuleLevel on the backend is authoritative (design A9). */}
                   <Route path="admin" element={<EducationAdminGate />}>
                     <Route index element={<Navigate to="cursos" replace />} />
-                    <Route path="cursos" element={<LegacyCurriculumListRoute />} />
-                    <Route path="cursos/:id" element={<CurriculumEditorPage />} />
+                    <Route path="cursos" element={<AdminCourseList />} />
+                    <Route path="cursos/:curriculumId" element={<AdminCourseDetail />} />
                     <Route
                       path="cursos/:curriculumId/leccion/:lessonId"
                       element={<LessonEditor />}

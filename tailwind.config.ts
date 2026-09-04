@@ -105,6 +105,10 @@ export default {
         "on-edu-violet-container": "hsl(var(--on-edu-violet-container))",
         "edu-orange-container": "hsl(var(--edu-orange-container))",
         "on-edu-orange-container": "hsl(var(--on-edu-orange-container))",
+        // PR-H — "Cursos publicados" KPI on AdminCourseList (the one KPI
+        // color family not already covered by an existing token).
+        "edu-blue-container": "hsl(var(--edu-blue-container))",
+        "on-edu-blue-container": "hsl(var(--on-edu-blue-container))",
         // Fixed dark-on-white chip text — NOT theme-flipped, see
         // education-theme.css's comment on --edu-on-light-chip.
         "edu-on-light-chip": "hsl(var(--edu-on-light-chip))",

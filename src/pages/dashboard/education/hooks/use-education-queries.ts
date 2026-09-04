@@ -76,3 +76,31 @@ export function useMyPendingReviews() {
     staleTime: 30_000,
   });
 }
+
+// ── PR-H: admin course management ──
+
+/** Author-visible curricula list (level >= 3 sees draft/review/archived too). */
+export function useAdminCurricula() {
+  return useQuery({
+    queryKey: ['education-curricula'],
+    queryFn: () => EducationService.getCurricula(),
+    staleTime: 30_000,
+  });
+}
+
+/** Church-wide review queue, reused read-only for `AdminCourseList`'s "Por revisar" KPI. */
+export function useReviewQueue() {
+  return useQuery({
+    queryKey: ['education-review-queue'],
+    queryFn: () => EducationService.getReviewQueue(),
+    staleTime: 30_000,
+  });
+}
+
+export function useCourseModules(curriculumId: string | undefined) {
+  return useQuery({
+    queryKey: ['education-course-modules', curriculumId],
+    queryFn: () => EducationService.getCourseModules(curriculumId as string),
+    enabled: !!curriculumId,
+  });
+}

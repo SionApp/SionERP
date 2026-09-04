@@ -38,19 +38,13 @@ export default tseslint.config(
   // shadcn primitives.
   {
     files: ["src/pages/dashboard/education/**/*.{ts,tsx}"],
-    ignores: [
-      "src/pages/dashboard/education/ui/**",
-      // PR1-3c admin components, kept working as-is through this
-      // transitional slice (mounted under the new route tree by
-      // LegacyCurriculumListRoute.tsx) — deleted wholesale in PR-H
-      // (tasks-v2 H.5) once AdminCourseList/AdminCourseDetail/
-      // ModuleLessonTree replace them. Not worth migrating to the
-      // education/ui wrappers for files with a fixed deletion date.
-      "src/pages/dashboard/education/CurriculumList.tsx",
-      "src/pages/dashboard/education/CurriculumEditor.tsx",
-      "src/pages/dashboard/education/LessonList.tsx",
-      "src/pages/dashboard/education/AssignmentList.tsx",
-    ],
+    // PR-H (tasks-v2 H.5): the PR1-3c transitional exemption
+    // (CurriculumList/CurriculumEditor/LessonList/AssignmentList) is gone —
+    // those files are deleted (AssignmentList moved to admin/AssignmentList.tsx
+    // and migrated to the education/ui/* wrappers instead of staying
+    // exempted). Only the wrapper directory itself stays exempt (it's what
+    // imports the raw shadcn primitives in the first place).
+    ignores: ["src/pages/dashboard/education/ui/**"],
     rules: {
       "no-restricted-imports": [
         "error",
