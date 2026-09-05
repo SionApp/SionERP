@@ -72,6 +72,12 @@ export default function EducationShell() {
     ? 'Crea cursos, escribe lecciones y sigue el avance de cada alumno.'
     : 'Cursos de discipulado y formación para tu crecimiento.';
 
+  // The global bottom nav (Inicio/Discipulado/Miembros/Reportes/Más) stays
+  // visible throughout Educación on mobile, same as every other module —
+  // no module here hides it (verified: `setMobileNavHidden` outside
+  // `MobileScreen`'s own detail-drilldown use is otherwise unused in the
+  // codebase). The top `ModuleTabs` strip is Educación's own navigation on
+  // every breakpoint, mobile included.
   const body = loadingAccess ? (
     <Skeleton className="h-48 w-full rounded-2xl" />
   ) : !hasAccess ? (
@@ -87,7 +93,7 @@ export default function EducationShell() {
 
   if (isMobileApp) {
     return (
-      <MobileScreen title="Educación" subtitle={subtitle}>
+      <MobileScreen title={title} subtitle={subtitle}>
         <div className="px-4 py-4">{body}</div>
       </MobileScreen>
     );
