@@ -6,7 +6,16 @@ import type { Editor } from '@tiptap/react';
 import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { AlertTriangle, ArrowLeft, Check, Eye, Loader2, Plus, Upload } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  Eye,
+  ListChecks,
+  Loader2,
+  Plus,
+  Upload,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -349,6 +358,16 @@ export default function LessonEditor() {
           </p>
         </div>
         <AutosaveIndicator status={autosaveStatus} lastSavedAt={lastSavedAt} />
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() =>
+            navigate(`/dashboard/education/admin/cursos/${curriculumId}/leccion/${lessonId}/quiz`)
+          }
+        >
+          <ListChecks className="h-4 w-4" /> Constructor de quiz
+        </Button>
         <Button
           variant="outline"
           size="sm"
