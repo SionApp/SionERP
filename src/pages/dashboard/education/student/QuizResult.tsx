@@ -172,16 +172,21 @@ export default function QuizResult() {
             className="flex flex-col items-center px-5 pb-6 text-center text-white"
             style={{ background: 'var(--edu-hero)', paddingTop: 'env(safe-area-inset-top)' }}
           >
-            <button
-              type="button"
-              onClick={() => navigate(`/dashboard/education/curso/${curriculumId}`)}
-              aria-label="Cerrar"
-              className="self-start"
-            >
-              <X className="h-6 w-6" />
-            </button>
+            {/* Same action-row rhythm as CourseHeroMobile's back/share row
+                (full-width, py-3, icon flush left) — a bare icon with no
+                row padding read as misaligned against every other
+                immersive header in this module. */}
+            <div className="flex w-full items-center py-3">
+              <button
+                type="button"
+                onClick={() => navigate(`/dashboard/education/curso/${curriculumId}`)}
+                aria-label="Cerrar"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
             <div
-              className="relative mt-3 h-[132px] w-[132px] shrink-0 rounded-full"
+              className="relative h-[132px] w-[132px] shrink-0 rounded-full"
               style={{
                 background: `conic-gradient(white 0% ${percent}%, rgba(255,255,255,.25) ${percent}% 100%)`,
               }}
