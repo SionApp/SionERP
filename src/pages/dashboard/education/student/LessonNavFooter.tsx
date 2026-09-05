@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, FileQuestion } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, FileQuestion } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,7 @@ export function LessonNavFooter({
   disablePrev,
   isLastStep,
   hasQuiz,
+  quizSubmitted,
   nextPending,
 }: {
   onPrev: () => void;
@@ -29,14 +30,20 @@ export function LessonNavFooter({
   disablePrev: boolean;
   isLastStep: boolean;
   hasQuiz: boolean;
+  /** The caller already has a submitted attempt on this quiz (resuelto or en
+   * revisión) — relabels the primary action so it reads as "go see it",
+   * never as "take the quiz again" (retrying is blocked server-side anyway). */
+  quizSubmitted?: boolean;
   nextPending?: boolean;
 }) {
   const primaryLabel = !isLastStep
     ? 'Siguiente'
-    : hasQuiz
-      ? 'Ir al mini quiz'
-      : 'Siguiente lección';
-  const PrimaryIcon = !isLastStep || !hasQuiz ? ArrowRight : FileQuestion;
+    : !hasQuiz
+      ? 'Siguiente lección'
+      : quizSubmitted
+        ? 'Ver mi resultado'
+        : 'Ir al mini quiz';
+  const PrimaryIcon = !isLastStep || !hasQuiz ? ArrowRight : quizSubmitted ? Eye : FileQuestion;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted px-5 py-4 sm:px-8">

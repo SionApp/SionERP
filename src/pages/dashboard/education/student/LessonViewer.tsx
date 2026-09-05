@@ -59,6 +59,18 @@ export default function LessonViewer() {
   // extra request is needed to know whether the last step should route to
   // the quiz.
   const hasQuiz = flatLessons[lessonIndexInCourse]?.hasQuiz ?? false;
+
+  // Whether the student already resolved this quiz (resuelto or en
+  // revisión) — routes "Ir al mini quiz" straight to that result instead of
+  // into StartAttempt, which 409s once the retry ceiling is reached and
+  // otherwise gives no way back to a past attempt (the app's own dead end,
+  // not a design gap).
+  const { data: latestAttempt } = useQuery({
+    queryKey: ['quiz-latest-attempt', lessonId],
+    queryFn: () => EducationService.getMyLatestQuizAttempt(lessonId as string),
+    enabled: !!lessonId && hasQuiz,
+  });
+
   const nextLessonId =
     lessonIndexInCourse >= 0 ? (flatLessons[lessonIndexInCourse + 1]?.id ?? null) : null;
   const moduleNumber = useMemo(() => {
@@ -205,6 +217,12 @@ export default function LessonViewer() {
     // still mark the lesson's own content complete, THEN navigate to the
     // quiz (never skip it).
     if (hasQuiz) {
+      if (latestAttempt?.submitted && latestAttempt.attemptId) {
+        navigate(
+          `/dashboard/education/curso/${curriculumId}/leccion/${lessonId}/resultado/${latestAttempt.attemptId}`
+        );
+        return;
+      }
       completeMutation.mutate(undefined, {
         onSuccess: () => {
           navigate(`/dashboard/education/curso/${curriculumId}/leccion/${lessonId}/quiz`);
@@ -308,6 +326,7 @@ export default function LessonViewer() {
               disablePrev={isFirstStep}
               isLastStep={isLastStep}
               hasQuiz={hasQuiz}
+              quizSubmitted={!!latestAttempt?.submitted}
               nextPending={completeMutation.isPending}
             />
           </>
