@@ -22,7 +22,9 @@ export function QuizImmersiveHeader({
       className="sticky top-0 z-40 flex-none border-b border-border bg-background"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
-      <div className="flex items-center gap-3 px-5 py-2">
+      {/* Same asymmetric padding as LessonImmersiveHeader (doc: "misma
+          estructura de cabecera compacta que la lección"). */}
+      <div className="flex items-center gap-3 px-5 pb-3 pt-0.5">
         <button type="button" onClick={onClose} aria-label="Cerrar" className="shrink-0">
           <X className="h-6 w-6 text-muted-foreground" />
         </button>

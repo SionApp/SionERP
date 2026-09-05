@@ -134,10 +134,14 @@ export function CourseHeroMobile({
         )}
       </div>
 
+      {/* Same 54px/18px-radius primary-button treatment as the immersive
+          screens' own bottom nav (LessonNavFooter/QuizRunner's compact
+          variant) — one consistent CTA pattern across the module, not a
+          third, differently-sized button. */}
       {assignment ? (
         nextLesson && (
           <Button
-            className="mt-3 w-full gap-2 bg-white text-edu-primary-dark hover:bg-white/90"
+            className="mt-3 h-[54px] w-full gap-2 rounded-[18px] bg-white text-[15px] text-edu-primary-dark hover:bg-white/90"
             onClick={() => onContinue(nextLesson.id)}
           >
             <PlayCircle className="h-5 w-5" />
@@ -146,7 +150,7 @@ export function CourseHeroMobile({
         )
       ) : (
         <Button
-          className="mt-3 w-full bg-white text-edu-primary-dark hover:bg-white/90"
+          className="mt-3 h-[54px] w-full rounded-[18px] bg-white text-[15px] text-edu-primary-dark hover:bg-white/90"
           onClick={onEnroll}
           disabled={enrolling}
         >

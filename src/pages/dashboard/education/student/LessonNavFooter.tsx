@@ -24,6 +24,7 @@ export function LessonNavFooter({
   hasQuiz,
   quizSubmitted,
   nextPending,
+  compact = false,
 }: {
   onPrev: () => void;
   onNext: () => void;
@@ -35,6 +36,15 @@ export function LessonNavFooter({
    * never as "take the quiz again" (retrying is blocked server-side anyway). */
   quizSubmitted?: boolean;
   nextPending?: boolean;
+  /** Mobile handoff, "Barra de navegación inferior (lección, quiz,
+   * resultado)": secondary becomes a 54×54px icon-only square, primary
+   * becomes flex:1 at the same 54px height with an 18px radius and a
+   * colored shadow — this is the SAME primary/secondary pair QuizRunner's
+   * own mobile bottom bar already uses, so both screens read as one
+   * consistent pattern rather than two different button treatments. The
+   * desktop helper text ("Tu progreso se guarda...") is dropped: "no hay
+   * espacio y el autoguardado es silencioso". */
+  compact?: boolean;
 }) {
   const primaryLabel = !isLastStep
     ? 'Siguiente'
@@ -44,6 +54,34 @@ export function LessonNavFooter({
         ? 'Ver mi resultado'
         : 'Ir al mini quiz';
   const PrimaryIcon = !isLastStep || !hasQuiz ? ArrowRight : quizSubmitted ? Eye : FileQuestion;
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-3 border-t border-border bg-muted px-5 py-3">
+        <button
+          type="button"
+          onClick={onPrev}
+          disabled={disablePrev}
+          aria-label="Anterior"
+          className={cn(
+            'flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[18px] border',
+            disablePrev ? 'border-outline text-outline opacity-50' : 'border-outline'
+          )}
+        >
+          <ArrowLeft className="h-[18px] w-[18px]" aria-hidden="true" />
+        </button>
+        <Button
+          type="button"
+          onClick={onNext}
+          disabled={nextPending}
+          className="h-[54px] flex-1 gap-2 rounded-[18px] shadow-[0_2px_8px_rgba(31,107,76,.35)]"
+        >
+          {primaryLabel}
+          <PrimaryIcon className="h-5 w-5" aria-hidden="true" />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted px-5 py-4 sm:px-8">

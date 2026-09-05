@@ -244,17 +244,28 @@ export default function QuizResult() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 px-5 pb-4">
+          {/* Same 54px primary/secondary pair as every other bottom nav in
+              this module (LessonNavFooter/QuizRunner's compact variant,
+              CourseHeroMobile's CTA) — one consistent button treatment. */}
+          <div className="flex items-center gap-3 px-5 pb-4">
             {result.canRetry && (
-              <Button type="button" variant="outline" className="gap-2" onClick={retryQuiz}>
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Repetir quiz
-              </Button>
+              <button
+                type="button"
+                onClick={retryQuiz}
+                aria-label="Repetir quiz"
+                className="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[18px] border border-outline"
+              >
+                <RefreshCw className="h-[18px] w-[18px]" aria-hidden="true" />
+              </button>
             )}
             {result.passed && (
-              <Button type="button" className="gap-2" onClick={goToNextLesson}>
+              <Button
+                type="button"
+                className="h-[54px] flex-1 gap-2 rounded-[18px] text-[15px]"
+                onClick={goToNextLesson}
+              >
                 Siguiente lección
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Button>
             )}
           </div>

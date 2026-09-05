@@ -304,6 +304,7 @@ export default function LessonViewer() {
                   hasQuiz={hasQuiz}
                   quizSubmitted={!!latestAttempt?.submitted}
                   nextPending={completeMutation.isPending}
+                  compact
                 />
               </div>
             </>

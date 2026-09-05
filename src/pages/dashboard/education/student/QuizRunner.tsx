@@ -239,6 +239,7 @@ export default function QuizRunner() {
               option={option}
               index={i}
               selected={selected[currentQuestion.id] === option.id}
+              compact
               onSelect={() => {
                 setSelected(prev => ({ ...prev, [currentQuestion.id]: option.id }));
                 saveMutation.mutate({
