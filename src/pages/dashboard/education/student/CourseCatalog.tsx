@@ -114,7 +114,10 @@ export default function CourseCatalog() {
             ) : visibleCourses.length === 0 ? (
               <EmptyCatalog
                 hasFilter={track !== 'all' || query !== ''}
-                onClear={() => setTrack('all')}
+                onClear={() => {
+                  setTrack('all');
+                  setQuery('');
+                }}
               />
             ) : (
               <div className="flex flex-col gap-3.5">
