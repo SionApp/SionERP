@@ -1,5 +1,5 @@
 import { ChevronRight, GraduationCap, Home, PlayCircle } from 'lucide-react';
-import { Link, Navigate, Outlet } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
@@ -60,6 +60,7 @@ function NoEducationAccess() {
  */
 export default function EducationShell() {
   const isMobileApp = useMobileMode();
+  const location = useLocation();
   const { isAuthor, hasAccess, loadingAccess } = useEducationAccess();
   // Only students get a "continue" target — an admin's equivalent CTA
   // ("Nueva lección") needs a specific curriculum context that doesn't
@@ -92,6 +93,16 @@ export default function EducationShell() {
   );
 
   if (isMobileApp) {
+    // The mobile handoff's Inicio screen owns a bespoke header (bell +
+    // avatar + personal greeting, not this shell's generic title/subtitle)
+    // — same pattern the app's other mobile screens already use (each owns
+    // its own `<MobileScreen>`). Every OTHER student route not yet given
+    // its own mobile screen still falls back to this shared wrapper so it
+    // isn't left with no header/safe-area padding at all.
+    const isStudentIndex = !isAuthor && location.pathname === '/dashboard/education';
+    if (isStudentIndex) {
+      return <Outlet />;
+    }
     return (
       <MobileScreen title={title} subtitle={subtitle}>
         <div className="px-4 py-4">{body}</div>

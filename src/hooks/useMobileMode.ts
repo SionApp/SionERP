@@ -19,16 +19,23 @@ function isNativePlatform(): boolean {
 
 const previewOverride: boolean = (() => {
   if (!import.meta.env.DEV) return false;
-  const m = new URLSearchParams(window.location.search).get('m');
-  if (m === '1') {
-    localStorage.setItem(PREVIEW_KEY, '1');
-    return true;
-  }
-  if (m === '0') {
-    localStorage.removeItem(PREVIEW_KEY);
+  try {
+    const m = new URLSearchParams(window.location.search).get('m');
+    if (m === '1') {
+      localStorage.setItem(PREVIEW_KEY, '1');
+      return true;
+    }
+    if (m === '0') {
+      localStorage.removeItem(PREVIEW_KEY);
+      return false;
+    }
+    return localStorage.getItem(PREVIEW_KEY) === '1';
+  } catch {
+    // localStorage can throw or be unavailable (test runners, private
+    // browsing, blocked site data) — the dev-only preview override is a
+    // convenience, never worth crashing module load over.
     return false;
   }
-  return localStorage.getItem(PREVIEW_KEY) === '1';
 })();
 
 export function useMobileMode(): boolean {
