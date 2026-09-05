@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import type { Editor } from '@tiptap/react';
 import { toast } from 'sonner';
-import { CloudUpload, FileText, Loader2, Plus, X } from 'lucide-react';
+import { Camera, CloudUpload, FileText, ImagePlus, Images, Loader2, Plus, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { EducationService } from '@/services/education.service';
@@ -41,6 +42,7 @@ const MAX_PDF_BYTES = 10 * 1024 * 1024; // No literal spec value for PDFs — in
 export function BlockCardBody({
   block,
   canEdit,
+  compact = false,
   curriculumId,
   onChange,
   onFocusEditor,
@@ -48,6 +50,11 @@ export function BlockCardBody({
 }: {
   block: AnyEducationBlock;
   canEdit: boolean;
+  /** Mobile handoff, screen 8: only the image dropzone's PRESENTATION
+   * changes (two pill buttons — Cámara/Galería — instead of one generic
+   * "click to choose" dropzone). Every other block body renders the same
+   * markup on both breakpoints. */
+  compact?: boolean;
   curriculumId: string;
   onChange: (data: unknown) => void;
   onFocusEditor?: (editor: Editor) => void;
@@ -74,6 +81,7 @@ export function BlockCardBody({
         <MediaBody
           block={block}
           canEdit={canEdit}
+          compact={compact}
           curriculumId={curriculumId}
           onChange={onChange}
         />
@@ -243,15 +251,23 @@ function ListBody({
 function MediaBody({
   block,
   canEdit,
+  compact = false,
   curriculumId,
   onChange,
 }: {
   block: EducationImageBlock;
   canEdit: boolean;
+  compact?: boolean;
   curriculumId: string;
   onChange: (data: unknown) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Mobile handoff §8, "Zona de carga de imagen (móvil)": Cámara/Galería are
+  // two separate native file inputs — `capture="environment"` on the camera
+  // one is what actually opens the device camera app instead of the file
+  // picker, no camera API/library needed. Both funnel into the SAME
+  // `handleFile` upload path as the desktop dropzone.
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
   async function handleFile(file: File) {
@@ -274,6 +290,12 @@ function MediaBody({
     }
   }
 
+  function onFileInputChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) void handleFile(file);
+  }
+
   return (
     <div className="space-y-2.5">
       <input
@@ -281,12 +303,18 @@ function MediaBody({
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={e => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) void handleFile(file);
-        }}
+        onChange={onFileInputChange}
       />
+      {compact && (
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={onFileInputChange}
+        />
+      )}
       {block.data.path ? (
         <div className="flex items-center gap-2 rounded-md3 border border-border bg-muted/40 px-3 py-2 text-xs text-foreground">
           <span className="flex-1 truncate">{block.data.path.split('/').pop()}</span>
@@ -299,6 +327,35 @@ function MediaBody({
               Cambiar
             </button>
           )}
+        </div>
+      ) : compact ? (
+        <div className="flex flex-col items-center gap-1.5 rounded-md3-sm border border-dashed border-edu-image-frame-border bg-edu-image-frame p-[18px] text-center">
+          {uploading ? (
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          ) : (
+            <ImagePlus className="h-6 w-6 text-muted-foreground" />
+          )}
+          <span className="text-xs font-medium text-muted-foreground">
+            {uploading ? 'Subiendo…' : 'Subir desde el teléfono'}
+          </span>
+          <div className="mt-1.5 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={!canEdit || uploading}
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-full bg-edu-container px-3.5 py-2 text-[11px] font-medium text-on-edu-container disabled:opacity-60"
+            >
+              <Camera className="h-[15px] w-[15px]" /> Cámara
+            </button>
+            <button
+              type="button"
+              disabled={!canEdit || uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-2 text-[11px] font-medium text-muted-foreground disabled:opacity-60"
+            >
+              <Images className="h-[15px] w-[15px]" /> Galería
+            </button>
+          </div>
         </div>
       ) : (
         <button

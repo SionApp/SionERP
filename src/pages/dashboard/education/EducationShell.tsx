@@ -107,11 +107,19 @@ export default function EducationShell() {
       /^\/dashboard\/education\/curso\/[^/]+\/leccion\/[^/]+\/quiz$/,
       /^\/dashboard\/education\/curso\/[^/]+\/leccion\/[^/]+\/resultado\/[^/]+$/,
     ];
-    const isSelfOwnedMobileRoute =
-      !isAuthor &&
-      SELF_OWNED_MOBILE_ROUTES.some(route =>
-        typeof route === 'string' ? route === location.pathname : route.test(location.pathname)
-      );
+    // Author-only equivalent of the list above — kept separate (not merged
+    // in with `!isAuthor` removed) so every OTHER admin route (AdminCourseList
+    // included) keeps going through the generic shell wrapper below, exactly
+    // as before; only the lesson editor (mobile handoff screens 8/9) now
+    // owns its own header/chrome, same reasoning as the student list.
+    const SELF_OWNED_AUTHOR_MOBILE_ROUTES = [
+      /^\/dashboard\/education\/admin\/cursos\/[^/]+\/leccion\/[^/]+$/,
+    ];
+    const isSelfOwnedMobileRoute = isAuthor
+      ? SELF_OWNED_AUTHOR_MOBILE_ROUTES.some(route => route.test(location.pathname))
+      : SELF_OWNED_MOBILE_ROUTES.some(route =>
+          typeof route === 'string' ? route === location.pathname : route.test(location.pathname)
+        );
     if (isSelfOwnedMobileRoute) {
       return <Outlet />;
     }
