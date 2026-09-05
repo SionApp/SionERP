@@ -1,7 +1,15 @@
 import { useMemo } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, CheckCircle2, Hourglass, RefreshCw, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Hourglass,
+  RefreshCw,
+  X,
+  XCircle,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
@@ -152,14 +160,26 @@ export default function QuizResult() {
     return (
       <div className="education-shell">
         {/* Immersive (doc: "lección, quiz y resultado ocultan la tab bar")
-            — same hero-is-the-header bleed as CourseDetail's fix, no
-            back/close icon drawn in the mockup for this screen either, but
-            `back` still hides the global nav via MobileScreen's own effect. */}
+            — same hero-is-the-header bleed as CourseDetail's fix. The
+            mockup draws no close icon here (only "Repetir quiz"/"Siguiente
+            lección" — closing via the system back gesture instead), but a
+            failed attempt with no retry left, or one still in review, has
+            NEITHER action — that's a real dead end with no way out at all,
+            not just a missing nicety, so an explicit close is added
+            regardless of what the mockup drew. */}
         <MobileScreen back header={<></>}>
           <div
             className="flex flex-col items-center px-5 pb-6 text-center text-white"
             style={{ background: 'var(--edu-hero)', paddingTop: 'env(safe-area-inset-top)' }}
           >
+            <button
+              type="button"
+              onClick={() => navigate(`/dashboard/education/curso/${curriculumId}`)}
+              aria-label="Cerrar"
+              className="self-start"
+            >
+              <X className="h-6 w-6" />
+            </button>
             <div
               className="relative mt-3 h-[132px] w-[132px] shrink-0 rounded-full"
               style={{
