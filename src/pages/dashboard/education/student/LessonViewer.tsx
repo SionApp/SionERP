@@ -6,6 +6,8 @@ import { ArrowLeft, Bookmark, BookmarkCheck, Type } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { EducationService } from '@/services/education.service';
 import {
   useCourseDetail,
@@ -15,6 +17,7 @@ import {
 } from '../hooks/use-education-queries';
 import { useLessonFontSize } from '../hooks/use-lesson-font-size';
 import { BlockRenderer } from '../blocks/BlockRenderer';
+import { LessonImmersiveHeader } from '../mobile/LessonImmersiveHeader';
 import { StepIndicator } from './StepIndicator';
 import { LessonNavFooter } from './LessonNavFooter';
 
@@ -31,6 +34,7 @@ export default function LessonViewer() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const isMobileApp = useMobileMode();
   const { fontSizePercent, cycle: cycleFontSize } = useLessonFontSize();
 
   const {
@@ -240,6 +244,73 @@ export default function LessonViewer() {
         }
       },
     });
+  }
+
+  if (isMobileApp) {
+    const stepEyebrow =
+      steps.length === 0 ? '' : (currentStep.label || `Paso ${currentStepIndex + 1}`).toUpperCase();
+    return (
+      <div className="education-shell flex min-h-full flex-col bg-background">
+        <MobileScreen
+          back={`/dashboard/education/curso/${curriculumId}`}
+          header={
+            <LessonImmersiveHeader
+              title={lesson.title}
+              stepLabel={
+                steps.length === 0
+                  ? `Lección ${lesson.orderIndex}`
+                  : `Lección ${lesson.orderIndex} · Paso ${currentStepIndex + 1} de ${steps.length}`
+              }
+              isBookmarked={isBookmarked}
+              onClose={() => navigate(`/dashboard/education/curso/${curriculumId}`)}
+              onToggleBookmark={handleToggleBookmark}
+              onCycleFontSize={cycleFontSize}
+            />
+          }
+        >
+          {steps.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-5 py-16 text-center">
+              <p className="text-sm text-muted-foreground">
+                Esta lección todavía no tiene contenido publicado.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="px-5 pb-3 pt-4">
+                <span className="text-[10px] font-normal tracking-[0.07em] text-edu-text">
+                  {stepEyebrow}
+                </span>
+                <div className="mt-3">
+                  <StepIndicator
+                    steps={steps}
+                    currentStepId={currentStep.id}
+                    visitedStepIds={visitedStepIds}
+                    onStepClick={goToStep}
+                    compact
+                  />
+                </div>
+              </div>
+              <div className="px-5 pb-24" style={{ fontSize: fontSizePercent }}>
+                {currentStep.blocks.map(block => (
+                  <BlockRenderer key={block.id} block={block} size="full" lessonId={lesson.id} />
+                ))}
+              </div>
+              <div className="fixed bottom-0 left-0 right-0 z-40">
+                <LessonNavFooter
+                  onPrev={handlePrev}
+                  onNext={handleNext}
+                  disablePrev={isFirstStep}
+                  isLastStep={isLastStep}
+                  hasQuiz={hasQuiz}
+                  quizSubmitted={!!latestAttempt?.submitted}
+                  nextPending={completeMutation.isPending}
+                />
+              </div>
+            </>
+          )}
+        </MobileScreen>
+      </div>
+    );
   }
 
   return (

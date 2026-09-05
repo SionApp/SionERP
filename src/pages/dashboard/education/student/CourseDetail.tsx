@@ -6,12 +6,9 @@ import { ArrowLeft, BookOpen, CheckCircle2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
-import { useAuth } from '@/contexts/AuthContext';
 import { useMobileMode } from '@/hooks/useMobileMode';
 import { useCourseDetail, useEducationHome, useEnrollSelf } from '../hooks/use-education-queries';
-import { ModuleTabs } from '../ModuleTabs';
 import { CourseHeroMobile } from '../mobile/CourseHeroMobile';
-import { EducationMobileHeader } from '../mobile/EducationMobileHeader';
 import { CourseHero } from './CourseHero';
 import { SyllabusModule } from './SyllabusModule';
 
@@ -19,7 +16,6 @@ export default function CourseDetail() {
   const { curriculumId } = useParams<{ curriculumId: string }>();
   const navigate = useNavigate();
   const isMobileApp = useMobileMode();
-  const { currentUser } = useAuth();
 
   const { curriculum, syllabus, isLoading, isError, refetch } = useCourseDetail(curriculumId);
   const { data: home } = useEducationHome();
@@ -83,19 +79,22 @@ export default function CourseDetail() {
     );
   }
 
-  const initial = (currentUser?.first_name?.[0] ?? '?').toUpperCase();
-
   if (isMobileApp) {
     return (
       <div className="education-shell">
-        <MobileScreen header={<EducationMobileHeader title={curriculum.name} initial={initial} />}>
-          <ModuleTabs isAdmin={false} />
+        {/* The hero IS the header here (doc: "el degradado sangra hasta
+            arriba y engloba la barra de estado") — no separate light header
+            bar above it, and no ModuleTabs strip either (not drawn on this
+            screen; arrow_back inside the hero is the way out, matching a
+            drill-down destination rather than one of the tab-bar screens). */}
+        <MobileScreen header={<></>}>
           <CourseHeroMobile
             curriculum={curriculum}
             assignment={assignment}
             nextLesson={nextLesson}
             onEnroll={handleEnroll}
             onContinue={lessonId => handleLessonClick(lessonId)}
+            onBack={() => navigate('/dashboard/education/catalogo')}
             enrolling={enrollMutation.isPending}
           />
           <div className="flex flex-col gap-4 px-4 pb-4 pt-5">

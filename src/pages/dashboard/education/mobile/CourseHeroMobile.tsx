@@ -1,4 +1,5 @@
-import { BookOpen, Clock, PlayCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, Clock, PlayCircle, Share2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import type { EducationAssignment, EducationCurriculum } from '@/types/education.types';
@@ -19,14 +20,21 @@ interface NextLesson {
 
 /**
  * Mobile handoff, screen 3 ("Detalle de curso, temario") — full-bleed
- * gradient hero replacing the desktop CourseHero's side-by-side layout with
- * a stacked one: chips → title → metadata → progress panel → CTA, all in
- * one column. Metadata row omits `studentCount` (doc: "Se omite el
- * recuento de miembros por espacio") and, deliberately, any certificate
- * chip — the mockup's own "workspace_premium Certificado" metadata item
- * contradicts the desktop spec's hard rule (education-copy-and-omissions:
- * "Certificates are absent, not stubbed" — no certificate string/icon may
- * render anywhere), so it's dropped here to stay consistent with the
+ * gradient hero that IS the screen's entire header (doc: "Hero de ancho
+ * completo con la barra de estado dentro... el degradado sangra hasta
+ * arriba y engloba la barra de estado"), not a separate light header bar
+ * above it. Used with `<MobileScreen header={<></>}>` (same empty-header
+ * override the app's own DashboardScreen.tsx already uses for its
+ * full-bleed hero) so nothing renders above this. Back/bookmark/share sit
+ * INSIDE the gradient, replacing the desktop's side-by-side layout with a
+ * stacked one: actions → chips → title → metadata → progress panel → CTA.
+ *
+ * Metadata row omits `studentCount` (doc: "Se omite el recuento de
+ * miembros por espacio") and, deliberately, any certificate chip — the
+ * mockup's own "workspace_premium Certificado" metadata item contradicts
+ * the desktop spec's hard rule (education-copy-and-omissions: "Certificates
+ * are absent, not stubbed" — no certificate string/icon may render
+ * anywhere), so it's dropped here to stay consistent with the
  * already-shipped desktop screens rather than reintroducing dead promise
  * copy on mobile only.
  */
@@ -36,6 +44,7 @@ export function CourseHeroMobile({
   nextLesson,
   onEnroll,
   onContinue,
+  onBack,
   enrolling,
 }: {
   curriculum: EducationCurriculum;
@@ -43,6 +52,7 @@ export function CourseHeroMobile({
   nextLesson: NextLesson | null;
   onEnroll: () => void;
   onContinue: (lessonId: string) => void;
+  onBack: () => void;
   enrolling: boolean;
 }) {
   const percent =
@@ -51,7 +61,28 @@ export function CourseHeroMobile({
       : 0;
 
   return (
-    <div className="px-5 pb-5 pt-2 text-white" style={{ background: 'var(--edu-hero)' }}>
+    <div
+      className="px-5 pb-5 text-white"
+      style={{ background: 'var(--edu-hero)', paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      <div className="flex items-center justify-between py-3">
+        <button type="button" onClick={onBack} aria-label="Volver">
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+        {/* bookmark_border from the mockup is dropped — bookmarking a whole
+            course (as opposed to a single lesson, which already exists) has
+            no backend support; a real "Compartir" (copy link) needs none. */}
+        <button
+          type="button"
+          aria-label="Compartir"
+          onClick={() => {
+            navigator.clipboard.writeText(window.location.href);
+            toast.success('Enlace copiado');
+          }}
+        >
+          <Share2 className="h-[22px] w-[22px]" />
+        </button>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {curriculum.track && (
           <span className="rounded-full bg-white/20 px-3 py-1 text-[10px] font-medium tracking-wide">
