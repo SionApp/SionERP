@@ -16,11 +16,14 @@ import type { LucideIcon } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { Textarea } from '@/components/ui/textarea';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { cn } from '@/lib/utils';
 import { EducationService } from '@/services/education.service';
 import type { QuizQuestionType } from '@/types/education.types';
 import { useCourseDetail } from '../hooks/use-education-queries';
+import { QuizImmersiveHeader } from '../mobile/QuizImmersiveHeader';
 import { QuizOption } from './QuizOption';
 
 /**
@@ -57,6 +60,7 @@ export default function QuizRunner() {
   const { curriculumId, lessonId } = useParams<{ curriculumId: string; lessonId: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const isMobileApp = useMobileMode();
 
   const { syllabus } = useCourseDetail(curriculumId);
   const lessonMeta = useMemo(
@@ -202,6 +206,128 @@ export default function QuizRunner() {
       return;
     }
     goTo(currentIndex + 1);
+  }
+
+  if (isMobileApp) {
+    const questionBody =
+      currentQuestion.type === 'short' ? (
+        <div className="mt-5">
+          <Textarea
+            value={textAnswers[currentQuestion.id] ?? ''}
+            onChange={e =>
+              setTextAnswers(prev => ({ ...prev, [currentQuestion.id]: e.target.value }))
+            }
+            onBlur={() => {
+              const value = textAnswers[currentQuestion.id]?.trim();
+              if (value) {
+                saveMutation.mutate({ questionId: currentQuestion.id, textAnswer: value });
+              }
+            }}
+            placeholder="Escribe tu respuesta con tus propias palabras…"
+            className="min-h-[110px] resize-none rounded-md3-lg border-border bg-muted text-base"
+          />
+          <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Un instructor revisará esta respuesta manualmente.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-col gap-2.5" role="radiogroup">
+          {currentQuestion.options.map((option, i) => (
+            <QuizOption
+              key={option.id}
+              option={option}
+              index={i}
+              selected={selected[currentQuestion.id] === option.id}
+              onSelect={() => {
+                setSelected(prev => ({ ...prev, [currentQuestion.id]: option.id }));
+                saveMutation.mutate({
+                  questionId: currentQuestion.id,
+                  selectedOptionId: option.id,
+                });
+              }}
+            />
+          ))}
+        </div>
+      );
+
+    return (
+      <div className="education-shell">
+        <MobileScreen
+          back={`/dashboard/education/curso/${curriculumId}/leccion/${lessonId}`}
+          header={
+            <QuizImmersiveHeader
+              title={`Mini quiz${lessonMeta ? ` · Lección ${lessonMeta.orderIndex}` : ''}`}
+              questionLabel={`Pregunta ${currentIndex + 1} de ${questions.length}`}
+              countdown={
+                runner.timeLimitMinutes !== null && remainingSeconds !== null
+                  ? formatCountdown(remainingSeconds)
+                  : null
+              }
+              onClose={() =>
+                navigate(`/dashboard/education/curso/${curriculumId}/leccion/${lessonId}`)
+              }
+            />
+          }
+        >
+          <div className="flex gap-1.5 px-5 pt-3" role="presentation">
+            {questions.map((q, i) => (
+              <span
+                key={q.id}
+                aria-hidden="true"
+                className={cn(
+                  'h-[5px] flex-1 rounded-full',
+                  hasAnswer(q.id)
+                    ? 'bg-edu-primary'
+                    : i === currentIndex
+                      ? 'bg-edu-progress-mid'
+                      : 'bg-edu-track'
+                )}
+              />
+            ))}
+          </div>
+          <div className="px-5 pb-24 pt-5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-edu-surface px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.05em] text-edu-text">
+              <TypeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              {typeLabel}
+            </span>
+            <p className="mt-3.5 text-[19px] font-normal leading-[1.45] text-foreground">
+              {currentQuestion.prompt}
+            </p>
+            {questionBody}
+          </div>
+          <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-muted px-5 py-3.5">
+            <button
+              type="button"
+              onClick={() => goTo(currentIndex - 1)}
+              disabled={isFirst}
+              aria-label="Anterior"
+              className={cn(
+                'flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[18px] border',
+                isFirst
+                  ? 'cursor-not-allowed border-outline text-outline opacity-50'
+                  : 'border-outline'
+              )}
+            >
+              <ArrowLeft className="h-[18px] w-[18px]" aria-hidden="true" />
+            </button>
+            <Button
+              type="button"
+              onClick={handleNext}
+              disabled={submitMutation.isPending}
+              className="h-[54px] flex-1 gap-2 rounded-[18px]"
+            >
+              {isLast ? 'Enviar respuestas' : 'Siguiente'}
+              {isLast ? (
+                <Send className="h-[18px] w-[18px]" aria-hidden="true" />
+              ) : (
+                <ArrowRight className="h-[18px] w-[18px]" aria-hidden="true" />
+              )}
+            </Button>
+          </div>
+        </MobileScreen>
+      </div>
+    );
   }
 
   return (

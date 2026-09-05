@@ -104,6 +104,7 @@ export default function EducationShell() {
       '/dashboard/education/catalogo',
       /^\/dashboard\/education\/curso\/[^/]+$/,
       /^\/dashboard\/education\/curso\/[^/]+\/leccion\/[^/]+$/,
+      /^\/dashboard\/education\/curso\/[^/]+\/leccion\/[^/]+\/quiz$/,
     ];
     const isSelfOwnedMobileRoute =
       !isAuthor &&
