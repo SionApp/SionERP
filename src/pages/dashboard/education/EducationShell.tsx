@@ -93,14 +93,16 @@ export default function EducationShell() {
   );
 
   if (isMobileApp) {
-    // The mobile handoff's Inicio screen owns a bespoke header (bell +
-    // avatar + personal greeting, not this shell's generic title/subtitle)
-    // — same pattern the app's other mobile screens already use (each owns
-    // its own `<MobileScreen>`). Every OTHER student route not yet given
-    // its own mobile screen still falls back to this shared wrapper so it
-    // isn't left with no header/safe-area padding at all.
-    const isStudentIndex = !isAuthor && location.pathname === '/dashboard/education';
-    if (isStudentIndex) {
+    // Student mobile screens each own a bespoke header (bell + avatar +
+    // screen-specific title, not this shell's generic title/subtitle) — same
+    // pattern the app's other mobile screens already use (each owns its own
+    // `<MobileScreen>`). Grows as more screens get their own mobile layout;
+    // any route NOT in this set still falls back to the shared wrapper below
+    // so it isn't left with no header/safe-area padding at all.
+    const SELF_OWNED_MOBILE_ROUTES = ['/dashboard/education', '/dashboard/education/catalogo'];
+    const isSelfOwnedMobileRoute =
+      !isAuthor && SELF_OWNED_MOBILE_ROUTES.includes(location.pathname);
+    if (isSelfOwnedMobileRoute) {
       return <Outlet />;
     }
     return (

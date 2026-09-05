@@ -34,10 +34,15 @@ export function CourseCard({
   course,
   myStatus,
   onClick,
+  compact = false,
 }: {
   course: EducationCatalogCourse;
   myStatus: EducationAssignmentStatus | null;
   onClick: () => void;
+  /** Mobile handoff, screen 2: shorter cover (112px vs 158px) and no
+   * description — "Se elimina la descripción del curso... para mantener la
+   * tarjeta en una altura razonable; aparece en el detalle del curso." */
+  compact?: boolean;
 }) {
   const isNew = Date.now() - new Date(course.createdAt).getTime() < 30 * 24 * 60 * 60 * 1000;
   const cta = ctaFor(myStatus);
@@ -55,7 +60,7 @@ export function CourseCard({
       className="flex flex-col overflow-hidden rounded-md3-lg border border-border bg-card text-left transition-shadow hover:shadow-md"
     >
       <div
-        className="relative flex h-40 items-center justify-center"
+        className={cn('relative flex items-center justify-center', compact ? 'h-28' : 'h-40')}
         style={{ background: getCourseGradientVar(course.id, course.track) }}
       >
         <div className="flex flex-col items-center gap-1.5 text-white/85">
@@ -80,7 +85,7 @@ export function CourseCard({
           </span>
         )}
         <h3 className="mt-1.5 text-base font-medium text-foreground">{course.name}</h3>
-        {course.description && (
+        {!compact && course.description && (
           <p className="mt-2 line-clamp-3 flex-1 text-[13px] leading-relaxed text-muted-foreground">
             {course.description}
           </p>
