@@ -46,10 +46,14 @@ export function LessonRow({
   lesson,
   state,
   onClick,
+  compact = false,
 }: {
   lesson: EducationSyllabusLesson;
   state: EducationSyllabusLessonState;
   onClick: () => void;
+  /** Mobile handoff, screen 3: "solo el icono `quiz` ... en lugar del chip
+   * 'Quiz' del escritorio" — no room for the full pill+label. */
+  compact?: boolean;
 }) {
   const Icon = STATE_ICON[state];
   const isInteractive = state !== 'locked';
@@ -88,12 +92,18 @@ export function LessonRow({
               ? 'Se desbloquea al completar la lección anterior'
               : `Lección ${lesson.orderIndex}`}
           </span>
-          {lesson.hasQuiz && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              <FileQuestion className="h-3.5 w-3.5" aria-hidden="true" />
-              Quiz
-            </span>
-          )}
+          {lesson.hasQuiz &&
+            (compact ? (
+              <FileQuestion
+                className="h-[17px] w-[17px] text-muted-foreground"
+                aria-hidden="true"
+              />
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <FileQuestion className="h-3.5 w-3.5" aria-hidden="true" />
+                Quiz
+              </span>
+            ))}
         </div>
       </div>
       {lesson.durationMinutes !== null && lesson.durationMinutes > 0 && (

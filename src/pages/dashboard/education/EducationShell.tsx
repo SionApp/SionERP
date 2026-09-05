@@ -99,9 +99,16 @@ export default function EducationShell() {
     // `<MobileScreen>`). Grows as more screens get their own mobile layout;
     // any route NOT in this set still falls back to the shared wrapper below
     // so it isn't left with no header/safe-area padding at all.
-    const SELF_OWNED_MOBILE_ROUTES = ['/dashboard/education', '/dashboard/education/catalogo'];
+    const SELF_OWNED_MOBILE_ROUTES = [
+      '/dashboard/education',
+      '/dashboard/education/catalogo',
+      /^\/dashboard\/education\/curso\/[^/]+$/,
+    ];
     const isSelfOwnedMobileRoute =
-      !isAuthor && SELF_OWNED_MOBILE_ROUTES.includes(location.pathname);
+      !isAuthor &&
+      SELF_OWNED_MOBILE_ROUTES.some(route =>
+        typeof route === 'string' ? route === location.pathname : route.test(location.pathname)
+      );
     if (isSelfOwnedMobileRoute) {
       return <Outlet />;
     }
