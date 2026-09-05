@@ -6,8 +6,10 @@ import type { LucideIcon } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { EducationService } from '@/services/education.service';
 import type { QuizResultVerdict, QuizResultView } from '@/types/education.types';
 
@@ -72,6 +74,7 @@ export default function QuizResult() {
   }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobileApp = useMobileMode();
   const { currentUser } = useAuth();
 
   const stateResult = (location.state as { result?: QuizResultView } | null)?.result;
@@ -143,6 +146,96 @@ export default function QuizResult() {
 
   function retryQuiz() {
     navigate(`/dashboard/education/curso/${curriculumId}/leccion/${lessonId}/quiz`);
+  }
+
+  if (isMobileApp) {
+    return (
+      <div className="education-shell">
+        {/* Immersive (doc: "lección, quiz y resultado ocultan la tab bar")
+            — same hero-is-the-header bleed as CourseDetail's fix, no
+            back/close icon drawn in the mockup for this screen either, but
+            `back` still hides the global nav via MobileScreen's own effect. */}
+        <MobileScreen back header={<></>}>
+          <div
+            className="flex flex-col items-center px-5 pb-6 text-center text-white"
+            style={{ background: 'var(--edu-hero)', paddingTop: 'env(safe-area-inset-top)' }}
+          >
+            <div
+              className="relative mt-3 h-[132px] w-[132px] shrink-0 rounded-full"
+              style={{
+                background: `conic-gradient(white 0% ${percent}%, rgba(255,255,255,.25) ${percent}% 100%)`,
+              }}
+            >
+              <div
+                className="absolute inset-3.5 flex flex-col items-center justify-center rounded-full"
+                style={{ background: 'hsl(var(--edu-donut-core))' }}
+              >
+                <span className="text-[32px] font-normal leading-none">{percent}%</span>
+                <span className="mt-1 text-[11px] text-white/75">
+                  {result.autoScore} de {result.maxScore} pts
+                </span>
+              </div>
+            </div>
+            <span className="mt-[18px] inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1.5 text-[13px] font-medium">
+              <VerdictIcon className="h-4 w-4" aria-hidden="true" />
+              {verdictLabel}
+            </span>
+            <h2 className="mt-3 text-[22px] font-normal">{heading}</h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-white/85">{subheading}</p>
+          </div>
+
+          {result.questions && (
+            <div className="px-5 pb-4 pt-[18px]">
+              <h3 className="mb-3 text-[15px] font-medium text-foreground">Repaso de respuestas</h3>
+              <div className="flex flex-col gap-2.5">
+                {result.questions.map(q => {
+                  const { icon: Icon, circleClass, answerClass } = VERDICT_CONFIG[q.verdict];
+                  const yourAnswer = q.yourOptionText ?? q.yourTextAnswer ?? '—';
+                  return (
+                    <div
+                      key={q.id}
+                      className="flex items-start gap-2.5 rounded-[18px] border border-border p-3.5"
+                    >
+                      <span
+                        className={cn(
+                          'flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full',
+                          circleClass
+                        )}
+                      >
+                        <Icon className="h-[15px] w-[15px]" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium leading-[1.45] text-foreground">
+                          {q.prompt}
+                        </p>
+                        <p className={cn('mt-1 text-xs font-medium', answerClass)}>
+                          Tu respuesta: {yourAnswer}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 px-5 pb-4">
+            {result.canRetry && (
+              <Button type="button" variant="outline" className="gap-2" onClick={retryQuiz}>
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Repetir quiz
+              </Button>
+            )}
+            {result.passed && (
+              <Button type="button" className="gap-2" onClick={goToNextLesson}>
+                Siguiente lección
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
+          </div>
+        </MobileScreen>
+      </div>
+    );
   }
 
   return (
