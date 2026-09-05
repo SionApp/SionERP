@@ -964,3 +964,48 @@ func (h *EducationHandler) GetMyPendingReviews(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, items)
 }
+
+// GetMyLatestAttempt tells the caller whether they already have an attempt
+// on this lesson's quiz, and whether it's submitted — the lesson viewer uses
+// this to route "last step" straight to the existing result (resuelto or en
+// revisión) instead of into StartAttempt, which 409s once the retry ceiling
+// is reached and otherwise gives no way back to a past attempt. Level >= 1,
+// self-only.
+func (h *EducationHandler) GetMyLatestAttempt(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+	info, err := getEducationAccessInfo(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+
+	lessonID := c.Param("id")
+	quiz, ok, err := quizForLesson(q, churchID, lessonID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener quiz"})
+	}
+	if !ok {
+		return c.JSON(http.StatusOK, map[string]any{"attempt_id": nil, "submitted": false})
+	}
+
+	var attemptID string
+	var submittedAt sql.NullTime
+	err = q.QueryRow(`
+		SELECT id, submitted_at FROM education_quiz_attempts
+		WHERE quiz_id = $1 AND church_id = $2 AND user_id = $3
+		ORDER BY attempt_number DESC LIMIT 1
+	`, quiz.id, churchID, info.userID).Scan(&attemptID, &submittedAt)
+	if err != nil && err != sql.ErrNoRows {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener intento"})
+	}
+	if err == sql.ErrNoRows {
+		return c.JSON(http.StatusOK, map[string]any{"attempt_id": nil, "submitted": false})
+	}
+	return c.JSON(http.StatusOK, map[string]any{"attempt_id": attemptID, "submitted": submittedAt.Valid})
+}

@@ -1,5 +1,5 @@
 import { ChevronRight, GraduationCap, Home, PlayCircle } from 'lucide-react';
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { MobileScreen } from '@/components/mobile/MobileScreen';
@@ -10,6 +10,27 @@ import './education-theme.css';
 import { ModuleTabs } from './ModuleTabs';
 import { useEducationAccess } from './use-education-access';
 import { useEducationHome } from './hooks/use-education-queries';
+import StudentHome from './student/StudentHome';
+import { NewLessonButton } from './admin/NewLessonButton';
+
+// The shell's tabs are role-exclusive (ADMIN_TABS vs studentTabs in
+// ModuleTabs) and none of the admin tabs point at the bare `/education`
+// index — so an author landing there via the sidebar link must be sent to
+// their own index (`admin/cursos`) instead of falling through to the
+// student's StudentHome.
+export function EducationIndexRoute() {
+  const { isAuthor, loadingAccess } = useEducationAccess();
+
+  if (loadingAccess) {
+    return <Skeleton className="h-48 w-full rounded-2xl" />;
+  }
+
+  if (isAuthor) {
+    return <Navigate to="admin/cursos" replace />;
+  }
+
+  return <StudentHome />;
+}
 
 // Moved verbatim from the deleted EducationPage.tsx (PR2b) — same copy,
 // same shape, now living in the shell instead of the flat page.
@@ -39,6 +60,7 @@ function NoEducationAccess() {
  */
 export default function EducationShell() {
   const isMobileApp = useMobileMode();
+  const location = useLocation();
   const { isAuthor, hasAccess, loadingAccess } = useEducationAccess();
   // Only students get a "continue" target — an admin's equivalent CTA
   // ("Nueva lección") needs a specific curriculum context that doesn't
@@ -51,6 +73,12 @@ export default function EducationShell() {
     ? 'Crea cursos, escribe lecciones y sigue el avance de cada alumno.'
     : 'Cursos de discipulado y formación para tu crecimiento.';
 
+  // The global bottom nav (Inicio/Discipulado/Miembros/Reportes/Más) stays
+  // visible throughout Educación on mobile, same as every other module —
+  // no module here hides it (verified: `setMobileNavHidden` outside
+  // `MobileScreen`'s own detail-drilldown use is otherwise unused in the
+  // codebase). The top `ModuleTabs` strip is Educación's own navigation on
+  // every breakpoint, mobile included.
   const body = loadingAccess ? (
     <Skeleton className="h-48 w-full rounded-2xl" />
   ) : !hasAccess ? (
@@ -65,8 +93,38 @@ export default function EducationShell() {
   );
 
   if (isMobileApp) {
+    // Student mobile screens each own a bespoke header (bell + avatar +
+    // screen-specific title, not this shell's generic title/subtitle) — same
+    // pattern the app's other mobile screens already use (each owns its own
+    // `<MobileScreen>`). Grows as more screens get their own mobile layout;
+    // any route NOT in this set still falls back to the shared wrapper below
+    // so it isn't left with no header/safe-area padding at all.
+    const SELF_OWNED_MOBILE_ROUTES = [
+      '/dashboard/education',
+      '/dashboard/education/catalogo',
+      /^\/dashboard\/education\/curso\/[^/]+$/,
+      /^\/dashboard\/education\/curso\/[^/]+\/leccion\/[^/]+$/,
+      /^\/dashboard\/education\/curso\/[^/]+\/leccion\/[^/]+\/quiz$/,
+      /^\/dashboard\/education\/curso\/[^/]+\/leccion\/[^/]+\/resultado\/[^/]+$/,
+    ];
+    // Author-only equivalent of the list above — kept separate (not merged
+    // in with `!isAuthor` removed) so every OTHER admin route (AdminCourseList
+    // included) keeps going through the generic shell wrapper below, exactly
+    // as before; only the lesson editor (mobile handoff screens 8/9) now
+    // owns its own header/chrome, same reasoning as the student list.
+    const SELF_OWNED_AUTHOR_MOBILE_ROUTES = [
+      /^\/dashboard\/education\/admin\/cursos\/[^/]+\/leccion\/[^/]+$/,
+    ];
+    const isSelfOwnedMobileRoute = isAuthor
+      ? SELF_OWNED_AUTHOR_MOBILE_ROUTES.some(route => route.test(location.pathname))
+      : SELF_OWNED_MOBILE_ROUTES.some(route =>
+          typeof route === 'string' ? route === location.pathname : route.test(location.pathname)
+        );
+    if (isSelfOwnedMobileRoute) {
+      return <Outlet />;
+    }
     return (
-      <MobileScreen title="Educación" subtitle={subtitle}>
+      <MobileScreen title={title} subtitle={subtitle}>
         <div className="px-4 py-4">{body}</div>
       </MobileScreen>
     );
@@ -123,6 +181,7 @@ export default function EducationShell() {
             )}
           </Button>
         )}
+        {hasAccess && !loadingAccess && isAuthor && <NewLessonButton />}
       </div>
       {!hasAccess && !loadingAccess ? <div className="mt-6">{body}</div> : body}
     </div>

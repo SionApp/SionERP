@@ -30,6 +30,7 @@ export function LivePreview({
   lessonId,
   device,
   onDeviceChange,
+  variant = 'panel',
 }: {
   lessonTitle: string;
   moduleLabel: string | null;
@@ -39,9 +40,96 @@ export function LivePreview({
   lessonId: string;
   device: PreviewDevice;
   onDeviceChange: (device: PreviewDevice) => void;
+  /** Mobile handoff, screen 9 ("Editor de contenido — pestaña Preview"): the
+   * mobile Preview tab reuses this SAME component for its "réplica reducida"
+   * stage — "Clave de implementación (igual que en escritorio): el preview
+   * usa los mismos componentes de bloque... No duplicar la implementación."
+   * `variant="stage"` swaps only the OUTER chrome (no sticky panel header/
+   * own DeviceToggle — the mobile screen renders its own "VER COMO" row
+   * above this, per the doc — and a full-width card per the doc's literal
+   * "Escenario" numbers: 22px radius + 1px border + shadow + a 22px notch
+   * bar with a 54×4px pill in `mobile` mode, 18px radius/no notch in
+   * `desktop` mode) — `panel` (default) keeps the existing desktop
+   * split-view behavior completely unchanged.
+   */
+  variant?: 'panel' | 'stage';
 }) {
   const progressPercent = stepCount > 0 ? ((stepIndex + 1) / stepCount) * 100 : 0;
   const size = device === 'desktop' ? 'preview-desktop' : 'preview-mobile';
+
+  const stageInner = (
+    <div
+      className={cn(
+        'overflow-hidden bg-card',
+        variant === 'stage'
+          ? device === 'desktop'
+            ? 'w-full overflow-x-auto rounded-[18px] border border-border'
+            : 'w-full rounded-md3-lg border border-border shadow-[0_8px_24px_-12px_rgba(16,24,40,.3)]'
+          : device === 'desktop'
+            ? 'w-full rounded-md3-xl border border-border'
+            : 'w-[340px] rounded-[28px] border-[8px] border-edu-on-light-chip'
+      )}
+    >
+      {device === 'mobile' && (
+        <div
+          className={cn(
+            'flex items-center justify-center bg-edu-on-light-chip',
+            variant === 'stage' ? 'h-[22px]' : 'h-[26px]'
+          )}
+        >
+          <span
+            className={cn(
+              'rounded-full',
+              variant === 'stage' ? 'h-1 w-[54px] bg-[#4A4458]' : 'h-[5px] w-16 bg-white/40'
+            )}
+          />
+        </div>
+      )}
+      <div className={device === 'desktop' ? 'px-8 py-7' : 'px-[18px] py-[18px]'}>
+        <span className="text-[11px] font-normal uppercase tracking-[0.07em] text-edu-text">
+          {lessonTitle ? `${moduleLabel ? `${moduleLabel} · ` : ''}${lessonTitle}` : 'Lección'}
+        </span>
+        <h3
+          className={cn(
+            'mt-1 font-normal text-foreground',
+            device === 'desktop' ? 'text-2xl' : 'text-xl'
+          )}
+        >
+          {step?.label ?? 'Sin pasos todavía'}
+        </h3>
+
+        {stepCount > 0 && (
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-edu-track">
+            <div
+              className="h-full rounded-full bg-edu-primary transition-[width]"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        )}
+
+        <div className={cn('mt-4', device === 'mobile' && 'text-[13px]')}>
+          {step && step.blocks.length > 0 ? (
+            step.blocks.map((block: EducationBlock) => (
+              <BlockRenderer key={block.id} block={block} size={size} lessonId={lessonId} />
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Este paso todavía no tiene bloques. Usá la barra "Insertar" para empezar.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-6 flex items-center justify-between border-t border-border pt-4 text-xs font-medium">
+          <span className="text-muted-foreground/50">Anterior</span>
+          <span className="rounded-full bg-edu-primary px-3.5 py-2 text-white">Siguiente</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (variant === 'stage') {
+    return <div className="flex justify-center">{stageInner}</div>;
+  }
 
   return (
     <div className="sticky top-4 flex flex-col overflow-hidden rounded-md3-xl border border-border bg-edu-surface">
@@ -54,59 +142,7 @@ export function LivePreview({
       </div>
 
       <div className="flex max-h-[772px] justify-center overflow-y-auto bg-edu-surface-alt/40 p-5">
-        <div
-          className={cn(
-            'overflow-hidden bg-card',
-            device === 'desktop'
-              ? 'w-full rounded-md3-xl border border-border'
-              : 'w-[340px] rounded-[28px] border-[8px] border-edu-on-light-chip'
-          )}
-        >
-          {device === 'mobile' && (
-            <div className="flex h-[26px] items-center justify-center bg-edu-on-light-chip">
-              <span className="h-[5px] w-16 rounded-full bg-white/40" />
-            </div>
-          )}
-          <div className={device === 'desktop' ? 'px-8 py-7' : 'px-[18px] py-[18px]'}>
-            <span className="text-[11px] font-normal uppercase tracking-[0.07em] text-edu-text">
-              {lessonTitle ? `${moduleLabel ? `${moduleLabel} · ` : ''}${lessonTitle}` : 'Lección'}
-            </span>
-            <h3
-              className={cn(
-                'mt-1 font-normal text-foreground',
-                device === 'desktop' ? 'text-2xl' : 'text-xl'
-              )}
-            >
-              {step?.label ?? 'Sin pasos todavía'}
-            </h3>
-
-            {stepCount > 0 && (
-              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-edu-track">
-                <div
-                  className="h-full rounded-full bg-edu-primary transition-[width]"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            )}
-
-            <div className={cn('mt-4', device === 'mobile' && 'text-[13px]')}>
-              {step && step.blocks.length > 0 ? (
-                step.blocks.map((block: EducationBlock) => (
-                  <BlockRenderer key={block.id} block={block} size={size} lessonId={lessonId} />
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Este paso todavía no tiene bloques. Usá la barra "Insertar" para empezar.
-                </p>
-              )}
-            </div>
-
-            <div className="mt-6 flex items-center justify-between border-t border-border pt-4 text-xs font-medium">
-              <span className="text-muted-foreground/50">Anterior</span>
-              <span className="rounded-full bg-edu-primary px-3.5 py-2 text-white">Siguiente</span>
-            </div>
-          </div>
-        </div>
+        {stageInner}
       </div>
     </div>
   );

@@ -5,13 +5,17 @@ import { ArrowLeft, BookOpen, CheckCircle2 } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import { useCourseDetail, useEducationHome, useEnrollSelf } from '../hooks/use-education-queries';
+import { CourseHeroMobile } from '../mobile/CourseHeroMobile';
 import { CourseHero } from './CourseHero';
 import { SyllabusModule } from './SyllabusModule';
 
 export default function CourseDetail() {
   const { curriculumId } = useParams<{ curriculumId: string }>();
   const navigate = useNavigate();
+  const isMobileApp = useMobileMode();
 
   const { curriculum, syllabus, isLoading, isError, refetch } = useCourseDetail(curriculumId);
   const { data: home } = useEducationHome();
@@ -71,6 +75,102 @@ export default function CourseDetail() {
         <Button size="sm" variant="outline" onClick={() => refetch()}>
           Reintentar
         </Button>
+      </div>
+    );
+  }
+
+  if (isMobileApp) {
+    return (
+      <div className="education-shell">
+        {/* The hero IS the header here (doc: "el degradado sangra hasta
+            arriba y engloba la barra de estado") — no separate light header
+            bar above it, and no ModuleTabs strip either (not drawn on this
+            screen; arrow_back inside the hero is the way out, matching a
+            drill-down destination rather than one of the tab-bar screens). */}
+        <MobileScreen header={<></>}>
+          <CourseHeroMobile
+            curriculum={curriculum}
+            assignment={assignment}
+            nextLesson={nextLesson}
+            onEnroll={handleEnroll}
+            onContinue={lessonId => handleLessonClick(lessonId)}
+            onBack={() => navigate('/dashboard/education/catalogo')}
+            enrolling={enrollMutation.isPending}
+          />
+          <div className="flex flex-col gap-4 px-4 pb-4 pt-5">
+            <div className="overflow-hidden rounded-md3-lg border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
+                <h3 className="text-base font-medium text-foreground">Temario</h3>
+                <span className="text-xs text-muted-foreground">
+                  {totalModules} {totalModules === 1 ? 'módulo' : 'módulos'} · {totalLessons}{' '}
+                  {totalLessons === 1 ? 'lección' : 'lecciones'}
+                </span>
+              </div>
+              {syllabus.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-14 text-center">
+                  <BookOpen className="h-6 w-6 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Este curso todavía no tiene lecciones publicadas.
+                  </p>
+                </div>
+              ) : (
+                syllabus.map((module, i) => (
+                  <SyllabusModule
+                    key={module.id ?? 'general'}
+                    module={module}
+                    index={i + 1}
+                    onLessonClick={handleLessonClick}
+                    compact
+                  />
+                ))
+              )}
+            </div>
+
+            {curriculum.teacherName && (
+              <div className="rounded-md3-lg border border-border bg-card p-4">
+                <h3 className="mb-3 text-sm font-medium text-foreground">Instructor del curso</h3>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-edu-violet-container text-base font-medium text-on-edu-violet-container">
+                    {curriculum.teacherName
+                      .split(' ')
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map(p => p[0]?.toUpperCase())
+                      .join('')}
+                  </span>
+                  <div>
+                    <div className="text-sm font-medium text-foreground">
+                      {curriculum.teacherName}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Educación</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {curriculum.objectives.length > 0 && (
+              <div className="rounded-md3-lg border border-edu-outline bg-edu-surface p-4">
+                <h3 className="mb-2.5 text-sm font-medium text-on-edu-container">
+                  Qué vas a lograr
+                </h3>
+                <div className="flex flex-col gap-1.5">
+                  {curriculum.objectives.map((o, i) => (
+                    <div key={i} className="flex items-start gap-2.5 py-1">
+                      <CheckCircle2 className="mt-0.5 h-[18px] w-[18px] shrink-0 text-edu-primary" />
+                      <span className="text-[13px] leading-relaxed text-edu-text-soft">{o}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="rounded-md3-lg border border-border bg-card p-4">
+              <h3 className="mb-2.5 text-sm font-medium text-foreground">Requisitos</h3>
+              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                {curriculum.requirements?.trim() ||
+                  'Ninguno. Podés empezar este curso sin requisitos previos.'}
+              </p>
+            </div>
+          </div>
+        </MobileScreen>
       </div>
     );
   }
