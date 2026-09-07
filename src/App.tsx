@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react';
+import { Analytics } from '@vercel/analytics/react';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { Toaster } from '@/components/ui/toaster';
@@ -427,6 +428,7 @@ const App = () => {
           </LoadingProvider>
         </TooltipProvider>
       </ThemeProvider>
+      <Analytics />
     </QueryClientProvider>
   );
 };
