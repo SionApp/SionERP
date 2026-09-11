@@ -141,10 +141,14 @@ func (h *DiscipleshipHandler) UpdateVisitor(c echo.Context) error {
 	churchID, _ := c.Get("church_id").(string)
 	visitorID := c.Param("id")
 
+	// converted_user_id is COALESCEd for the same reason notes is: the status
+	// dropdown in GroupVisitors.tsx sends only { status }, so an unconditional
+	// assignment silently NULLed the conversion link on every later status
+	// change — losing the only record of which user a converted visitor became.
 	result, err := q.Exec(`
 		UPDATE discipleship_visitors SET
 			status = $3,
-			converted_user_id = $4,
+			converted_user_id = COALESCE($4, converted_user_id),
 			notes = COALESCE($5, notes),
 			updated_at = NOW()
 		WHERE id = $1 AND church_id = $2
