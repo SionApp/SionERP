@@ -1,43 +1,26 @@
 import { useState } from 'react';
-import { BarChart3, Heart, Home, Menu, Users } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useMobileNavHidden } from '@/components/mobile/mobile-nav-state';
 import { MobileMoreSheet } from '@/components/mobile/MobileMoreSheet';
 import { useSystem } from '@/contexts/SystemContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { ROLE_LEVELS } from '@/lib/permissions';
+import { menuItems, filterNavItems } from '@/lib/nav-items';
+import { useMusicAccess } from '@/pages/dashboard/music/use-music-access';
+import { useEducationAccess } from '@/pages/dashboard/education/use-education-access';
 import { cn } from '@/lib/utils';
 
-interface BottomNavItem {
-  title: string;
-  url: string;
-  icon: React.ComponentType<{ className?: string }>;
-  requiredModule?: string;
-  minRole: number;
-}
-
-const NAV_ITEMS: BottomNavItem[] = [
-  { title: 'Inicio', url: '/dashboard', icon: Home, minRole: ROLE_LEVELS.member },
-  {
-    title: 'Discipulado',
-    url: '/dashboard/discipleship',
-    icon: Heart,
-    requiredModule: 'discipleship',
-    minRole: ROLE_LEVELS.member,
-  },
-  {
-    title: 'Miembros',
-    url: '/dashboard/users',
-    icon: Users,
-    minRole: ROLE_LEVELS.staff,
-  },
-  {
-    title: 'Reportes',
-    url: '/dashboard/reports',
-    icon: BarChart3,
-    requiredModule: 'reports',
-    minRole: ROLE_LEVELS.supervisor,
-  },
+// Primary bottom-tab row, in this exact left-to-right order: Inicio ·
+// Discipulado · Música · Educación (swapped in for Miembros/Reportes at the
+// user's request). Pulled from `menuItems` (nav-items.ts), the single
+// source of truth the "Más" sheet already reads from, so these stay in sync
+// with the rest of the app's nav config instead of drifting as their own
+// hardcoded list.
+const BOTTOM_NAV_URLS = [
+  '/dashboard',
+  '/dashboard/discipleship',
+  '/dashboard/music',
+  '/dashboard/education',
 ];
 
 interface MobileBottomNavProps {
@@ -48,15 +31,28 @@ interface MobileBottomNavProps {
 export function MobileBottomNav({ exclusive = false }: MobileBottomNavProps) {
   const location = useLocation();
   const { isModuleInstalled } = useSystem();
-  const { hasAccess } = usePermissions();
+  const { permissions, hasAccess } = usePermissions();
+  const { hasAccess: hasMusicAccess } = useMusicAccess();
+  const { hasAccess: hasEducationAccess } = useEducationAccess();
   const navHidden = useMobileNavHidden();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const visibleItems = NAV_ITEMS.filter(item => {
-    if (!hasAccess(item.minRole)) return false;
-    if (!item.requiredModule) return true;
-    return isModuleInstalled(item.requiredModule);
-  });
+  // Música/Educación are `requiresMembership: true` in nav-items.ts — module
+  // installed isn't enough, the user must actually belong to that module's
+  // team (same gate the "Más" sheet already applies to these two).
+  const visibleItems = filterNavItems(
+    menuItems.filter(i => BOTTOM_NAV_URLS.includes(i.url)),
+    {
+      permissions,
+      hasAccess,
+      isModuleInstalled,
+      hasModuleAccess: key => {
+        if (key === 'music') return hasMusicAccess;
+        if (key === 'education') return hasEducationAccess;
+        return true;
+      },
+    }
+  );
 
   // Patrón pushed-detail: las pantallas de detalle ocultan el nav
   if (navHidden) return null;

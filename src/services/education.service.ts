@@ -904,6 +904,21 @@ export class EducationService {
   }
 
   /**
+   * Whether the caller already has an attempt on this lesson's quiz, and
+   * whether it's submitted — lets the lesson viewer route straight to the
+   * existing result (resuelto or en revisión) instead of into
+   * `startQuizAttempt`, which 409s once the retry ceiling is reached.
+   */
+  static async getMyLatestQuizAttempt(
+    lessonId: string
+  ): Promise<{ attemptId: string | null; submitted: boolean }> {
+    const raw = (await ApiService.get(
+      `${this.base}/me/lessons/${lessonId}/quiz/latest-attempt`
+    )) as { attempt_id: string | null; submitted: boolean };
+    return { attemptId: raw.attempt_id, submitted: raw.submitted };
+  }
+
+  /**
    * Creates a new attempt OR returns the caller's existing OPEN one
    * (backend-idempotent, PR-F's StartAttempt — safe to call again to
    * resume, e.g. after a refresh). Always returns the full runner view.

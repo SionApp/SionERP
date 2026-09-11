@@ -19,11 +19,16 @@ export function StepIndicator({
   currentStepId,
   visitedStepIds,
   onStepClick,
+  compact = false,
 }: {
   steps: EducationStep[];
   currentStepId: string;
   visitedStepIds: string[];
   onStepClick: (stepId: string) => void;
+  /** Mobile handoff, screen 4: bars only, no per-step label — "no caben
+   * cuatro nombres en 350px"; the current step's name moves to an eyebrow
+   * above the content instead. */
+  compact?: boolean;
 }) {
   const visited = new Set(visitedStepIds);
 
@@ -51,19 +56,23 @@ export function StepIndicator({
           >
             <span
               className={cn(
-                'edu-step-fill h-1.5 w-full rounded-full',
+                'edu-step-fill rounded-full',
+                compact ? 'h-[5px]' : 'h-1.5',
+                'w-full',
                 isReached ? 'bg-edu-primary' : 'bg-edu-track'
               )}
               aria-hidden="true"
             />
-            <span
-              className={cn(
-                'truncate text-center text-xs',
-                isCurrent ? 'font-medium text-edu-primary' : 'text-muted-foreground'
-              )}
-            >
-              {step.label}
-            </span>
+            {!compact && (
+              <span
+                className={cn(
+                  'truncate text-center text-xs',
+                  isCurrent ? 'font-medium text-edu-primary' : 'text-muted-foreground'
+                )}
+              >
+                {step.label}
+              </span>
+            )}
           </button>
         );
       })}

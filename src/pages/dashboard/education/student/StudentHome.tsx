@@ -4,11 +4,17 @@ import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { MobileScreen } from '@/components/mobile/MobileScreen';
+import { useMobileMode } from '@/hooks/useMobileMode';
 import {
   useEducationHome,
   useMyBookmarks,
   useMyPendingReviews,
 } from '../hooks/use-education-queries';
+import { ModuleTabs } from '../ModuleTabs';
+import { ContinueHeroMobile } from '../mobile/ContinueHeroMobile';
+import { EducationMobileHeader } from '../mobile/EducationMobileHeader';
+import { StatsStripMobile } from '../mobile/StatsStripMobile';
 import { BookmarksCard } from './BookmarksCard';
 import { ContinueCard } from './ContinueCard';
 import { MyCoursesList } from './MyCoursesList';
@@ -17,6 +23,7 @@ import { PendingQuizAlert } from './PendingQuizAlert';
 
 export default function StudentHome() {
   const navigate = useNavigate();
+  const isMobileApp = useMobileMode();
   const { currentUser } = useAuth();
   const { data: home, isLoading, isError, refetch } = useEducationHome();
   const { data: pendingReviews } = useMyPendingReviews();
@@ -63,6 +70,62 @@ export default function StudentHome() {
           <Skeleton className="h-40 w-full rounded-md3-lg" />
           <Skeleton className="h-40 w-full rounded-md3-lg" />
         </div>
+      </div>
+    );
+  }
+
+  if (isMobileApp) {
+    const heroAssignment = home?.continueAssignment ?? continuing[0] ?? null;
+    return (
+      // `education-shell`: every `edu-*` CSS var (education-theme.css) is
+      // scoped to this class — the shell normally provides it, but this
+      // route bypasses the shell wrapper entirely to own its own mobile
+      // header, so it must carry the class itself.
+      <div className="education-shell">
+        <MobileScreen
+          header={
+            <EducationMobileHeader
+              title={`Hola, ${currentUser?.first_name ?? ''}`}
+              initial={initial}
+            />
+          }
+        >
+          <ModuleTabs isAdmin={false} />
+          <div className="flex flex-col gap-[18px] px-4 pb-4 pt-5">
+            {heroAssignment && (
+              <ContinueHeroMobile
+                assignment={heroAssignment}
+                onClick={() =>
+                  navigate(`/dashboard/education/curso/${heroAssignment.curriculumId}`)
+                }
+              />
+            )}
+            <StatsStripMobile
+              inProgressCount={home?.inProgressCount ?? 0}
+              completedCount={home?.completedCount ?? 0}
+              overallPercent={overallPercent}
+            />
+            {pendingReviews && pendingReviews.length > 0 && (
+              <PendingQuizAlert items={pendingReviews} />
+            )}
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-base font-medium text-foreground">Mis cursos</h2>
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard/education/catalogo')}
+                  className="text-xs font-medium text-edu-primary"
+                >
+                  Ver todos
+                </button>
+              </div>
+              <MyCoursesList
+                assignments={home?.assignments ?? []}
+                onSelect={curriculumId => navigate(`/dashboard/education/curso/${curriculumId}`)}
+              />
+            </div>
+          </div>
+        </MobileScreen>
       </div>
     );
   }

@@ -1,10 +1,17 @@
+import { useState } from 'react';
 import type { Editor } from '@tiptap/react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChevronDown, ChevronUp, Copy, GripVertical, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Copy, GripVertical, MoreVertical, Trash2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { EducationConfirmDialog } from '../ui';
+import {
+  EducationConfirmDialog,
+  EducationSheet,
+  EducationSheetContent,
+  EducationSheetHeader,
+  EducationSheetTitle,
+} from '../ui';
 import { narrowEducationBlock } from '../blocks/block.types';
 import type { AnyEducationBlock } from '../blocks/block.types';
 import type { EducationBlock } from '@/types/education.types';
@@ -45,6 +52,7 @@ export function BlockCard({
   selected,
   canEdit,
   compactReorder,
+  compact = false,
   index,
   total,
   curriculumId,
@@ -61,6 +69,14 @@ export function BlockCard({
   selected: boolean;
   canEdit: boolean;
   compactReorder: boolean;
+  /** Mobile handoff, screen 8 "4. Lista de bloques" — cabecera del bloque:
+   * "en móvil se agrupan todas [las acciones] en el menú de `more_vert` para
+   * no llenar la fila de objetivos táctiles pequeños" (the desktop header's
+   * separate duplicate/delete icon buttons collapse into one `more_vert`
+   * trigger opening a bottom sheet — same touch-target-density reasoning as
+   * `compactReorder`'s arrows-vs-drag-handle split, just for the action
+   * icons instead of the reorder handle). */
+  compact?: boolean;
   index: number;
   total: number;
   curriculumId: string;
@@ -77,6 +93,7 @@ export function BlockCard({
     id: block.id,
     disabled: !canEdit || compactReorder,
   });
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const narrowed = narrowEducationBlock(block);
   const meta = narrowed ? BLOCK_TYPE_META[narrowed.type] : null;
@@ -135,7 +152,20 @@ export function BlockCard({
         <span className="flex-1 truncate text-xs font-medium text-muted-foreground">
           {meta?.label ?? 'Bloque'}
         </span>
-        {canEdit && (
+        {canEdit && compact && (
+          <button
+            type="button"
+            onClick={e => {
+              e.stopPropagation();
+              setActionsOpen(true);
+            }}
+            aria-label="Más acciones del bloque"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md3-sm text-muted-foreground"
+          >
+            <MoreVertical className="h-[18px] w-[18px]" />
+          </button>
+        )}
+        {canEdit && !compact && (
           <div className="flex shrink-0 items-center gap-0.5" onClick={e => e.stopPropagation()}>
             <button
               type="button"
@@ -169,6 +199,7 @@ export function BlockCard({
           <BlockCardBody
             block={narrowed}
             canEdit={canEdit}
+            compact={compact}
             curriculumId={curriculumId}
             onChange={onChange}
             onFocusEditor={onFocusEditor}
@@ -180,6 +211,45 @@ export function BlockCard({
           </p>
         )}
       </div>
+
+      {compact && (
+        <EducationSheet open={actionsOpen} onOpenChange={setActionsOpen}>
+          <EducationSheetContent side="bottom" onClick={e => e.stopPropagation()}>
+            <EducationSheetHeader>
+              <EducationSheetTitle>{meta?.label ?? 'Bloque'}</EducationSheetTitle>
+            </EducationSheetHeader>
+            <div className="flex flex-col gap-1 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onDuplicate();
+                  setActionsOpen(false);
+                }}
+                className="flex items-center gap-2.5 rounded-md3-sm px-3 py-2.5 text-left text-sm font-medium text-foreground hover:bg-muted"
+              >
+                <Copy className="h-[18px] w-[18px]" /> Duplicar bloque
+              </button>
+              <EducationConfirmDialog
+                trigger={
+                  <button
+                    type="button"
+                    className="flex items-center gap-2.5 rounded-md3-sm px-3 py-2.5 text-left text-sm font-medium text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-[18px] w-[18px]" /> Eliminar bloque
+                  </button>
+                }
+                title="¿Eliminar bloque?"
+                description="Esta acción no se puede deshacer."
+                confirmLabel="Eliminar"
+                onConfirm={() => {
+                  onDelete();
+                  setActionsOpen(false);
+                }}
+              />
+            </div>
+          </EducationSheetContent>
+        </EducationSheet>
+      )}
     </div>
   );
 }

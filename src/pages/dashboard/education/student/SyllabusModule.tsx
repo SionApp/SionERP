@@ -6,10 +6,12 @@ export function SyllabusModule({
   module,
   index,
   onLessonClick,
+  compact = false,
 }: {
   module: EducationSyllabusModuleType;
   index: number;
   onLessonClick: (lessonId: string) => void;
+  compact?: boolean;
 }) {
   const totalMinutes = module.lessons.reduce((sum, l) => sum + (l.durationMinutes ?? 0), 0);
 
@@ -33,6 +35,7 @@ export function SyllabusModule({
           lesson={lesson}
           state={lesson.state}
           onClick={() => onLessonClick(lesson.id)}
+          compact={compact}
         />
       ))}
     </div>

@@ -30,12 +30,17 @@ export function QuizOption({
   selected,
   disabled,
   onSelect,
+  compact = false,
 }: {
   option: QuizRunnerOption;
   index: number;
   selected: boolean;
   disabled?: boolean;
   onSelect: () => void;
+  /** Mobile handoff, screen 5: `min-height:60px` (explicit touch target,
+   * not left to padding+content alone), 26px letter circle, 15px/1.4 text —
+   * "padding:15px 16px". */
+  compact?: boolean;
 }) {
   const letter = OPTION_LETTERS[index] ?? String(index + 1);
 
@@ -47,7 +52,8 @@ export function QuizOption({
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        'flex w-full items-center gap-3.5 rounded-md3-option border-2 px-5 py-[18px] text-left transition-colors',
+        'flex w-full items-center rounded-md3-option border-2 text-left transition-colors',
+        compact ? 'min-h-[60px] gap-3 px-4 py-[15px]' : 'gap-3.5 px-5 py-[18px]',
         selected
           ? 'border-edu-primary bg-edu-surface-alt'
           : 'border-border bg-card hover:bg-edu-surface/60'
@@ -56,13 +62,20 @@ export function QuizOption({
       <span
         aria-hidden="true"
         className={cn(
-          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-sm font-medium',
+          'flex shrink-0 items-center justify-center rounded-full border-2 font-medium',
+          compact ? 'h-[26px] w-[26px] text-xs' : 'h-7 w-7 text-sm',
           selected ? 'border-edu-primary bg-edu-primary text-white' : 'border-outline text-outline'
         )}
       >
         {letter}
       </span>
-      <span className="text-base text-foreground">{option.text}</span>
+      <span
+        className={
+          compact ? 'text-[15px] leading-[1.4] text-foreground' : 'text-base text-foreground'
+        }
+      >
+        {option.text}
+      </span>
     </button>
   );
 }

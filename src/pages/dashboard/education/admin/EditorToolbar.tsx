@@ -3,9 +3,11 @@ import {
   Bold,
   ChevronDown,
   Italic,
+  KeyboardOff,
   Link2,
   List,
   ListOrdered,
+  MoreHorizontal,
   Quote,
   Redo2,
   RemoveFormatting,
@@ -16,6 +18,12 @@ import type { Editor } from '@tiptap/react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  EducationDropdownMenu,
+  EducationDropdownMenuContent,
+  EducationDropdownMenuItem,
+  EducationDropdownMenuTrigger,
+} from '../ui';
 
 /**
  * Design (README §8, "1. Toolbar de formato"): undo/redo · bold/italic/
@@ -33,7 +41,24 @@ import { cn } from '@/lib/utils';
  * inline marks — rendered disabled with an explanatory `title` rather than
  * silently omitted, to keep the toolbar's visual layout matching the design.
  */
-export function EditorToolbar({ activeEditor }: { activeEditor: Editor | null }) {
+export function EditorToolbar({
+  activeEditor,
+  compact = false,
+  onDismissKeyboard,
+}: {
+  activeEditor: Editor | null;
+  /** Mobile handoff, screen 8 "2. Toolbar de formato": 40×40px buttons
+   * (`border-radius:11px`) showing only 6 of the desktop's set — bold,
+   * italic, bulleted-list (kept visually, still disabled — same "use the
+   * List block" redirect as desktop), link, undo, redo — plus a
+   * `keyboard_hide` action pinned to the right. The 4 trimmed formats
+   * (underline, numbered-list, quote, clear-format) move into one overflow
+   * menu rather than disappearing — the doc names them as "recortados" into
+   * "un menú de desbordamiento", not removed outright.
+   */
+  compact?: boolean;
+  onDismissKeyboard?: () => void;
+}) {
   const canFormat = !!activeEditor;
 
   function run(command: (editor: Editor) => void) {
@@ -53,6 +78,100 @@ export function EditorToolbar({ activeEditor }: { activeEditor: Editor | null })
       return;
     }
     activeEditor.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run();
+  }
+
+  function handleDismissKeyboard() {
+    (document.activeElement as HTMLElement | null)?.blur();
+    onDismissKeyboard?.();
+  }
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1 px-2.5 py-1.5">
+        <ToolbarButton
+          compact
+          icon={Bold}
+          label="Negrita"
+          active={activeEditor?.isActive('bold')}
+          disabled={!canFormat}
+          onClick={() => run(e => e.chain().focus().toggleBold().run())}
+        />
+        <ToolbarButton
+          compact
+          icon={Italic}
+          label="Cursiva"
+          active={activeEditor?.isActive('italic')}
+          disabled={!canFormat}
+          onClick={() => run(e => e.chain().focus().toggleItalic().run())}
+        />
+        <ToolbarButton
+          compact
+          icon={List}
+          label="Lista con viñetas — usá el bloque Lista"
+          disabled
+        />
+        <ToolbarButton
+          compact
+          icon={Link2}
+          label="Enlace"
+          active={activeEditor?.isActive('link')}
+          disabled={!canFormat}
+          onClick={handleSetLink}
+        />
+        <ToolbarButton
+          compact
+          icon={Undo2}
+          label="Deshacer"
+          disabled={!canFormat}
+          onClick={() => run(e => e.chain().focus().undo().run())}
+        />
+        <ToolbarButton
+          compact
+          icon={Redo2}
+          label="Rehacer"
+          disabled={!canFormat}
+          onClick={() => run(e => e.chain().focus().redo().run())}
+        />
+        <EducationDropdownMenu>
+          <EducationDropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Más formato"
+              className="flex h-10 w-10 items-center justify-center rounded-[11px] text-muted-foreground"
+            >
+              <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </EducationDropdownMenuTrigger>
+          <EducationDropdownMenuContent align="start">
+            <EducationDropdownMenuItem
+              disabled={!canFormat}
+              onClick={() => run(e => e.chain().focus().toggleUnderline().run())}
+            >
+              <UnderlineIcon className="mr-2 h-4 w-4" /> Subrayado
+            </EducationDropdownMenuItem>
+            <EducationDropdownMenuItem disabled>
+              <ListOrdered className="mr-2 h-4 w-4" /> Lista numerada — usá el bloque Lista
+            </EducationDropdownMenuItem>
+            <EducationDropdownMenuItem disabled>
+              <Quote className="mr-2 h-4 w-4" /> Cita — usá el bloque Versículo
+            </EducationDropdownMenuItem>
+            <EducationDropdownMenuItem
+              disabled={!canFormat}
+              onClick={() => run(e => e.chain().focus().unsetAllMarks().run())}
+            >
+              <RemoveFormatting className="mr-2 h-4 w-4" /> Limpiar formato
+            </EducationDropdownMenuItem>
+          </EducationDropdownMenuContent>
+        </EducationDropdownMenu>
+        <span className="flex-1" />
+        <ToolbarButton
+          compact
+          icon={KeyboardOff}
+          label="Ocultar teclado"
+          onClick={handleDismissKeyboard}
+        />
+      </div>
+    );
   }
 
   return (
@@ -128,13 +247,34 @@ function ToolbarButton({
   onClick,
   active,
   disabled,
+  compact,
 }: {
   icon: LucideIcon;
   label: string;
   onClick?: () => void;
   active?: boolean;
   disabled?: boolean;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        aria-pressed={active}
+        disabled={disabled}
+        className={cn(
+          'flex h-10 w-10 items-center justify-center rounded-[11px] text-muted-foreground disabled:opacity-40',
+          active && 'bg-edu-container text-on-edu-container'
+        )}
+        onMouseDown={e => e.preventDefault()}
+        onClick={onClick}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </button>
+    );
+  }
   return (
     <Button
       type="button"
