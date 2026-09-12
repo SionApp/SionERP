@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +46,11 @@ import {
   useCreateJourneyEntry,
   useMemberJourney,
 } from '@/hooks/use-member-journey';
+import {
+  useCreateMentorship,
+  useEndMentorship,
+  useGroupMentorships,
+} from '@/hooks/use-mentorships';
 import { JourneyStageBadge } from './JourneyStageBadge';
 import { JourneyProgressSummary } from './JourneyProgressSummary';
 import {
@@ -61,6 +66,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Heart,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
@@ -104,6 +110,40 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
   const createJourneyEntry = useCreateJourneyEntry();
   const educationInstalled = isModuleInstalled('education');
 
+  // Disciple-maker mentorships (Slice 2) — the group's active mentor↔mentee
+  // pairs plus the live count that IS the leader's "weekly report" (spec R6).
+  const { data: mentorshipsData } = useGroupMentorships(groupId);
+  const mentorships = useMemo(() => mentorshipsData?.mentorships ?? [], [mentorshipsData]);
+  const mentorshipCount = mentorshipsData?.count ?? 0;
+  const createMentorship = useCreateMentorship();
+  const endMentorship = useEndMentorship();
+  const [assigningMentorId, setAssigningMentorId] = useState<string | null>(null);
+  const [selectedMenteeId, setSelectedMenteeId] = useState<string>('');
+
+  const menteesByMentor = useMemo(() => {
+    const map = new Map<string, typeof mentorships>();
+    mentorships.forEach(m => {
+      const list = map.get(m.mentor_user_id) ?? [];
+      list.push(m);
+      map.set(m.mentor_user_id, list);
+    });
+    return map;
+  }, [mentorships]);
+
+  // Candidates for "Asignar discípulo": active members of THIS group, minus
+  // the mentor themselves and anyone who (per this group's own mentorship
+  // list) already has an active mentor — a best-effort UX filter, since the
+  // backend is the real source of truth (409 on a genuine conflict).
+  const assignMenteeCandidates = useMemo(() => {
+    if (!assigningMentorId) return [];
+    const menteesWithActiveMentor = new Set(mentorships.map(m => m.mentee_user_id));
+    return members.filter(
+      m => m.is_active && m.user_id !== assigningMentorId && !menteesWithActiveMentor.has(m.user_id)
+    );
+  }, [assigningMentorId, members, mentorships]);
+
+  const assigningMentor = members.find(m => m.user_id === assigningMentorId);
+
   const handleMarkAsConvert = (userId: string) => {
     createJourneyEntry.mutate(
       { user_id: userId },
@@ -113,6 +153,41 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
           toast.error(error instanceof Error ? error.message : 'No se pudo marcar como convertido'),
       }
     );
+  };
+
+  const openAssignMenteeDialog = (mentorId: string) => {
+    setSelectedMenteeId('');
+    setAssigningMentorId(mentorId);
+  };
+
+  const handleAssignMentee = () => {
+    if (!assigningMentorId || !selectedMenteeId) {
+      toast.error('Elegí quién va a ser discipulado');
+      return;
+    }
+    createMentorship.mutate(
+      {
+        groupId,
+        data: { mentor_user_id: assigningMentorId, mentee_user_id: selectedMenteeId },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Discípulo asignado');
+          setAssigningMentorId(null);
+          setSelectedMenteeId('');
+        },
+        onError: (error: unknown) =>
+          toast.error(error instanceof Error ? error.message : 'No se pudo asignar el discípulo'),
+      }
+    );
+  };
+
+  const handleEndMentorship = (mentorshipId: string) => {
+    endMentorship.mutate(mentorshipId, {
+      onSuccess: () => toast.success('Discipulado finalizado'),
+      onError: (error: unknown) =>
+        toast.error(error instanceof Error ? error.message : 'No se pudo finalizar el discipulado'),
+    });
   };
 
   const loadMembers = useCallback(async () => {
@@ -477,6 +552,51 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
     </>
   );
 
+  const assignMenteeBody = (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Elegí a quién va a discipular {assigningMentor?.user_name}.
+      </p>
+      {assignMenteeCandidates.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No hay otros miembros activos disponibles en este grupo
+        </p>
+      ) : (
+        <Select value={selectedMenteeId} onValueChange={setSelectedMenteeId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Elegí un miembro del grupo" />
+          </SelectTrigger>
+          <SelectContent>
+            {assignMenteeCandidates.map(m => (
+              <SelectItem key={m.user_id} value={m.user_id}>
+                {m.user_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+
+  const assignMenteeActions = (
+    <>
+      <Button variant="outline" onClick={() => setAssigningMentorId(null)}>
+        Cancelar
+      </Button>
+      <Button
+        onClick={handleAssignMentee}
+        disabled={!selectedMenteeId || createMentorship.isPending}
+      >
+        {createMentorship.isPending ? (
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+        ) : (
+          <Heart className="w-4 h-4 mr-2" />
+        )}
+        Asignar
+      </Button>
+    </>
+  );
+
   const dialogs = (
     <>
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -500,6 +620,17 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
           </DialogHeader>
           {attendanceBody}
           <div className="flex justify-end gap-2">{attendanceActions}</div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!assigningMentorId} onOpenChange={open => !open && setAssigningMentorId(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Asignar discípulo</DialogTitle>
+            <DialogDescription>Vinculá un discipulador con su discípulo</DialogDescription>
+          </DialogHeader>
+          {assignMenteeBody}
+          <div className="flex justify-end gap-2">{assignMenteeActions}</div>
         </DialogContent>
       </Dialog>
     </>
@@ -530,6 +661,17 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
           <DrawerFooter className="flex-row justify-end gap-2">{attendanceActions}</DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      <Drawer open={!!assigningMentorId} onOpenChange={open => !open && setAssigningMentorId(null)}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Asignar discípulo</DrawerTitle>
+            <DrawerDescription>Vinculá un discipulador con su discípulo</DrawerDescription>
+          </DrawerHeader>
+          <div className="px-4">{assignMenteeBody}</div>
+          <DrawerFooter className="flex-row justify-end gap-2">{assignMenteeActions}</DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </>
   );
 
@@ -537,6 +679,7 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
     const stage = resolveJourneyStage(journeyEntries, member.user_id);
     const journeyEntry = journeyEntries.find(e => e.user_id === member.user_id);
     const notTracked = stage === 'not_tracked';
+    const mentees = menteesByMentor.get(member.user_id) ?? [];
 
     return (
       <div
@@ -563,6 +706,25 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
             <JourneyStageBadge stage={stage} />
             <JourneyProgressSummary entry={journeyEntry} educationInstalled={educationInstalled} />
           </div>
+          {canConvert && mentees.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {mentees.map(mentee => (
+                <Badge key={mentee.id} variant="outline" className="gap-1 pr-1 font-normal">
+                  {mentee.mentee_name}
+                  <button
+                    type="button"
+                    aria-label={`Finalizar discipulado con ${mentee.mentee_name}`}
+                    title="Finalizar"
+                    className="ml-0.5 rounded-full hover:bg-muted p-0.5 disabled:opacity-50"
+                    disabled={endMentorship.isPending}
+                    onClick={() => handleEndMentorship(mentee.id)}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {getRoleBadge(member.role_in_group)}
@@ -577,6 +739,18 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
               onClick={() => handleMarkAsConvert(member.user_id)}
             >
               <UserCheck className="w-4 h-4" />
+            </Button>
+          )}
+          {canConvert && member.is_active && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground"
+              aria-label="Asignar discípulo"
+              title="Asignar discípulo"
+              onClick={() => openAssignMenteeDialog(member.user_id)}
+            >
+              <Heart className="w-4 h-4" />
             </Button>
           )}
           {member.is_active && member.role_in_group !== 'leader' && (
@@ -607,7 +781,13 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
 
     return (
       <>
-        <div className="px-4 pt-3 pb-2 flex gap-2">
+        <div className="px-4 pt-3">
+          <Badge variant="secondary" className="text-xs font-normal">
+            {mentorshipCount}{' '}
+            {mentorshipCount === 1 ? 'discipulado activo' : 'discipulados activos'}
+          </Badge>
+        </div>
+        <div className="px-4 pt-2 pb-2 flex gap-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={openAttendanceDialog}>
             <Calendar className="w-4 h-4 mr-1.5" />
             Asistencia
@@ -659,6 +839,10 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
               Miembros del Grupo
             </CardTitle>
             <CardDescription>{groupName}</CardDescription>
+            <Badge variant="secondary" className="mt-1.5 w-fit font-normal">
+              {mentorshipCount}{' '}
+              {mentorshipCount === 1 ? 'discipulado activo' : 'discipulados activos'}
+            </Badge>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={openAttendanceDialog}>
