@@ -540,3 +540,8 @@ Contiene:
 ---
 
 _Documento técnico mantenido activamente. Actualizar al agregar o modificar módulos, rutas, tablas o decisiones de arquitectura._
+
+<!-- probe: this trivial change exists only to trigger claude-review against
+     develop's now-updated workflow (show_full_output:true landed in #205)
+     without the PR itself touching the workflow file — see obs on
+     claude-review's self-modifying-workflow guard. Safe to remove after. -->
