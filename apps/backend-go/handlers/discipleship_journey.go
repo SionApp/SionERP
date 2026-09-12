@@ -74,11 +74,15 @@ type CreateJourneyEntryRequest struct {
 // ─── Journey stage derivation (design G3) ──────────────────────────────────
 //
 // journeyStageSQL implements the read-time stage derivation:
-//   - anchor + a path assignment with completed_at set  → "disciple"
-//   - anchor only (no completed path assignment)         → "new_convert"
-//   - "disciple_maker" is structurally reachable (spec: Derived Stage) once
-//     an active-mentorship signal exists, but Slice 1 has no mentorship
-//     entity (that's Slice 2) so this query never emits it.
+//   - ≥1 active mentorship as mentor (discipleship_mentorships)  → "disciple_maker"
+//   - anchor + a path assignment with completed_at set            → "disciple"
+//   - anchor only (no completed path assignment)                  → "new_convert"
+//
+// Precedence disciple_maker > disciple > new_convert (Slice 2, product
+// decision #579 / spec R5): having an active mentee is what makes someone a
+// discipler — regardless of whether they themselves ever completed the path
+// course. The EXISTS below is folded into the same query as a boolean column
+// to avoid a second round-trip (design: "no N+1").
 //
 // The LATERAL join's precedence — tagged row first, ORDER BY (source_module =
 // 'discipleship') DESC NULLS LAST LIMIT 1 — is what lets a pointer swap never
@@ -105,7 +109,13 @@ const journeyStageSQL = `
 	SELECT j.id, j.user_id, j.origin, j.activity_status,
 	       to_char(j.activity_changed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 	       to_char(j.converted_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-	       ea.id, ea.curriculum_id, ea.completed_at
+	       ea.id, ea.curriculum_id, ea.completed_at,
+	       EXISTS (
+	         SELECT 1 FROM discipleship_mentorships m
+	         WHERE m.church_id = j.church_id
+	           AND m.mentor_user_id = j.user_id
+	           AND m.status = 'active'
+	       ) AS is_disciple_maker
 	FROM discipleship_journey j
 	LEFT JOIN discipleship_settings s ON s.church_id = j.church_id
 	LEFT JOIN LATERAL (
@@ -130,8 +140,9 @@ func scanJourneyEntry(rows interface {
 	var convertedAt sql.NullString
 	var assignmentID, curriculumID sql.NullString
 	var completedAt sql.NullTime
+	var isDiscipleMaker bool
 	if err := rows.Scan(&anchorID, &e.UserID, &e.Origin, &e.ActivityStatus,
-		&e.ActivityChangedAt, &convertedAt, &assignmentID, &curriculumID, &completedAt); err != nil {
+		&e.ActivityChangedAt, &convertedAt, &assignmentID, &curriculumID, &completedAt, &isDiscipleMaker); err != nil {
 		return e, err
 	}
 	if convertedAt.Valid {
@@ -143,9 +154,14 @@ func scanJourneyEntry(rows interface {
 	if curriculumID.Valid {
 		e.AssignmentCurricID = &curriculumID.String
 	}
-	if completedAt.Valid {
+	// Precedence disciple_maker > disciple > new_convert (spec R5). An active
+	// mentee outranks course completion — see the comment above journeyStageSQL.
+	switch {
+	case isDiscipleMaker:
+		e.Stage = "disciple_maker"
+	case completedAt.Valid:
 		e.Stage = "disciple"
-	} else {
+	default:
 		e.Stage = "new_convert"
 	}
 	return e, nil
