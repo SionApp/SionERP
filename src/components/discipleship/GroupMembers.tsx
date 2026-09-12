@@ -39,6 +39,15 @@ import type {
 } from '@/types/discipleship.types';
 import { normalizeNullString, getAvatarColor } from '@/lib/utils';
 import { useMobileMode } from '@/hooks/useMobileMode';
+import { useSystem } from '@/contexts/SystemContext';
+import { useDiscipleshipAccess } from '@/hooks/use-discipleship-access';
+import {
+  resolveJourneyStage,
+  useCreateJourneyEntry,
+  useMemberJourney,
+} from '@/hooks/use-member-journey';
+import { JourneyStageBadge } from './JourneyStageBadge';
+import { JourneyProgressSummary } from './JourneyProgressSummary';
 import {
   Users,
   UserPlus,
@@ -71,6 +80,8 @@ interface User {
 
 export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
   const isMobileApp = useMobileMode();
+  const { isModuleInstalled } = useSystem();
+  const { canConvert } = useDiscipleshipAccess();
   const [members, setMembers] = useState<GroupMemberWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,6 +95,25 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
   const [attendanceDate, setAttendanceDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [attendanceList, setAttendanceList] = useState<Map<string, boolean>>(new Map());
   const [recentAttendance, setRecentAttendance] = useState<AttendanceWithDetails[]>([]);
+
+  // Member journey read surface (spec: Not-Tracked Rendering) + the manual
+  // door (spec: Manual Anchor Entry) — batched over every member currently
+  // loaded, one query for the whole roster instead of one per row.
+  const memberUserIds = members.map(m => m.user_id);
+  const { data: journeyEntries = [] } = useMemberJourney(memberUserIds);
+  const createJourneyEntry = useCreateJourneyEntry();
+  const educationInstalled = isModuleInstalled('education');
+
+  const handleMarkAsConvert = (userId: string) => {
+    createJourneyEntry.mutate(
+      { user_id: userId },
+      {
+        onSuccess: () => toast.success('Miembro marcado como nuevo convertido'),
+        onError: (error: unknown) =>
+          toast.error(error instanceof Error ? error.message : 'No se pudo marcar como convertido'),
+      }
+    );
+  };
 
   const loadMembers = useCallback(async () => {
     try {
@@ -503,43 +533,66 @@ export function GroupMembers({ groupId, groupName }: GroupMembersProps) {
     </>
   );
 
-  const memberRow = (member: GroupMemberWithDetails, compact: boolean) => (
-    <div
-      key={member.id}
-      className={
-        compact
-          ? `flex items-center gap-3 px-4 py-3 ${!member.is_active ? 'opacity-50' : ''}`
-          : `flex items-center justify-between p-3 border rounded-lg ${
-              !member.is_active ? 'opacity-50' : ''
-            }`
-      }
-    >
-      <Avatar className={compact ? 'h-9 w-9 shrink-0' : undefined}>
-        <AvatarFallback className={getAvatarColor(member.user_name)}>
-          {getInitials(member.user_name)}
-        </AvatarFallback>
-      </Avatar>
-      <div className={compact ? 'min-w-0 flex-1' : undefined}>
-        <div className={compact ? 'font-medium text-sm truncate' : 'font-medium'}>
-          {member.user_name}
+  const memberRow = (member: GroupMemberWithDetails, compact: boolean) => {
+    const stage = resolveJourneyStage(journeyEntries, member.user_id);
+    const journeyEntry = journeyEntries.find(e => e.user_id === member.user_id);
+    const notTracked = stage === 'not_tracked';
+
+    return (
+      <div
+        key={member.id}
+        className={
+          compact
+            ? `flex items-center gap-3 px-4 py-3 ${!member.is_active ? 'opacity-50' : ''}`
+            : `flex items-center justify-between p-3 border rounded-lg ${
+                !member.is_active ? 'opacity-50' : ''
+              }`
+        }
+      >
+        <Avatar className={compact ? 'h-9 w-9 shrink-0' : undefined}>
+          <AvatarFallback className={getAvatarColor(member.user_name)}>
+            {getInitials(member.user_name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className={compact ? 'min-w-0 flex-1' : undefined}>
+          <div className={compact ? 'font-medium text-sm truncate' : 'font-medium'}>
+            {member.user_name}
+          </div>
+          <div className="text-xs text-muted-foreground truncate">{member.user_email}</div>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <JourneyStageBadge stage={stage} />
+            <JourneyProgressSummary entry={journeyEntry} educationInstalled={educationInstalled} />
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground truncate">{member.user_email}</div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {getRoleBadge(member.role_in_group)}
+          {notTracked && canConvert && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground"
+              aria-label="Marcar como nuevo convertido"
+              title="Marcar como nuevo convertido"
+              disabled={createJourneyEntry.isPending}
+              onClick={() => handleMarkAsConvert(member.user_id)}
+            >
+              <UserCheck className="w-4 h-4" />
+            </Button>
+          )}
+          {member.is_active && member.role_in_group !== 'leader' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive"
+              onClick={() => handleRemoveMember(member.id)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        {getRoleBadge(member.role_in_group)}
-        {member.is_active && member.role_in_group !== 'leader' && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive"
-            onClick={() => handleRemoveMember(member.id)}
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   if (isMobileApp) {
     if (loading) {
