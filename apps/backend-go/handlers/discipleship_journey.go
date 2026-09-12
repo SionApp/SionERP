@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -63,6 +64,11 @@ type JourneyEntry struct {
 // UpdateJourneyActivityRequest — PUT /discipleship/journey/:userId/activity body.
 type UpdateJourneyActivityRequest struct {
 	ActivityStatus string `json:"activity_status" validate:"required,oneof=active inactive"`
+}
+
+// CreateJourneyEntryRequest — POST /discipleship/journey (manual door) body.
+type CreateJourneyEntryRequest struct {
+	UserID string `json:"user_id" validate:"required"`
 }
 
 // ─── Journey stage derivation (design G3) ──────────────────────────────────
@@ -259,6 +265,79 @@ func (h *DiscipleshipHandler) GetJourney(c echo.Context) error {
 		c.Logger().Error("Error iterating journey entries:", err)
 	}
 	return c.JSON(http.StatusOK, entries)
+}
+
+// CreateJourneyEntry — POST /discipleship/journey (manual door, design G3).
+// Gated DiscipleshipLevelAuxiliary. Staff adds an existing member into the
+// journey directly, independent of visitor conversion (spec: Manual Anchor
+// Entry). Idempotent — re-running on an already-anchored user reuses the
+// anchor (no duplicate), and its own ensurePathAssignment call is the repair
+// action that ADOPTs a self-enrollment predating the door into a permanent
+// tag, closing the "manual door never reaches disciple" gap.
+func (h *DiscipleshipHandler) CreateJourneyEntry(c echo.Context) error {
+	var req CreateJourneyEntryRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Datos inválidos"})
+	}
+	if err := validate.Struct(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Validación fallida: " + err.Error()})
+	}
+
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, _ := c.Get("church_id").(string)
+	actorID, _ := c.Get("user_id").(string)
+
+	var isActive bool
+	err = q.QueryRow(`SELECT is_active FROM users WHERE id = $1 AND church_id = $2`, req.UserID, churchID).Scan(&isActive)
+	if err == sql.ErrNoRows {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "el miembro seleccionado no existe en esta iglesia"})
+	}
+	if err != nil {
+		c.Logger().Error("Error validating member for manual journey entry:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al validar el miembro"})
+	}
+	if !isActive {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "el miembro seleccionado no está activo"})
+	}
+
+	// Deliberate no-op self-assignment on conflict (design G2): its only job
+	// is to guarantee RETURNING without silently flipping the activity axis
+	// on re-entry.
+	var journeyID string
+	err = q.QueryRow(`
+		INSERT INTO discipleship_journey (church_id, user_id, origin)
+		VALUES ($1, $2, 'manual')
+		ON CONFLICT ON CONSTRAINT uq_discipleship_journey_user DO UPDATE
+			SET activity_status = discipleship_journey.activity_status
+		RETURNING id
+	`, churchID, req.UserID).Scan(&journeyID)
+	if err != nil {
+		c.Logger().Error("Error upserting manual journey anchor:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al crear el ancla de discipulado"})
+	}
+
+	assignmentID, pathConfigured, err := ensurePathAssignment(q, churchID, journeyID, req.UserID, actorID)
+	if err != nil {
+		if errors.Is(err, errAssignmentTaggedToAnotherJourney) {
+			return c.JSON(http.StatusConflict, map[string]string{"error": "este usuario ya tiene una asignación de camino vinculada a otro registro de discipulado"})
+		}
+		c.Logger().Error("Error ensuring path assignment for manual entry:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al inscribir en el curso del camino"})
+	}
+	if pathConfigured && assignmentID == nil {
+		c.Logger().Error("ensurePathAssignment invariant violated: pathConfigured true with nil assignmentID")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error interno al inscribir en el curso"})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"journey_id":      journeyID,
+		"assignment_id":   assignmentID,
+		"path_configured": pathConfigured,
+		"message":         "Miembro agregado al camino de discipulado exitosamente",
+	})
 }
 
 // UpdateJourneyActivity — PUT /discipleship/journey/:userId/activity
