@@ -255,6 +255,11 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.POST("/journey", discipleshipHandler.CreateJourneyEntry, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelAuxiliary))
 		discipleship.PUT("/journey/:userId/activity", discipleshipHandler.UpdateJourneyActivity, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelLeader))
 
+		// Disciple-Maker (Slice 2 — mentorships)
+		discipleship.GET("/groups/:id/mentorships", discipleshipHandler.ListGroupMentorships)
+		discipleship.POST("/groups/:id/mentorships", discipleshipHandler.CreateMentorship, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelAuxiliary))
+		discipleship.DELETE("/mentorships/:id", discipleshipHandler.EndMentorship, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelAuxiliary))
+
 		// Asistencia - rutas específicas primero
 		discipleship.GET("/groups/:id/attendance", discipleshipHandler.GetGroupAttendance)
 		discipleship.POST("/groups/:id/attendance", discipleshipHandler.RecordAttendance)
