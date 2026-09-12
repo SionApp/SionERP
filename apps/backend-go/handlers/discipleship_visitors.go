@@ -383,6 +383,17 @@ func (h *DiscipleshipHandler) UpdateVisitor(c echo.Context) error {
 	if err := validate.Struct(req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Validación fallida: " + err.Error()})
 	}
+	// The dedicated conversion door (ConvertVisitor) is the ONLY path to
+	// status='converted' — it also provisions the user, journey anchor, and
+	// path enrollment, none of which this plain status PATCH can do. Without
+	// this guard the dropdown could bypass the door entirely, producing a
+	// "converted" visitor with no user, no anchor and no enrollment (design
+	// "Bug found while closing G4").
+	if req.Status == "converted" {
+		return c.JSON(http.StatusConflict, map[string]string{
+			"error": "usá POST /discipleship/visitors/:id/convert para convertir un visitante",
+		})
+	}
 
 	q, err := validateTx(c)
 	if err != nil {
