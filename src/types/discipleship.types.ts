@@ -737,3 +737,46 @@ export interface ConvertVisitorResponse {
   path_configured: boolean;
   message: string;
 }
+
+// =====================================================
+// DISCIPLE-MAKER MENTORSHIPS (Slice 2)
+// =====================================================
+
+/**
+ * One mentor↔mentee link scoped to a cell group, as returned by
+ * GET /discipleship/groups/:id/mentorships. Mirrors `handlers.Mentorship`
+ * field-for-field (apps/backend-go/handlers/discipleship_mentorships.go).
+ * A mentor may hold several active rows at once (cardinality decision #579);
+ * a mentee has at most one active row (`uq_mentorship_active_mentee`).
+ */
+export interface Mentorship {
+  id: string;
+  group_id: string;
+  mentor_user_id: string;
+  mentor_name: string;
+  mentee_user_id: string;
+  mentee_name: string;
+  status: 'active' | 'ended';
+  started_at: string;
+  ended_at: string | null;
+}
+
+/**
+ * POST /discipleship/groups/:id/mentorships body. Backend also enforces
+ * mentor ≠ mentee and same-group membership (spec R2/R3) — this is just the
+ * wire shape, not validation.
+ */
+export interface CreateMentorshipRequest {
+  mentor_user_id: string;
+  mentee_user_id: string;
+}
+
+/**
+ * GET /discipleship/groups/:id/mentorships response — active pairs plus the
+ * live-derived count that IS the leader's "weekly report" (spec R6, no
+ * snapshot table).
+ */
+export interface GroupMentorshipsResponse {
+  mentorships: Mentorship[];
+  count: number;
+}
