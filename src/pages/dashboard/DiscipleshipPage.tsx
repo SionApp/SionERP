@@ -1,4 +1,5 @@
 import DiscipleshipMap from '@/components/discipleship/DiscipleshipMap';
+import { DiscipleshipSettingsPanel } from '@/components/discipleship/DiscipleshipSettingsPanel';
 import GroupManagement from '@/components/discipleship/GroupManagement';
 import HierarchyManagement from '@/components/discipleship/HierarchyManagement';
 import ZoneManagement from '@/components/discipleship/ZoneManagement';
@@ -423,6 +424,14 @@ const DiscipleshipPage = () => {
     (discipleshipAccess?.level && discipleshipAccess.level >= 2) ||
     false;
 
+  // PUT /discipleship/settings is Pastoral-only server-side (design:
+  // "Authorization revision") — mirrored here so the settings tab only
+  // appears for the level that can actually save it.
+  const canManageSettings =
+    discipleshipAccess?.isFullAccess ||
+    (discipleshipAccess?.level && discipleshipAccess.level >= 5) ||
+    false;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -446,6 +455,7 @@ const DiscipleshipPage = () => {
       ...(canManageHierarchy ? [{ value: 'hierarchy', label: 'Jerarquías' }] : []),
       ...(canViewZones ? [{ value: 'zones', label: 'Zonas' }] : []),
       ...(canViewMap ? [{ value: 'map', label: 'Mapa' }] : []),
+      ...(canManageSettings ? [{ value: 'settings', label: 'Configuración' }] : []),
     ];
 
     const { state: pullState, isRefreshing } = pullToRefresh;
@@ -562,6 +572,14 @@ const DiscipleshipPage = () => {
                 </div>
               </AnimatedTabContent>
             )}
+
+            {activeTab === 'settings' && canManageSettings && (
+              <AnimatedTabContent key="settings">
+                <div className="px-3 pt-3">
+                  <DiscipleshipSettingsPanel />
+                </div>
+              </AnimatedTabContent>
+            )}
           </>
         )}
       </MobileScreen>
@@ -621,6 +639,11 @@ const DiscipleshipPage = () => {
           {canViewMap && (
             <TabsTrigger value="map" className="min-h-11 grow px-3 text-xs sm:text-sm">
               Mapa
+            </TabsTrigger>
+          )}
+          {canManageSettings && (
+            <TabsTrigger value="settings" className="min-h-11 grow px-3 text-xs sm:text-sm">
+              Configuración
             </TabsTrigger>
           )}
         </TabsList>
@@ -834,6 +857,15 @@ const DiscipleshipPage = () => {
         {/* Map Tab */}
         <TabsContent value="map">
           {canViewMap ? <DiscipleshipMap /> : <NoAccessCard module="Mapa" requiredLevel={2} />}
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings">
+          {canManageSettings ? (
+            <DiscipleshipSettingsPanel />
+          ) : (
+            <NoAccessCard module="Configuración" requiredLevel={5} />
+          )}
         </TabsContent>
       </Tabs>
     </div>
