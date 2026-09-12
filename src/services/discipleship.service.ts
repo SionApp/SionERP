@@ -25,6 +25,14 @@ import type {
   CreateDiscipleshipLevelRequest,
   UpdateDiscipleshipLevelRequest,
   Visitor,
+  DiscipleshipSettings,
+  UpdateDiscipleshipSettingsRequest,
+  JourneyEntry,
+  CreateJourneyEntryRequest,
+  CreateJourneyEntryResponse,
+  UpdateJourneyActivityRequest,
+  ConvertVisitorRequest,
+  ConvertVisitorResponse,
 } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
 
@@ -154,6 +162,19 @@ export class DiscipleshipService {
     data: { status: Visitor['status']; converted_user_id?: string; notes?: string }
   ): Promise<{ message: string }> {
     return ApiService.put(`${this.baseUrl}/visitors/${visitorId}`, data);
+  }
+
+  /**
+   * The dedicated conversion door (design D4) — POST /discipleship/visitors/:id/convert.
+   * Provisions or links a real `users` row, upserts the journey anchor, and
+   * enrolls into the church's curriculum pointer (design G4/G2). Gated
+   * `DiscipleshipLevelAuxiliary` server-side.
+   */
+  static async convertVisitor(
+    visitorId: string,
+    data: ConvertVisitorRequest
+  ): Promise<ConvertVisitorResponse> {
+    return ApiService.post(`${this.baseUrl}/visitors/${visitorId}/convert`, data);
   }
 
   static async createMultiplication(data: {
@@ -446,5 +467,52 @@ export class DiscipleshipService {
 
   static async getSubordinatesCompliance(weeks = 8): Promise<ComplianceRow[]> {
     return ApiService.get(`${this.baseUrl}/compliance/subordinates?weeks=${weeks}`);
+  }
+
+  // =====================================================
+  // MEMBER JOURNEY (Slice 1 — backbone)
+  // =====================================================
+
+  static async getDiscipleshipSettings(): Promise<DiscipleshipSettings> {
+    return ApiService.get(`${this.baseUrl}/settings`);
+  }
+
+  /** Pastoral-only server-side (spec: "Pastor sets the pointer"). */
+  static async updateDiscipleshipSettings(
+    data: UpdateDiscipleshipSettingsRequest
+  ): Promise<{ message: string }> {
+    return ApiService.put(`${this.baseUrl}/settings`, data);
+  }
+
+  /**
+   * Batch anchors + derived stage for a set of members. Mirrors the
+   * backend's own defensive short-circuit (`GetJourney` returns `[]` without
+   * querying when no user_ids are given) instead of issuing an empty request.
+   */
+  static async getJourney(userIds: string[]): Promise<JourneyEntry[]> {
+    if (userIds.length === 0) return [];
+    return ApiService.get(`${this.baseUrl}/journey?user_ids=${userIds.join(',')}`);
+  }
+
+  /**
+   * Manual anchor entry door (design G3) — POST /discipleship/journey.
+   * Gated `DiscipleshipLevelAuxiliary` server-side. Idempotent: re-running on
+   * an already-anchored user reuses the anchor, never creating a duplicate.
+   */
+  static async createJourneyEntry(
+    data: CreateJourneyEntryRequest
+  ): Promise<CreateJourneyEntryResponse> {
+    return ApiService.post(`${this.baseUrl}/journey`, data);
+  }
+
+  /**
+   * Leader-marked activity toggle (product decision r2 — NOT derived from
+   * attendance). Never creates an anchor — 404s if the user has none yet.
+   */
+  static async updateJourneyActivity(
+    userId: string,
+    data: UpdateJourneyActivityRequest
+  ): Promise<{ message: string }> {
+    return ApiService.put(`${this.baseUrl}/journey/${userId}/activity`, data);
   }
 }
