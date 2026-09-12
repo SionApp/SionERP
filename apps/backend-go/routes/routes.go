@@ -252,6 +252,7 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.GET("/settings", discipleshipHandler.GetDiscipleshipSettings)
 		discipleship.PUT("/settings", discipleshipHandler.UpdateDiscipleshipSettings, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelPastoral))
 		discipleship.GET("/journey", discipleshipHandler.GetJourney)
+		discipleship.POST("/journey", discipleshipHandler.CreateJourneyEntry, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelAuxiliary))
 		discipleship.PUT("/journey/:userId/activity", discipleshipHandler.UpdateJourneyActivity, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelLeader))
 
 		// Asistencia - rutas específicas primero
