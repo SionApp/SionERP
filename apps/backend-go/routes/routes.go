@@ -247,6 +247,12 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.PUT("/members/:memberId", discipleshipHandler.UpdateGroupMember)
 		discipleship.DELETE("/members/:memberId", discipleshipHandler.RemoveGroupMember)
 
+		// Member Journey (Slice 1 — read backbone)
+		discipleship.GET("/settings", discipleshipHandler.GetDiscipleshipSettings)
+		discipleship.PUT("/settings", discipleshipHandler.UpdateDiscipleshipSettings, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelPastoral))
+		discipleship.GET("/journey", discipleshipHandler.GetJourney)
+		discipleship.PUT("/journey/:userId/activity", discipleshipHandler.UpdateJourneyActivity, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelLeader))
+
 		// Asistencia - rutas específicas primero
 		discipleship.GET("/groups/:id/attendance", discipleshipHandler.GetGroupAttendance)
 		discipleship.POST("/groups/:id/attendance", discipleshipHandler.RecordAttendance)
