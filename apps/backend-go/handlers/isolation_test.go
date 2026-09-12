@@ -65,21 +65,43 @@ func setTenantContext(t *testing.T, tx *sql.Tx, churchID string) {
 // Proves the RLS USING predicate acts independently of app-level filtering.
 // ─────────────────────────────────────────────────────────────────────────────
 func TestIsolationCrossTenantReadBlocked(t *testing.T) {
+	// Seeding runs on a SEPARATE superuser connection (bypasses RLS) so we can
+	// insert rows for two different churches in one pass — the assertion
+	// connection (jetro_app, NOBYPASSRLS) can only ever hold one church's GUC
+	// at a time, so it structurally cannot seed cross-church data itself.
+	// Previously this used the jetro_app `db` connection for seeding too, with
+	// no GUC set yet: the tenant_isolation WITH CHECK (church_id =
+	// current_setting(...)) rejected every INSERT outright (42501), so the
+	// test never reached its actual assertion. See
+	// TestIsolationModuleGateChurchScoped below for the same pattern already
+	// established for a newer table.
+	seedDB := superuserSeedDB(t)
+	defer seedDB.Close()
 	db := integrationDB(t)
 	defer db.Close()
 
 	churchA := "aaaaaaaa-0000-0000-0000-000000000001"
 	churchB := "bbbbbbbb-0000-0000-0000-000000000001"
 
-	// Seed: insert test rows for two churches, clean up after.
-	setup, err := db.Begin()
+	// Seed: insert test rows for two churches, clean up after. zones.church_id
+	// gained a FK to churches(id) after this test was first written — the
+	// parent rows are seeded here too (same pattern as
+	// TestIsolationModuleGateChurchScoped below), or the INSERT fails with a
+	// foreign-key violation (23503) before ever reaching the RLS assertion.
+	setup, err := seedDB.Begin()
 	if err != nil {
 		t.Fatalf("setup tx: %v", err)
 	}
-	// Use set_config as postgres (superuser) to bypass RLS during setup.
-	// NOTE: if this DB is NOT a superuser we cannot insert cross-church rows
-	// directly. Wrap in a known-good seed approach.
-	for _, cid := range []string{churchA, churchB} {
+	for i, cid := range []string{churchA, churchB} {
+		_, err = setup.Exec(
+			`INSERT INTO public.churches (id, name, slug, created_at, updated_at)
+			 VALUES ($1, $2, $3, NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
+			cid, fmt.Sprintf("Isolation Test Church %d", i), fmt.Sprintf("isolation-test-church-r1-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed church %s: %v", cid, err)
+		}
 		_, err = setup.Exec(
 			`INSERT INTO public.zones (id, name, church_id, created_at, updated_at)
 			 VALUES (gen_random_uuid(), $1, $2, NOW(), NOW())
@@ -95,9 +117,10 @@ func TestIsolationCrossTenantReadBlocked(t *testing.T) {
 		t.Fatalf("seed commit: %v", err)
 	}
 	defer func() {
-		// Cleanup — runs as same role; RLS may block DELETE unless role is superuser.
-		// If cleanup fails it only affects the test DB (not production).
-		_, _ = db.Exec(`DELETE FROM public.zones WHERE name LIKE 'isolation-test-zone-%'`)
+		// Cleanup runs on the superuser connection too — jetro_app's RLS
+		// would otherwise block the DELETE the same way it blocked the seed.
+		_, _ = seedDB.Exec(`DELETE FROM public.zones WHERE name LIKE 'isolation-test-zone-%'`)
+		_, _ = seedDB.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
 	}()
 
 	// Actual isolation test: begin tx as jetro_app, set GUC to Church A.
@@ -137,17 +160,31 @@ func TestIsolationCrossTenantReadBlocked(t *testing.T) {
 // Explicit proof that the RLS net is independent of the app-level WHERE clause.
 // ─────────────────────────────────────────────────────────────────────────────
 func TestIsolationMissingWhereRLSBlock(t *testing.T) {
+	// See the comment in TestIsolationCrossTenantReadBlocked above: seeding
+	// cross-church rows requires bypassing RLS, which jetro_app cannot do.
+	seedDB := superuserSeedDB(t)
+	defer seedDB.Close()
 	db := integrationDB(t)
 	defer db.Close()
 
 	churchA := "aaaaaaaa-0000-0000-0000-000000000002"
 	churchB := "bbbbbbbb-0000-0000-0000-000000000002"
 
-	setup, err := db.Begin()
+	setup, err := seedDB.Begin()
 	if err != nil {
 		t.Fatalf("setup tx: %v", err)
 	}
-	for _, cid := range []string{churchA, churchB} {
+	for i, cid := range []string{churchA, churchB} {
+		// See TestIsolationCrossTenantReadBlocked above: zones.church_id → churches(id).
+		_, err = setup.Exec(
+			`INSERT INTO public.churches (id, name, slug, created_at, updated_at)
+			 VALUES ($1, $2, $3, NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
+			cid, fmt.Sprintf("Isolation Test Church %d", i), fmt.Sprintf("isolation-test-church-r2-%s", cid[:8]),
+		)
+		if err != nil {
+			_ = setup.Rollback()
+			t.Fatalf("seed church %s: %v", cid, err)
+		}
 		_, err = setup.Exec(
 			`INSERT INTO public.zones (id, name, church_id, created_at, updated_at)
 			 VALUES (gen_random_uuid(), $1, $2, NOW(), NOW()) ON CONFLICT DO NOTHING`,
@@ -162,7 +199,8 @@ func TestIsolationMissingWhereRLSBlock(t *testing.T) {
 		t.Fatalf("seed commit: %v", err)
 	}
 	defer func() {
-		_, _ = db.Exec(`DELETE FROM public.zones WHERE name LIKE 'rls-safety-net-zone-%'`)
+		_, _ = seedDB.Exec(`DELETE FROM public.zones WHERE name LIKE 'rls-safety-net-zone-%'`)
+		_, _ = seedDB.Exec(`DELETE FROM public.churches WHERE id IN ($1, $2)`, churchA, churchB)
 	}()
 
 	tx, err := db.Begin()
@@ -184,10 +222,15 @@ func TestIsolationMissingWhereRLSBlock(t *testing.T) {
 	churchBCount := 0
 	for rows.Next() {
 		var gotID string
-		_ = rows.Scan(&gotID)
+		if err := rows.Scan(&gotID); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
 		if gotID == churchB {
 			churchBCount++
 		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows iteration: %v", err)
 	}
 
 	if churchBCount > 0 {
