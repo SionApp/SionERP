@@ -147,6 +147,80 @@ describe('DiscipleshipService.getReports — construcción de URL', () => {
   });
 });
 
+describe('DiscipleshipService member journey — Slice 1 backbone', () => {
+  test('getJourney: construye la URL con user_ids separados por coma', async () => {
+    vi.mocked(ApiService.get).mockResolvedValue([]);
+
+    await DiscipleshipService.getJourney(['u1', 'u2']);
+
+    expect(ApiService.get).toHaveBeenCalledWith('/discipleship/journey?user_ids=u1,u2');
+  });
+
+  test('getJourney: user_ids vacío no llama a ApiService.get (mirror del short-circuit del backend)', async () => {
+    const result = await DiscipleshipService.getJourney([]);
+
+    expect(ApiService.get).not.toHaveBeenCalled();
+    expect(result).toEqual([]);
+  });
+
+  test('convertVisitor: POST al endpoint dedicado con el visitorId en la ruta', async () => {
+    vi.mocked(ApiService.post).mockResolvedValue({
+      user_id: 'u1',
+      journey_id: 'j1',
+      assignment_id: null,
+      path_configured: false,
+      message: 'ok',
+    });
+
+    await DiscipleshipService.convertVisitor('v1', { user_id: 'u1' });
+
+    expect(ApiService.post).toHaveBeenCalledWith('/discipleship/visitors/v1/convert', {
+      user_id: 'u1',
+    });
+  });
+
+  test('createJourneyEntry: POST a /discipleship/journey (puerta manual)', async () => {
+    vi.mocked(ApiService.post).mockResolvedValue({
+      journey_id: 'j1',
+      assignment_id: null,
+      path_configured: false,
+      message: 'ok',
+    });
+
+    await DiscipleshipService.createJourneyEntry({ user_id: 'u2' });
+
+    expect(ApiService.post).toHaveBeenCalledWith('/discipleship/journey', { user_id: 'u2' });
+  });
+
+  test('updateJourneyActivity: PUT con el userId en la ruta', async () => {
+    vi.mocked(ApiService.put).mockResolvedValue({ message: 'ok' });
+
+    await DiscipleshipService.updateJourneyActivity('u1', { activity_status: 'inactive' });
+
+    expect(ApiService.put).toHaveBeenCalledWith('/discipleship/journey/u1/activity', {
+      activity_status: 'inactive',
+    });
+  });
+
+  test('getDiscipleshipSettings: GET a /discipleship/settings', async () => {
+    vi.mocked(ApiService.get).mockResolvedValue({ conversion_path_curriculum_id: null });
+
+    await DiscipleshipService.getDiscipleshipSettings();
+
+    expect(ApiService.get).toHaveBeenCalledWith('/discipleship/settings');
+  });
+
+  test('updateDiscipleshipSettings: PUT con el pointer, incluyendo null explícito', async () => {
+    vi.mocked(ApiService.put).mockResolvedValue({ message: 'ok' });
+
+    await DiscipleshipService.updateDiscipleshipSettings({ conversion_path_curriculum_id: null });
+
+    expect(ApiService.put).toHaveBeenCalledWith('/discipleship/settings', {
+      conversion_path_curriculum_id: null,
+    });
+  });
+});
+
 describe('DiscipleshipService.getAlerts — filtros de alerta', () => {
   test('resolved=false → aparece en la URL como string "false"', async () => {
     vi.mocked(ApiService.get).mockResolvedValue([]);
