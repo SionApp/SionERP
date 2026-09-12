@@ -244,6 +244,7 @@ func SetupRoutes(e *echo.Echo) {
 		discipleship.GET("/groups/:id/visitors", discipleshipHandler.GetGroupVisitors)
 		discipleship.POST("/groups/:id/visitors", discipleshipHandler.CreateVisitor)
 		discipleship.PUT("/visitors/:id", discipleshipHandler.UpdateVisitor)
+		discipleship.POST("/visitors/:id/convert", discipleshipHandler.ConvertVisitor, middleware.RequireModuleLevel(utils.ModuleDiscipleship, utils.DiscipleshipLevelAuxiliary))
 		discipleship.PUT("/members/:memberId", discipleshipHandler.UpdateGroupMember)
 		discipleship.DELETE("/members/:memberId", discipleshipHandler.RemoveGroupMember)
 
