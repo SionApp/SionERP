@@ -33,6 +33,8 @@ import type {
   UpdateJourneyActivityRequest,
   ConvertVisitorRequest,
   ConvertVisitorResponse,
+  CreateMentorshipRequest,
+  GroupMentorshipsResponse,
 } from '@/types/discipleship.types';
 import { ApiService } from './api.service';
 
@@ -514,5 +516,31 @@ export class DiscipleshipService {
     data: UpdateJourneyActivityRequest
   ): Promise<{ message: string }> {
     return ApiService.put(`${this.baseUrl}/journey/${userId}/activity`, data);
+  }
+
+  // =====================================================
+  // DISCIPLE-MAKER MENTORSHIPS (Slice 2)
+  // =====================================================
+
+  /** Active mentorship pairs + live count for one group (spec R6). */
+  static async getGroupMentorships(groupId: string): Promise<GroupMentorshipsResponse> {
+    return ApiService.get(`${this.baseUrl}/groups/${groupId}/mentorships`);
+  }
+
+  /**
+   * Links a mentor to a mentee within the group (spec R1-R3). Gated
+   * `DiscipleshipLevelAuxiliary` server-side; a 409 means the mentee already
+   * has an active mentor (spec R2) or the pair already exists.
+   */
+  static async createMentorship(
+    groupId: string,
+    data: CreateMentorshipRequest
+  ): Promise<{ id: string; message: string }> {
+    return ApiService.post(`${this.baseUrl}/groups/${groupId}/mentorships`, data);
+  }
+
+  /** Soft-ends a mentorship (spec R4) — never deletes the row. */
+  static async endMentorship(mentorshipId: string): Promise<{ message: string }> {
+    return ApiService.delete(`${this.baseUrl}/mentorships/${mentorshipId}`);
   }
 }
