@@ -540,3 +540,6 @@ Contiene:
 ---
 
 _Documento técnico mantenido activamente. Actualizar al agregar o modificar módulos, rutas, tablas o decisiones de arquitectura._
+
+<!-- probe: verifying claude-review after printf-piped setup-token rotation
+     (2026-09-12, third attempt). Throwaway, closes without merging. -->
