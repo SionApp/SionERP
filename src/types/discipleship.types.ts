@@ -631,3 +631,109 @@ export interface Visitor {
   created_at: string;
   updated_at: string;
 }
+
+// =====================================================
+// MEMBER JOURNEY (Slice 1 — backbone)
+// =====================================================
+
+/**
+ * Stage as derived and emitted by the backend (`journeyStageSQL` /
+ * `scanJourneyEntry`, apps/backend-go/handlers/discipleship_journey.go).
+ * `disciple_maker` is structurally reachable (spec: Derived Stage) but never
+ * emitted in Slice 1 — there is no mentorship entity yet (that's Slice 2).
+ */
+export const JOURNEY_STAGE = {
+  NEW_CONVERT: 'new_convert',
+  DISCIPLE: 'disciple',
+  DISCIPLE_MAKER: 'disciple_maker',
+} as const;
+
+export type JourneyStage = (typeof JOURNEY_STAGE)[keyof typeof JOURNEY_STAGE];
+
+/**
+ * Frontend-only stage: a member with no anchor row at all (spec:
+ * Not-Tracked Rendering). Never emitted by the backend — `JourneyEntry.stage`
+ * only exists for members who already have an anchor.
+ */
+export const NOT_TRACKED_STAGE = 'not_tracked' as const;
+
+export type DerivedJourneyStage = JourneyStage | typeof NOT_TRACKED_STAGE;
+
+export const JOURNEY_ACTIVITY_STATUS = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+} as const;
+
+export type JourneyActivityStatus =
+  (typeof JOURNEY_ACTIVITY_STATUS)[keyof typeof JOURNEY_ACTIVITY_STATUS];
+
+export const JOURNEY_ORIGIN = {
+  CONVERSION: 'conversion',
+  MANUAL: 'manual',
+} as const;
+
+export type JourneyOrigin = (typeof JOURNEY_ORIGIN)[keyof typeof JOURNEY_ORIGIN];
+
+/** The church-level conversion-path curriculum pointer. GET/PUT /discipleship/settings. */
+export interface DiscipleshipSettings {
+  conversion_path_curriculum_id: string | null;
+}
+
+export interface UpdateDiscipleshipSettingsRequest {
+  conversion_path_curriculum_id: string | null;
+}
+
+/**
+ * One member's anchor + derived stage, as returned by the batch
+ * GET /discipleship/journey?user_ids= endpoint. Mirrors `handlers.JourneyEntry`
+ * field-for-field (apps/backend-go/handlers/discipleship_journey.go). Members
+ * with no anchor simply do not appear in the response array — callers must
+ * derive `NOT_TRACKED_STAGE` for any requested user_id not found here (spec:
+ * Not-Tracked Rendering — no anchor must never be mislabeled as a stage).
+ */
+export interface JourneyEntry {
+  user_id: string;
+  origin: JourneyOrigin;
+  activity_status: JourneyActivityStatus;
+  activity_changed_at: string;
+  converted_at: string | null;
+  stage: JourneyStage;
+  assignment_id: string | null;
+  curriculum_id: string | null;
+}
+
+export interface CreateJourneyEntryRequest {
+  user_id: string;
+}
+
+export interface CreateJourneyEntryResponse {
+  journey_id: string;
+  assignment_id: string | null;
+  path_configured: boolean;
+  message: string;
+}
+
+export interface UpdateJourneyActivityRequest {
+  activity_status: JourneyActivityStatus;
+}
+
+/**
+ * POST /discipleship/visitors/:id/convert body (design G4 — identity
+ * matching is staff-driven, never implicit).
+ *   - `user_id` set   → link an existing member (verified in-church + active
+ *     server-side; name/phone/email/role are never overwritten).
+ *   - `user_id` empty → create a new member; `email` is optional (a synthetic
+ *     `convert+<visitor_id>@no-email.local` is used server-side when omitted).
+ */
+export interface ConvertVisitorRequest {
+  user_id?: string;
+  email?: string;
+}
+
+export interface ConvertVisitorResponse {
+  user_id: string;
+  journey_id: string;
+  assignment_id: string | null;
+  path_configured: boolean;
+  message: string;
+}
