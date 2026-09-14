@@ -173,6 +173,30 @@ func (h *SetupHandler) PerformSetup(c echo.Context) error {
 		}
 	}
 
+	// Module install/disable below touches `modules`, which now carries
+	// church_id (RLS tenant_isolation policy — see
+	// 20260624000400_phase4_rls_cutover.sql). This route runs behind
+	// OptionalAuth, not TenantTx — the very first admin has no session yet —
+	// so there is no tenant tx to inherit RLS scoping from. Resolve church_id
+	// by hand instead, the same way GetSetupStatus already does: from the
+	// authenticated admin's own row when present. On a genuine first-ever
+	// bootstrap (no session, no church created yet) there is nothing to scope
+	// by, so the legacy unscoped behaviour is kept for that one case only —
+	// every other call (an already-initialized system, admin logged in) scopes
+	// by church_id so one tenant's setup can no longer install/disable modules
+	// for every other tenant.
+	var churchID sql.NullString
+	if uid, ok := c.Get("user_id").(string); ok && uid != "" {
+		_ = db.DB.QueryRow("SELECT church_id FROM users WHERE id = $1", uid).Scan(&churchID)
+	}
+	scopedToChurch := churchID.Valid && churchID.String != ""
+	// A logged-in admin whose users row has no church_id (legacy, pre-backfill)
+	// must not fall through to the unscoped branch. The admin-recovery case
+	// (initialized, no admin, no session) is deliberately left through.
+	if isInitialized && hasAdmin && !scopedToChurch {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to start transaction"})
@@ -222,17 +246,28 @@ func (h *SetupHandler) PerformSetup(c echo.Context) error {
 
 	// 2. Install Selected Modules
 	// First enable base module always
-	_, err = tx.Exec("UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = 'base'")
+	if scopedToChurch {
+		_, err = tx.Exec("UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = 'base' AND church_id = $1", churchID.String)
+	} else {
+		_, err = tx.Exec("UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = 'base'")
+	}
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error enabling base module"})
 	}
 
 	// Disable all non-base modules that are NOT selected.
 	// This ensures that sending selected_modules: [] will disable all optional modules.
-	_, err = tx.Exec(
-		"UPDATE modules SET is_installed = false, installed_at = NULL WHERE key <> 'base' AND key <> ALL($1)",
-		pq.Array(req.SelectedModules),
-	)
+	if scopedToChurch {
+		_, err = tx.Exec(
+			"UPDATE modules SET is_installed = false, installed_at = NULL WHERE key <> 'base' AND key <> ALL($1) AND church_id = $2",
+			pq.Array(req.SelectedModules), churchID.String,
+		)
+	} else {
+		_, err = tx.Exec(
+			"UPDATE modules SET is_installed = false, installed_at = NULL WHERE key <> 'base' AND key <> ALL($1)",
+			pq.Array(req.SelectedModules),
+		)
+	}
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error disabling unselected modules"})
 	}
@@ -245,7 +280,12 @@ func (h *SetupHandler) PerformSetup(c echo.Context) error {
 			if modKey == utils.ModuleBase {
 				continue
 			}
-			_, err := tx.Exec("UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = $1", modKey)
+			var err error
+			if scopedToChurch {
+				_, err = tx.Exec("UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = $1 AND church_id = $2", modKey, churchID.String)
+			} else {
+				_, err = tx.Exec("UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = $1", modKey)
+			}
 			if err != nil {
 				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error installing module " + modKey})
 			}
@@ -278,16 +318,28 @@ func (h *SetupHandler) UpdateModuleStatus(c echo.Context) error {
 		})
 	}
 
-	db := config.GetDB()
-
-	var query string
-	if req.IsInstalled {
-		query = "UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = $1"
-	} else {
-		query = "UPDATE modules SET is_installed = false, installed_at = NULL WHERE key = $1"
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
 	}
 
-	result, err := db.DB.Exec(query, moduleKey)
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+
+	// This route runs behind protected+TenantTx (see routes.go: modules :=
+	// protected.Group("/modules")), so it MUST be scoped — without AND
+	// church_id = $2 a pastor toggling a module for their own church silently
+	// installs/uninstalls it for every other tenant on the platform too.
+	var query string
+	if req.IsInstalled {
+		query = "UPDATE modules SET is_installed = true, installed_at = NOW() WHERE key = $1 AND church_id = $2"
+	} else {
+		query = "UPDATE modules SET is_installed = false, installed_at = NULL WHERE key = $1 AND church_id = $2"
+	}
+
+	result, err := q.Exec(query, moduleKey, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Error updating module: " + err.Error(),
@@ -307,7 +359,7 @@ func (h *SetupHandler) UpdateModuleStatus(c echo.Context) error {
 		userID = "system"
 	}
 	newValues := fmt.Sprintf(`{"is_installed": %v}`, req.IsInstalled)
-	_, _ = db.DB.Exec(
+	_, _ = q.Exec(
 		`INSERT INTO audit_logs (table_name, record_id, action, new_values, changed_by, changed_at)
 		 VALUES ('modules', $1, 'UPDATE', $2::jsonb, $3, NOW())`,
 		moduleKey, newValues, userID,

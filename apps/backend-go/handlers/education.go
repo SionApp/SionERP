@@ -96,7 +96,7 @@ func getEducationAccessInfo(c echo.Context) (educationAccessInfo, error) {
 
 // upsertEducationModuleRole writes a user's education module role, scoped by
 // church_id — mirrors upsertMusicModuleRole (music.go).
-func upsertEducationModuleRole(db *sql.DB, userID string, level int, roleName, assignedBy, churchID string) error {
+func upsertEducationModuleRole(db config.Querier, userID string, level int, roleName, assignedBy, churchID string) error {
 	if db == nil || userID == "" || churchID == "" {
 		return fmt.Errorf("missing required arguments")
 	}
@@ -844,7 +844,7 @@ func (h *EducationHandler) UpdateMemberRole(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Usuario no encontrado"})
 	}
 
-	if err := upsertEducationModuleRole(config.GetDB().DB, targetUserID, req.RoleLevel, roleName, callerID, churchID); err != nil {
+	if err := upsertEducationModuleRole(q, targetUserID, req.RoleLevel, roleName, callerID, churchID); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al asignar rol"})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"message": "Rol actualizado"})
@@ -896,13 +896,12 @@ func (h *EducationHandler) BulkGrantLeaders(c echo.Context) error {
 	}
 	rows.Close()
 
-	globalDB := config.GetDB().DB
 	granted := 0
 	for _, uid := range leaderIDs {
 		// Never downgrade an existing higher grant (spec: "MUST NOT downgrade
 		// higher grants") — only insert when absent, or when the existing
 		// level is below student level.
-		_, err := globalDB.Exec(`
+		_, err := q.Exec(`
 			INSERT INTO module_user_roles (church_id, user_id, module_key, role_level, role_name, assigned_by)
 			VALUES ($1, $2, 'education', $3, $4, $5)
 			ON CONFLICT (church_id, user_id, module_key)

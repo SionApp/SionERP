@@ -116,7 +116,7 @@ func (h *PermissionsHandler) GetMyPermissions(c echo.Context) error {
 	// Get user role and super admin status
 	var role string
 	var isSuperAdmin bool
-	err := config.GetDB().DB.QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&role, &isSuperAdmin)
+	err := config.Tx(c).QueryRow("SELECT role, COALESCE(is_super_admin, false) FROM users WHERE id = $1", userID).Scan(&role, &isSuperAdmin)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{
 			"error": "User not found",
@@ -180,15 +180,19 @@ func (h *PermissionsHandler) GetModuleRole(c echo.Context) error {
 			"error": "User ID not found in context",
 		})
 	}
+	churchID, _ := c.Get("church_id").(string)
 
-	db := config.GetDB()
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
 	var roleLevel int
 	var roleName sql.NullString
-	err := db.DB.QueryRow(
+	err = q.QueryRow(
 		`SELECT role_level, role_name FROM module_user_roles
-		 WHERE user_id = $1 AND module_key = $2
+		 WHERE user_id = $1 AND module_key = $2 AND church_id = $3
 		 LIMIT 1`,
-		userID, moduleKey,
+		userID, moduleKey, churchID,
 	).Scan(&roleLevel, &roleName)
 
 	if err == sql.ErrNoRows {
@@ -196,9 +200,9 @@ func (h *PermissionsHandler) GetModuleRole(c echo.Context) error {
 		// ese nivel es su acceso al módulo (coordinadora nivel 4, supervisor nivel 3, etc.)
 		if moduleKey == "discipleship" {
 			var hierarchyLevel int
-			fallbackErr := db.DB.QueryRow(
-				`SELECT hierarchy_level FROM discipleship_hierarchy WHERE user_id = $1 LIMIT 1`,
-				userID,
+			fallbackErr := q.QueryRow(
+				`SELECT hierarchy_level FROM discipleship_hierarchy WHERE user_id = $1 AND church_id = $2 LIMIT 1`,
+				userID, churchID,
 			).Scan(&hierarchyLevel)
 			if fallbackErr == nil && hierarchyLevel > 0 {
 				levelNames := map[int]string{1: "Líder", 2: "Supervisor Auxiliar", 3: "Supervisor General", 4: "Coordinador", 5: "Pastoral"}
