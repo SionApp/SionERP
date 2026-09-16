@@ -51,8 +51,13 @@ type ImportResult struct {
 // ─── Handler ───────────────────────────────────────────────────────────────
 
 // BulkImportUsers handles POST /api/v1/users/bulk.
-// Accepts a JSON array of user rows, validates and deduplicates them,
-// then inserts valid rows in chunks of 50 using independent transactions.
+// Accepts a JSON array of user rows, validates and deduplicates them, then
+// inserts valid rows in chunks of 50. Each chunk uses a SAVEPOINT on the
+// shared request transaction (see insertUserChunk) for per-chunk fault
+// isolation, but the whole import only commits atomically with the rest of
+// the request via TenantTx's single final commit — it no longer uses
+// independent per-chunk transactions, so a later failure can roll back
+// earlier successful chunks too.
 func (h *UserHandler) BulkImportUsers(c echo.Context) error {
 	q, err := validateTx(c)
 	if err != nil {
@@ -233,12 +238,16 @@ func (h *UserHandler) ExportUsers(c echo.Context) error {
 // config/database.go, out of scope here), so this can no longer open its own
 // nested db.Begin() transaction or tx.Prepare() a statement the way the
 // previous version did. A SQL SAVEPOINT on the shared request tx reproduces
-// the same fault isolation the old per-chunk Begin/Commit/Rollback gave:
-// a failure partway through this chunk is rolled back to the savepoint
-// without aborting the chunks already committed earlier in this request (the
-// request tx itself still commits once, at the end, via TenantTx). The
-// prepared statement is replaced with a plain parameterized query per row —
-// chunk size is capped at 50, so the loss of statement reuse is immaterial.
+// the same per-chunk fault isolation the old per-chunk Begin/Commit/Rollback
+// gave: a failure partway through this chunk is rolled back to the savepoint
+// without aborting the chunks already processed earlier in this request.
+// That isolation only covers a bad row within a single chunk, though —
+// unlike the old independent-transaction model, none of it is durable until
+// the request tx itself commits once, at the end, via TenantTx, so a later
+// chunk's failure (or a failed final commit) still rolls back every earlier
+// chunk too. The prepared statement is replaced with a plain parameterized
+// query per row — chunk size is capped at 50, so the loss of statement reuse
+// is immaterial.
 //
 // Returns count inserted and per-row errors for the chunk.
 func insertUserChunk(q config.Querier, rows []UserImportRow, rowNums []int, churchID string) (int, []ImportError) {
