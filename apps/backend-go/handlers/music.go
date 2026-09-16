@@ -780,20 +780,23 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "funcion inválida"})
 	}
 
-	// Use global pool for resolveOrCreateMember since it manages music_members + module_user_roles
+	// resolveOrCreateMemberForChurch / ensureMemberFuncion take config.Querier —
+	// pass the tenant tx (q) so this write stays RLS-scoped (Phase 3f). The
+	// global pool is still needed below for CheckMemberUnavailability /
+	// emitAssignmentNotification (out of this pass's scope — see PR notes).
 	globalDB := config.GetDB().DB
 
 	// Resolve member: when only user_id is given, find-or-create the music_member
 	memberID := req.MemberID
 	if memberID == "" {
-		mid, resolveErr := resolveOrCreateMemberForChurch(globalDB, req.UserID, req.Funcion, churchID)
+		mid, resolveErr := resolveOrCreateMemberForChurch(q, req.UserID, req.Funcion, churchID)
 		if resolveErr != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "No se pudo dar de alta al integrante"})
 		}
 		memberID = mid
 	} else {
 		// Existing member chosen directly — make sure they hold this funcion too.
-		ensureMemberFuncion(globalDB, memberID, req.Funcion)
+		ensureMemberFuncion(q, memberID, req.Funcion)
 	}
 
 	// El instrumento vive en music_members (no en la asignación): al asignar a
@@ -903,13 +906,14 @@ func (h *MusicHandler) UpdateAssignment(c echo.Context) error {
 	}
 
 	// Notify the director on a real state transition (advisory, never blocks).
-	globalDB := config.GetDB().DB
+	// Runs synchronously inside the request — pass the tenant tx (q) instead of
+	// the global pool (Phase 3f: closes the pool-alias-as-parameter RLS gap).
 	if req.State != nil && prevState != *req.State {
 		switch *req.State {
 		case "no_puedo":
-			emitNoPuedoNotifications(globalDB, id)
+			emitNoPuedoNotifications(q, id)
 		case "confirmado":
-			emitConfirmedNotification(globalDB, id)
+			emitConfirmedNotification(q, id)
 		}
 	}
 
@@ -941,8 +945,10 @@ func resolveOrCreateMember(db *sql.DB, userID, funcion string) (string, error) {
 	return resolveOrCreateMemberForChurch(db, userID, funcion, "")
 }
 
-// resolveOrCreateMemberForChurch is the church-scoped variant used by migrated handlers.
-func resolveOrCreateMemberForChurch(db *sql.DB, userID, funcion, churchID string) (string, error) {
+// resolveOrCreateMemberForChurch is the church-scoped variant used by migrated
+// handlers. Takes config.Querier so the request path can pass the tenant tx
+// (RLS enforced) instead of the global pool (Phase 3f).
+func resolveOrCreateMemberForChurch(db config.Querier, userID, funcion, churchID string) (string, error) {
 	if db == nil || userID == "" {
 		return "", fmt.Errorf("user_id requerido")
 	}
@@ -984,7 +990,8 @@ func resolveOrCreateMemberForChurch(db *sql.DB, userID, funcion, churchID string
 }
 
 // ensureMemberFuncion adds funcion to the member's funciones array if missing.
-func ensureMemberFuncion(db *sql.DB, memberID, funcion string) {
+// Takes config.Querier so the request path can pass the tenant tx (Phase 3f).
+func ensureMemberFuncion(db config.Querier, memberID, funcion string) {
 	if db == nil || memberID == "" {
 		return
 	}
@@ -1721,12 +1728,12 @@ func ResolveNoPuedoTarget(assignedByID string, isStillDirector bool) NoPuedoTarg
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NOTIFICATIONS — no_puedo emit helper (Phase 8)
-// These helpers use the global pool (*sql.DB) — they run fire-and-forget
-// after the response and don't need the tenant tx.
+// These helpers run synchronously inside the request (not fire-and-forget) and
+// take config.Querier so the caller can pass the tenant tx (Phase 3f).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // emitNoPuedoNotifications inserts notification rows when an assignment becomes no_puedo.
-func emitNoPuedoNotifications(db *sql.DB, assignmentID string) {
+func emitNoPuedoNotifications(db config.Querier, assignmentID string) {
 	if db == nil {
 		return
 	}
@@ -1769,7 +1776,7 @@ func emitNoPuedoNotifications(db *sql.DB, assignmentID string) {
 // directorRecipients returns the user ids that should receive a director-facing
 // notification for an assignment: the assigner if they're still a director,
 // otherwise every current music director.
-func directorRecipients(db *sql.DB, assignedBy sql.NullString) []string {
+func directorRecipients(db config.Querier, assignedBy sql.NullString) []string {
 	if assignedBy.Valid && assignedBy.String != "" {
 		var dirLevel int
 		err := db.QueryRow(`
@@ -1798,7 +1805,7 @@ func directorRecipients(db *sql.DB, assignedBy sql.NullString) []string {
 }
 
 // emitConfirmedNotification tells the director that a servidor confirmed.
-func emitConfirmedNotification(db *sql.DB, assignmentID string) {
+func emitConfirmedNotification(db config.Querier, assignmentID string) {
 	if db == nil {
 		return
 	}
