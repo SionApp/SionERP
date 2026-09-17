@@ -51,9 +51,23 @@ type ImportResult struct {
 // ─── Handler ───────────────────────────────────────────────────────────────
 
 // BulkImportUsers handles POST /api/v1/users/bulk.
-// Accepts a JSON array of user rows, validates and deduplicates them,
-// then inserts valid rows in chunks of 50 using independent transactions.
+// Accepts a JSON array of user rows, validates and deduplicates them, then
+// inserts valid rows in chunks of 50. Each chunk uses a SAVEPOINT on the
+// shared request transaction (see insertUserChunk) for per-chunk fault
+// isolation, but the whole import only commits atomically with the rest of
+// the request via TenantTx's single final commit — it no longer uses
+// independent per-chunk transactions, so a later failure can roll back
+// earlier successful chunks too.
 func (h *UserHandler) BulkImportUsers(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
 	callerRole, _ := c.Get("db_role").(string)
 	callerLevel := utils.GetRoleLevel(callerRole)
 
@@ -130,7 +144,8 @@ func (h *UserHandler) BulkImportUsers(c echo.Context) error {
 	}
 
 	// ── Phase 2: Chunked DB insert ─────────────────────────────────────────
-	db := config.GetDB().DB
+	// Uses the tenant tx (q) instead of the global pool — RLS enforced, and
+	// church_id is bound explicitly below (see insertUserChunk).
 	for start := 0; start < len(valid); start += importChunkSize {
 		end := start + importChunkSize
 		if end > len(valid) {
@@ -139,7 +154,7 @@ func (h *UserHandler) BulkImportUsers(c echo.Context) error {
 		chunk := valid[start:end]
 		chunkRowNums := validIdx[start:end]
 
-		inserted, errs := insertUserChunk(db, chunk, chunkRowNums)
+		inserted, errs := insertUserChunk(q, chunk, chunkRowNums, churchID)
 		result.Imported += inserted
 		result.Skipped += len(chunk) - inserted
 		result.Errors = append(result.Errors, errs...)
@@ -213,11 +228,39 @@ func (h *UserHandler) ExportUsers(c echo.Context) error {
 }
 
 // insertUserChunk pre-checks existing emails for a chunk, then inserts
-// non-duplicate rows in a single transaction. Returns count inserted
-// and per-row errors for the chunk.
-func insertUserChunk(db *sql.DB, rows []UserImportRow, rowNums []int) (int, []ImportError) {
+// non-duplicate rows through the tenant-scoped querier (q) — the request's
+// own TenantTx, RLS enforced (Phase 3f: previously ran on the global pool via
+// a *sql.DB parameter, a bare-pool-as-argument gap the static isolation check
+// can't see — see isolation_test.go findBarePoolAccess doc comment).
+//
+// config.Querier only exposes Query/QueryRow/Exec (no Begin/Prepare — those
+// belong to *sql.DB/*sql.Tx, and widening the interface would mean touching
+// config/database.go, out of scope here), so this can no longer open its own
+// nested db.Begin() transaction or tx.Prepare() a statement the way the
+// previous version did. A SQL SAVEPOINT on the shared request tx reproduces
+// the same per-chunk fault isolation the old per-chunk Begin/Commit/Rollback
+// gave: a failure partway through this chunk is rolled back to the savepoint
+// without aborting the chunks already processed earlier in this request.
+// That isolation only covers a bad row within a single chunk, though —
+// unlike the old independent-transaction model, none of it is durable until
+// the request tx itself commits once, at the end, via TenantTx, so a later
+// chunk's failure (or a failed final commit) still rolls back every earlier
+// chunk too. The prepared statement is replaced with a plain parameterized
+// query per row — chunk size is capped at 50, so the loss of statement reuse
+// is immaterial.
+//
+// Returns count inserted and per-row errors for the chunk.
+func insertUserChunk(q config.Querier, rows []UserImportRow, rowNums []int, churchID string) (int, []ImportError) {
 	errors := []ImportError{}
 	if len(rows) == 0 {
+		return 0, errors
+	}
+
+	const savepoint = "bulk_import_chunk"
+	if _, err := q.Exec("SAVEPOINT " + savepoint); err != nil {
+		for i, r := range rows {
+			errors = append(errors, ImportError{Row: rowNums[i], Email: r.Email, Reason: "db_error"})
+		}
 		return 0, errors
 	}
 
@@ -228,7 +271,7 @@ func insertUserChunk(db *sql.DB, rows []UserImportRow, rowNums []int) (int, []Im
 	}
 
 	existing := make(map[string]bool)
-	qrows, err := db.Query(
+	qrows, err := q.Query(
 		`SELECT LOWER(email) FROM users WHERE LOWER(email) = ANY($1)`,
 		pq.Array(emails),
 	)
@@ -242,32 +285,8 @@ func insertUserChunk(db *sql.DB, rows []UserImportRow, rowNums []int) (int, []Im
 		qrows.Close()
 	}
 
-	tx, err := db.Begin()
-	if err != nil {
-		for i, r := range rows {
-			errors = append(errors, ImportError{Row: rowNums[i], Email: r.Email, Reason: "db_error"})
-		}
-		return 0, errors
-	}
-	defer tx.Rollback() //nolint:errcheck
-
-	stmt, err := tx.Prepare(`
-		INSERT INTO users (
-			first_name, last_name, id_number, email, phone, address,
-			birth_date, role, whatsapp, is_active, is_active_member,
-			onboarding_completed, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9, true, true, false, NOW(), NOW())
-		ON CONFLICT (LOWER(email)) DO NOTHING
-		RETURNING id`)
-	if err != nil {
-		for i, r := range rows {
-			errors = append(errors, ImportError{Row: rowNums[i], Email: r.Email, Reason: "db_error"})
-		}
-		return 0, errors
-	}
-	defer stmt.Close()
-
 	inserted := 0
+	chunkFailed := false
 	for i, r := range rows {
 		if existing[r.Email] {
 			errors = append(errors, ImportError{Row: rowNums[i], Email: r.Email, Reason: "email_exists"})
@@ -275,24 +294,51 @@ func insertUserChunk(db *sql.DB, rows []UserImportRow, rowNums []int) (int, []Im
 		}
 
 		var id string
-		err := stmt.QueryRow(
+		insertErr := q.QueryRow(`
+			INSERT INTO users (
+				first_name, last_name, id_number, email, phone, address,
+				birth_date, role, whatsapp, is_active, is_active_member,
+				onboarding_completed, church_id, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9, true, true, false, $10, NOW(), NOW())
+			ON CONFLICT (LOWER(email)) DO NOTHING
+			RETURNING id`,
 			r.FirstName, r.LastName, r.IdNumber, r.Email, r.Phone, r.Address,
-			r.BirthDate, r.Role, r.WhatsApp,
+			r.BirthDate, r.Role, r.WhatsApp, churchID,
 		).Scan(&id)
 
-		switch err {
+		switch insertErr {
 		case nil:
 			inserted++
 		case sql.ErrNoRows:
 			// TOCTOU race: another insert won between our SELECT and this INSERT
 			errors = append(errors, ImportError{Row: rowNums[i], Email: r.Email, Reason: "email_exists"})
 		default:
+			// A real DB error leaves the transaction aborted server-side until
+			// the ROLLBACK TO SAVEPOINT below — stop issuing statements now.
 			errors = append(errors, ImportError{Row: rowNums[i], Email: r.Email, Reason: "db_error"})
+			chunkFailed = true
+		}
+		if chunkFailed {
+			break
 		}
 	}
 
-	if commitErr := tx.Commit(); commitErr != nil {
-		// Whole chunk failed — replace per-row errors with a chunk-level error
+	if chunkFailed {
+		if _, rbErr := q.Exec("ROLLBACK TO SAVEPOINT " + savepoint); rbErr != nil {
+			// Savepoint rollback itself failed — treat as a whole-chunk failure,
+			// same fallback the old tx.Commit()-failure path used.
+			return 0, []ImportError{{Row: rowNums[0], Reason: "db_error"}}
+		}
+		// Every row in this chunk (including any inserted before the failure)
+		// was rolled back — report the whole chunk as failed.
+		chunkErrors := make([]ImportError, 0, len(rows))
+		for i, r := range rows {
+			chunkErrors = append(chunkErrors, ImportError{Row: rowNums[i], Email: r.Email, Reason: "db_error"})
+		}
+		return 0, chunkErrors
+	}
+
+	if _, err := q.Exec("RELEASE SAVEPOINT " + savepoint); err != nil {
 		return 0, []ImportError{{Row: rowNums[0], Reason: "db_error"}}
 	}
 
