@@ -58,12 +58,20 @@ type ImportResult struct {
 // batch (for error reporting), and an ImportResult already carrying the
 // per-row errors and the Skipped count for everything rejected here.
 //
-// callerLevel caps how privileged an imported row may be: a row whose role
-// outranks the caller is rejected with "role_above_caller". Pass 0 to disable
-// the cap — that is the Provider API path, where there is no user session to
-// compare against and BonDev is provisioning the church's initial roster,
+// enforceRoleCap controls whether callerLevel caps how privileged an imported
+// row may be: when true, a row whose role outranks the caller is rejected
+// with "role_above_caller". The session path (BulkImportUsers) always passes
+// true and always enforces the cap — including when the caller's role
+// resolves to level 0, which deliberately imports nothing elevated
+// (fail-closed). That case is reachable in practice: RequireRole's
+// has_admin_access bypass (see middleware/role_check.go and
+// middleware/auth.go HasAdminAccess) lets a super admin whose db_role is an
+// unrecognized/legacy value reach this handler with callerLevel == 0, so the
+// cap must not silently disable itself there. The Provider API path
+// (ProviderBulkImportUsers) passes false — there is no user session to
+// compare against, and BonDev is provisioning the church's initial roster,
 // leadership included. Role VALIDITY is still enforced in both cases.
-func validateImportRows(rows []UserImportRow, callerLevel int) ([]UserImportRow, []int, ImportResult) {
+func validateImportRows(rows []UserImportRow, callerLevel int, enforceRoleCap bool) ([]UserImportRow, []int, ImportResult) {
 	result := ImportResult{Errors: []ImportError{}}
 	seen := make(map[string]bool, len(rows))
 	valid := make([]UserImportRow, 0, len(rows))
@@ -107,7 +115,7 @@ func validateImportRows(rows []UserImportRow, callerLevel int) ([]UserImportRow,
 			continue
 		}
 
-		if callerLevel > 0 && rowLevel > callerLevel {
+		if enforceRoleCap && rowLevel > callerLevel {
 			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "role_above_caller"})
 			result.Skipped++
 			continue
@@ -153,7 +161,7 @@ func (h *UserHandler) BulkImportUsers(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Máximo 1000 filas por solicitud"})
 	}
 
-	valid, validIdx, result := validateImportRows(req.Users, callerLevel)
+	valid, validIdx, result := validateImportRows(req.Users, callerLevel, true)
 
 	// ── Phase 2: Chunked DB insert ─────────────────────────────────────────
 	// Uses the tenant tx (q) instead of the global pool — RLS enforced, and
@@ -188,7 +196,7 @@ func (h *UserHandler) BulkImportUsers(c echo.Context) error {
 //     detrás de TenantTx y no hay church_id de sesión. La existencia del
 //     tenant se verifica explícitamente antes de tocar nada, igual que
 //     SetModule.
-//  2. Sin tope de rol (callerLevel 0): no hay usuario llamador con quien
+//  2. Sin tope de rol (enforceRoleCap=false): no hay usuario llamador con quien
 //     comparar, y justamente lo que se está cargando es el plantel inicial
 //     de la iglesia, liderazgo incluido. La validez del rol se sigue
 //     chequeando.
@@ -224,7 +232,7 @@ func (h *UserHandler) ProviderBulkImportUsers(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "tenant not found"})
 	}
 
-	valid, validIdx, result := validateImportRows(req.Users, 0)
+	valid, validIdx, result := validateImportRows(req.Users, 0, false)
 
 	tx, err := db.DB.Begin()
 	if err != nil {

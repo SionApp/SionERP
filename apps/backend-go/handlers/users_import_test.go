@@ -106,7 +106,12 @@ func TestValidateImportRows_SkipsInvalidAndDedups(t *testing.T) {
 		{FirstName: "Rol", LastName: "Inválido", Email: "rol@iglesia.org", Role: "arcangel"},
 	}
 
-	valid, validIdx, result := validateImportRows(rows, 0)
+	// enforceRoleCap=true, but this test isn't about the cap — it's about
+	// invalid/duplicate row filtering. The one surviving row falls back to
+	// the default role (utils.RoleServer, level 100), so callerLevel must be
+	// at least that high or the cap itself would reject it; utils.LevelStaff
+	// is a realistic caller level for this handler's own RequireRole gate.
+	valid, validIdx, result := validateImportRows(rows, utils.LevelStaff, true)
 
 	if len(valid) != 1 || valid[0].Email != "ana@iglesia.org" {
 		t.Fatalf("expected only the first row to survive, got %+v", valid)
@@ -132,19 +137,34 @@ func TestValidateImportRows_SkipsInvalidAndDedups(t *testing.T) {
 	}
 }
 
-func TestValidateImportRows_RoleCapOnlyWhenCallerLevelSet(t *testing.T) {
+func TestValidateImportRows_RoleCapIsExplicit(t *testing.T) {
 	rows := []UserImportRow{{FirstName: "Pastor", LastName: "Nuevo", Email: "pastor@iglesia.org", Role: utils.RolePastor}}
 
-	// callerLevel 0 = no cap (provider path): the pastor row survives.
-	valid, _, result := validateImportRows(rows, 0)
+	// enforceRoleCap=false (provider path): no cap regardless of callerLevel,
+	// the pastor row survives.
+	valid, _, result := validateImportRows(rows, 0, false)
 	if len(valid) != 1 {
-		t.Fatalf("expected no role cap with callerLevel 0, got %+v", result.Errors)
+		t.Fatalf("expected no role cap with enforceRoleCap=false, got %+v", result.Errors)
 	}
 
-	// A caller below pastor level cannot import a pastor.
-	valid, _, result = validateImportRows(rows, utils.GetRoleLevel(utils.RoleServer))
+	// enforceRoleCap=true with a caller below pastor level: the pastor row is
+	// rejected.
+	valid, _, result = validateImportRows(rows, utils.GetRoleLevel(utils.RoleServer), true)
 	if len(valid) != 0 {
 		t.Fatal("expected the pastor row to be capped for a server-level caller")
+	}
+	if len(result.Errors) != 1 || result.Errors[0].Reason != "role_above_caller" {
+		t.Fatalf("expected role_above_caller, got %+v", result.Errors)
+	}
+
+	// enforceRoleCap=true with callerLevel == 0: this is the regression case.
+	// RequireRole's has_admin_access bypass means a super admin with an
+	// unrecognized/legacy db_role can reach the session path with
+	// callerLevel == 0 — the cap must still reject the pastor row
+	// (fail-closed), never silently disable itself.
+	valid, _, result = validateImportRows(rows, 0, true)
+	if len(valid) != 0 {
+		t.Fatal("expected the pastor row to be rejected when enforceRoleCap=true and callerLevel == 0 (fail-closed regression case)")
 	}
 	if len(result.Errors) != 1 || result.Errors[0].Reason != "role_above_caller" {
 		t.Fatalf("expected role_above_caller, got %+v", result.Errors)
