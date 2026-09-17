@@ -720,6 +720,17 @@ func TestIsolationNoBareDBCalls(t *testing.T) {
 			// handle_new_user trigger, not here.
 			"GetRegistrationStatus": true,
 		},
+		"users_import.go": {
+			// ProviderBulkImportUsers: SionERP Provider API (I1), same
+			// rationale as provider.go above — runs behind ProviderKeyAuth,
+			// NEVER TenantTx, no session/church_id, tenant received via :id
+			// in the URL. Opens its own db.DB.Begin() transaction because
+			// insertUserChunk needs a real *sql.Tx for its internal
+			// SAVEPOINT/ROLLBACK TO SAVEPOINT, which fails outside a
+			// transaction — there is no request tx to inherit here. church_id
+			// is bound explicitly from tenantID on every insert.
+			"ProviderBulkImportUsers": true,
+		},
 	}
 
 	type violation struct {

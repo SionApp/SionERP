@@ -64,6 +64,7 @@ func SetupRoutes(e *echo.Echo) {
 	provider.POST("/tenants/:id/suspend", providerHandler.Suspend)
 	provider.POST("/tenants/:id/reactivate", providerHandler.Reactivate)
 	provider.POST("/tenants/:id/cancel", providerHandler.Cancel)
+	provider.POST("/tenants/:id/users/bulk", userHandler.ProviderBulkImportUsers)
 
 	// El mismo secreto de servicio también gatea el onboarding self-service
 	// (decisión del usuario, ver sdd/provider-api/design Decisión 5): deja

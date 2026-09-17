@@ -5,7 +5,14 @@
 package handlers
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"backend-sion/utils"
+
+	"github.com/labstack/echo/v4"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,5 +94,129 @@ func TestInsertUserChunkChurchIDMatchesCaller(t *testing.T) {
 	}
 	if gotChurchID == legacyDefaultChurch {
 		t.Errorf("church_id fell back to the hardcoded legacy default church %q — the Phase 3f regression is back", legacyDefaultChurch)
+	}
+}
+
+func TestValidateImportRows_SkipsInvalidAndDedups(t *testing.T) {
+	rows := []UserImportRow{
+		{FirstName: "Ana", LastName: "Pérez", Email: "ana@iglesia.org"},
+		{FirstName: "", LastName: "Sin Nombre", Email: "sin@iglesia.org"},
+		{FirstName: "Mal", LastName: "Email", Email: "no-es-un-email"},
+		{FirstName: "Ana", LastName: "Duplicada", Email: "ANA@iglesia.org"},
+		{FirstName: "Rol", LastName: "Inválido", Email: "rol@iglesia.org", Role: "arcangel"},
+	}
+
+	// enforceRoleCap=true, but this test isn't about the cap — it's about
+	// invalid/duplicate row filtering. The one surviving row falls back to
+	// the default role (utils.RoleServer, level 100), so callerLevel must be
+	// at least that high or the cap itself would reject it; utils.LevelStaff
+	// is a realistic caller level for this handler's own RequireRole gate.
+	valid, validIdx, result := validateImportRows(rows, utils.LevelStaff, true)
+
+	if len(valid) != 1 || valid[0].Email != "ana@iglesia.org" {
+		t.Fatalf("expected only the first row to survive, got %+v", valid)
+	}
+	if len(validIdx) != 1 || validIdx[0] != 1 {
+		t.Fatalf("expected 1-based row number 1, got %v", validIdx)
+	}
+	if valid[0].Role != utils.RoleServer {
+		t.Fatalf("expected the default role %q, got %q", utils.RoleServer, valid[0].Role)
+	}
+	if result.Skipped != 4 {
+		t.Fatalf("expected 4 skipped, got %d", result.Skipped)
+	}
+
+	reasons := map[string]bool{}
+	for _, e := range result.Errors {
+		reasons[e.Reason] = true
+	}
+	for _, want := range []string{"missing_required", "invalid_email", "duplicate_in_batch", "invalid_role"} {
+		if !reasons[want] {
+			t.Fatalf("expected a %q error, got %+v", want, result.Errors)
+		}
+	}
+}
+
+func TestValidateImportRows_RoleCapIsExplicit(t *testing.T) {
+	rows := []UserImportRow{{FirstName: "Pastor", LastName: "Nuevo", Email: "pastor@iglesia.org", Role: utils.RolePastor}}
+
+	// enforceRoleCap=false (provider path): no cap regardless of callerLevel,
+	// the pastor row survives.
+	valid, _, result := validateImportRows(rows, 0, false)
+	if len(valid) != 1 {
+		t.Fatalf("expected no role cap with enforceRoleCap=false, got %+v", result.Errors)
+	}
+
+	// enforceRoleCap=true with a caller below pastor level: the pastor row is
+	// rejected.
+	valid, _, result = validateImportRows(rows, utils.GetRoleLevel(utils.RoleServer), true)
+	if len(valid) != 0 {
+		t.Fatal("expected the pastor row to be capped for a server-level caller")
+	}
+	if len(result.Errors) != 1 || result.Errors[0].Reason != "role_above_caller" {
+		t.Fatalf("expected role_above_caller, got %+v", result.Errors)
+	}
+
+	// enforceRoleCap=true with callerLevel == 0: this is the regression case.
+	// RequireRole's has_admin_access bypass means a super admin with an
+	// unrecognized/legacy db_role can reach the session path with
+	// callerLevel == 0 — the cap must still reject the pastor row
+	// (fail-closed), never silently disable itself.
+	valid, _, result = validateImportRows(rows, 0, true)
+	if len(valid) != 0 {
+		t.Fatal("expected the pastor row to be rejected when enforceRoleCap=true and callerLevel == 0 (fail-closed regression case)")
+	}
+	if len(result.Errors) != 1 || result.Errors[0].Reason != "role_above_caller" {
+		t.Fatalf("expected role_above_caller, got %+v", result.Errors)
+	}
+}
+
+func TestProviderBulkImportUsers_RejectsEmptyAndOversizedBatches(t *testing.T) {
+	h := &UserHandler{}
+	e := echo.New()
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"empty", `{"users":[]}`},
+		{"oversized", `{"users":[` + strings.Repeat(`{"first_name":"A","last_name":"B","email":"a@b.org"},`, 1000) + `{"first_name":"A","last_name":"B","email":"z@b.org"}]}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/provider/tenants/abc/users/bulk", strings.NewReader(tc.body))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetParamNames("id")
+			c.SetParamValues("abc")
+
+			if err := h.ProviderBulkImportUsers(c); err != nil {
+				t.Fatalf("handler returned error: %v", err)
+			}
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestProviderBulkImportUsers_RejectsMissingTenantID(t *testing.T) {
+	h := &UserHandler{}
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodPost, "/provider/tenants//users/bulk", strings.NewReader(`{"users":[{"first_name":"A","last_name":"B","email":"a@b.org"}]}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("")
+
+	if err := h.ProviderBulkImportUsers(c); err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for a missing tenant id, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
