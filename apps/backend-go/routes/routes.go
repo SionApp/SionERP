@@ -140,15 +140,24 @@ func SetupRoutes(e *echo.Echo) {
 		dashboard.GET("/traceability", dashboardHandler.GetTraceability, middleware.RequireRole(utils.LevelStaff))
 	}
 
-	// Setup routes (Public or protected check inside handler)
-	// Setup routes (Use OptionalAuth to allow both public init and protected admin access)
 	setupHandler := handlers.NewSetupHandler()
-	setup := api.Group("/setup")
-	setup.Use(middleware.OptionalAuth())
-	{
-		setup.GET("/status", setupHandler.GetSetupStatus)
-		setup.POST("", setupHandler.PerformSetup)
-	}
+	// GET /setup/status queda con OptionalAuth a propósito: el frontend lo
+	// usa como fuente de "qué módulos están instalados" desde SystemContext,
+	// App.tsx (redirect de arranque), SetupModal y ModulesManagementPage —
+	// el navegador no tiene la provider key, así que gatearlo rompería la app
+	// para todos. Es de sólo lectura.
+	setupStatus := api.Group("/setup")
+	setupStatus.Use(middleware.OptionalAuth())
+	setupStatus.GET("/status", setupHandler.GetSetupStatus)
+
+	// POST /setup (PerformSetup) SÍ va detrás de la provider key: es el
+	// bootstrap legacy monotenant que puede crear un admin, y la configuración
+	// inicial de un tenant ahora es responsabilidad exclusiva de BonDev vía
+	// Provider API. Se mantiene como vía de RECUPERACIÓN (levantar un tenant
+	// roto si el flujo nuevo falla), no como camino normal.
+	setupAdmin := api.Group("/setup")
+	setupAdmin.Use(middleware.ProviderKeyAuth())
+	setupAdmin.POST("", setupHandler.PerformSetup)
 
 	// Module management routes (pastor+ — admin is 500, pastor is 400)
 	modules := protected.Group("/modules")
