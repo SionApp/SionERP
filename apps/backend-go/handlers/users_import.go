@@ -50,6 +50,77 @@ type ImportResult struct {
 
 // ─── Handler ───────────────────────────────────────────────────────────────
 
+// validateImportRows runs the row-level validation and in-batch dedup shared
+// by both import paths: the session-authenticated handler (BulkImportUsers)
+// and the Provider API one (ProviderBulkImportUsers). It touches no database.
+//
+// Returns the surviving rows, their 1-based row numbers in the original
+// batch (for error reporting), and an ImportResult already carrying the
+// per-row errors and the Skipped count for everything rejected here.
+//
+// callerLevel caps how privileged an imported row may be: a row whose role
+// outranks the caller is rejected with "role_above_caller". Pass 0 to disable
+// the cap — that is the Provider API path, where there is no user session to
+// compare against and BonDev is provisioning the church's initial roster,
+// leadership included. Role VALIDITY is still enforced in both cases.
+func validateImportRows(rows []UserImportRow, callerLevel int) ([]UserImportRow, []int, ImportResult) {
+	result := ImportResult{Errors: []ImportError{}}
+	seen := make(map[string]bool, len(rows))
+	valid := make([]UserImportRow, 0, len(rows))
+	validIdx := make([]int, 0, len(rows))
+
+	for i, row := range rows {
+		rowNum := i + 1
+
+		row.FirstName = strings.TrimSpace(row.FirstName)
+		row.LastName = strings.TrimSpace(row.LastName)
+		row.Email = strings.ToLower(strings.TrimSpace(row.Email))
+
+		if row.FirstName == "" || row.LastName == "" || row.Email == "" {
+			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "missing_required"})
+			result.Skipped++
+			continue
+		}
+
+		if !emailRegex.MatchString(row.Email) {
+			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "invalid_email"})
+			result.Skipped++
+			continue
+		}
+
+		if seen[row.Email] {
+			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "duplicate_in_batch"})
+			result.Skipped++
+			continue
+		}
+
+		if row.Role == "" {
+			row.Role = utils.RoleServer
+		} else {
+			row.Role = strings.ToLower(strings.TrimSpace(row.Role))
+		}
+
+		rowLevel := utils.GetRoleLevel(row.Role)
+		if rowLevel == 0 && row.Role != utils.RoleServer {
+			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "invalid_role"})
+			result.Skipped++
+			continue
+		}
+
+		if callerLevel > 0 && rowLevel > callerLevel {
+			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "role_above_caller"})
+			result.Skipped++
+			continue
+		}
+
+		seen[row.Email] = true
+		valid = append(valid, row)
+		validIdx = append(validIdx, rowNum)
+	}
+
+	return valid, validIdx, result
+}
+
 // BulkImportUsers handles POST /api/v1/users/bulk.
 // Accepts a JSON array of user rows, validates and deduplicates them, then
 // inserts valid rows in chunks of 50. Each chunk uses a SAVEPOINT on the
@@ -82,66 +153,7 @@ func (h *UserHandler) BulkImportUsers(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Máximo 1000 filas por solicitud"})
 	}
 
-	result := ImportResult{Errors: []ImportError{}}
-	seen := make(map[string]bool, len(req.Users))
-	valid := make([]UserImportRow, 0, len(req.Users))
-	validIdx := make([]int, 0, len(req.Users)) // original 1-based row numbers
-
-	// ── Phase 1: Validation + in-batch dedup ──────────────────────────────
-	for i, row := range req.Users {
-		rowNum := i + 1
-
-		row.FirstName = strings.TrimSpace(row.FirstName)
-		row.LastName = strings.TrimSpace(row.LastName)
-		row.Email = strings.ToLower(strings.TrimSpace(row.Email))
-
-		// Required field check
-		if row.FirstName == "" || row.LastName == "" || row.Email == "" {
-			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "missing_required"})
-			result.Skipped++
-			continue
-		}
-
-		// Email format validation
-		if !emailRegex.MatchString(row.Email) {
-			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "invalid_email"})
-			result.Skipped++
-			continue
-		}
-
-		// In-batch dedup (case-insensitive, already lowercased above)
-		if seen[row.Email] {
-			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "duplicate_in_batch"})
-			result.Skipped++
-			continue
-		}
-
-		// Default role
-		if row.Role == "" {
-			row.Role = utils.RoleServer
-		} else {
-			row.Role = strings.ToLower(strings.TrimSpace(row.Role))
-		}
-
-		// Validate role value
-		rowLevel := utils.GetRoleLevel(row.Role)
-		if rowLevel == 0 && row.Role != utils.RoleServer {
-			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "invalid_role"})
-			result.Skipped++
-			continue
-		}
-
-		// Role cap: imported role must not exceed caller's level
-		if rowLevel > callerLevel {
-			result.Errors = append(result.Errors, ImportError{Row: rowNum, Email: row.Email, Reason: "role_above_caller"})
-			result.Skipped++
-			continue
-		}
-
-		seen[row.Email] = true
-		valid = append(valid, row)
-		validIdx = append(validIdx, rowNum)
-	}
+	valid, validIdx, result := validateImportRows(req.Users, callerLevel)
 
 	// ── Phase 2: Chunked DB insert ─────────────────────────────────────────
 	// Uses the tenant tx (q) instead of the global pool — RLS enforced, and
@@ -158,6 +170,84 @@ func (h *UserHandler) BulkImportUsers(c echo.Context) error {
 		result.Imported += inserted
 		result.Skipped += len(chunk) - inserted
 		result.Errors = append(result.Errors, errs...)
+	}
+
+	return c.JSON(http.StatusOK, result)
+}
+
+// ProviderBulkImportUsers handles POST /provider/tenants/:id/users/bulk.
+//
+// Es el gemelo de BulkImportUsers para la Provider API: mismo shape de
+// request y de respuesta, misma validación por fila, pero SIN sesión de
+// usuario. Lo llama BonDev al provisionar, cuando la iglesia todavía no
+// tiene ningún usuario que pueda loguearse para importar los suyos.
+//
+// Tres diferencias con el camino de sesión, todas derivadas de eso:
+//
+//  1. church_id sale del path (:id), no del contexto — este grupo no corre
+//     detrás de TenantTx y no hay church_id de sesión. La existencia del
+//     tenant se verifica explícitamente antes de tocar nada, igual que
+//     SetModule.
+//  2. Sin tope de rol (callerLevel 0): no hay usuario llamador con quien
+//     comparar, y justamente lo que se está cargando es el plantel inicial
+//     de la iglesia, liderazgo incluido. La validez del rol se sigue
+//     chequeando.
+//  3. Abre su propia transacción: insertUserChunk usa SAVEPOINT, que fuera
+//     de una transacción falla, y acá no hay tx de request que heredar.
+func (h *UserHandler) ProviderBulkImportUsers(c echo.Context) error {
+	tenantID := strings.TrimSpace(c.Param("id"))
+	if tenantID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "tenant id is required"})
+	}
+
+	var req BulkImportRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Datos inválidos"})
+	}
+	if len(req.Users) == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "No se enviaron usuarios"})
+	}
+	if len(req.Users) > 1000 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Máximo 1000 filas por solicitud"})
+	}
+
+	db := config.GetDB()
+	if db == nil || db.DB == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "database connection not available"})
+	}
+
+	var exists bool
+	if err := db.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM public.churches WHERE id = $1)`, tenantID).Scan(&exists); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to verify tenant"})
+	}
+	if !exists {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "tenant not found"})
+	}
+
+	valid, validIdx, result := validateImportRows(req.Users, 0)
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to start transaction"})
+	}
+	defer tx.Rollback()
+
+	for start := 0; start < len(valid); start += importChunkSize {
+		end := start + importChunkSize
+		if end > len(valid) {
+			end = len(valid)
+		}
+		chunk := valid[start:end]
+		chunkRowNums := validIdx[start:end]
+
+		inserted, errs := insertUserChunk(tx, chunk, chunkRowNums, tenantID)
+		result.Imported += inserted
+		result.Skipped += len(chunk) - inserted
+		result.Errors = append(result.Errors, errs...)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to commit import"})
 	}
 
 	return c.JSON(http.StatusOK, result)
