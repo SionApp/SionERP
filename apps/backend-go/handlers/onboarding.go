@@ -28,9 +28,9 @@ func NewOnboardingHandler() *OnboardingHandler {
 // Note: any church_id field in the body is intentionally ignored — the server always
 // generates a fresh UUID.
 type provisionChurchRequest struct {
-	Name          string `json:"name"`
-	AdminEmail    string `json:"admin_email"`
-	AdminPassword string `json:"admin_password"`
+	Name           string `json:"name"`
+	AdminEmail     string `json:"admin_email"`
+	AdminPassword  string `json:"admin_password"`
 	AdminFirstName string `json:"admin_first_name"`
 	AdminLastName  string `json:"admin_last_name"`
 }
@@ -63,7 +63,7 @@ func slugify(name string) string {
 			sb.WriteRune('n')
 		case r == 'ç':
 			sb.WriteRune('c')
-		// Everything else is dropped
+			// Everything else is dropped
 		}
 	}
 	// Collapse consecutive dashes
@@ -208,9 +208,8 @@ func (h *OnboardingHandler) ProvisionChurch(c echo.Context) error {
 
 	// 3d. Seed church_info singleton for this church.
 	_, err = tx.ExecContext(c.Request().Context(),
-		`INSERT INTO public.church_info (church_id, church_name, created_at, updated_at)
-		 VALUES ($1, $2, NOW(), NOW())
-		 ON CONFLICT (church_id) DO NOTHING`,
+		`INSERT INTO public.church_info (id, church_id, name, created_at, updated_at)
+		 VALUES (gen_random_uuid(), $1, $2, NOW(), NOW())`,
 		churchID, req.Name,
 	)
 	if err != nil {
@@ -222,9 +221,8 @@ func (h *OnboardingHandler) ProvisionChurch(c echo.Context) error {
 
 	// 3e. Seed system_settings singleton for this church.
 	_, err = tx.ExecContext(c.Request().Context(),
-		`INSERT INTO public.system_settings (church_id, created_at, updated_at)
-		 VALUES ($1, NOW(), NOW())
-		 ON CONFLICT (church_id) DO NOTHING`,
+		`INSERT INTO public.system_settings (id, church_id, created_at, updated_at)
+		 VALUES (gen_random_uuid(), $1, NOW(), NOW())`,
 		churchID,
 	)
 	if err != nil {
@@ -281,11 +279,11 @@ func (h *OnboardingHandler) ProvisionChurch(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"church_id":    churchID,
-		"church_name":  req.Name,
-		"church_slug":  slug,
-		"admin_email":  req.AdminEmail,
+		"church_id":     churchID,
+		"church_name":   req.Name,
+		"church_slug":   slug,
+		"admin_email":   req.AdminEmail,
 		"admin_user_id": authUser.ID,
-		"message":      "Church provisioned successfully. Sign in with your admin credentials.",
+		"message":       "Church provisioned successfully. Sign in with your admin credentials.",
 	})
 }

@@ -328,9 +328,8 @@ func (h *ProviderHandler) CreateTenant(c echo.Context) error {
 	}
 
 	_, err = tx.ExecContext(c.Request().Context(),
-		`INSERT INTO public.church_info (church_id, church_name, created_at, updated_at)
-		 VALUES ($1, $2, NOW(), NOW())
-		 ON CONFLICT (church_id) DO NOTHING`,
+		`INSERT INTO public.church_info (id, church_id, name, created_at, updated_at)
+		 VALUES (gen_random_uuid(), $1, $2, NOW(), NOW())`,
 		churchID, req.ChurchName,
 	)
 	if err != nil {
@@ -343,9 +342,8 @@ func (h *ProviderHandler) CreateTenant(c echo.Context) error {
 	// migración del entorno, y eso no debe tumbar una provisión que ya creó
 	// iglesia, módulos y niveles.
 	if _, err := tx.ExecContext(c.Request().Context(),
-		`INSERT INTO public.system_settings (church_id, created_at, updated_at)
-		 VALUES ($1, NOW(), NOW())
-		 ON CONFLICT (church_id) DO NOTHING`,
+		`INSERT INTO public.system_settings (id, church_id, created_at, updated_at)
+		 VALUES (gen_random_uuid(), $1, NOW(), NOW())`,
 		churchID,
 	); err != nil {
 		c.Logger().Warnf("provider: could not seed system_settings for church %s: %v", churchID, err)
