@@ -289,6 +289,68 @@ func (h *ProviderHandler) CreateTenant(c echo.Context) error {
 		}
 	}
 
+	// Siembra inicial de la iglesia — portada de onboarding.go:ProvisionChurch,
+	// que era el único camino que la hacía. Una iglesia creada por BonDev
+	// quedaba con menos datos que una creada por ese otro camino; ahora las dos
+	// arrancan igual. Va dentro de la MISMA transacción que la iglesia y los
+	// módulos: o queda todo sembrado, o no se crea la iglesia.
+	//
+	// Los 5 niveles usan UUIDs nuevos (NO los hardcodeados de la era Sion en
+	// 001_create_discipleship_levels.sql). Los nombres son los estándar; la
+	// iglesia los renombra después desde su propia configuración.
+	type seedLevel struct {
+		name        string
+		description string
+		icon        string
+		color       string
+		orderIndex  int
+	}
+	for _, l := range []seedLevel{
+		{"Pastoral", "Nivel Pastoral", "crown", "#8b5cf6", 1},
+		{"Coordinador General", "Coordinador General", "shield", "#06b6d4", 2},
+		{"Coordinador", "Coordinador de zona", "shield", "#10b981", 3},
+		{"Supervisor Auxiliar", "Supervisor Auxiliar", "users", "#f59e0b", 4},
+		{"Líder", "Líder de célula", "user", "#6b7280", 5},
+	} {
+		_, err = tx.ExecContext(c.Request().Context(),
+			`INSERT INTO public.discipleship_levels
+			   (id, name, description, icon, color, order_index, is_active, church_id, created_at, updated_at)
+			 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true, $6, NOW(), NOW())
+			 ON CONFLICT DO NOTHING`,
+			l.name, l.description, l.icon, l.color, l.orderIndex, churchID,
+		)
+		if err != nil {
+			rollback()
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "failed to seed discipleship level '" + l.name + "'",
+			})
+		}
+	}
+
+	_, err = tx.ExecContext(c.Request().Context(),
+		`INSERT INTO public.church_info (church_id, church_name, created_at, updated_at)
+		 VALUES ($1, $2, NOW(), NOW())
+		 ON CONFLICT (church_id) DO NOTHING`,
+		churchID, req.ChurchName,
+	)
+	if err != nil {
+		rollback()
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to seed church_info"})
+	}
+
+	// system_settings es no-fatal a propósito, igual que en ProvisionChurch:
+	// la tabla puede no existir o tener otras columnas según la fase de
+	// migración del entorno, y eso no debe tumbar una provisión que ya creó
+	// iglesia, módulos y niveles.
+	if _, err := tx.ExecContext(c.Request().Context(),
+		`INSERT INTO public.system_settings (church_id, created_at, updated_at)
+		 VALUES ($1, NOW(), NOW())
+		 ON CONFLICT (church_id) DO NOTHING`,
+		churchID,
+	); err != nil {
+		c.Logger().Warnf("provider: could not seed system_settings for church %s: %v", churchID, err)
+	}
+
 	password, err := randomThrowawayPassword()
 	if err != nil {
 		rollback()
