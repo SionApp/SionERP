@@ -105,15 +105,17 @@ func getMusicAccessInfo(c echo.Context) (musicAccessInfo, error) {
 
 	// Use level resolved by RequireModuleLevel middleware
 	if moduleLevel == 0 {
-		// Not set by middleware (e.g. public GET routes) — read from DB (global pool, not tenant data)
-		db, err := getDBOrError(c)
+		// Not set by middleware (e.g. public GET routes) — read through the
+		// tenant tx (module_user_roles carries church_id + RLS tenant_isolation).
+		q, err := validateTx(c)
 		if err != nil {
 			return musicAccessInfo{userID: userID, level: 0}, nil
 		}
+		churchID, _ := c.Get("church_id").(string)
 		var lvl int
-		err = db.DB.QueryRow(
-			`SELECT role_level FROM module_user_roles WHERE user_id = $1 AND module_key = 'music' LIMIT 1`,
-			userID,
+		err = q.QueryRow(
+			`SELECT role_level FROM module_user_roles WHERE user_id = $1 AND module_key = 'music' AND church_id = $2 LIMIT 1`,
+			userID, churchID,
 		).Scan(&lvl)
 		if err != nil {
 			lvl = 0
@@ -125,16 +127,16 @@ func getMusicAccessInfo(c echo.Context) (musicAccessInfo, error) {
 	info := musicAccessInfo{userID: userID, level: moduleLevel}
 	if moduleLevel < 5 {
 		churchID, _ := c.Get("church_id").(string)
-		db, err := getDBOrError(c)
+		q, err := validateTx(c)
 		if err == nil {
 			var mid string
 			var err2 error
 			if churchID != "" {
-				err2 = db.DB.QueryRow(
+				err2 = q.QueryRow(
 					`SELECT id FROM music_members WHERE user_id = $1 AND church_id = $2 LIMIT 1`, userID, churchID,
 				).Scan(&mid)
 			} else {
-				err2 = db.DB.QueryRow(
+				err2 = q.QueryRow(
 					`SELECT id FROM music_members WHERE user_id = $1 LIMIT 1`, userID,
 				).Scan(&mid)
 			}
@@ -223,8 +225,10 @@ const musicDirectorLevel = 5
 const musicServidorLevel = 1
 
 // upsertMusicModuleRole writes the caller's music module role (director vs servidor).
-// Uses the global DB pool but scoped by church_id for multi-tenancy.
-func upsertMusicModuleRole(db *sql.DB, userID string, isDirector bool, assignedBy, churchID string) {
+// Takes config.Querier so request-path callers can pass the tenant tx (RLS
+// enforced) while background/goroutine callers can still pass a plain *sql.DB
+// (which satisfies the same interface) when no request tx exists.
+func upsertMusicModuleRole(db config.Querier, userID string, isDirector bool, assignedBy, churchID string) {
 	if db == nil || userID == "" {
 		return
 	}
@@ -344,7 +348,7 @@ func (h *MusicHandler) CreateMember(c echo.Context) error {
 
 	// Assign the module role (director vs servidor) — scoped by church_id
 	isDirector := req.IsDirector != nil && *req.IsDirector
-	upsertMusicModuleRole(config.GetDB().DB, req.UserID, isDirector, callerID, churchID)
+	upsertMusicModuleRole(q, req.UserID, isDirector, callerID, churchID)
 
 	return c.JSON(http.StatusCreated, map[string]string{"id": id, "message": "Miembro creado exitosamente"})
 }
@@ -396,7 +400,7 @@ func (h *MusicHandler) UpdateMember(c echo.Context) error {
 	if req.IsDirector != nil {
 		var userID string
 		if scanErr := q.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1 AND church_id = $2`, memberID, churchID).Scan(&userID); scanErr == nil {
-			upsertMusicModuleRole(config.GetDB().DB, userID, *req.IsDirector, callerID, churchID)
+			upsertMusicModuleRole(q, userID, *req.IsDirector, callerID, churchID)
 		}
 	}
 
@@ -414,10 +418,10 @@ func (h *MusicHandler) DeleteMember(c echo.Context) error {
 	}
 
 	memberID := c.Param("id")
-	// Clean up the music module role for this user (best-effort) — module_user_roles is global
+	// Clean up the music module role for this user (best-effort)
 	var userID string
 	if scanErr := q.QueryRow(`SELECT user_id::text FROM music_members WHERE id = $1 AND church_id = $2`, memberID, churchID).Scan(&userID); scanErr == nil && userID != "" {
-		_, _ = config.GetDB().DB.Exec(`DELETE FROM module_user_roles WHERE user_id = $1 AND module_key = 'music'`, userID)
+		_, _ = q.Exec(`DELETE FROM module_user_roles WHERE user_id = $1 AND module_key = 'music'`, userID)
 	}
 	res, err := q.Exec(`DELETE FROM music_members WHERE id = $1 AND church_id = $2`, memberID, churchID)
 	if err != nil {
@@ -795,7 +799,7 @@ func (h *MusicHandler) CreateAssignment(c echo.Context) error {
 	// El instrumento vive en music_members (no en la asignación): al asignar a
 	// alguien como músico, el instrumento elegido queda como el suyo por defecto.
 	if req.Instrument != "" {
-		_, _ = globalDB.Exec(`UPDATE music_members SET instrument = $1 WHERE id = $2 AND church_id = $3`,
+		_, _ = q.Exec(`UPDATE music_members SET instrument = $1 WHERE id = $2 AND church_id = $3`,
 			req.Instrument, memberID, churchID)
 	}
 

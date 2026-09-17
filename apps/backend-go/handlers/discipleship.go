@@ -796,8 +796,16 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 	// ACTUALIZAR JERARQUÍAS SI SE CAMBIARON leader_id o supervisor_id
 	// =====================================================
 
-	// Usar pool global para jerarquía — no debe compartir la transacción del grupo
-	dbPool := config.GetDB().DB
+	// Hierarchy updates below reuse the same request tx `q` (opened by
+	// TenantTx above) instead of a separate global-pool handle — running them
+	// on the raw pool skipped SET LOCAL ROLE jetro_app, so RLS never applied
+	// to these writes even though every query already carries AND church_id.
+	// This does mean they now commit/rollback together with the rest of the
+	// request instead of being independently auto-committed, which is the
+	// correct behaviour, not a regression: UpdateGroup has no failure path
+	// after this point (it always returns 200), so nothing here observably
+	// changes on success, and a genuine failure should no longer be able to
+	// leave hierarchy rows committed while the group update itself rolled back.
 
 	// Obtener el grupo actualizado para saber los nuevos valores
 	var currentGroup struct {
@@ -824,7 +832,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		// 1. Asignar jerarquía al nuevo LÍDER si se cambió
 		if reqLeaderID != nil {
 			var existingLevel sql.NullInt64
-			err = dbPool.QueryRow(`
+			err = q.QueryRow(`
 				SELECT hierarchy_level
 				FROM discipleship_hierarchy
 				WHERE user_id = $1 AND church_id = $2
@@ -842,7 +850,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				}
 
 				// Usar zoneID que ya determinamos arriba
-				_, err = dbPool.Exec(`
+				_, err = q.Exec(`
 					INSERT INTO discipleship_hierarchy (
 						church_id, user_id, hierarchy_level, supervisor_id, zone_id, active_groups_assigned
 					) VALUES ($1, $2, 1, $3, $4, 1)
@@ -852,7 +860,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				}
 
 				// Actualizar también en users (scoped by church_id)
-				_, _ = dbPool.Exec(`
+				_, _ = q.Exec(`
 					UPDATE users SET
 						discipleship_level = 1,
 						zone_id = $1,
@@ -872,7 +880,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 					}
 
 					// Usar zoneID que ya determinamos arriba
-					_, _ = dbPool.Exec(`
+					_, _ = q.Exec(`
 						UPDATE discipleship_hierarchy SET
 							hierarchy_level = 1,
 							supervisor_id = COALESCE($1, supervisor_id),
@@ -888,7 +896,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 		// 2. Asignar jerarquía al nuevo SUPERVISOR si se cambió
 		if reqSupervisorID != nil {
 			var existingLevel sql.NullInt64
-			err = dbPool.QueryRow(`
+			err = q.QueryRow(`
 				SELECT hierarchy_level
 				FROM discipleship_hierarchy
 				WHERE user_id = $1 AND church_id = $2
@@ -897,7 +905,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 			if err == sql.ErrNoRows {
 				// No tiene jerarquía, crear con nivel 2 (Supervisor Auxiliar)
 				// Usar zoneID que ya determinamos arriba
-				_, err = dbPool.Exec(`
+				_, err = q.Exec(`
 					INSERT INTO discipleship_hierarchy (
 						church_id, user_id, hierarchy_level, zone_id, active_groups_assigned
 					) VALUES ($1, $2, 2, $3, 1)
@@ -907,7 +915,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				}
 
 				// Actualizar también en users (scoped by church_id)
-				_, _ = dbPool.Exec(`
+				_, _ = q.Exec(`
 					UPDATE users SET
 						discipleship_level = 2,
 						zone_id = $1,
@@ -918,7 +926,7 @@ func (h *DiscipleshipHandler) UpdateGroup(c echo.Context) error {
 				// Ya tiene jerarquía, actualizar solo si es menor a 2
 				if existingLevel.Int64 < 2 {
 					// Usar zoneID que ya determinamos arriba
-					_, _ = dbPool.Exec(`
+					_, _ = q.Exec(`
 						UPDATE discipleship_hierarchy SET
 							hierarchy_level = 2,
 							zone_id = COALESCE($1, zone_id),
@@ -1616,7 +1624,7 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 			continue
 		}
 		// Calcular fase del grupo
-		p.Phase = calculateGroupPhase(config.GetDB(), p.GroupID, p.SpiritualTemp)
+		p.Phase = calculateGroupPhase(q, p.GroupID, churchID, p.SpiritualTemp)
 		performance = append(performance, p)
 	}
 	analytics.GroupPerformance = performance
@@ -1687,45 +1695,49 @@ func (h *DiscipleshipHandler) GetAnalytics(c echo.Context) error {
 }
 
 // calculateGroupPhase determina la fase actual de un grupo basada en sus reportes
-func calculateGroupPhase(db *config.Database, groupID string, spiritualTemp float64) string {
+func calculateGroupPhase(q config.Querier, groupID, churchID string, spiritualTemp float64) string {
 	// 1. Verificar si tiene alertas activas → at_risk
 	var hasActiveAlerts int
-	db.DB.QueryRow(`
-		SELECT COUNT(*) FROM discipleship_alerts 
-		WHERE related_group_id = $1 
-		AND resolved = false 
+	q.QueryRow(`
+		SELECT COUNT(*) FROM discipleship_alerts
+		WHERE related_group_id = $1
+		AND church_id = $2
+		AND resolved = false
 		AND (expires_at IS NULL OR expires_at > NOW())
-	`, groupID).Scan(&hasActiveAlerts)
+	`, groupID, churchID).Scan(&hasActiveAlerts)
 	if hasActiveAlerts > 0 {
 		return utils.PhaseStruggling
 	}
 
 	// 2. Verificar si está multiplicando (is_multiplying = true en 2+ reportes seguidos)
 	var multiplyingCount int
-	db.DB.QueryRow(`
+	q.QueryRow(`
 		SELECT COUNT(*) FROM discipleship_reports
 		WHERE (report_data->>'group_id')::uuid = $1
+		AND church_id = $2
 		AND report_level >= 1
 		AND (report_data->>'is_multiplying')::boolean = true
 		AND period_end >= CURRENT_DATE - INTERVAL '28 days'
-	`, groupID).Scan(&multiplyingCount)
+	`, groupID, churchID).Scan(&multiplyingCount)
 	if multiplyingCount >= 2 {
 		return utils.PhaseMultiplying
 	}
 
 	// 3. Contar reportes totales y calcular semanas activas
 	var totalReports int
-	db.DB.QueryRow(`
+	q.QueryRow(`
 		SELECT COUNT(*) FROM discipleship_reports
 		WHERE (report_data->>'group_id')::uuid = $1
+		AND church_id = $2
 		AND report_level >= 1
-	`, groupID).Scan(&totalReports)
+	`, groupID, churchID).Scan(&totalReports)
 
 	// 4. Calcular semanas con temp alta (>= 8)
 	var solidWeeks int
-	db.DB.QueryRow(`
+	q.QueryRow(`
 		SELECT COUNT(*) FROM discipleship_reports
 		WHERE (report_data->>'group_id')::uuid = $1
+		AND church_id = $2
 		AND report_level >= 1
 		AND (
 			CASE WHEN COALESCE((report_data->>'attendance_nd')::int, 0) > 0 THEN 1 ELSE 0 END +
@@ -1742,7 +1754,7 @@ func calculateGroupPhase(db *config.Database, groupID string, spiritualTemp floa
 			CASE WHEN (report_data->>'service_attendance_prayer')::boolean THEN 1 ELSE 0 END +
 			CASE WHEN COALESCE((report_data->>'doctrine_attendance')::int, 0) > 0 THEN 1 ELSE 0 END
 		) >= 8
-	`, groupID).Scan(&solidWeeks)
+	`, groupID, churchID).Scan(&solidWeeks)
 
 	// Determinar fase
 	if totalReports >= 24 && solidWeeks >= 12 && spiritualTemp >= 8 {
@@ -3473,18 +3485,28 @@ type UserForHierarchy struct {
 // Este endpoint existe específicamente para la gestión de jerarquías — NO expone
 // datos administrativos sensibles del módulo de usuarios del ERP.
 func (h *DiscipleshipHandler) GetUsersForHierarchy(c echo.Context) error {
-	db, err := validateDB(c)
+	q, err := validateTx(c)
 	if err != nil {
 		return err
 	}
+	dbGlobal := config.GetDB()
 
-	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, db)
+	churchID, ok := c.Get("church_id").(string)
+	if !ok || churchID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing church context"})
+	}
+
+	userID, hierarchyLevel, userZoneID, canSeeAll := getDiscipleshipAccessInfo(c, dbGlobal)
 	if !canSeeAll && hierarchyLevel == nil {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "No tienes acceso al módulo de discipulado. Contacta a un administrador para asignarte un nivel jerárquico.",
 		})
 	}
 
+	// u.church_id = $1 is load-bearing, not decorative: without it this query
+	// previously returned every active user in the DATABASE (all tenants) to
+	// any Coordinador/Pastoral (canSeeAll=true), since addHierarchyUserFilter
+	// only narrows by zone/supervisor/group, never by church.
 	query := `
 		SELECT
 			u.id,
@@ -3503,15 +3525,15 @@ func (h *DiscipleshipHandler) GetUsersForHierarchy(c echo.Context) error {
 			u.longitude
 		FROM users u
 		LEFT JOIN discipleship_hierarchy dh ON dh.user_id = u.id
-		WHERE u.is_active = true
+		WHERE u.is_active = true AND u.church_id = $1
 	`
 
-	args := []interface{}{}
+	args := []interface{}{churchID}
 	query, args = addHierarchyUserFilter(query, args, userID, hierarchyLevel, userZoneID, canSeeAll)
 
 	query += " ORDER BY u.first_name, u.last_name"
 
-	rows, err := db.DB.Query(query, args...)
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		c.Logger().Error("Error fetching users for hierarchy:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{

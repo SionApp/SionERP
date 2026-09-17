@@ -18,9 +18,11 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -312,14 +314,287 @@ func TestIsolationWithCheckWriteBlock(t *testing.T) {
 	}
 }
 
+// poolAccess is one site where a function body reaches the global superuser
+// pool directly (bypassing the per-request tenant tx / RLS).
+type poolAccess struct {
+	line int
+	text string
+}
+
+// dbMethodNames are the *sql.DB / *sql.Tx methods that actually touch
+// Postgres (and so actually need RLS). Matched only for form-"db" aliases
+// (see aliasFormOfExpr) — a nil-check or an unrelated field/method on some
+// other "db"-shaped value never reaches this far because it isn't inside a
+// tracked alias's scope of use in the first place.
+var dbMethodNames = map[string]bool{
+	"Query": true, "QueryRow": true, "QueryContext": true, "QueryRowContext": true,
+	"Exec": true, "ExecContext": true,
+	"Begin": true, "BeginTx": true,
+	"Prepare": true, "PrepareContext": true,
+}
+
+// isConfigGetDBCall reports whether call is exactly `config.GetDB()`.
+func isConfigGetDBCall(call *ast.CallExpr) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	return ok && pkg.Name == "config" && sel.Sel.Name == "GetDB"
+}
+
+// aliasFormOfExpr classifies the RHS of a local assignment: "pool" for
+// `config.GetDB()` (a *config.Database — needs a further `.DB` before any
+// query method), "db" for `config.GetDB().DB` (already a *sql.DB — query
+// methods are called on it directly). Anything else is not a pool alias.
+func aliasFormOfExpr(e ast.Expr) (string, bool) {
+	switch v := e.(type) {
+	case *ast.CallExpr:
+		if isConfigGetDBCall(v) {
+			return "pool", true
+		}
+	case *ast.SelectorExpr:
+		if v.Sel.Name == "DB" {
+			if call, ok := v.X.(*ast.CallExpr); ok && isConfigGetDBCall(call) {
+				return "db", true
+			}
+		}
+	}
+	return "", false
+}
+
+// collectPoolAliases walks a function body for local variables assigned from
+// `config.GetDB()` or `config.GetDB().DB` — via `:=`/`=` (*ast.AssignStmt) or
+// a `var` block (*ast.ValueSpec) — and returns name → form ("pool" | "db").
+// The identifier "db" is seeded to "pool" up front since that is by far the
+// dominant convention in this package (`db := config.GetDB()`, or `db` as a
+// literal function PARAMETER of type *config.Database, e.g. hasAnyAdmin) —
+// an explicit local assignment of "db" to the "db" form (e.g.
+// `db := config.GetDB().DB`, see former dashboard.go:GetTraceability)
+// overrides that seed for the rest of this function body. This is
+// per-function and syntactic (no scope/type resolution): the walk is a
+// single flat pass, so a name reassigned to a different form in two
+// different branches of the same function is resolved by assignment order,
+// not by lexical scope. That imprecision is acceptable for a lint — it can
+// only make the check MORE eager, never blind to a real bare-pool call.
+func collectPoolAliases(body *ast.BlockStmt) map[string]string {
+	aliases := map[string]string{"db": "pool"}
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch stmt := n.(type) {
+		case *ast.AssignStmt:
+			for i, lhs := range stmt.Lhs {
+				ident, ok := lhs.(*ast.Ident)
+				if !ok || i >= len(stmt.Rhs) {
+					continue
+				}
+				if form, ok := aliasFormOfExpr(stmt.Rhs[i]); ok {
+					aliases[ident.Name] = form
+				}
+			}
+		case *ast.ValueSpec:
+			for i, nameIdent := range stmt.Names {
+				if i >= len(stmt.Values) {
+					continue
+				}
+				if form, ok := aliasFormOfExpr(stmt.Values[i]); ok {
+					aliases[nameIdent.Name] = form
+				}
+			}
+		}
+		return true
+	})
+	return aliases
+}
+
+// findBarePoolAccess scans a function body for every site that reaches the
+// global pool directly: `db.DB.<Method>`, `config.GetDB().DB.<Method>`, and
+// the same two shapes through a same-function local alias (`pool :=
+// config.GetDB(); pool.DB.Exec(...)`, or `raw := config.GetDB().DB;
+// raw.Query(...)`). It intentionally walks INTO nested function literals
+// (e.g. `go func(){ ... }()`), so a bare call inside a goroutine literal is
+// attributed to its enclosing named function (see ApproveReport in the
+// allowlist below) — and aliases collected from the outer function body are
+// visible to those literals too, matching normal Go closure semantics.
+//
+// KNOWN CEILING (documented, not built): an alias passed as a function
+// PARAMETER (e.g. `func f(db *config.Database)` where the caller passed some
+// other local's pool alias under a different name) is invisible to this
+// syntactic check — resolving that needs go/types, which this test
+// deliberately does not pull in. Every such helper in this codebase is
+// caught instead by keying its OWN db.DB. calls to ITS OWN name in the
+// allowlist (see e.g. getDiscipleshipAccessInfo, hasAnyAdmin).
+func findBarePoolAccess(fset *token.FileSet, body *ast.BlockStmt) []poolAccess {
+	aliases := collectPoolAliases(body)
+	var found []poolAccess
+
+	ast.Inspect(body, func(n ast.Node) bool {
+		outer, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		// Shape 1: `<pool-form base>.DB.<Method>` — db.DB.X, config.GetDB().DB.X,
+		// or a tracked "pool"-form alias's own .DB.X.
+		if inner, ok := outer.X.(*ast.SelectorExpr); ok && inner.Sel.Name == "DB" {
+			switch x := inner.X.(type) {
+			case *ast.Ident:
+				if aliases[x.Name] == "pool" {
+					pos := fset.Position(outer.Pos())
+					found = append(found, poolAccess{line: pos.Line, text: x.Name + ".DB." + outer.Sel.Name})
+				}
+			case *ast.CallExpr:
+				if isConfigGetDBCall(x) {
+					pos := fset.Position(outer.Pos())
+					found = append(found, poolAccess{line: pos.Line, text: "config.GetDB().DB." + outer.Sel.Name})
+				}
+			}
+			return true
+		}
+
+		// Shape 2: `<db-form alias>.<Method>` — a local already holding *sql.DB
+		// directly (`raw := config.GetDB().DB`), called without a further ".DB".
+		if xIdent, ok := outer.X.(*ast.Ident); ok {
+			if aliases[xIdent.Name] == "db" && dbMethodNames[outer.Sel.Name] {
+				pos := fset.Position(outer.Pos())
+				found = append(found, poolAccess{line: pos.Line, text: xIdent.Name + "." + outer.Sel.Name})
+			}
+		}
+		return true
+	})
+
+	return found
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TestFindBarePoolAccessAliasDetector
+//
+// Unit test for findBarePoolAccess itself (not the handler files) — proves
+// the alias-tracking added in Phase 3e actually works, independent of
+// whatever happens to be true of handlers/*.go right now. Parses small
+// inline source snippets so this stays a true unit test with no filesystem
+// dependency on the rest of the package.
+// ─────────────────────────────────────────────────────────────────────────────
+func TestFindBarePoolAccessAliasDetector(t *testing.T) {
+	parseFunc := func(t *testing.T, src string) (*token.FileSet, *ast.BlockStmt) {
+		t.Helper()
+		full := "package handlers\n" +
+			"import \"backend-sion/config\"\n" +
+			"var _ = config.GetDB\n" +
+			src
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, "snippet.go", full, 0)
+		if err != nil {
+			t.Fatalf("ParseFile: %v\nsource:\n%s", err, full)
+		}
+		for _, decl := range file.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == "F" {
+				return fset, fn.Body
+			}
+		}
+		t.Fatal("test snippet must declare func F(...)")
+		return nil, nil
+	}
+
+	t.Run("pool alias with method call is flagged", func(t *testing.T) {
+		fset, body := parseFunc(t, `
+func F() {
+	dbPool := config.GetDB()
+	dbPool.DB.Exec("SELECT 1")
+}
+`)
+		got := findBarePoolAccess(fset, body)
+		if len(got) != 1 {
+			t.Fatalf("want 1 violation, got %d: %+v", len(got), got)
+		}
+		if got[0].text != "dbPool.DB.Exec" {
+			t.Errorf("want text %q, got %q", "dbPool.DB.Exec", got[0].text)
+		}
+	})
+
+	t.Run("db-form alias with method call is flagged", func(t *testing.T) {
+		fset, body := parseFunc(t, `
+func F() {
+	raw := config.GetDB().DB
+	raw.QueryRow("SELECT 1")
+}
+`)
+		got := findBarePoolAccess(fset, body)
+		if len(got) != 1 {
+			t.Fatalf("want 1 violation, got %d: %+v", len(got), got)
+		}
+		if got[0].text != "raw.QueryRow" {
+			t.Errorf("want text %q, got %q", "raw.QueryRow", got[0].text)
+		}
+	})
+
+	t.Run("nil-check on a pool alias is not flagged", func(t *testing.T) {
+		fset, body := parseFunc(t, `
+func F() {
+	x := config.GetDB()
+	if x.DB == nil {
+	}
+}
+`)
+		got := findBarePoolAccess(fset, body)
+		if len(got) != 0 {
+			t.Fatalf("want 0 violations, got %d: %+v", len(got), got)
+		}
+	})
+
+	t.Run("alias passed as a plain argument is not flagged", func(t *testing.T) {
+		fset, body := parseFunc(t, `
+func F() {
+	raw := config.GetDB().DB
+	someHelper(raw, "x")
+}
+`)
+		got := findBarePoolAccess(fset, body)
+		if len(got) != 0 {
+			t.Fatalf("want 0 violations, got %d: %+v", len(got), got)
+		}
+	})
+
+	t.Run("literal db identifier still caught without local assignment", func(t *testing.T) {
+		fset, body := parseFunc(t, `
+func F(db *config.Database) {
+	db.DB.QueryRow("SELECT 1")
+}
+`)
+		got := findBarePoolAccess(fset, body)
+		if len(got) != 1 {
+			t.Fatalf("want 1 violation, got %d: %+v", len(got), got)
+		}
+		if got[0].text != "db.DB.QueryRow" {
+			t.Errorf("want text %q, got %q", "db.DB.QueryRow", got[0].text)
+		}
+	})
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Test 5 — TestIsolationNoBareDBCalls
 //
 // Spec ref: Criterion 5 — static analysis.
-// Greps handlers/*.go for remaining bare db.DB. calls and asserts only the
-// intentional allowlist remains.
+// Parses handlers/*.go with go/ast and flags any bare access to the global
+// pool — db.DB.<Method>, config.GetDB().DB.<Method>, or a same-function local
+// alias of either shape (see findBarePoolAccess above) — found inside a
+// function that isn't explicitly named in the allowlist below.
 //
-// This test runs WITHOUT a database (pure file analysis) and is always active in CI.
+// This is FUNCTION-level, not file-level. The original version of this test
+// allowlisted whole files ("any db.DB. in discipleship.go is fine") — that let
+// unrelated, unjustified bare db.DB. calls drift into an allowlisted file
+// without anyone noticing (see discipleship.go:calculateGroupPhase and
+// discipleship.go:GetUsersForHierarchy, fixed in the change that rewrote this
+// test). A later pass added the `config.GetDB().DB.` chained shape, and this
+// pass adds local aliases of both shapes (see discipleship.go:UpdateGroup's
+// former `dbPool`, education.go:BulkGrantLeaders' former `globalDB`, and
+// dashboard.go:GetTraceability's former `db := config.GetDB().DB` — all
+// fixed in the same change that added this detection). Every entry below
+// corresponds to a site that was deliberately reviewed and decided to stay
+// on the global pool — not "this file has some legitimate exceptions
+// somewhere".
+//
+// This test runs WITHOUT a database (pure static analysis) and is always
+// active in CI.
 // ─────────────────────────────────────────────────────────────────────────────
 func TestIsolationNoBareDBCalls(t *testing.T) {
 	// Resolve handlers directory relative to this test file.
@@ -335,70 +610,127 @@ func TestIsolationNoBareDBCalls(t *testing.T) {
 		t.Fatalf("ReadDir: %v", err)
 	}
 
-	// Pattern: db.DB. preceded by a word char (not just .DB. in a comment).
-	// This catches db.DB.Query, db.DB.QueryRow, db.DB.Exec patterns.
-	bareDBPattern := regexp.MustCompile(`\bdb\.DB\.`)
-
-	// Allowlist: files where bare db.DB. calls are tracked and intentional OR pending migration.
-	// Any db.DB. in these files is permitted (file-level opt-in).
-	//
-	// INTENTIONAL (will stay as db.DB.):
-	//   discipleship.go      — getDiscipleshipAccessInfo: permission check by PK, no cross-tenant risk
-	//   music.go             — emitNoPuedoNotifications, emitConfirmedNotification,
-	//                          emitAssignmentNotification (goroutines post-tx commit),
-	//                          upsertMusicModuleRole (module_user_roles = global RBAC table)
-	//   music_telegram.go    — upsertTelegramFile, StartTelegramIngestion (background goroutines)
-	//   discipleship-goals.go    — logGoalAudit, autoUpdateGoalProgressFromReport (post-tx goroutines)
-	//   discipleship_reports.go  — autoUpdateGoalProgressFromReport (same)
-	//   onboarding.go        — BeginTx on global pool is intentional; provisioning runs OUTSIDE TenantTx
-	//   federated.go         — Redeem es un endpoint PÚBLICO sin auth (acceso federado de
-	//                          BonDev), mismo criterio que onboarding.go: corre FUERA de
-	//                          TenantTx porque no existe sesión/church_id todavía. Hace a mano
-	//                          SET LOCAL ROLE jetro_app + set_config('app.current_church_id', ...)
-	//                          dentro de su propia tx ANTES de escribir en federated_sessions_log
-	//                          — la misma protección RLS que da TenantTx, aplicada a mano porque
-	//                          la cadena de middleware no corre pre-auth.
-	//   provider.go          — SionERP Provider API (I1), consumida por BonDev. Corre detrás
-	//                          de ProviderKeyAuth (X-Provider-Key), NUNCA TenantTx: no hay
-	//                          church_id de sesión, el tenant se recibe por :id en la URL —
-	//                          cada query cross-tenant es la operación pedida (listar/consultar
-	//                          CUALQUIER iglesia), no un bug de scoping. Mismo criterio que
-	//                          onboarding.go.
-	//
-	// PENDING MIGRATION (to be done in a future Phase 3d / 3e):
-	//   auth.go         — Login handler reads users by email (global query, pre-auth context)
-	//   dashboard.go    — GetStats uses global pool; needs church_id scoping in Phase 3d
-	//   permissions.go  — GetMyPermissions reads permissions table (global RBAC table — may stay)
-	//   setup.go        — PerformSetup, GetSetupStatus use global pool (setup is pre-tenant)
-	//
-	// TODO(phase-3d): migrate auth.go, dashboard.go, permissions.go, setup.go
-	// and remove them from this allowlist. Update allowlist comment accordingly.
-	allowlist := map[string]bool{
-		// Intentional (permanent)
-		"discipleship.go":         true,
-		"music.go":                true,
-		"music_telegram.go":       true,
-		"discipleship-goals.go":   true,
-		"discipleship_reports.go": true,
-		"onboarding.go":           true,
-		"federated.go":            true,
-		"provider.go":             true,
-		// settings.go — GetRegistrationStatus is a PUBLIC unauthenticated endpoint
-		// (no TenantTx exists pre-auth); it reads one boolean for the default church.
-		"settings.go": true,
-		// Pending migration (Phase 3d)
-		"auth.go":        true,
-		"dashboard.go":   true,
-		"permissions.go": true,
-		"setup.go":       true,
+	// allowlist maps file → function name → justified. A function must be
+	// named here explicitly; being in an allowlisted *file* buys nothing.
+	// Helper functions and method receivers are both keyed by their bare
+	// name (e.g. "GetStats" for `func (h *DashboardHandler) GetStats(...)`).
+	allowlist := map[string]map[string]bool{
+		"auth.go": {
+			// Login: pre-auth — looks up a user by email before any
+			// session/church context exists. There is no tenant tx to run
+			// this on; it IS the request that establishes one.
+			"Login": true,
+		},
+		"dashboard.go": {
+			// GetStats: fully migrated to validateTx(c) except for
+			// db.DB.Ping(), a connectivity health-check with no data/RLS
+			// relevance — Ping() isn't part of the Querier interface so it
+			// can't go through the tx.
+			"GetStats": true,
+		},
+		"discipleship.go": {
+			// getDiscipleshipAccessInfo: permission check by PK (user_id) —
+			// returns a hierarchy level for the caller's own id, not
+			// tenant-scoped data. No cross-tenant read is possible here.
+			"getDiscipleshipAccessInfo": true,
+		},
+		"users.go": {
+			// getUserRoleLevel: role lookup by PK (user_id) for permission
+			// checks; helper has no Echo context, same criterion as
+			// getDiscipleshipAccessInfo.
+			"getUserRoleLevel": true,
+		},
+		"discipleship-goals.go": {
+			// logGoalAudit: fire-and-forget audit-log write shared by both
+			// request paths and post-commit goroutines; intentionally takes
+			// *config.Database instead of a Querier so it keeps working after
+			// the request tx that triggered it has already committed.
+			"logGoalAudit": true,
+		},
+		"discipleship_reports.go": {
+			// autoUpdateGoalProgressFromReport: runs as a goroutine AFTER the
+			// request tx has committed (fire-and-forget cascade update) — no
+			// request tx exists at that point. Every query is explicitly
+			// filtered by church_id.
+			"autoUpdateGoalProgressFromReport": true,
+			// ApproveReport: the flagged db.DB. call lives inside a
+			// post-commit `go func(){...}` notification literal (same
+			// fire-and-forget shape as the goroutines above), already
+			// filtered by church_id = cID.
+			"ApproveReport": true,
+		},
+		"onboarding.go": {
+			// ProvisionChurch: church provisioning runs OUTSIDE TenantTx by
+			// design — there is no church_id yet, this call is what creates
+			// the church that church_id will later refer to.
+			"ProvisionChurch": true,
+		},
+		"federated.go": {
+			// Redeem: PUBLIC federated-access endpoint (BonDev), same
+			// rationale as onboarding.go — runs outside TenantTx because no
+			// session/church_id exists pre-auth. Sets SET LOCAL ROLE
+			// jetro_app + set_config('app.current_church_id', ...) by hand
+			// inside its own tx before writing to federated_sessions_log —
+			// the same RLS protection TenantTx gives, applied manually
+			// because the protected middleware chain doesn't run pre-auth.
+			"Redeem": true,
+		},
+		"provider.go": {
+			// SionERP Provider API (I1), consumed by BonDev (the platform's
+			// control plane). Runs behind ProviderKeyAuth (X-Provider-Key),
+			// NEVER TenantTx: there is no session/church_id, the tenant is
+			// received via :id in the URL, and a cross-tenant query IS the
+			// requested operation (list/inspect ANY church) — not a scoping
+			// bug. Same criterion as onboarding.go.
+			"ListTenants":     true,
+			"GetTenant":       true,
+			"GetTenantHealth": true,
+			"CreateTenant":    true,
+			"SetModule":       true,
+			"setTenantStatus": true,
+			"Cancel":          true,
+		},
+		"setup.go": {
+			// hasAnyAdmin: system-wide bootstrap check ("has anyone, ever,
+			// set up this deployment") — intentionally NOT scoped to one
+			// church; it gates first-run admin creation, not tenant data.
+			"hasAnyAdmin": true,
+			// GetSetupStatus: registered on OptionalAuth, not TenantTx (see
+			// routes.go — the public first-run path and the logged-in-admin
+			// path intentionally share one route). No tenant tx exists to
+			// migrate onto. The per-tenant read (modules) is already scoped
+			// by hand with an explicit church_id resolved from the session
+			// when one exists.
+			"GetSetupStatus": true,
+			// PerformSetup: same OptionalAuth-only route as GetSetupStatus,
+			// same reasoning — no tenant tx exists. Module install/disable is
+			// scoped by hand (scopedToChurch) whenever a session is present;
+			// only the genuine first-ever bootstrap (no session, no church
+			// yet) falls back to the legacy unscoped behaviour.
+			"PerformSetup": true,
+		},
+		"settings.go": {
+			// GetPublicBranding: PUBLIC, pre-auth login-screen endpoint — runs
+			// before any church context exists. Same default-church rationale
+			// as GetRegistrationStatus below.
+			"GetPublicBranding": true,
+			// GetRegistrationStatus: PUBLIC, pre-auth registration-page
+			// endpoint; assumes the single default church (single-domain
+			// deploy) — enforcement of the actual setting lives in the
+			// handle_new_user trigger, not here.
+			"GetRegistrationStatus": true,
+		},
 	}
 
 	type violation struct {
 		file string
+		fn   string
 		line int
 		text string
 	}
 	var violations []violation
+
+	fset := token.NewFileSet()
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -410,43 +742,50 @@ func TestIsolationNoBareDBCalls(t *testing.T) {
 		}
 
 		path := filepath.Join(handlersDir, name)
-		content, err := os.ReadFile(path)
+		src, err := os.ReadFile(path)
 		if err != nil {
 			t.Errorf("ReadFile %s: %v", name, err)
 			continue
 		}
 
-		lines := strings.Split(string(content), "\n")
-		for i, line := range lines {
-			if !bareDBPattern.MatchString(line) {
+		astFile, err := parser.ParseFile(fset, path, src, 0)
+		if err != nil {
+			t.Errorf("ParseFile %s: %v", name, err)
+			continue
+		}
+
+		fileAllow := allowlist[name]
+
+		for _, decl := range astFile.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
 				continue
 			}
-			// Check if this line is in a comment.
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "//") {
+			fnName := fn.Name.Name
+			allowed := fileAllow != nil && fileAllow[fnName]
+			if allowed {
 				continue
 			}
 
-			// Check the allowlist (file-level opt-in).
-			allowed := allowlist[name]
-
-			if !allowed {
+			for _, access := range findBarePoolAccess(fset, fn.Body) {
 				violations = append(violations, violation{
 					file: name,
-					line: i + 1,
-					text: strings.TrimSpace(line),
+					fn:   fnName,
+					line: access.line,
+					text: access.text,
 				})
 			}
 		}
 	}
 
 	if len(violations) > 0 {
-		t.Errorf("found %d unmigrated bare db.DB. calls in handler files:", len(violations))
+		t.Errorf("found %d unmigrated bare db.DB. calls in handler functions:", len(violations))
 		for _, v := range violations {
-			t.Errorf("  %s:%d → %s", v.file, v.line, v.text)
+			t.Errorf("  %s:%d (func %s) → %s", v.file, v.line, v.fn, v.text)
 		}
-		t.Log("REMEDIATION: replace db.DB.Query/QueryRow/Exec with config.Tx(c).Query/QueryRow/Exec")
-		t.Log("  and add AND church_id = $N to the SQL query.")
+		t.Log("REMEDIATION: replace db.DB.Query/QueryRow/Exec with validateTx(c) (config.Tx(c))")
+		t.Log("  and add AND church_id = $N to the SQL query — or, if this site is genuinely")
+		t.Log("  pre-tenant/global, add a named entry with a one-line reason to the allowlist above.")
 	}
 }
 

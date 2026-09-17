@@ -24,10 +24,14 @@ func NewDashboardHandler() *DashboardHandler {
 // GetStats returns dashboard statistics
 func (h *DashboardHandler) GetStats(c echo.Context) error {
 	db := config.GetDB()
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
 	churchID, _ := c.Get("church_id").(string)
 	var totalUser int
 
-	err := db.DB.QueryRow(`
+	err = q.QueryRow(`
     	SELECT COUNT(*)
 			FROM users
 			WHERE is_active = true AND is_active_member = true AND church_id = $1
@@ -40,7 +44,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 
 	var newRegistrations int
 	oneMonthAgo := time.Now().AddDate(0, 0, -30)
-	err = db.DB.QueryRow(
+	err = q.QueryRow(
 		`SELECT COUNT(*)
 			FROM users
 			WHERE is_active = true AND created_at >= $1 AND church_id = $2`,
@@ -53,7 +57,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 
 	var activeRoles int
 
-	err = db.DB.QueryRow(
+	err = q.QueryRow(
 		`SELECT COUNT(DISTINCT role)
 			FROM users
 		  WHERE is_active = true AND church_id = $1
@@ -64,7 +68,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		})
 	}
 
-	rolesDistribution, err := h.GetRoleDistribution(churchID)
+	rolesDistribution, err := h.GetRoleDistribution(q, churchID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to fetch roles distribution",
@@ -74,7 +78,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	currentUserRole := ""
 	if email := c.Get("email"); email != nil {
 		userEmail := email.(string)
-		err = db.DB.QueryRow(
+		err = q.QueryRow(
 			`SELECT role FROM users WHERE email = $1 AND church_id = $2`,
 			userEmail, churchID,
 		).Scan(&currentUserRole)
@@ -99,15 +103,16 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 		LastLogin:        time.Now(),
 	}
 
-	discipleshipStats := h.getDiscipleshipStats(db.DB, churchID)
+	discipleshipStats := h.getDiscipleshipStats(q, churchID)
 
-	// Fetch installed modules — NOT scoped by church_id: la tabla `modules` es global
-	// hoy (sin columna church_id), así que instalar/desinstalar un módulo afecta a
-	// TODAS las iglesias por igual. Es un gap real de multi-tenancy, pero requiere una
-	// migración de schema — queda para el trabajo de "puerta de comercialización
-	// multi-tenant" (ver roadmap), no es parte de este fix de analítica.
+	// Fetch installed modules — modules DOES carry church_id (added in
+	// 20260624000100_phase1_config_singletons.sql, RLS tenant_isolation policy
+	// added in 20260624000400_phase4_rls_cutover.sql). The comment that used to
+	// live here claiming a global, church_id-less table was stale and this read
+	// was leaking every tenant's installed-module list into the dashboard of
+	// whoever asked. Scoped explicitly + run through the tenant tx now.
 	installedModules := []string{}
-	rows, err := db.DB.Query("SELECT key FROM modules WHERE is_installed = true")
+	rows, err := q.Query("SELECT key FROM modules WHERE is_installed = true AND church_id = $1", churchID)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -131,7 +136,7 @@ func (h *DashboardHandler) GetStats(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-func (h *DashboardHandler) GetRoleDistribution(churchID string) ([]models.RoleDistribution, error) {
+func (h *DashboardHandler) GetRoleDistribution(q config.Querier, churchID string) ([]models.RoleDistribution, error) {
 	roleColors := map[string]string{
 		utils.RolePastor:     "#ff7c7c",
 		utils.RoleStaff:      "#ffc658",
@@ -154,7 +159,7 @@ func (h *DashboardHandler) GetRoleDistribution(churchID string) ([]models.RoleDi
 		GROUP BY role
 	`
 
-	rows, err := config.GetDB().DB.Query(query, churchID)
+	rows, err := q.Query(query, churchID)
 	if err != nil {
 		return nil, err
 	}
@@ -207,6 +212,10 @@ var domainTables = map[string][]string{
 // resumen de 10 filas sin filtro para el dashboard. Vive en su propio módulo
 // (/dashboard/trazabilidad) en vez de competir por espacio en el Inicio.
 func (h *DashboardHandler) GetTraceability(c echo.Context) error {
+	q, err := validateTx(c)
+	if err != nil {
+		return err
+	}
 	churchID, _ := c.Get("church_id").(string)
 
 	domain := c.QueryParam("domain")
@@ -234,11 +243,9 @@ func (h *DashboardHandler) GetTraceability(c echo.Context) error {
 		where += fmt.Sprintf(" AND a.table_name IN (%s)", strings.Join(placeholders, ","))
 	}
 
-	db := config.GetDB().DB
-
 	var total int
 	countQuery := "SELECT COUNT(*) FROM audit_logs a " + where
-	if err := db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+	if err := q.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		c.Logger().Error("Error counting traceability entries:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al contar el historial"})
 	}
@@ -256,7 +263,7 @@ func (h *DashboardHandler) GetTraceability(c echo.Context) error {
 		LIMIT $%d OFFSET $%d
 	`, where, len(args)-1, len(args))
 
-	rows, err := db.Query(query, args...)
+	rows, err := q.Query(query, args...)
 	if err != nil {
 		c.Logger().Error("Error fetching traceability:", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error al obtener el historial"})
