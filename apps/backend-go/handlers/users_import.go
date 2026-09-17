@@ -370,8 +370,8 @@ func insertUserChunk(q config.Querier, rows []UserImportRow, rowNums []int, chur
 
 	existing := make(map[string]bool)
 	qrows, err := q.Query(
-		`SELECT LOWER(email) FROM users WHERE LOWER(email) = ANY($1)`,
-		pq.Array(emails),
+		`SELECT LOWER(email) FROM users WHERE LOWER(email) = ANY($1) AND church_id = $2`,
+		pq.Array(emails), churchID,
 	)
 	if err == nil {
 		for qrows.Next() {
@@ -398,7 +398,7 @@ func insertUserChunk(q config.Querier, rows []UserImportRow, rowNums []int, chur
 				birth_date, role, whatsapp, is_active, is_active_member,
 				onboarding_completed, church_id, created_at, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9, true, true, false, $10, NOW(), NOW())
-			ON CONFLICT (LOWER(email)) DO NOTHING
+			ON CONFLICT (church_id, email) DO NOTHING
 			RETURNING id`,
 			r.FirstName, r.LastName, r.IdNumber, r.Email, r.Phone, r.Address,
 			r.BirthDate, r.Role, r.WhatsApp, churchID,
