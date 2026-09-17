@@ -234,7 +234,7 @@ func (h *UserHandler) ProviderBulkImportUsers(c echo.Context) error {
 
 	valid, validIdx, result := validateImportRows(req.Users, 0, false)
 
-	tx, err := db.DB.Begin()
+	tx, err := db.DB.BeginTx(c.Request().Context(), nil)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to start transaction"})
 	}
